@@ -10,19 +10,72 @@
       height: 100%;
       background: linear-gradient(180deg, #0D0C1F 0%, #1F233A 100%);
       display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
       font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      color: #fff;
+      padding: 20px;
+      box-sizing: border-box;
     }
     img {
       max-width: 90vw;
-      max-height: 90vh;
+      max-height: 60vh;
       object-fit: contain;
       user-select: none;
+      margin-bottom: 30px;
+    }
+    form {
+      display: flex;
+      gap: 10px;
+      max-width: 400px;
+      width: 100%;
+      justify-content: center;
+    }
+    input[type="email"] {
+      flex: 1;
+      padding: 12px 15px;
+      border: none;
+      border-radius: 6px;
+      font-size: 1rem;
+    }
+    button {
+      padding: 12px 20px;
+      border: none;
+      border-radius: 6px;
+      background-color: #4C90FF;
+      color: white;
+      font-weight: bold;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: background-color 0.25s ease;
+    }
+    button:hover {
+      background-color: #2F63E7;
+    }
+    /* Responsive tweaks */
+    @media (max-width: 480px) {
+      form {
+        flex-direction: column;
+        gap: 15px;
+      }
+      button {
+        width: 100%;
+      }
     }
   </style>
 </head>
 <body>
-  <img src="logo.png" alt="INNER Splash Screen" />
+  <img src="./assets/splash.png" alt="INNER Splash Screen" />
+  <form action="https://formspree.io/f/mrbllrke" method="POST">
+    <input
+      type="email"
+      name="email"
+      placeholder="Enter your email to get notified"
+      required
+      aria-label="Email address"
+    />
+    <button type="submit">Notify Me</button>
+  </form>
 </body>
 </html>
