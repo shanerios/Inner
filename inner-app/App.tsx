@@ -88,8 +88,8 @@ export default function App() {
   onChangeText={setEmail}
   keyboardType="email-address"
   autoCapitalize="none"
-  borderWidth={0}
 />
+
 
 
           <Button
