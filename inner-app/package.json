@@ -1,0 +1,31 @@
+{
+  "name": "inner-app",
+  "license": "0BSD",
+  "version": "1.0.0",
+  "main": "index.ts",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web"
+  },
+  "dependencies": {
+    "@react-native-community/hooks": "^100.1.0",
+    "expo": "~53.0.20",
+    "expo-linear-gradient": "~14.1.5",
+    "expo-status-bar": "~2.2.3",
+    "native-base": "^3.4.28",
+    "react": "19.0.0",
+    "react-native": "0.79.5",
+    "react-native-safe-area-context": "^5.5.2",
+    "react-native-svg": "^15.12.1"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.25.2",
+    "@babel/preset-flow": "^7.27.1",
+    "@types/react": "~19.0.10",
+    "@types/react-native": "^0.72.8",
+    "typescript": "~5.8.3"
+  },
+  "private": true
+}
