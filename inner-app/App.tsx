@@ -76,20 +76,21 @@ export default function App() {
           </Text>
 
           <Input
-            placeholder="Enter your email"
-            variant="filled"
-            width="90%"
-            bg="white"
-            borderRadius="md"
-            py={3}
-            px={4}
-            fontSize="md"
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
-style={{ outlineWidth: 0 }}
-          />
+  placeholder="Enter your email"
+  variant="filled"
+  width="90%"
+  bg="white"
+  borderRadius="md"
+  py={3}
+  px={4}
+  fontSize="md"
+  value={email}
+  onChangeText={setEmail}
+  keyboardType="email-address"
+  autoCapitalize="none"
+  borderWidth={0}
+/>
+
 
           <Button
             isLoading={submitting}
