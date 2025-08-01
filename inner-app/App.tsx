@@ -1,30 +1,28 @@
-import React from "react";
-import { Image } from "react-native";
-import { NativeBaseProvider, Box, VStack, Text } from "native-base";
-import { LinearGradient } from "expo-linear-gradient";
+import React from 'react';
+import { NavigationContainer } from '@react-navigation/native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { NativeBaseProvider } from 'native-base';
+
+import SplashScreen from './screens/SplashScreen';
+import IntroScreen from './screens/IntroScreen';
+import SoulPromptScreen from './screens/SoulPromptScreen';
+import AffirmationScreen from './screens/AffirmationScreen';
+import BeginScreen from './screens/BeginScreen';
+
+const Stack = createNativeStackNavigator();
 
 export default function App() {
   return (
     <NativeBaseProvider>
-      <LinearGradient
-        colors={["#0D0C1F", "#1F233A"]}
-        style={{ flex: 1, justifyContent: "center", alignItems: "center", padding: 24 }}
-      >
-        <VStack space={6} alignItems="center" width="100%">
-          <Image
-            source={require("./assets/logo.png")}
-            style={{ width: 150, height: 150, resizeMode: "contain" }}
-          />
-
-          <Text color="white" fontSize="xl" textAlign="center">
-            Welcome to Inner — your sanctuary within.
-          </Text>
-
-          <Text color="gray.300" fontSize="md" textAlign="center">
-            Coming Soon • v0.1
-          </Text>
-        </VStack>
-      </LinearGradient>
+      <NavigationContainer>
+        <Stack.Navigator initialRouteName="Splash" screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="Splash" component={SplashScreen} />
+          <Stack.Screen name="Intro" component={IntroScreen} />
+          <Stack.Screen name="SoulPrompt" component={SoulPromptScreen} />
+          <Stack.Screen name="Affirmation" component={AffirmationScreen} />
+          <Stack.Screen name="Begin" component={BeginScreen} />
+        </Stack.Navigator>
+      </NavigationContainer>
     </NativeBaseProvider>
   );
 }
