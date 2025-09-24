@@ -1,29 +1,57 @@
 {
   "expo": {
-    "name": "inner-app",
-    "slug": "inner-app",
-    "version": "1.0.0",
+    "name": "Inner",
+    "slug": "inner",
+    "runtimeVersion": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#1f233a"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.getinner.app"
     },
     "android": {
+      "permissions": [
+        "FOREGROUND_SERVICE_MEDIA_PLAYBACK"
+      ],
+      "package": "com.getinner.app",
+      "versionCode": 2,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#1f233a"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "newArchEnabled": false,
+      "notification": {
+        "icon": "./assets/images/inner_orb_icon.png",
+        "color": "#FFFFFF"
+      }
     },
+    "plugins": [
+      [
+        "./plugins/withTrackPlayerNotificationIcon",
+        {
+          "icon": "./assets/images/inner_orb_icon.png"
+        }
+      ]
+    ],
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "73977c48-2e46-4763-9e5d-15e0a6f25a48"
+      }
+    },
+    "owner": "shanerios",
+    "updates": {
+      "url": "https://u.expo.dev/73977c48-2e46-4763-9e5d-15e0a6f25a48"
     }
   }
 }
