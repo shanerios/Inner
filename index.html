@@ -8,11 +8,9 @@
     @keyframes breathe {
       0%, 100% {
         transform: scale(1);
-        box-shadow: 0 0 10px 2px rgba(161, 140, 255, 0.4);
       }
       50% {
         transform: scale(1.1);
-        box-shadow: 0 0 20px 6px rgba(161, 140, 255, 0.8);
       }
     }
     html, body {
@@ -31,10 +29,10 @@
     .breathing-orb {
       width: 120px;
       height: 120px;
+      margin-top: 6vh;
       margin-bottom: 1rem;
       border-radius: 50%;
       animation: breathe 4s ease-in-out infinite;
-      box-shadow: 0 0 10px 2px rgba(161, 140, 255, 0.4);
       overflow: visible;
       display: flex;
       align-items: center;
