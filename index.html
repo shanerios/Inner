@@ -20,7 +20,7 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
+      justify-content: flex-start;
       font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
       color: #fff;
       padding: 20px;
@@ -160,20 +160,14 @@
         max-width: 100%;
       }
       .breathing-orb {
-        width: 60vw;
-        height: 60vw;
-        margin-top: calc(env(safe-area-inset-top, 0px) + 10vh);
-      }
-
-      .breathing-orb {
-        margin-top: 0vh !important;
         width: 70vw;
         height: 70vw;
+        margin-top: calc(env(safe-area-inset-top, 0px) + 2vh) !important;
       }
 
       .wordmark {
-        margin-top: 150px !important;
         width: 60vw;
+        margin-top: -72px !important;
       }
     }
   </style>
