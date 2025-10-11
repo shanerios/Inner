@@ -2,6 +2,7 @@
   "expo": {
     "name": "Inner",
     "slug": "inner",
+    "version": "1.0.6",
     "runtimeVersion": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -21,7 +22,7 @@
         "FOREGROUND_SERVICE_MEDIA_PLAYBACK"
       ],
       "package": "com.getinner.app",
-      "versionCode": 2,
+      "versionCode": 6,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#1f233a"

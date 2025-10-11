@@ -1,0 +1,127 @@
+{
+  "vibrational_state": {
+    "term": "Vibrational State",
+    "definition": "A common pre-exit sensation during OBEs, experienced as buzzing, vibrating, or pulsing energy throughout the body. This signals that the mind is awake while the body is asleep and ready for separation.",
+    "related": ["exit techniques", "energy body", "projection"]
+  },
+  "rope_technique": {
+    "term": "Rope Technique",
+    "definition": "A classic OBE induction method where you imagine reaching out and climbing an invisible rope, shifting your point of awareness out of the physical body.",
+    "related": ["exit techniques", "focus methods", "projection"]
+  },
+  "energy_body": {
+    "term": "Energy Body",
+    "definition": "The subtle energetic layer of consciousness that can detach from the physical body during OBEs and lucid explorations.",
+    "related": ["etheric body", "astral plane", "projection"]
+  },
+  "exit_techniques": {
+    "term": "Exit Techniques",
+    "definition": "Methods to gently shift awareness from the physical body to the energy body, including rolling out, floating up, or imagining yourself moving away from your body.",
+    "related": ["rope technique", "vibrational state", "focus methods"]
+  },
+  "astral_plane": {
+    "term": "Astral Plane",
+    "definition": "A term describing the subtle, non-physical realm often experienced during OBEs or deep altered states of consciousness.",
+    "related": ["energy body", "projection", "lucid dreaming"]
+  },
+  "focus_levels": {
+    "term": "Focus Levels",
+    "definition": "States of consciousness mapped by the Monroe Institute (e.g., Focus 10, Focus 21) representing stages of awareness and separation during OBEs.",
+    "related": ["monroe institute", "projection", "consciousness states"]
+  },
+  "etheric_body": {
+    "term": "Etheric Body",
+    "definition": "The dense energetic layer closest to the physical body, often the first level of projection during OBEs.",
+    "related": ["energy body", "projection", "alignment phase"]
+  },
+  "alignment_phase": {
+    "term": "Alignment Phase",
+    "definition": "The stage where your consciousness shifts alignment from the physical to the energy body, often marked by heightened vibrations or auditory phenomena.",
+    "related": ["vibrational state", "exit techniques", "projection"]
+  },
+  "phasing": {
+    "term": "Phasing",
+    "definition": "A method of shifting awareness smoothly into non-physical reality without dramatic exit sensations, often involving focused attention and deep relaxation.",
+    "related": ["projection", "focus methods", "lucid dreaming"]
+  },
+  "anchor_point": {
+    "term": "Anchor Point",
+    "definition": "A mental or energetic reference used during OBEs to maintain orientation or return to the physical body smoothly.",
+    "related": ["projection", "energy body", "grounding"]
+  },
+  "mind_awake_body_asleep": {
+    "term": "Mind Awake, Body Asleep",
+    "definition": "A deeply relaxed state where the physical body is asleep but mental awareness is fully awake, often preceding an out-of-body experience.",
+    "related": ["vibrational_state", "focus_levels", "projection"]
+  },
+  "etheric_cord": {
+    "term": "Etheric Cord",
+    "definition": "An energetic link often visualized as a silver or luminous cord that connects the physical body to the energy body during an OBE.",
+    "related": ["energy_body", "astral_plane", "anchor_point"]
+  },
+  "hypnagogic_state": {
+    "term": "Hypnagogic State",
+    "definition": "The transitional state of consciousness between wakefulness and sleep, marked by vivid imagery, sounds, and sensations, often leading into an OBE.",
+    "related": ["mind_awake_body_asleep", "focus_levels", "vibrational_state"]
+  },
+  "reentry": {
+    "term": "Reentry",
+    "definition": "The process of returning from an out-of-body experience into the physical body, which can feel like a jolt, falling, or snapping back.",
+    "related": ["anchor_point", "integration", "projection"]
+  },
+  "astral_projection": {
+    "term": "Astral Projection",
+    "definition": "The intentional act of projecting consciousness beyond the physical body into the astral plane.",
+    "related": ["obe", "astral_plane", "lucid dreaming"]
+  },
+  "etheric_projection": {
+    "term": "Etheric Projection",
+    "definition": "A type of OBE where the energy body separates but stays close to the physical plane, often perceiving the immediate environment.",
+    "related": ["etheric_body", "projection", "alignment_phase"]
+  },
+  "false_awakening": {
+    "term": "False Awakening",
+    "definition": "A vivid experience of waking up in your bedroom or familiar environment, only to realize you are still in an altered state or OBE.",
+    "related": ["lucid dreaming", "reentry", "projection"]
+  },
+  "focus_10": {
+    "term": "Focus 10",
+    "definition": "A Monroe Institute term describing the state of 'mind awake, body asleep,' often used as the entry point for OBEs.",
+    "related": ["focus_levels", "mind_awake_body_asleep", "projection"]
+  },
+  "focus_21": {
+    "term": "Focus 21",
+    "definition": "A Monroe Institute state of consciousness associated with the edge of physical reality and the threshold into non-physical dimensions.",
+    "related": ["focus_levels", "astral_plane", "phasing"]
+  },
+  "vividness_control": {
+    "term": "Vividness Control",
+    "definition": "The practice of increasing clarity, brightness, and sensory detail within an OBE to stabilize and extend the experience.",
+    "related": ["dream control", "projection", "focus methods"]
+  },
+  "horizon_gate": {
+    "term": "Horizon Gate",
+    "definition": "An energetic passageway encountered at the edge of perception, representing the transition from inner dream states to outer dimensional exploration.",
+    "related": ["astral_projection", "focus_21", "sanctum_sphere"]
+  },
+  "stargate_within": {
+    "term": "Stargate Within",
+    "definition": "A core Inner practice where the seeker learns to fold inward and open a portal from consciousness itself, bridging inner and outer realms.",
+    "related": ["inner_resonance", "astral_projection", "higher_consciousness"]
+  },
+  "soul_current": {
+    "term": "Soul Current",
+    "definition": "The stream of consciousness that flows beyond the body during an out-of-body state, guiding the traveler through non-physical realms.",
+    "related": ["obe", "higher_self", "etheric_projection"]
+  },
+  "light_bridge": {
+    "term": "Light Bridge",
+    "definition": "A visionary structure of radiant energy experienced in OBE states, often used to traverse between realms or connect with guides.",
+    "related": ["stargate_within", "higher_planes", "astral_travel"]
+  },
+  "the_return": {
+    "term": "The Return",
+    "definition": "The conscious reintegration into the physical body after an OBE, often accompanied by a sensation of falling, rushing, or snapping back.",
+    "related": ["reentry", "obe", "integration"]
+  }
+}

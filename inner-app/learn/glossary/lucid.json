@@ -1,0 +1,127 @@
+{
+  "hypnagogia": {
+    "term": "Hypnagogia",
+    "definition": "The transitional state between wakefulness and sleep, often rich with imagery, sounds, and sensations. Learning to observe hypnagogic imagery without becoming reactive is key for deepening awareness and entering lucid dreams.",
+    "related": ["lucid dreaming", "WILD", "dream awareness"]
+  },
+  "dream_journal": {
+    "term": "Dream Journal",
+    "definition": "A written or digital log where you record dreams immediately upon waking. Journaling sharpens dream recall, highlights patterns, and creates familiarity with recurring dream signs.",
+    "related": ["dream signs", "reality check", "lucid induction"]
+  },
+  "reality_check": {
+    "term": "Reality Check",
+    "definition": "A method of testing your state of consciousness during the day to build awareness and trigger lucidity during dreams. Common checks include looking at your hands, flipping a light switch, or reading text twice to see if it changes.",
+    "related": ["dream awareness", "dream signs", "lucid triggers"]
+  },
+  "dream_signs": {
+    "term": "Dream Signs",
+    "definition": "Recurring themes, symbols, or events that consistently appear in your dreams. Recognizing these patterns increases awareness and helps trigger lucidity during dream sequences.",
+    "related": ["reality check", "dream journal", "lucid induction"]
+  },
+  "wake_back_to_bed": {
+    "term": "Wake Back To Bed (WBTB)",
+    "definition": "A technique where you wake up after 4–6 hours of sleep, stay awake briefly, and then return to sleep. This increases the likelihood of entering REM sleep consciously for lucid dreaming.",
+    "related": ["WILD", "sleep cycles", "lucid induction"]
+  },
+  "wild": {
+    "term": "Wake-Initiated Lucid Dream (WILD)",
+    "definition": "A technique where you maintain awareness as your body falls asleep, allowing you to enter a lucid dream directly from the waking state.",
+    "related": ["hypnagogia", "WBTB", "lucid induction"]
+  },
+  "dream_stabilization": {
+    "term": "Dream Stabilization",
+    "definition": "Techniques to maintain lucidity and prevent the dream from collapsing. Common methods include rubbing your hands together, spinning, or focusing on sensory details within the dream.",
+    "related": ["lucid dreaming", "dream awareness", "grounding"]
+  },
+  "false_awakening": {
+    "term": "False Awakening",
+    "definition": "A vivid dream in which you believe you have woken up, often leading to confusion or even layered lucid experiences.",
+    "related": ["lucid dreaming", "dream awareness", "dream signs"]
+  },
+  "sleep_paralysis": {
+    "term": "Sleep Paralysis",
+    "definition": "A natural state where the body is immobilized during REM sleep. Though often unsettling, it can be used as a gateway to lucid dreams or OBEs.",
+    "related": ["WILD", "hypnagogia", "OBE"]
+  },
+  "mild": {
+    "term": "Mnemonic Induction of Lucid Dreams (MILD)",
+    "definition": "A technique using intention-setting and visualization before sleep to 'remember' to recognize when you are dreaming.",
+    "related": ["dream awareness", "lucid induction", "reality check"]
+  },
+  "dream_incubation": {
+    "term": "Dream Incubation",
+    "definition": "A practice of setting a specific intention or question before sleep, with the aim of influencing the content or theme of the dream.",
+    "related": ["lucid dreaming", "intention setting", "dream journal"]
+  },
+  "dream_reentry": {
+    "term": "Dream Re-Entry",
+    "definition": "The process of returning to a dream after waking up, often by lying still and visualizing the previous dream scene.",
+    "related": ["dream recall", "WILD", "lucid dreaming"]
+  },
+  "dream_spinning": {
+    "term": "Dream Spinning",
+    "definition": "A stabilization technique where the dreamer spins their dream body to prevent waking or to change the dream scene.",
+    "related": ["dream stabilization", "WILD", "lucid control"]
+  },
+  "lucid_anchor": {
+    "term": "Lucid Anchor",
+    "definition": "A chosen object, phrase, or action within a dream that helps the dreamer remain stable and aware of dreaming.",
+    "related": ["dream stabilization", "lucid dreaming", "intention setting"]
+  },
+  "dream_figures": {
+    "term": "Dream Figures",
+    "definition": "Characters that appear within a dream, often representing aspects of the dreamer's psyche or environment.",
+    "related": ["dream signs", "dream awareness", "lucid interaction"]
+  },
+  "shared_dreaming": {
+    "term": "Shared Dreaming",
+    "definition": "A belief or experience where two or more dreamers share the same dream environment or interact consciously within it.",
+    "related": ["lucid dreaming", "OBE", "telepathy"]
+  },
+  "dream_control": {
+    "term": "Dream Control",
+    "definition": "The ability to influence dream content, environments, or events once lucidity is achieved.",
+    "related": ["lucid dreaming", "dream stabilization", "lucid induction"]
+  },
+  "dream_exit": {
+    "term": "Dream Exit",
+    "definition": "The process of leaving a lucid dream intentionally, either to wake up or to shift into another dream or state.",
+    "related": ["lucid dreaming", "OBE", "return"]
+  },
+  "dream_chaining": {
+    "term": "Dream Chaining (DEILD)",
+    "definition": "Dream Exit Initiated Lucid Dreaming — a technique where you wake from a dream and re-enter it directly by staying still and keeping awareness.",
+    "related": ["DEILD", "dream reentry", "lucid dreaming"]
+  },
+  "prospective_memory": {
+    "term": "Prospective Memory",
+    "definition": "The ability to remember to do something in the future, often trained with reality checks to recognize the dream state.",
+    "related": ["MILD", "reality check", "lucid induction"]
+  },
+  "inner_resonance": {
+    "term": "Inner Resonance",
+    "definition": "The personal frequency alignment that occurs when your inner state harmonizes with the subtle currents of the dream field. It amplifies clarity and stabilizes lucidity.",
+    "related": ["lucid dreaming", "dream stabilization", "frequency"]
+  },
+  "sanctum_sphere": {
+    "term": "Sanctum Sphere",
+    "definition": "A protective energetic cocoon visualized around the dreamer, symbolizing safety and sacred space during exploration of the lucid realms.",
+    "related": ["protection", "dream shield", "essence"]
+  },
+  "lucid_key": {
+    "term": "Lucid Key",
+    "definition": "A personal symbol, sound, or mantra chosen by the seeker that unlocks awareness within a dream. Functions like a password into lucidity.",
+    "related": ["reality check", "dream signs", "intention setting"]
+  },
+  "dream_current": {
+    "term": "Dream Current",
+    "definition": "The flowing movement of awareness and imagery within the lucid space, often felt as a stream of subtle energy that carries the dreamer deeper.",
+    "related": ["lucid flow", "dream spinning", "hypnagogia"]
+  },
+  "mirror_gate": {
+    "term": "Mirror Gate",
+    "definition": "A symbolic threshold that appears in lucid dreams as a mirror. Passing through it often leads to deeper layers of self-reflection and alternate dreamscapes.",
+    "related": ["dream portals", "lucid induction", "intention setting"]
+  }
+}
