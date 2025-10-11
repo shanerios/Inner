@@ -33,7 +33,7 @@
     .breathing-orb {
       width: 450px;
       height: 450px;
-      margin-top: clamp(80px, 12vh, 160px);
+      margin-top: 40px;
       margin-bottom: 0;
       border-radius: 50%;
       animation: breathe 4s ease-in-out infinite;
@@ -41,6 +41,11 @@
       display: flex;
       align-items: center;
       justify-content: center;
+    }
+    @media (max-width: 768px) {
+      .breathing-orb {
+        margin-top: 8vh;
+      }
     }
     .breathing-orb img {
       width: 100%;
@@ -222,7 +227,7 @@
     </article>
   </section>
 
-  <p class="chambers-note">Further chambers unlock March 3, 2026.</p>
+  <p class="chambers-note">Deeper chambers unlock March 3, 2026.</p>
 
 </body>
 </html>
