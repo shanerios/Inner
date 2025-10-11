@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
+import { useIntention } from '../core/IntentionProvider';
 const affirmationMap: { [key: string]: string } = {
   calm: 'You are embracing calm and inviting peace into your being.',
   clarity: 'Clarity guides your every step as your path becomes illuminated.',
@@ -19,36 +20,93 @@ import {
   Animated,
   Easing,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+const AnimatedLinear = Animated.createAnimatedComponent(LinearGradient as any);
 import * as Haptics from 'expo-haptics';
 import { useNavigation } from '@react-navigation/native';
 
 
 const { width } = Dimensions.get('window');
 
+// Unified breath timing so all cues stay in sync
+// Changing INHALE_MS or EXHALE_MS will automatically re-sync scale, glow, and sheen animations
+const INHALE_MS = 4000;  // 4s inhale
+const EXHALE_MS = 6000;  // 6s exhale
+const CYCLE_MS  = INHALE_MS + EXHALE_MS; // 10s total
+
 export default function EssenceScreen() {
   const navigation = useNavigation();
 
+  const { intentions: ctxIntentions } = useIntention?.() || { intentions: [] as string[] };
+
   const [userIntentions, setUserIntentions] = useState<string[]>([]);
+  const effectiveIntentions = (ctxIntentions && ctxIntentions.length > 0) ? ctxIntentions : userIntentions;
   const [personalizedAffirmation, setPersonalizedAffirmation] = useState<string | null>(null);
 
-  const inhaleOpacity = useRef(new Animated.Value(0)).current;
-  const exhaleOpacity = useRef(new Animated.Value(0)).current;
+  // Breathing sheen setup
+  const sheenX = useRef(new Animated.Value(0)).current;
+  const [descWidth, setDescWidth] = useState(0);
+
+  useEffect(() => {
+    // animate a soft sheen left → right once per breath cycle, during exhale
+    const run = () => {
+      if (!descWidth) return;
+      const sweepDuration = Math.min(1800, EXHALE_MS - 400); // keep sweep within exhale window
+      sheenX.setValue(-descWidth);
+      Animated.sequence([
+        Animated.delay(INHALE_MS), // wait through inhale
+        Animated.timing(sheenX, {
+          toValue: descWidth,
+          duration: sweepDuration,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.delay(CYCLE_MS - INHALE_MS - sweepDuration), // rest until next cycle
+      ]).start(({ finished }) => { if (finished) run(); });
+    };
+    run();
+    return () => { sheenX.stopAnimation(); };
+  }, [descWidth]);
   const titleOpacity = useRef(new Animated.Value(0)).current;
   const descriptionOpacity = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current;
+  const glowAnim = useRef(new Animated.Value(0.15)).current;
+  const journeyPromptOpacity = useRef(new Animated.Value(0)).current;
+  // Card glow animation for intention cards
+  const cardGlowAnim = useRef(new Animated.Value(0)).current;
+
+  const promptDelayRef = useRef<NodeJS.Timeout | null>(null);
+  const promptLoopRef = useRef<Animated.CompositeAnimation | null>(null);
 
   useEffect(() => {
+    // Card glow animation loop
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(cardGlowAnim, {
+          toValue: 1,
+          duration: 3000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: false,
+        }),
+        Animated.timing(cardGlowAnim, {
+          toValue: 0,
+          duration: 3000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: false,
+        }),
+      ])
+    ).start();
     const breathing = Animated.loop(
       Animated.sequence([
         Animated.timing(scaleAnim, {
-          toValue: 1.85,
-          duration: 4000,
+          toValue: 1.5,
+          duration: INHALE_MS,
           easing: Easing.inOut(Easing.ease),
           useNativeDriver: true,
         }),
         Animated.timing(scaleAnim, {
           toValue: 1,
-          duration: 6000,
+          duration: EXHALE_MS,
           easing: Easing.inOut(Easing.ease),
           useNativeDriver: true,
         }),
@@ -57,35 +115,23 @@ export default function EssenceScreen() {
 
     breathing.start();
 
-    const animateBreath = () => {
-      Animated.sequence([
-        Animated.timing(inhaleOpacity, {
-          toValue: 1,
-          duration: 500,
-          useNativeDriver: true,
-        }),
-        Animated.delay(2500),
-        Animated.timing(inhaleOpacity, {
-          toValue: 0,
-          duration: 1000,
-          useNativeDriver: true,
-        }),
-        Animated.timing(exhaleOpacity, {
-          toValue: 1,
-          duration: 500,
-          useNativeDriver: true,
-        }),
-        Animated.delay(500),
-        Animated.timing(exhaleOpacity, {
-          toValue: 0,
-          duration: 1000,
-          useNativeDriver: true,
-        }),
-        Animated.delay(3500),
-      ]).start(() => animateBreath());
-    };
 
-    animateBreath();
+    Animated.loop(
+      Animated.sequence([
+        // Inhale phase
+        Animated.timing(glowAnim, {
+          toValue: 0.30,
+          duration: INHALE_MS,
+          useNativeDriver: false,
+        }),
+        // Exhale phase (slightly brighter/clearer)
+        Animated.timing(glowAnim, {
+          toValue: 0.40,
+          duration: EXHALE_MS,
+          useNativeDriver: false,
+        }),
+      ])
+    ).start();
 
     Animated.sequence([
       Animated.delay(4000),
@@ -101,104 +147,154 @@ export default function EssenceScreen() {
       }),
     ]).start();
 
+    // After the title appears, start a repeating prompt every ~6s
+    promptDelayRef.current = setTimeout(() => {
+      promptLoopRef.current = Animated.loop(
+        Animated.sequence([
+          Animated.timing(journeyPromptOpacity, { toValue: 0.5, duration: 900, useNativeDriver: true }),
+          Animated.delay(1600), // linger so it can be read
+          Animated.timing(journeyPromptOpacity, { toValue: 0, duration: 1800, useNativeDriver: true }),
+          Animated.delay(3000), // rest; total cycle ≈ 900+1600+1800+1700 = 6000ms
+        ])
+      );
+      promptLoopRef.current.start();
+    }, 4600);
+
     return () => {
       breathing.stop();
-      inhaleOpacity.stopAnimation();
-      exhaleOpacity.stopAnimation();
       titleOpacity.stopAnimation();
       descriptionOpacity.stopAnimation();
+      if (promptDelayRef.current) {
+        clearTimeout(promptDelayRef.current);
+        promptDelayRef.current = null;
+      }
+      try { promptLoopRef.current?.stop(); } catch {}
     };
   }, []);
 
   useEffect(() => {
     const loadIntentions = async () => {
-      const stored = await AsyncStorage.getItem('userIntentions');
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        setUserIntentions(parsed);
-
-        const messages = parsed.map((intent: string) => affirmationMap[intent]).filter(Boolean);
+      if (ctxIntentions && ctxIntentions.length > 0) {
+        // Context provides intentions; mirror into local state for cards/affirmation
+        setUserIntentions(ctxIntentions);
+        const messages = ctxIntentions.map((i: string) => affirmationMap[i]).filter(Boolean);
         setPersonalizedAffirmation(messages.join(' '));
+        return;
+      }
+      // Fallback: read from AsyncStorage for older flows
+      const raw = await AsyncStorage.getItem('userIntentions');
+      const alt = !raw ? await AsyncStorage.getItem('intentions') : null; // legacy key support
+      const stored = raw || alt;
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed)) {
+            setUserIntentions(parsed);
+            const messages = parsed.map((i: string) => affirmationMap[i]).filter(Boolean);
+            setPersonalizedAffirmation(messages.join(' '));
+          }
+        } catch {}
       }
     };
-
     loadIntentions();
-  }, []);
+  }, [ctxIntentions]);
 
   return (
-    <ImageBackground
-      source={require('../assets/images/essence-bg.png')} // Your softened cosmic image
-      style={styles.container}
-    >
-      <View style={styles.centerContent}>
-        <Animated.Image
-          source={require('../assets/images/essence-symbol.png')}
-          style={[styles.symbol, { transform: [{ scale: scaleAnim }] }]}
-        />
-        <Animated.Text
-          style={[styles.breathText, { opacity: inhaleOpacity }]}
-          accessibilityLabel="Inhale for 4 seconds"
-          accessible
-          accessibilityRole="text"
-        >
-          Inhale
-        </Animated.Text>
-        <Animated.Text
-          style={[styles.breathText, { opacity: exhaleOpacity }]}
-          accessibilityLabel="Exhale for 6 seconds"
-          accessible
-          accessibilityRole="text"
-        >
-          Exhale
-        </Animated.Text>
-        <Animated.Text
-          style={[styles.title, { opacity: titleOpacity }]}
+    <View style={{ flex: 1, backgroundColor: '#0d0d1a' }}>
+      <ImageBackground
+        source={require('../assets/images/essence-bg.png')} // Your softened cosmic image
+        defaultSource={require('../assets/images/essence-bg.png')}
+        style={styles.container}
+        imageStyle={{ backgroundColor: '#0d0d1a' }}
+        fadeDuration={0}
+        renderToHardwareTextureAndroid
+        needsOffscreenAlphaCompositing
+        resizeMode="cover"
+      >
+      <Animated.Image
+        source={require('../assets/images/particle-overlay.png')}
+        style={[styles.particleOverlay, { opacity: glowAnim }]}
+        resizeMode="cover"
+        pointerEvents="none"
+        accessible={false}
+        fadeDuration={0}
+      />
+      <Animated.Text
+          style={[styles.titleTop, { opacity: titleOpacity }]}
           accessibilityLabel="Your path is unfolding"
           accessible
           accessibilityRole="header"
         >
-          Your path is unfolding…
-        </Animated.Text>
-        {personalizedAffirmation && (
-          <Animated.Text
-            style={[styles.description, { opacity: descriptionOpacity }]}
-            accessible
-            accessibilityRole="text"
-            accessibilityLabel={`Your affirmations: ${personalizedAffirmation}`}
-          >
-            {personalizedAffirmation}
-          </Animated.Text>
-        )}
-        {userIntentions.length > 0 && (
-          <View style={{ marginTop: 20 }}>
-            <Text
-              style={styles.reaffirmation}
-              accessibilityLabel="Your selected intentions"
-              accessible
-              accessibilityRole="header"
+          The orb breathes with you.
+      </Animated.Text>
+      <Animated.Text
+        style={[
+          styles.journeyPrompt,
+          {
+            opacity: journeyPromptOpacity,
+            transform: [{
+              translateY: journeyPromptOpacity.interpolate({
+                inputRange: [0, 1],
+                outputRange: [10, 0],
+              })
+            }]
+          }
+        ]}
+        accessible
+        accessibilityRole="text"
+        accessibilityLabel="Your breathing clears the way"
+      >
+        Your breathing clears the way.
+      </Animated.Text>
+      <View style={styles.centerContent}>
+        <Animated.Image
+          source={require('../assets/images/orb-enhanced.png')}
+          style={[styles.symbol, { transform: [{ scale: scaleAnim }] }]}
+        />
+      </View>
+
+      {!!personalizedAffirmation && (
+        <View style={styles.descriptionWrapper}>
+          <Animated.View style={{ opacity: descriptionOpacity }}>
+            <View
+              style={styles.descriptionSheenHost}
+              onLayout={e => setDescWidth(e.nativeEvent.layout.width)}
             >
-              Your Intentions:
-            </Text>
-            {userIntentions.map((intent, index) => (
               <Text
-                key={index}
-                style={styles.intentItem}
-                accessibilityLabel={`Intention: ${intent}`}
+                style={styles.description}
                 accessible
                 accessibilityRole="text"
+                accessibilityLabel={`Your affirmations: ${personalizedAffirmation}`}
               >
-                • {intent}
+                {personalizedAffirmation}
               </Text>
-            ))}
-          </View>
-        )}
-      </View>
+              {/* Breathing sheen overlay */}
+              {descWidth > 0 && (
+                <AnimatedLinear
+                  pointerEvents="none"
+                  colors={[
+                    'rgba(255,255,255,0)',
+                    'rgba(255,255,255,0.35)',
+                    'rgba(255,255,255,0)'
+                  ]}
+                  start={{ x: 0, y: 0.5 }}
+                  end={{ x: 1, y: 0.5 }}
+                  style={[
+                    styles.sheen,
+                    { transform: [{ translateX: sheenX }] }
+                  ]}
+                />
+              )}
+            </View>
+          </Animated.View>
+        </View>
+      )}
 
       <View style={styles.buttonContainer}>
         <TouchableOpacity
           onPress={async () => {
             await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            navigation.navigate('MainApp');
+            navigation.navigate('Home');
           }}
           style={styles.primaryButton}
           accessibilityLabel="Begin your journey based on your intentions"
@@ -216,27 +312,36 @@ export default function EssenceScreen() {
           <Text style={styles.secondaryText}>Go Back</Text>
         </TouchableOpacity>
       </View>
-    </ImageBackground>
+      </ImageBackground>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    resizeMode: 'cover',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 80,
+    paddingVertical: 60,
     paddingHorizontal: 20,
+    backgroundColor: '#0d0d1a',
   },
   centerContent: {
+    flex: 1,
     alignItems: 'center',
-    marginTop: 40,
+    justifyContent: 'center', // centers orb + breath block vertically
+    alignSelf: 'stretch',
+    paddingTop: 200,           // push a touch lower; adjust 40–100 to taste
+  },
+  descriptionWrapper: {
+    marginTop: 48,
+    marginBottom: 32,
+    alignSelf: 'center',
   },
   symbol: {
-    width: 120,
-    height: 120,
-    marginBottom: 24,
+    width: 150,
+    height: 150,
+    marginBottom: 16,
     resizeMode: 'contain',
     opacity: 0.9,
     shadowColor: '#CFC3E0',
@@ -244,11 +349,13 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.9,
     shadowRadius: 20,
   },
-  breathText: {
-    fontSize: 20,
-    fontWeight: '500',
+  titleTop: {
+    fontSize: 22,
     color: '#F0EEF8',
-    marginBottom: 16,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginTop: 60,
+    marginBottom: 12,
   },
   title: {
     fontSize: 24,
@@ -256,12 +363,13 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textAlign: 'center',
     marginBottom: 12,
+    marginTop: 60,
   },
   description: {
     fontSize: 16,
     color: '#F0EEF8',
     textAlign: 'center',
-    opacity: 0.75,
+    opacity: 0.85,
     paddingHorizontal: 10,
   },
   buttonContainer: {
@@ -287,19 +395,85 @@ const styles = StyleSheet.create({
   secondaryText: {
     color: '#F0EEF8',
     fontSize: 14,
-    opacity: 0.7,
+    opacity: 0.85,
   },
   reaffirmation: {
-    fontSize: 16,
+    fontSize: 18,
     color: '#F0EEF8',
     fontWeight: '500',
     textAlign: 'center',
     marginBottom: 4,
+    marginTop: 20,
   },
   intentItem: {
-    fontSize: 15,
+    fontSize: 16,
     color: '#F0EEF8',
     textAlign: 'center',
     opacity: 0.8,
+  },
+  cardContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    marginTop: 12,
+  },
+  intentionCard: {
+    backgroundColor: 'rgba(240, 238, 248, 0.1)',
+    borderColor: '#F0EEF8',
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    margin: 8,
+    width: 160,
+    // Soft glow shadow
+    shadowColor: '#F0EEF8',
+    shadowOffset: { width: 0, height: 0 },
+    shadowRadius: 12,
+    // shadowOpacity is animated
+  },
+  cardText: {
+    color: '#F0EEF8',
+    fontSize: 14,
+    fontWeight: '500',
+    textAlign: 'center',
+  },
+  particleOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 0,
+  },
+  journeyPrompt: {
+    fontSize: 16,
+    color: '#F0EEF8',
+    textAlign: 'center',
+    marginTop: 4,
+    marginBottom: 8,
+    opacity: 1,
+    fontStyle: 'italic',
+    zIndex: 2, // ensure above overlay
+  },
+  cardDescriptor: {
+    color: '#F0EEF8',
+    fontSize: 12,
+    fontStyle: 'italic',
+    marginTop: 4,
+    textAlign: 'center',
+    opacity: 0.85,
+  },
+  descriptionSheenHost: {
+    alignSelf: 'center',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  sheen: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: 90, // width of the sheen band; adjust 70–120
+    zIndex: 3,
   },
 });

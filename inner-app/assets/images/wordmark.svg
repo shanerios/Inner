@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" viewBox="0 0 175.4 98.6">
+  <!-- Generator: Adobe Illustrator 29.6.1, SVG Export Plug-In . SVG Version: 2.1.1 Build 9)  -->
+  <defs>
+    <style>
+      .st0 {
+        opacity: .8;
+      }
+
+      .st0, .st1 {
+        isolation: isolate;
+      }
+
+      .st2 {
+        fill: url(#linear-gradient);
+      }
+    </style>
+    <linearGradient id="linear-gradient" x1="87.6" y1="32.9" x2="87.6" y2="85.9" gradientTransform="translate(0 100) scale(1 -1)" gradientUnits="userSpaceOnUse">
+      <stop offset=".4" stop-color="#fafbfb"/>
+      <stop offset=".6" stop-color="#d0c4e1"/>
+    </linearGradient>
+  </defs>
+  <g id="glow">
+    <image class="st0" width="171" height="202" transform="translate(61.9 24.9) scale(.2)" xlink:href="wordmark-1.png"/>
+    <image class="st1" width="373" height="411" transform="translate(37.7 0) scale(.2)" xlink:href="wordmark-2.png"/>
+  </g>
+  <path id="inner_outlines" class="st2" d="M9.6,25.6c-1.6,0-3-.6-4.1-1.7-1.1-1.1-1.7-2.5-1.7-4.1s.6-2.9,1.7-4,2.5-1.7,4.1-1.7,3.1.6,4.2,1.7c1.1,1.1,1.7,2.5,1.7,4s-.6,3-1.7,4.1-2.5,1.7-4.2,1.7ZM4.8,66.1V28.7h9.7v37.4H4.8ZM22.1,66.1V28.7h9.6v5.5c2-4.2,5.8-6.3,11.5-6.3s5.1.6,7.3,1.9,3.9,3,5.1,5.3c1.2,2.3,1.9,5,1.9,8.2v22.9h-9.7v-20.5c0-3.3-.7-5.6-2.2-7.1-1.5-1.5-3.4-2.2-5.8-2.2s-3.9.7-5.4,2.2c-1.6,1.5-2.3,3.8-2.3,7.1v20.5s-9.7,0-9.7,0ZM125.3,67c-3.8,0-7.2-.9-10.2-2.7-2.9-1.8-5.2-4.1-6.8-7.1-1.6-3-2.4-6.2-2.4-9.8s.8-6.9,2.5-9.9,4-5.4,6.9-7.2c2.9-1.8,6.2-2.7,10-2.7s7,.9,9.9,2.7c2.9,1.8,5.1,4.2,6.7,7.2s2.4,6.3,2.4,9.9,0,1.1,0,1.7c0,.6-.1,1.2-.2,1.8h-28c.5,2.2,1.6,4,3.2,5.4,1.6,1.4,3.6,2.1,6.1,2.1s4-.5,5.5-1.4,2.8-2.2,3.6-3.6l7.6,5.7c-1.5,2.3-3.7,4.3-6.7,5.8s-6.3,2.2-10,2.2h0ZM125.2,36.1c-2.3,0-4.3.7-5.9,2.1-1.6,1.4-2.7,3.2-3.2,5.5h18.5c-.5-2.1-1.6-3.8-3.3-5.3-1.7-1.5-3.7-2.2-6.1-2.2ZM150.4,66.1V28.7h9.4v7.1c.6-2.7,1.9-4.7,3.8-6.2,1.9-1.4,4.5-2,7.8-1.8v9.1h-1.4c-2.8,0-5.1.9-7.1,2.7-1.9,1.8-2.9,4.2-2.9,7.3v19.1h-9.7ZM82.5,27.7h0c-9.8,0-17.7,7.9-17.7,17.7v20.7h10v-20.7c0-4.2,3.4-7.7,7.7-7.7s7.7,3.4,7.7,7.7v20.7h10v-20.7c0-9.8-7.9-17.7-17.7-17.7Z"/>
+</svg>
