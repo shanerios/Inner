@@ -10,7 +10,7 @@
         transform: scale(1);
       }
       50% {
-        transform: scale(1.1);
+        transform: scale(1.06);
       }
     }
     html, body {
@@ -24,12 +24,13 @@
       font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
       color: #fff;
       padding: 20px;
+      padding-top: calc(20px + env(safe-area-inset-top, 0px));
       box-sizing: border-box;
     }
     .breathing-orb {
       width: 420px;
       height: 420px;
-      margin-top: 6vh;
+      margin-top: clamp(80px, 12vh, 160px);
       margin-bottom: 1rem;
       border-radius: 50%;
       animation: breathe 4s ease-in-out infinite;
@@ -156,6 +157,11 @@
       }
       .chamber-card {
         max-width: 100%;
+      }
+      .breathing-orb {
+        width: 60vw;
+        height: 60vw;
+        margin-top: calc(env(safe-area-inset-top, 0px) + 10vh);
       }
     }
   </style>
