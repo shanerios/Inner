@@ -1,8 +1,9 @@
-# ---- STRICT EAS IGNORE ----
-# 1) Ignore EVERYTHING by default
+# ---- CLEAN & OPTIMIZED EAS IGNORE ----
+
+# 1) Ignore everything by default
 *
 
-# 2) Whitelist only what we actually need in the build archive
+# 2) Whitelist only what’s actually needed
 !.easignore
 !app.json
 !eas.json
@@ -14,7 +15,7 @@
 !index.ts
 !App.tsx
 
-# Source folders to keep
+# Source directories
 !assets/
 !assets/**
 !components/
@@ -30,21 +31,26 @@
 !types/
 !types/**
 
-# 3) Re-exclude large/raw or build artifacts even inside whitelisted dirs
+# 3) Re-exclude unnecessary or heavy items even inside whitelisted folders
 node_modules/
 dist/
 .expo/
 .expo-shared/
+.expo-cache/
 .git/
 .github/
 .DS_Store
 *.log
-android/.gradle/
-android/build/
-android/app/build/
-ios/build/
-ios/Pods/
-ios/DerivedData/
+android/
+ios/
+
+# Android/iOS build junk
+**/build/
+**/DerivedData/
+**/.gradle/
+**/Pods/
+
+# Raw/uncompressed audio or large design files
 **/*.wav
 **/*.aiff
 **/*.aif
@@ -57,13 +63,15 @@ ios/DerivedData/
 **/*.zip
 **/*.rar
 **/*.7z
+
+# Explicit raw/staging folders
 assets_raw/
 **/raw/**
-android
-ios
+**/exports/**
+**/_staging/**
+**/_work/**
 
-android
-ios
-
-android
-ios
+# IDE/OS clutter
+.vscode/
+.idea/
+Thumbs.db
