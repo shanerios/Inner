@@ -3,7 +3,7 @@ import SuggestionCard from '../components/SuggestionCard';
 import { getTodaySuggestion } from '../utils/suggest';
 import { CHAMBERS, SOUNDSCAPES, LESSONS } from '../data/suggestions';
 import type { Suggestion } from '../types/suggestion';
-import { View, Text, StyleSheet, ImageBackground, TouchableOpacity, Pressable, Modal, Animated, Easing, Dimensions, AppState } from 'react-native';
+import { View, Text, StyleSheet, Image, ImageBackground, TouchableOpacity, Pressable, Modal, Animated, Easing, Dimensions, AppState } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Asset } from 'expo-asset';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -23,6 +23,8 @@ import { resume } from 'expo-speech';
 
 import { useIntention } from '../core/IntentionProvider';
 import { startFromSuggestion } from '../lib/startRoutes';
+
+import { useBreath } from '../core/BreathProvider';
 
 // Helper: TitleCase for levels like 'advanced' → 'Advanced'
 const toTitle = (s?: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : '');
@@ -60,7 +62,30 @@ export default function HomeScreen({ navigation }: any) {
   const ORB_HIT_OFFSET_X = 0; // tweak to nudge hit-area horizontally
   const ORB_HIT_OFFSET_Y = -30; // tweak to nudge hit-area vertically
   const portalScale = useRef(new Animated.Value(1)).current;
-  const portalGlow = useRef(new Animated.Value(0)).current;
+  // Shared breath (0 → exhale, 1 → inhale)
+  const breath = useBreath();
+
+  // Orb breath scale driven by shared breath
+  const orbScale = breath.interpolate({ inputRange: [0, 1], outputRange: [0.98, 1.15] });
+
+  // Sigil base pulse (opacity + micro scale) driven by shared breath
+  const sigilOpacityBase = breath.interpolate({ inputRange: [0, 1], outputRange: [0.86, 1.0] });
+  const sigilScaleBase   = breath.interpolate({ inputRange: [0, 1], outputRange: [0.95, 1.10] });
+
+  // Left/Right sigil values (kept same phase for cohesion)
+  const sigilOpacityL = sigilOpacityBase;
+  const sigilOpacityR = sigilOpacityBase;
+  const sigilScaleL   = sigilScaleBase;
+  const sigilScaleR   = sigilScaleBase;
+
+  // Colored halo opacity (higher on inhale → richer color), diffuse halo (higher on exhale → softer/desaturated)
+  const sigilColorOpacityL  = breath.interpolate({ inputRange: [0, 1], outputRange: [0.70, 1.00] });
+  const sigilColorOpacityR  = breath.interpolate({ inputRange: [0, 1], outputRange: [0.70, 1.00] });
+  const sigilDiffuseOpacityL = breath.interpolate({ inputRange: [0, 1], outputRange: [0.20, 0.10] }); // more diffuse on exhale
+  const sigilDiffuseOpacityR = breath.interpolate({ inputRange: [0, 1], outputRange: [0.20, 0.10] });
+  // Press feedback for orb (multiplies with breathing scale)
+  const portalPress = useRef(new Animated.Value(0)).current;
+  const portalPressScale = portalPress.interpolate({ inputRange: [0, 1], outputRange: [1, 1.08] });
   const isFocused = useIsFocused();
   const appStateRef = useRef<'active' | 'inactive' | 'background'>('active');
   const retryTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -319,8 +344,58 @@ export default function HomeScreen({ navigation }: any) {
     }).catch(() => {});
   }, []);
 
-  const { height: SCREEN_H } = Dimensions.get('window');
+  const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
+
+  // Resolve intrinsic size from the bundled background asset (no hardcoded dims)
+  const BG_ASSET = require('../assets/images/home_arch_bg_v2.webp');
+  const SIGIL_JOURNAL = require('../assets/sigils/journal_button.png');
+  const SIGIL_COMMUNITY = require('../assets/sigils/community_button.png');
+  const HALO_LAVENDER = require('../assets/sigils/sigil_halo_lavender.png');
+  const HALO_GOLD = require('../assets/sigils/sigil_halo_gold.png');
+  const HALO_DIFFUSE = require('../assets/sigils/sigil_halo_diffuse.png');
+  // Glow padding for halo images
+  const GLOW_PAD = 18;
+  const BG_SRC = Image.resolveAssetSource(BG_ASSET);
+  const BG_W = BG_SRC?.width ?? 2048;
+  const BG_H = BG_SRC?.height ?? 3072;
+
+  // Edge-to-edge sizing (fill the entire screen, behind system UI)
+  const insets = useSafeAreaInsets();
+  const SAFE_W = SCREEN_W;
+  const SAFE_H = SCREEN_H;
+
+  // Full-bleed cover inside the entire screen (no top/bottom gaps)
+  const BG_FIT: 'contain' | 'cover' = 'cover';
+  const BG_BOX_W = SCREEN_W;
+  const BG_BOX_H = SCREEN_H;
+  const BG_BOX_LEFT = 0;
+  const BG_BOX_TOP = 0;
+
   const HERO_MIN = Math.max(300, SCREEN_H - 480); // ensures CTA sits near bottom of first viewport
+
+  // Orb anchored inside the background box (reduced size ~30% and nudged up)
+  const ORB_SIZE_PCT = 0.30; // was 0.425 → ~29% smaller
+  const ORB_Y_OFFSET = -55;  // nudged up an extra 10px
+  const ORB_WIDTH = BG_BOX_W * ORB_SIZE_PCT;
+  const ORB_LEFT  = BG_BOX_LEFT + BG_BOX_W * 0.499 - ORB_WIDTH / 2; // ~centered horizontally
+  const ORB_TOP   = BG_BOX_TOP  + BG_BOX_H * 0.461 - ORB_WIDTH / 2 + ORB_Y_OFFSET;
+
+  // Sigils: placed symmetrically below the orb base, sized relative to bg width
+  const SIGIL_SIZE_PCT = 0.11;              // ~35% of orb diameter (orb is 0.30 of bg width)
+  const SIGIL_SIZE = BG_BOX_W * SIGIL_SIZE_PCT;
+
+  // Vertical placement near the orb base
+  const SIGIL_CENTER_Y = ORB_TOP + ORB_WIDTH * 0.95;
+
+  // Horizontal centers (symmetry around orb center ~0.499)
+  const SIGIL_LEFT_CENTER_X  = BG_BOX_LEFT + BG_BOX_W * 0.34;
+  const SIGIL_RIGHT_CENTER_X = BG_BOX_LEFT + BG_BOX_W * 0.66;
+
+  // Convert centers to top-left for absolute positioning (adjusted positions)
+  const SIGIL_LEFT_LEFT  = SIGIL_LEFT_CENTER_X  - SIGIL_SIZE / 2 - 15;  // moved 15px left
+  const SIGIL_LEFT_TOP   = SIGIL_CENTER_Y       - SIGIL_SIZE / 2 + 70;  // moved 50px down
+  const SIGIL_RIGHT_LEFT = SIGIL_RIGHT_CENTER_X - SIGIL_SIZE / 2 + 15;  // moved 15px right
+  const SIGIL_RIGHT_TOP  = SIGIL_CENTER_Y       - SIGIL_SIZE / 2 + 70;  // moved 50px down
 
   // Welcome message fade-up
   const msgOpacity = useRef(new Animated.Value(0)).current;
@@ -362,6 +437,13 @@ export default function HomeScreen({ navigation }: any) {
   // Vignette deepens with chamber depth
   const vignetteOpacity = depth.interpolate({ inputRange: [0, 1], outputRange: [0.14, 0.42] });
 
+
+  // Tap feedback for sigils (multiplies with idle pulse)
+  const sigilPressL = useRef(new Animated.Value(0)).current;
+  const sigilPressR = useRef(new Animated.Value(0)).current;
+  const sigilPressScaleL = sigilPressL.interpolate({ inputRange: [0, 1], outputRange: [1, 1.04] });
+  const sigilPressScaleR = sigilPressR.interpolate({ inputRange: [0, 1], outputRange: [1, 1.04] });
+
   // Smoothly reduce hum volume as user descends (depth 0->1 maps 0.15 -> 0.08)
   useEffect(() => {
     const listenerId = scrollY.addListener(({ value }) => {
@@ -372,9 +454,14 @@ export default function HomeScreen({ navigation }: any) {
     return () => scrollY.removeListener(listenerId);
   }, [scrollY]);
 
-  // Preload temple background to avoid first-frame delay
+  // Preload key imagery to avoid first-frame delay
   useEffect(() => {
-    Asset.fromModule(require('../assets/images/temple-bg-paths.png')).downloadAsync();
+    Asset.fromModule(BG_ASSET).downloadAsync();
+    Asset.fromModule(SIGIL_JOURNAL).downloadAsync();
+    Asset.fromModule(SIGIL_COMMUNITY).downloadAsync();
+    Asset.fromModule(HALO_LAVENDER).downloadAsync();
+    Asset.fromModule(HALO_GOLD).downloadAsync();
+    Asset.fromModule(HALO_DIFFUSE).downloadAsync();
   }, []);
 
   useFocusEffect(
@@ -448,23 +535,6 @@ export default function HomeScreen({ navigation }: any) {
     }
   }, [intentions, topAffOpacity, topAffTranslate]);
 
-  useEffect(() => {
-    // subtle breath + glow (amplified for PNG halo)
-    const loop = Animated.loop(
-      Animated.parallel([
-        Animated.sequence([
-          Animated.timing(portalScale, { toValue: 1.05, duration: 5000, useNativeDriver: true, easing: Easing.inOut(Easing.quad) }),
-          Animated.timing(portalScale, { toValue: 0.95, duration: 5000, useNativeDriver: true, easing: Easing.inOut(Easing.quad) }),
-        ]),
-        Animated.sequence([
-          Animated.timing(portalGlow, { toValue: 1, duration: 5000, useNativeDriver: true, easing: Easing.inOut(Easing.quad) }),
-          Animated.timing(portalGlow, { toValue: 0, duration: 5000, useNativeDriver: true, easing: Easing.inOut(Easing.quad) }),
-        ]),
-      ])
-    );
-    loop.start();
-    return () => loop.stop();
-  }, []);
 
   // Fade the ambient hum before navigating into a Journey / Library
   const fadeOutHum = async () => {
@@ -489,7 +559,6 @@ export default function HomeScreen({ navigation }: any) {
     }
   };
 
-  const insets = useSafeAreaInsets();
 
   const saveLastJourney = async (journey: { id: string; chamber?: string }) => {
     try { await AsyncStorage.setItem(lastJourneyKey, JSON.stringify(journey)); } catch {}
@@ -627,12 +696,21 @@ export default function HomeScreen({ navigation }: any) {
 
 
   return (
-    <ImageBackground
-      source={require('../assets/images/temple-bg-paths.png')}
-      style={styles.container}
-      fadeDuration={0}
-    >
-      <StatusBar style="light" backgroundColor="#0d0d1a" translucent={false} />
+    <View style={styles.container}>
+      {/* Background — rendered in a computed fit box (contain/cover) */}
+      <Image
+        source={BG_ASSET}
+        fadeDuration={0}
+        resizeMode={BG_FIT}  // 'cover'
+        style={{
+          position: 'absolute',
+          left: BG_BOX_LEFT,
+          top: BG_BOX_TOP,
+          width: BG_BOX_W,
+          height: BG_BOX_H,
+        }}
+      />
+      <StatusBar style="light" backgroundColor="transparent" translucent />
 
       {/* Dust overlay – above bg, below orb & UI */}
       <Animated.View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: dustOpacity }}>
@@ -646,35 +724,23 @@ export default function HomeScreen({ navigation }: any) {
         />
       </Animated.View>
 
-      {/* Vignette overlay – deepens with scroll depth */}
+      {/* Vignette overlay – simplified to full-screen gradients to avoid rectangular seams */}
       <Animated.View style={[StyleSheet.absoluteFillObject, { opacity: vignetteOpacity }]} pointerEvents="none">
-        {/* Top fade */}
+        {/* Vertical fade (top→bottom) */}
         <LinearGradient
-          colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.55)"]}
+          colors={["rgba(0,0,0,0.00)", "rgba(0,0,0,0.65)"]}
+          locations={[0, 1]}
           start={{ x: 0.5, y: 0 }}
           end={{ x: 0.5, y: 1 }}
-          style={styles.vTop}
+          style={StyleSheet.absoluteFill}
         />
-        {/* Bottom fade */}
+        {/* Horizontal fade (edges→center) */}
         <LinearGradient
-          colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.65)"]}
-          start={{ x: 0.5, y: 0 }}
-          end={{ x: 0.5, y: 1 }}
-          style={styles.vBottom}
-        />
-        {/* Left fade */}
-        <LinearGradient
-          colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.5)"]}
+          colors={["rgba(0,0,0,0.50)", "rgba(0,0,0,0.00)", "rgba(0,0,0,0.50)"]}
+          locations={[0, 0.5, 1]}
           start={{ x: 0, y: 0.5 }}
           end={{ x: 1, y: 0.5 }}
-          style={styles.vLeft}
-        />
-        {/* Right fade */}
-        <LinearGradient
-          colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.5)"]}
-          start={{ x: 1, y: 0.5 }}
-          end={{ x: 0, y: 0.5 }}
-          style={styles.vRight}
+          style={StyleSheet.absoluteFill}
         />
       </Animated.View>
 
@@ -727,16 +793,22 @@ export default function HomeScreen({ navigation }: any) {
       <View style={styles.portalWrap} pointerEvents="box-none">
         <Animated.Image
           pointerEvents="none"
-          source={require('../assets/images/orb-glow.png')}
+          source={require('../assets/images/orb-enhanced.png')}
           resizeMode="contain"
           style={[
             styles.orbImage,
             {
-              transform: [{ scale: Animated.multiply(portalScale, orbParallaxScale) }],
-              opacity: Animated.multiply(
-                portalGlow.interpolate({ inputRange: [0, 1], outputRange: [0, 1] }),
-                orbParallaxOpacity
-              ),
+              position: 'absolute',
+              left: ORB_LEFT,
+              top: ORB_TOP,
+              width: ORB_WIDTH,
+              height: ORB_WIDTH,
+              transform: [{
+                scale: Animated.multiply(
+                  Animated.multiply(orbScale, orbParallaxScale),
+                  portalPressScale
+                ),
+              }],
             },
           ]}
         />
@@ -752,22 +824,46 @@ export default function HomeScreen({ navigation }: any) {
             const { x, y, width, height } = e.nativeEvent.layout;
             console.log('[DEBUG ORB] layout:', { x, y, width, height });
           }}
+          onPressIn={async () => {
+            try { await Haptics.selectionAsync(); } catch {}
+            portalPress.stopAnimation();
+            portalPress.setValue(0);
+            Animated.timing(portalPress, {
+              toValue: 1,
+              duration: 120,
+              easing: Easing.out(Easing.cubic),
+              useNativeDriver: true,
+            }).start();
+          }}
+          onPressOut={() => {
+            Animated.timing(portalPress, {
+              toValue: 0,
+              duration: 160,
+              easing: Easing.out(Easing.cubic),
+              useNativeDriver: true,
+            }).start();
+          }}
           style={[
-            styles.orbHit,
             {
+              position: 'absolute',
+              left: ORB_LEFT + ORB_WIDTH / 2,
+              top: ORB_TOP + ORB_WIDTH / 2,
               width: ORB_HIT_DIAMETER,
               height: ORB_HIT_DIAMETER,
-              // marginLeft and marginTop replaced by transform:
               borderRadius: ORB_HIT_DIAMETER / 2,
               transform: [
                 { translateX: (-ORB_HIT_DIAMETER / 2) + ORB_HIT_OFFSET_X },
                 { translateY: (-ORB_HIT_DIAMETER / 2) + ORB_HIT_OFFSET_Y },
-                { scale: Animated.multiply(portalScale, orbParallaxScale) },
+                { scale: Animated.multiply(
+                    Animated.multiply(orbScale, orbParallaxScale),
+                    portalPressScale
+                  )
+                },
               ],
               ...(DEBUG_ORB_HIT ? {
-                backgroundColor: 'rgba(255, 0, 0, 0.12)',  // translucent fill
+                backgroundColor: 'rgba(255, 0, 0, 0.12)',
                 borderWidth: 1,
-                borderColor: 'rgba(255, 230, 0, 0.9)',     // bright outline
+                borderColor: 'rgba(255, 230, 0, 0.9)',
               } : null),
             },
           ]}
@@ -801,6 +897,178 @@ export default function HomeScreen({ navigation }: any) {
             </>
           ) : null}
         </AnimatedPressable>
+
+        {/* Left Sigil Halo — Lavender (soft PNG radial) */}
+        <Animated.Image
+          pointerEvents="none"
+          source={HALO_LAVENDER}
+          resizeMode="contain"
+          style={{
+            position: 'absolute',
+            left: SIGIL_LEFT_LEFT - GLOW_PAD * 2,
+            top: SIGIL_LEFT_TOP - GLOW_PAD * 2,
+            width: SIGIL_SIZE + GLOW_PAD * 4,
+            height: SIGIL_SIZE + GLOW_PAD * 4,
+            opacity: sigilColorOpacityL,
+            transform: [{ scale: sigilScaleL }],
+            zIndex: 55,
+            elevation: 55,
+          }}
+        />
+        {/* Left Sigil Diffusion — soft white */}
+        <Animated.Image
+          pointerEvents="none"
+          source={HALO_DIFFUSE}
+          resizeMode="contain"
+          style={{
+            position: 'absolute',
+            left: SIGIL_LEFT_LEFT - GLOW_PAD * 1.4,
+            top: SIGIL_LEFT_TOP - GLOW_PAD * 1.4,
+            width: SIGIL_SIZE + GLOW_PAD * 2.8,
+            height: SIGIL_SIZE + GLOW_PAD * 2.8,
+            opacity: sigilDiffuseOpacityL,
+            transform: [{ scale: sigilScaleL }],
+            zIndex: 55.5,
+            elevation: 55,
+          }}
+        />
+        {/* Left Sigil — Journal / Reflections */}
+        <Animated.View
+          style={{
+            position: 'absolute',
+            left: SIGIL_LEFT_LEFT,
+            top: SIGIL_LEFT_TOP,
+            width: SIGIL_SIZE,
+            height: SIGIL_SIZE,
+            transform: [{ scale: Animated.multiply(sigilScaleL, sigilPressScaleL) }],
+            opacity: sigilOpacityL,
+            zIndex: 56,
+            elevation: 56,
+          }}
+          pointerEvents="box-none"
+        >
+          <Pressable
+            onPress={async () => {
+              try { await Haptics.selectionAsync(); } catch {}
+              try {
+                navigation.navigate('Journal');
+              } catch (e) {
+                console.log('[Nav] Journal route missing, implement screen route:', e);
+              }
+            }}
+            hitSlop={12}
+            accessibilityRole="button"
+            accessibilityLabel="Open Journal"
+            style={{ flex: 1 }}
+            onPressIn={async () => {
+              try { await Haptics.selectionAsync(); } catch {}
+              sigilPressL.stopAnimation();
+              sigilPressL.setValue(0);
+              Animated.timing(sigilPressL, {
+                toValue: 1,
+                duration: 120,
+                easing: Easing.out(Easing.cubic),
+                useNativeDriver: true,
+              }).start();
+            }}
+            onPressOut={() => {
+              Animated.timing(sigilPressL, {
+                toValue: 0,
+                duration: 160,
+                easing: Easing.out(Easing.cubic),
+                useNativeDriver: true,
+              }).start();
+            }}
+          >
+            <Image source={SIGIL_JOURNAL} resizeMode="contain" style={{ width: '100%', height: '100%' }} />
+          </Pressable>
+        </Animated.View>
+
+        {/* Right Sigil Halo — Gold (soft PNG radial) */}
+        <Animated.Image
+          pointerEvents="none"
+          source={HALO_GOLD}
+          resizeMode="contain"
+          style={{
+            position: 'absolute',
+            left: SIGIL_RIGHT_LEFT - GLOW_PAD * 2,
+            top: SIGIL_RIGHT_TOP - GLOW_PAD * 2,
+            width: SIGIL_SIZE + GLOW_PAD * 4,
+            height: SIGIL_SIZE + GLOW_PAD * 4,
+            opacity: sigilColorOpacityR,
+            transform: [{ scale: sigilScaleR }],
+            zIndex: 55,
+            elevation: 55,
+          }}
+        />
+        {/* Right Sigil Diffusion — soft white */}
+        <Animated.Image
+          pointerEvents="none"
+          source={HALO_DIFFUSE}
+          resizeMode="contain"
+          style={{
+            position: 'absolute',
+            left: SIGIL_RIGHT_LEFT - GLOW_PAD * 1.4,
+            top: SIGIL_RIGHT_TOP - GLOW_PAD * 1.4,
+            width: SIGIL_SIZE + GLOW_PAD * 2.8,
+            height: SIGIL_SIZE + GLOW_PAD * 2.8,
+            opacity: sigilDiffuseOpacityR,
+            transform: [{ scale: sigilScaleR }],
+            zIndex: 55.5,
+            elevation: 55,
+          }}
+        />
+        {/* Right Sigil — Community / Resonance */}
+        <Animated.View
+          style={{
+            position: 'absolute',
+            left: SIGIL_RIGHT_LEFT,
+            top: SIGIL_RIGHT_TOP,
+            width: SIGIL_SIZE,
+            height: SIGIL_SIZE,
+            transform: [{ scale: Animated.multiply(sigilScaleR, sigilPressScaleR) }],
+            opacity: sigilOpacityR,
+            zIndex: 56,
+            elevation: 56,
+          }}
+          pointerEvents="box-none"
+        >
+          <Pressable
+            onPress={async () => {
+              try { await Haptics.selectionAsync(); } catch {}
+              try {
+                navigation.navigate('Community');
+              } catch (e) {
+                console.log('[Nav] Community route missing, implement screen route:', e);
+              }
+            }}
+            hitSlop={12}
+            accessibilityRole="button"
+            accessibilityLabel="Open Community"
+            style={{ flex: 1 }}
+            onPressIn={async () => {
+              try { await Haptics.selectionAsync(); } catch {}
+              sigilPressR.stopAnimation();
+              sigilPressR.setValue(0);
+              Animated.timing(sigilPressR, {
+                toValue: 1,
+                duration: 120,
+                easing: Easing.out(Easing.cubic),
+                useNativeDriver: true,
+              }).start();
+            }}
+            onPressOut={() => {
+              Animated.timing(sigilPressR, {
+                toValue: 0,
+                duration: 160,
+                easing: Easing.out(Easing.cubic),
+                useNativeDriver: true,
+              }).start();
+            }}
+          >
+            <Image source={SIGIL_COMMUNITY} resizeMode="contain" style={{ width: '100%', height: '100%' }} />
+          </Pressable>
+        </Animated.View>
       </View>
 
       <View
@@ -982,7 +1250,7 @@ export default function HomeScreen({ navigation }: any) {
           accessibilityHint="Opens Inner’s Learning Hub with guides and lessons"
           accessible={true}
           importantForAccessibility="yes"
-          style={styles.navArrowBottom}
+          style={[styles.navArrowBottom, { bottom: insets.bottom + 24 }]}
           hitSlop={16}
         >
           <Text style={styles.navArrowText}>{'\u2304'}</Text>
@@ -990,7 +1258,7 @@ export default function HomeScreen({ navigation }: any) {
         <Text
           pointerEvents="none"
           accessibilityRole="text"
-          style={styles.navArrowCaption}
+          style={[styles.navArrowCaption, { bottom: insets.bottom + 4 }]}
         >
           Learning Hub
         </Text>
@@ -1015,7 +1283,7 @@ export default function HomeScreen({ navigation }: any) {
         </View>
       </Modal>
       {/* Fixed cards over Home (no scrolling) */}
-    </ImageBackground>
+    </View>
 
   );
 }
@@ -1026,25 +1294,17 @@ const styles = StyleSheet.create({
     backgroundColor: '#0d0d1a',
     justifyContent: 'flex-start',
     alignItems: 'center',
-    paddingVertical: 40,
+    paddingVertical: 0,
   },
   // NOTE: portalWrap sits *under* heroSection. If CTA becomes untouchable, raise heroSection zIndex/elevation.
   portalWrap: {
-    position: 'absolute',
-    top: '50%', // adjust to taste: 38%–46% depending on your bg composition
-    alignSelf: 'center',
-    width: 1000,
-    height: 1000,
+    ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
     justifyContent: 'center',
-    transform: [{ translateY: -418 - 40 }], // fine tune overlap over the orb
     zIndex: 55,
-    elevation: 55, // Android elevation
+    elevation: 55,
   },
-  orbImage: {
-    width: 1000,
-    height: 1000,
-  },
+  orbImage: {},
   orbHit: {
     position: 'absolute',
     left: '50%',
@@ -1131,35 +1391,6 @@ progressFill: {
   backgroundColor: '#6B5AE0', // Deep indigo — subtle, on-brand
 },
 
-  // Vignette pieces
-  vTop: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: '30%', // gentle top darkening
-  },
-  vBottom: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: '40%', // stronger bottom fade for depth
-  },
-  vLeft: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    left: 0,
-    width: '16%',
-  },
-  vRight: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    right: 0,
-    width: '16%',
-  },
   modalBackdrop: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.55)',
@@ -1234,7 +1465,7 @@ progressFill: {
   navArrowLeft: {
     position: 'absolute',
     left: 12,
-    top: 450, // centers vertically around the 50% container line
+    top: 400, // centers vertically around the 50% container line
     width: 48,
     height: 48,
     borderRadius: 19,
@@ -1247,7 +1478,7 @@ progressFill: {
   navArrowRight: {
     position: 'absolute',
     right: 12,
-    top: 450,
+    top: 400,
     width: 48,
     height: 48,
     borderRadius: 19,
@@ -1260,7 +1491,7 @@ progressFill: {
   navArrowBottom: {
     position: 'absolute',
     left: '50%',
-    bottom: 36,
+    bottom: 0,
     width: 48,
     height: 48,
     borderRadius: 19,
@@ -1276,7 +1507,7 @@ progressFill: {
   navArrowCaption: {
     position: 'absolute',
     left: '50%',
-    bottom: 16, // now placed just below the bottom arrow (arrow bottom is 22)
+    bottom: 0, // actual bottom offset is applied inline with insets
     // Give it a fixed width so we can truly center under the 48px arrow
     width: 96,
     transform: [{ translateX: -48 }], // center the caption under the arrow

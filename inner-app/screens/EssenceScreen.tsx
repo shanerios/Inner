@@ -24,6 +24,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 const AnimatedLinear = Animated.createAnimatedComponent(LinearGradient as any);
 import * as Haptics from 'expo-haptics';
 import { useNavigation } from '@react-navigation/native';
+import { useBreath } from '../core/BreathProvider';
 
 
 const { width } = Dimensions.get('window');
@@ -69,11 +70,20 @@ export default function EssenceScreen() {
   }, [descWidth]);
   const titleOpacity = useRef(new Animated.Value(0)).current;
   const descriptionOpacity = useRef(new Animated.Value(0)).current;
-  const scaleAnim = useRef(new Animated.Value(1)).current;
-  const glowAnim = useRef(new Animated.Value(0.15)).current;
   const journeyPromptOpacity = useRef(new Animated.Value(0)).current;
   // Card glow animation for intention cards
   const cardGlowAnim = useRef(new Animated.Value(0)).current;
+
+  // Shared breath (0 → exhale, 1 → inhale)
+  const breath = useBreath();
+  // Essence orb breath scale (matches Home orb amplitude feel)
+  const orbScale = breath.interpolate({ inputRange: [0, 1], outputRange: [1.0, 1.5] });
+  // Particle veil “glow” breath (subtle)
+  const particlesOpacity = breath.interpolate({ inputRange: [0, 1], outputRange: [0.30, 0.40] });
+
+  // Micro color temperature shift (very subtle): cool on exhale → warm on inhale
+  const warmTintOpacity = breath.interpolate({ inputRange: [0, 1], outputRange: [0.00, 0.10] }); // up to 10% on inhale
+  const coolTintOpacity = breath.interpolate({ inputRange: [0, 1], outputRange: [0.10, 0.00] }); // up to 10% on exhale
 
   const promptDelayRef = useRef<NodeJS.Timeout | null>(null);
   const promptLoopRef = useRef<Animated.CompositeAnimation | null>(null);
@@ -96,43 +106,6 @@ export default function EssenceScreen() {
         }),
       ])
     ).start();
-    const breathing = Animated.loop(
-      Animated.sequence([
-        Animated.timing(scaleAnim, {
-          toValue: 1.5,
-          duration: INHALE_MS,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-        Animated.timing(scaleAnim, {
-          toValue: 1,
-          duration: EXHALE_MS,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-      ])
-    );
-
-    breathing.start();
-
-
-    Animated.loop(
-      Animated.sequence([
-        // Inhale phase
-        Animated.timing(glowAnim, {
-          toValue: 0.30,
-          duration: INHALE_MS,
-          useNativeDriver: false,
-        }),
-        // Exhale phase (slightly brighter/clearer)
-        Animated.timing(glowAnim, {
-          toValue: 0.40,
-          duration: EXHALE_MS,
-          useNativeDriver: false,
-        }),
-      ])
-    ).start();
-
     Animated.sequence([
       Animated.delay(4000),
       Animated.timing(titleOpacity, {
@@ -161,7 +134,6 @@ export default function EssenceScreen() {
     }, 4600);
 
     return () => {
-      breathing.stop();
       titleOpacity.stopAnimation();
       descriptionOpacity.stopAnimation();
       if (promptDelayRef.current) {
@@ -213,11 +185,26 @@ export default function EssenceScreen() {
       >
       <Animated.Image
         source={require('../assets/images/particle-overlay.png')}
-        style={[styles.particleOverlay, { opacity: glowAnim }]}
+        style={[styles.particleOverlay, { opacity: particlesOpacity }]}
         resizeMode="cover"
         pointerEvents="none"
         accessible={false}
         fadeDuration={0}
+      />
+      {/* Micro color temperature overlays (subtle) */}
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          styles.tempOverlay,
+          { backgroundColor: 'rgba(120,170,255,0.10)', opacity: coolTintOpacity } // cool blue on exhale
+        ]}
+      />
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          styles.tempOverlay,
+          { backgroundColor: 'rgba(255,190,120,0.10)', opacity: warmTintOpacity } // warm amber on inhale
+        ]}
       />
       <Animated.Text
           style={[styles.titleTop, { opacity: titleOpacity }]}
@@ -249,7 +236,7 @@ export default function EssenceScreen() {
       <View style={styles.centerContent}>
         <Animated.Image
           source={require('../assets/images/orb-enhanced.png')}
-          style={[styles.symbol, { transform: [{ scale: scaleAnim }] }]}
+          style={[styles.symbol, { transform: [{ scale: orbScale }] }]}
         />
       </View>
 
@@ -475,5 +462,13 @@ const styles = StyleSheet.create({
     bottom: 0,
     width: 90, // width of the sheen band; adjust 70–120
     zIndex: 3,
+  },
+  tempOverlay: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    zIndex: 1, // above particles, below text/orb (journeyPrompt has zIndex:2)
   },
 });

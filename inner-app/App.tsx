@@ -2,6 +2,7 @@ import React, { useEffect } from "react";
 import { View, Text } from 'react-native';
 import { NavigationContainer, DarkTheme } from "@react-navigation/native";
 import { IntentionProvider } from './core/IntentionProvider';
+import { BreathProvider } from './core/BreathProvider';
 import { createStackNavigator, CardStyleInterpolators } from "@react-navigation/stack";
 import TrackPlayer from "react-native-track-player";
 import SplashScreen from "./screens/SplashScreen";
@@ -17,6 +18,8 @@ import JourneyPlayer from './screens/JourneyPlayer';
 import LearnHub from './learn/screens/LearnHub';
 import LessonList from './learn/screens/LessonList';
 import LessonReader from './learn/screens/LessonReader';
+import JournalListScreen from './screens/JournalListScreen';
+import JournalEntryScreen from './screens/JournalEntryScreen';
 import { Asset } from 'expo-asset';
 
 import { Audio } from "expo-av";
@@ -114,50 +117,54 @@ export default function App() {
   if (!fontsLoaded) return null;
 
   return (
-    <IntentionProvider>
-      <NavigationContainer theme={InnerTheme}>
-        <StatusBar style="light" backgroundColor="#0d0d1a" translucent={false} />
-        <Stack.Navigator initialRouteName="Splash"
-          detachInactiveScreens={false}
-          screenOptions={{
-            headerShown: false,
-            cardStyle: { backgroundColor: '#0d0d1a' },
-            cardStyleInterpolator: CardStyleInterpolators.forFadeFromCenter,
-            transitionSpec: {
-              open:  { animation: 'timing', config: { duration: 500 } },
-              close: { animation: 'timing', config: { duration: 500 } },
-            },
-          }}
-        >
-          <Stack.Screen name="Splash" component={SplashScreen} />
-          <Stack.Screen name="Intro" component={IntroScreen} />
-          <Stack.Screen
-            name="Intention"
-            component={IntentionScreen}
-            options={{
-              cardStyle: { backgroundColor: 'transparent' },
-              presentation: 'transparentModal',
+    <BreathProvider>
+      <IntentionProvider>
+        <NavigationContainer theme={InnerTheme}>
+          <StatusBar style="light" backgroundColor="#0d0d1a" translucent={false} />
+          <Stack.Navigator initialRouteName="Splash"
+            detachInactiveScreens={false}
+            screenOptions={{
+              headerShown: false,
+              cardStyle: { backgroundColor: '#0d0d1a' },
+              cardStyleInterpolator: CardStyleInterpolators.forFadeFromCenter,
+              transitionSpec: {
+                open:  { animation: 'timing', config: { duration: 500 } },
+                close: { animation: 'timing', config: { duration: 500 } },
+              },
             }}
-          />
-          <Stack.Screen
-            name="EssenceScreen"
-            component={EssenceScreen}
-            options={{
-              cardStyle: { backgroundColor: 'transparent' },
-              presentation: 'transparentModal',
-            }}
-          />
-          <Stack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
-          <Stack.Screen name="LearnHub" component={LearnHub} options={{ headerShown: false }} />
-          <Stack.Screen name="LessonList" component={LessonList} options={{ headerShown: false }}/>
-          <Stack.Screen name="LessonReader" component={LessonReader} options={{ headerShown: false }}/>
-          <Stack.Screen name="Chambers" component={ChambersScreen} options={{ headerShown: false }} />
-          <Stack.Screen name="Soundscapes" component={SoundscapesScreen} options={{ headerShown: false }} />
-          <Stack.Screen name="JourneyPicker" component={JourneyPicker} />
-          <Stack.Screen name="JourneyPlayer" component={JourneyPlayer} options={{ headerShown: false, presentation: 'transparentModal' }} />
-          <Stack.Screen name="Glossary" component={require('./learn/screens/GlossaryScreen').default} options={{ headerShown: false }} />
-        </Stack.Navigator>
-      </NavigationContainer>
-    </IntentionProvider>
+          >
+            <Stack.Screen name="Splash" component={SplashScreen} />
+            <Stack.Screen name="Intro" component={IntroScreen} />
+            <Stack.Screen
+              name="Intention"
+              component={IntentionScreen}
+              options={{
+                cardStyle: { backgroundColor: 'transparent' },
+                presentation: 'transparentModal',
+              }}
+            />
+            <Stack.Screen
+              name="EssenceScreen"
+              component={EssenceScreen}
+              options={{
+                cardStyle: { backgroundColor: 'transparent' },
+                presentation: 'transparentModal',
+              }}
+            />
+            <Stack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
+            <Stack.Screen name="LearnHub" component={LearnHub} options={{ headerShown: false }} />
+            <Stack.Screen name="LessonList" component={LessonList} options={{ headerShown: false }}/>
+            <Stack.Screen name="LessonReader" component={LessonReader} options={{ headerShown: false }}/>
+            <Stack.Screen name="Chambers" component={ChambersScreen} options={{ headerShown: false }} />
+            <Stack.Screen name="Soundscapes" component={SoundscapesScreen} options={{ headerShown: false }} />
+            <Stack.Screen name="JourneyPicker" component={JourneyPicker} />
+            <Stack.Screen name="JourneyPlayer" component={JourneyPlayer} options={{ headerShown: false, presentation: 'transparentModal' }} />
+            <Stack.Screen name="Glossary" component={require('./learn/screens/GlossaryScreen').default} options={{ headerShown: false }} />
+            <Stack.Screen name="Journal" component={JournalListScreen} options={{ headerShown: true, headerTransparent: true, headerTitle: '' }} />
+            <Stack.Screen name="JournalEntry" component={JournalEntryScreen} options={{ headerShown: true, headerTransparent: true, headerTitle: '' }} />
+          </Stack.Navigator>
+        </NavigationContainer>
+      </IntentionProvider>
+    </BreathProvider>
   );
 }
