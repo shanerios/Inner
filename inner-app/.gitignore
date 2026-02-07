@@ -37,3 +37,25 @@ yarn-error.*
 *.tsbuildinfo
 
 .expo/
+
+# Environment variables / secrets
+.env
+.env.*
+
+# Google Play / EAS service account keys
+inner-playapi-*.json
+**/inner-playapi-*.json
+*.gserviceaccount.com*.json
+**/*.gserviceaccount.com*.json
+
+# secrets
+.env
+.env.*
+**/*.key.json
+**/*playapi*.json
+
+# expo
+.expo/
+
+# mac
+.DS_Store
