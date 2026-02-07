@@ -1,0 +1,46 @@
+---
+description: React Native + Expo app development standards for audio lifecycle and refactoring
+alwaysApply: true
+---
+
+# React Native + Expo Development Standards
+
+This is a React Native + Expo app with complex audio lifecycle logic requiring careful handling.
+
+## General Behavior
+
+- **Prefer minimal diffs** - Make the smallest change necessary
+- **Do not rewrite large blocks** unless explicitly asked
+- **Preserve existing behavior** unless a change is explicitly requested
+- **When unsure, ask before changing logic**
+
+## Refactoring Rules
+
+When extracting or reorganizing code:
+
+- **Extract components without altering behavior** - Keep logic identical during extraction
+- **Keep prop surfaces minimal and explicit** - Only expose what's necessary
+- **Do not inline or "simplify" logic during extraction** - Preserve the original implementation
+- Do not introduce new abstractions unless requested
+
+## Audio & Playback Safety
+
+⚠️ **Critical:** Audio lifecycle code is sensitive and must be treated with extreme care.
+
+- **DO NOT modify TrackPlayer logic** unless explicitly requested
+- **DO NOT change timing, polling intervals, or race-condition workarounds**
+- **DO NOT replace custom loop or polling strategies** with built-in TrackPlayer modes
+- **Treat audio lifecycle code as sensitive** - These patterns exist for stability reasons
+
+## Navigation & State
+
+- **DO NOT alter navigation flow or ordering**
+- **Preserve async ordering** - Saves must complete before navigation
+- **Avoid moving logic across hooks/components** unless instructed
+- Respect existing state management patterns
+
+## Code Style
+
+- **Keep formatting consistent** with existing code
+- **Do not introduce new patterns or abstractions** unless requested
+- Follow the existing code conventions in the project

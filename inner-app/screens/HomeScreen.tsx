@@ -1,51 +1,44 @@
 // @refresh reset
-import React, { useEffect, useRef, useMemo } from 'react';
-import HomeAuraContinuity from '../components/HomeAuraContinuity';
-import FogPulse from '../components/FogPulse';
-import SettingsModal from '../components/SettingsModal';
-import SuggestionCard from '../components/SuggestionCard';
-import { getTodaySuggestion } from '../utils/suggest';
-import { CHAMBERS, SOUNDSCAPES, LESSONS } from '../data/suggestions';
-import type { Suggestion } from '../types/suggestion';
-import { View, Text, StyleSheet, Image, ImageBackground, TouchableOpacity, Pressable, Modal, InteractionManager, Animated, Easing, Dimensions, AppState, TextInput, KeyboardAvoidingView, Platform, ScrollView, Linking, Switch } from 'react-native';
-import { Gesture, GestureDetector, Directions } from 'react-native-gesture-handler';
-import { StatusBar } from 'expo-status-bar';
-import * as FileSystem from 'expo-file-system';
 import { Asset } from 'expo-asset';
-import { Alert } from 'react-native';
-import RevenueCatUI, { PAYWALL_RESULT } from 'react-native-purchases-ui';
-import Purchases, { CustomerInfo } from 'react-native-purchases';
+import { StatusBar } from 'expo-status-bar';
+import React, { useEffect, useMemo, useRef } from 'react';
+import { Animated, AppState, Dimensions, Easing, Image, Modal, Platform, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Directions, Gesture, GestureDetector } from 'react-native-gesture-handler';
+import Purchases from 'react-native-purchases';
+import RevenueCatUI from 'react-native-purchases-ui';
+import FogPulse from '../components/FogPulse';
+import HomeAuraContinuity from '../components/HomeAuraContinuity';
+import SettingsModal from '../components/SettingsModal';
+import { CHAMBERS, LESSONS, SOUNDSCAPES } from '../data/suggestions';
+import { getTodaySuggestion } from '../utils/suggest';
 
-import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
-import LottieView from 'lottie-react-native';
-import * as Haptics from 'expo-haptics';
-import { Audio } from 'expo-av';
 import { useFocusEffect, useIsFocused } from '@react-navigation/native';
+import { Audio } from 'expo-av';
+import { BlurView } from 'expo-blur';
+import * as Haptics from 'expo-haptics';
+import { LinearGradient } from 'expo-linear-gradient';
+import LottieView from 'lottie-react-native';
 import { useCallback } from 'react';
-import { getLastSession, setLastSession, INTENTION_THEME } from '../core/session';
-import { getEmberState, awardEmber, EmberState } from '../core/EmberEngine';
-import { TimeEngine } from '../src/core/time/TimeEngine';
 import { shouldShowDailyMicroRitual, useDailyPracticeSnapshot } from '../core/DailyRitual';
+import { awardEmber, EmberState, getEmberState } from '../core/EmberEngine';
+import { getLastSession, INTENTION_THEME, setLastSession } from '../core/session';
+import { TimeEngine } from '../src/core/time/TimeEngine';
 
 
 
-import SoundscapeCard from '../components/SoundscapeCard';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { resume } from 'expo-speech';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useIntention } from '../core/IntentionProvider';
 import { startFromSuggestion } from '../lib/startRoutes';
 
 import { useBreath } from '../core/BreathProvider';
-import { Typography } from '../core/typography';
-import { Typography as _Typography, Body as _Body } from '../core/typography';
+import { Body as _Body, Typography as _Typography, Typography } from '../core/typography';
 import { useLunarWhisper } from '../hooks/useLunarWhisper';
-import { useWalkthrough } from '../hooks/useWalkthrough';
 import { useThreadSuggestion } from '../hooks/useThreadSuggestion';
-import { orbMoonImages } from '../src/ui/orbMoonImages';
+import { useWalkthrough } from '../hooks/useWalkthrough';
 import LunarWhisperModal from '../src/lunar/LunarWhisperModal';
+import { orbMoonImages } from '../src/ui/orbMoonImages';
 const Body = _Body ?? ({ regular: { ..._Typography.body }, subtle: { ..._Typography.caption } } as const);
 
 // --- Intention Aura helpers ---
