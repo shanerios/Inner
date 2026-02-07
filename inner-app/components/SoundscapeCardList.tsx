@@ -1,15 +1,80 @@
 // components/SoundscapeCardList.tsx
-import React from 'react';
-import { View, StyleSheet, ImageSourcePropType, ScrollView } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { View, StyleSheet, ImageSourcePropType, ScrollView, Text, Image, Animated } from 'react-native';
 import SoundscapeCard from './SoundscapeCard';
 import ClaritySigil from '../assets/sigils/clarity.svg';
 import StillnessSigil from '../assets/sigils/stillness.svg';
 import RenewalSigil from '../assets/sigils/renewal.svg';
+import DeeperSigil from '../assets/sigils/deeper.svg';
 import TonesSigil from '../assets/sigils/tones.svg';
 import NoiseSigil from '../assets/sigils/noise.svg';
 
+import { Body as _Body } from '../core/typography';
+const Body = _Body ?? ({
+  regular: { fontFamily: 'Inter-ExtraLight', fontSize: 14 },
+  subtle: { fontFamily: 'Inter-ExtraLight', fontSize: 12 },
+} as const);
+
+function LockPulse({ size = 22, opacity = 0.38 }: { size?: number; opacity?: number }) {
+  const scale = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    const anim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(scale, {
+          toValue: 1.15,
+          duration: 2000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(scale, {
+          toValue: 1.0,
+          duration: 3000,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    anim.start();
+    return () => anim.stop();
+  }, [scale]);
+
+  return (
+    <View
+      pointerEvents="none"
+      style={{
+        position: 'absolute',
+        top: '50%',
+        left: '50%',
+        width: size,
+        height: size,
+        marginLeft: -size / 2,
+        marginTop: -size / 2,
+        borderRadius: size / 2,
+        backgroundColor: `rgba(0,0,0,${opacity})`,
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <Animated.View style={{ transform: [{ scale }] }}>
+        <Image
+          source={require('../assets/images/locked_gate.png')}
+          style={{ width: size * 0.58, height: size * 0.58, resizeMode: 'contain' }}
+        />
+      </Animated.View>
+    </View>
+  );
+}
+
+function DeeperSigilWithLock() {
+  return (
+    <View style={{ width: 48, height: 48 }}>
+      <DeeperSigil width={48} height={48} />
+      <LockPulse size={22} opacity={0.34} />
+    </View>
+  );
+}
+
 type Category = {
-  key: 'stillness' | 'clarity' | 'renewal' | 'tones' | 'noise';
+  key: 'stillness' | 'clarity' | 'renewal' | 'deeper' | 'tones' | 'noise';
   label: string;
   colors: [string, string]; // gradient pair
   subtitle: string;
@@ -34,14 +99,21 @@ const CATEGORIES: Category[] = [
   {
     key: 'renewal',
     label: 'Renewal',
-    colors: ['#1D4D2E', '#CFC16C'],           // green → gold
+    colors: ['#4a7b5cff', '#6b9f58ff'],           // green → light green
     subtitle: 'Healing • Energy • Rebirth',
     sigil: <RenewalSigil width={48} height={48} />,
   },
   {
+    key: 'deeper',
+    label: 'Deeper',
+    colors: ['#1a190bff', '#3d256bff'],           // near-black → dark violet
+    subtitle: 'Threshold • Descent • Beyond',
+    sigil: <DeeperSigilWithLock />,
+  },
+  {
     key: 'tones',
     label: 'Tones',
-    colors: ['#2A1E5C', '#8A5CF6'],           // deep indigo → soft violet
+    colors: ['#3e3e1fff', '#987d1aff'],           // desaturated gold → soft gold
     subtitle: 'Solfeggio • Binaural • Gamma',
     sigil: <TonesSigil width={48} height={48} />,
   },
@@ -56,12 +128,16 @@ const CATEGORIES: Category[] = [
 
 type Props = {
   onSelectCategory?: (key: Category['key']) => void;
+  onDeeperLockedPress?: () => void; // when Deeper is locked, open paywall directly
   spacing?: number;           // vertical gap between cards
+  isDeeperLocked?: boolean;   // controls lock overlay on Deeper card
 };
 
 export default function SoundscapeCardList({
   onSelectCategory,
-  spacing = 12,
+  onDeeperLockedPress,
+  spacing = 16,
+  isDeeperLocked = true,
 }: Props) {
   return (
     <View style={[styles.list, { height: '100%' }]}>
@@ -74,10 +150,16 @@ export default function SoundscapeCardList({
             key={cat.key}
             label={cat.label}
             colors={cat.colors}
-            subtitle={cat.subtitle}
-            sigil={cat.sigil}
+            subtitle={<Text style={[Body.regular, { color: 'rgba(237,232,250,0.85)' }]}>{cat.subtitle}</Text>}
+            sigil={cat.key === 'deeper' ? (isDeeperLocked ? <DeeperSigilWithLock /> : <DeeperSigil width={48} height={48} />) : cat.sigil}
             showArrow={true}
-            onPress={() => onSelectCategory?.(cat.key)}
+            onPress={() => {
+              if (cat.key === 'deeper' && isDeeperLocked) {
+                onDeeperLockedPress?.();
+                return;
+              }
+              onSelectCategory?.(cat.key);
+            }}
           />
         ))}
       </ScrollView>

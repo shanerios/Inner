@@ -19,15 +19,29 @@ import {
   Image,
   Animated,
   Easing,
+  TextInput,
+  Platform,
+  KeyboardAvoidingView,
+  Keyboard,
+  TouchableWithoutFeedback,
+  ImageSourcePropType,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 const AnimatedLinear = Animated.createAnimatedComponent(LinearGradient as any);
 import * as Haptics from 'expo-haptics';
 import { useNavigation } from '@react-navigation/native';
+
 import { useBreath } from '../core/BreathProvider';
+import { Typography, Body as _Body } from '../core/typography';
+
+// Safe fallback so hot reloads never break Body usage
+const Body = _Body ?? ({
+  regular: { ...Typography.body },
+  subtle:  { ...Typography.caption },
+} as const);
 
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 
 // Unified breath timing so all cues stay in sync
 // Changing INHALE_MS or EXHALE_MS will automatically re-sync scale, glow, and sheen animations
@@ -35,8 +49,27 @@ const INHALE_MS = 4000;  // 4s inhale
 const EXHALE_MS = 6000;  // 6s exhale
 const CYCLE_MS  = INHALE_MS + EXHALE_MS; // 10s total
 
+// Orb assets (prefer WebP on Android, fallback to PNG if decoding/packaging fails in release)
+const ORB_WEBP = require('../assets/splash.webp');
+const ORB_PNG = require('../assets/splash_ios.png');
+
 export default function EssenceScreen() {
   const navigation = useNavigation();
+
+  // Orb source with safe fallback (Android release builds can be flaky with WebP on some devices)
+  const [orbSource, setOrbSource] = useState<ImageSourcePropType>(
+    Platform.OS === 'android' ? ORB_WEBP : ORB_PNG
+  );
+
+  const handleOrbError = (e: any) => {
+    // If WebP fails, fall back to PNG
+    if (orbSource === ORB_WEBP) {
+      console.warn('[EssenceScreen] Orb WebP failed; falling back to PNG', e?.nativeEvent);
+      setOrbSource(ORB_PNG);
+    } else {
+      console.warn('[EssenceScreen] Orb image failed to load', e?.nativeEvent);
+    }
+  };
 
   const { intentions: ctxIntentions } = useIntention?.() || { intentions: [] as string[] };
 
@@ -70,14 +103,69 @@ export default function EssenceScreen() {
   }, [descWidth]);
   const titleOpacity = useRef(new Animated.Value(0)).current;
   const descriptionOpacity = useRef(new Animated.Value(0)).current;
-  const journeyPromptOpacity = useRef(new Animated.Value(0)).current;
+  // Name capture prompt (optional, one-time)
+  const [showNamePrompt, setShowNamePrompt] = useState(false);
+  const [nameValue, setNameValue] = useState('');
+  const namePromptOpacity = useRef(new Animated.Value(0)).current;
+  const namePromptTranslate = useRef(new Animated.Value(6)).current;
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [existingName, dismissed] = await Promise.all([
+          AsyncStorage.getItem('profileName'),
+          AsyncStorage.getItem('namePromptDismissed'),
+        ]);
+        if (cancelled) return;
+        if (!existingName && dismissed !== 'true') {
+          const t = setTimeout(() => {
+            if (cancelled) return;
+            setShowNamePrompt(true);
+            namePromptOpacity.setValue(0);
+            namePromptTranslate.setValue(6);
+            Animated.parallel([
+              Animated.timing(namePromptOpacity, { toValue: 1, duration: 600, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+              Animated.timing(namePromptTranslate, { toValue: 0, duration: 600, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+            ]).start();
+          }, 2000);
+          return () => clearTimeout(t);
+        }
+      } catch {}
+    })();
+    return () => { cancelled = true; };
+  }, []);
   // Card glow animation for intention cards
   const cardGlowAnim = useRef(new Animated.Value(0)).current;
 
   // Shared breath (0 → exhale, 1 → inhale)
   const breath = useBreath();
+
+  // Local breath fallback (ensures orb breath animates even if provider isn’t driving updates here)
+const localBreath = useRef(new Animated.Value(0)).current;
+
+useEffect(() => {
+  const loop = Animated.loop(
+    Animated.sequence([
+      Animated.timing(localBreath, {
+        toValue: 1,
+        duration: INHALE_MS,
+        easing: Easing.inOut(Easing.quad),
+        useNativeDriver: true,
+      }),
+      Animated.timing(localBreath, {
+        toValue: 0,
+        duration: EXHALE_MS,
+        easing: Easing.inOut(Easing.quad),
+        useNativeDriver: true,
+      }),
+    ])
+  );
+
+  loop.start();
+  return () => loop.stop();
+}, []);
   // Essence orb breath scale (matches Home orb amplitude feel)
-  const orbScale = breath.interpolate({ inputRange: [0, 1], outputRange: [1.0, 1.5] });
+  const orbScale = localBreath.interpolate({ inputRange: [0, 1], outputRange: [1.0, 1.12] });
   // Particle veil “glow” breath (subtle)
   const particlesOpacity = breath.interpolate({ inputRange: [0, 1], outputRange: [0.30, 0.40] });
 
@@ -85,8 +173,19 @@ export default function EssenceScreen() {
   const warmTintOpacity = breath.interpolate({ inputRange: [0, 1], outputRange: [0.00, 0.10] }); // up to 10% on inhale
   const coolTintOpacity = breath.interpolate({ inputRange: [0, 1], outputRange: [0.10, 0.00] }); // up to 10% on exhale
 
-  const promptDelayRef = useRef<NodeJS.Timeout | null>(null);
-  const promptLoopRef = useRef<Animated.CompositeAnimation | null>(null);
+  // Prompt opacity/position synced to breath (never fully disappears)
+  const journeyPromptOpacity = useMemo(() => breath.interpolate({
+    inputRange: [0, 1], // 0 = exhale, 1 = inhale
+    outputRange: [0.25, 0.5],
+  }), [breath]);
+
+  const journeyPromptTranslateY = useMemo(() => breath.interpolate({
+    inputRange: [0, 1],
+    outputRange: [10, 0],
+  }), [breath]);
+
+  // Navigation guard to prevent double presses re-triggering the fog
+  const isNavigatingRef = useRef(false);
 
   useEffect(() => {
     // Card glow animation loop
@@ -120,27 +219,9 @@ export default function EssenceScreen() {
       }),
     ]).start();
 
-    // After the title appears, start a repeating prompt every ~6s
-    promptDelayRef.current = setTimeout(() => {
-      promptLoopRef.current = Animated.loop(
-        Animated.sequence([
-          Animated.timing(journeyPromptOpacity, { toValue: 0.5, duration: 900, useNativeDriver: true }),
-          Animated.delay(1600), // linger so it can be read
-          Animated.timing(journeyPromptOpacity, { toValue: 0, duration: 1800, useNativeDriver: true }),
-          Animated.delay(3000), // rest; total cycle ≈ 900+1600+1800+1700 = 6000ms
-        ])
-      );
-      promptLoopRef.current.start();
-    }, 4600);
-
     return () => {
       titleOpacity.stopAnimation();
       descriptionOpacity.stopAnimation();
-      if (promptDelayRef.current) {
-        clearTimeout(promptDelayRef.current);
-        promptDelayRef.current = null;
-      }
-      try { promptLoopRef.current?.stop(); } catch {}
     };
   }, []);
 
@@ -171,8 +252,29 @@ export default function EssenceScreen() {
     loadIntentions();
   }, [ctxIntentions]);
 
+  const persistName = async () => {
+    const trimmed = nameValue.trim();
+    if (trimmed.length > 0) {
+      try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+      try { await AsyncStorage.setItem('profileName', trimmed); } catch {}
+    }
+    Animated.parallel([
+      Animated.timing(namePromptOpacity, { toValue: 0, duration: 420, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+      Animated.timing(namePromptTranslate, { toValue: -4, duration: 420, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+    ]).start(() => setShowNamePrompt(false));
+  };
+
+  const skipName = async () => {
+    try { await AsyncStorage.setItem('namePromptDismissed', 'true'); } catch {}
+    Animated.parallel([
+      Animated.timing(namePromptOpacity, { toValue: 0, duration: 320, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+      Animated.timing(namePromptTranslate, { toValue: -4, duration: 320, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+    ]).start(() => setShowNamePrompt(false));
+  };
+
   return (
     <View style={{ flex: 1, backgroundColor: '#0d0d1a' }}>
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
       <ImageBackground
         source={require('../assets/images/essence-bg.png')} // Your softened cosmic image
         defaultSource={require('../assets/images/essence-bg.png')}
@@ -207,48 +309,70 @@ export default function EssenceScreen() {
         ]}
       />
       <Animated.Text
-          style={[styles.titleTop, { opacity: titleOpacity }]}
-          accessibilityLabel="Your path is unfolding"
+          style={[
+            Typography.display,
+            { color: '#F0EEF8', textAlign: 'center', marginTop: 60, marginBottom: 12, opacity: titleOpacity }
+          ]}
+          accessibilityLabel="Take a moment to recenter yourself"
           accessible
           accessibilityRole="header"
         >
-          The orb breathes with you.
+          Take a moment to center yourself.
       </Animated.Text>
       <Animated.Text
         style={[
-          styles.journeyPrompt,
+          Typography.body,
           {
-            opacity: journeyPromptOpacity,
-            transform: [{
-              translateY: journeyPromptOpacity.interpolate({
-                inputRange: [0, 1],
-                outputRange: [10, 0],
-              })
-            }]
+            fontStyle: 'italic',
+            color: '#F0EEF8',
+            textAlign: 'center',
+            marginTop: 4,
+            marginBottom: 8,
+            zIndex: 2,
+            opacity: Animated.multiply(journeyPromptOpacity, titleOpacity),
+            transform: [{ translateY: journeyPromptTranslateY }]
           }
         ]}
         accessible
         accessibilityRole="text"
-        accessibilityLabel="Your breathing clears the way"
+        accessibilityLabel="The orb breathes with you."
       >
-        Your breathing clears the way.
+        The orb breathes with you.
       </Animated.Text>
       <View style={styles.centerContent}>
-        <Animated.Image
-          source={require('../assets/images/orb-enhanced.png')}
-          style={[styles.symbol, { transform: [{ scale: orbScale }] }]}
-        />
+        <Animated.View
+          style={[
+            styles.orbWrapper,
+            {
+              transform: [{ scale: orbScale }],
+            },
+          ]}
+        >
+          {/* Orb interior (static for stability across devices) */}
+          <Image
+            pointerEvents="none"
+            source={orbSource}
+            style={{ width: '100%', height: '100%', opacity: 1 }}
+            resizeMode="contain"
+            onLoad={() => {
+              if (__DEV__) {
+                console.log('[EssenceScreen] Orb image loaded', orbSource === ORB_WEBP ? 'webp' : 'png');
+              }
+            }}
+            onError={handleOrbError}
+          />
+        </Animated.View>
       </View>
 
       {!!personalizedAffirmation && (
         <View style={styles.descriptionWrapper}>
-          <Animated.View style={{ opacity: descriptionOpacity }}>
+          <Animated.View style={{ opacity: Animated.multiply(descriptionOpacity, showNamePrompt ? 0.35 : 1) }}>
             <View
               style={styles.descriptionSheenHost}
               onLayout={e => setDescWidth(e.nativeEvent.layout.width)}
             >
               <Text
-                style={styles.description}
+                style={[Body.regular, { fontFamily: 'Inter-ExtraLight', letterSpacing: 0.3, color: '#F0EEF8', textAlign: 'center', opacity: 0.85, paddingHorizontal: 10 }]}
                 accessible
                 accessibilityRole="text"
                 accessibilityLabel={`Your affirmations: ${personalizedAffirmation}`}
@@ -277,29 +401,103 @@ export default function EssenceScreen() {
         </View>
       )}
 
+      {showNamePrompt && (
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={[styles.nameOverlayWrap, { top: Math.max(148, Math.round(height * 0.22) + 24) }]}
+          pointerEvents="box-none"
+        >
+          <Animated.View
+            style={[
+              styles.nameOverlay,
+              { opacity: namePromptOpacity, transform: [{ translateY: namePromptTranslate }] },
+            ]}
+          >
+            <View style={styles.nameBackdrop}>
+              <Text style={[Typography.subtle, { color: '#D6D3E6', marginBottom: 6, textAlign: 'center' }]}>How should Inner refer to you?</Text>
+              <TextInput
+                value={nameValue}
+                onChangeText={setNameValue}
+                placeholder="Your name (optional)"
+                placeholderTextColor="rgba(240,238,248,0.5)"
+                style={[styles.nameInput, height < 720 && { paddingVertical: 10 }]}
+                autoCapitalize="words"
+                autoCorrect={false}
+                returnKeyType="done"
+                onSubmitEditing={persistName}
+                accessibilityLabel="Your name (optional)"
+                accessibilityHint="Used to greet you on Home. You can change it later."
+              />
+              <View style={styles.nameActions}>
+                <TouchableOpacity
+                  onPress={persistName}
+                  style={styles.nameSaveBtn}
+                  accessibilityRole="button"
+                  accessibilityLabel="Save your name"
+                  accessibilityHint="Inner will greet you using this name"
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Text style={[Typography.subtle, { color: '#1F233A' }]}>Save</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={skipName}
+                  style={styles.nameSkipBtn}
+                  accessibilityRole="button"
+                  accessibilityLabel="Skip name"
+                  accessibilityHint="You can add a name later in Settings"
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Text style={[Typography.subtle, { fontFamily: 'Inter-ExtraLight', color: '#F0EEF8', opacity: 0.85 }]}>Skip</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </Animated.View>
+        </KeyboardAvoidingView>
+      )}
+
       <View style={styles.buttonContainer}>
         <TouchableOpacity
           onPress={async () => {
+            if (isNavigatingRef.current) return;
+            isNavigatingRef.current = true;
             await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            navigation.navigate('Home');
+            // Mark onboarding complete so returning users can use the hidden “Return Home” door on Splash.
+            // We write both keys to remain compatible with existing Splash key probes.
+            try {
+              await AsyncStorage.setItem('inner.onboarding.complete.v1', 'true');
+              await AsyncStorage.setItem('inner.onboarding.completed.v1', 'true');
+            } catch {}
+            console.log('[FOG] Essence: show(1)');
+            (globalThis as any).__fog?.show(1);
+            // Add a boost mid-transition to eliminate the ghosting effect
+            setTimeout(() => {
+              console.log('[FOG] Essence: boost() mid-fade');
+              (globalThis as any).__fog?.boost(0.12, 900);
+            }, 950);
+            setTimeout(() => {
+              console.log('[FOG] Essence: navigating → Home(fogStart)');
+              // @ts-ignore
+              navigation.replace('Home', { fogStart: true });
+            }, 1900);
           }}
           style={styles.primaryButton}
           accessibilityLabel="Begin your journey based on your intentions"
           accessibilityRole="button"
           accessible
         >
-          <Text style={styles.primaryText}>Begin Journey</Text>
+          <Text style={[Typography.title, { color: '#1F233A' }]}>Begin Journey</Text>
         </TouchableOpacity>
         <TouchableOpacity
           onPress={() => navigation.goBack()}
-          accessibilityLabel="Go back to change your selected intentions"
+          accessibilityLabel="Reselect or change your paths"
           accessibilityRole="button"
           accessible
         >
-          <Text style={styles.secondaryText}>Go Back</Text>
+          <Text style={[Body.subtle, { fontFamily: 'Inter-ExtraLight', fontSize: 14, color: '#F0EEF8', opacity: 0.70 }]}>Change Paths</Text>
         </TouchableOpacity>
       </View>
       </ImageBackground>
+      </TouchableWithoutFeedback>
     </View>
   );
 }
@@ -326,38 +524,21 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   symbol: {
-    width: 150,
-    height: 150,
-    marginBottom: 16,
-    resizeMode: 'contain',
+    width: '100%',
+    height: '100%',
     opacity: 0.9,
-    shadowColor: '#CFC3E0',
-    shadowOffset: { width: 2, height: 4 },
-    shadowOpacity: 0.9,
-    shadowRadius: 20,
   },
-  titleTop: {
-    fontSize: 22,
-    color: '#F0EEF8',
-    fontWeight: '600',
-    textAlign: 'center',
-    marginTop: 60,
-    marginBottom: 12,
-  },
-  title: {
-    fontSize: 24,
-    color: '#F0EEF8',
-    fontWeight: '600',
-    textAlign: 'center',
-    marginBottom: 12,
-    marginTop: 60,
-  },
-  description: {
-    fontSize: 16,
-    color: '#F0EEF8',
-    textAlign: 'center',
-    opacity: 0.85,
-    paddingHorizontal: 10,
+  orbWrapper: {
+    width: 180,
+    height: 180,
+    opacity: 0.9,
+    borderRadius: 90,
+    overflow: 'hidden',
+    marginBottom: 16,
+
+    // Keep above overlays
+    zIndex: 10,
+    elevation: 0,
   },
   buttonContainer: {
     alignItems: 'center',
@@ -373,30 +554,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 4,
     elevation: 5,
-  },
-  primaryText: {
-    color: '#1F233A',
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  secondaryText: {
-    color: '#F0EEF8',
-    fontSize: 14,
-    opacity: 0.85,
-  },
-  reaffirmation: {
-    fontSize: 18,
-    color: '#F0EEF8',
-    fontWeight: '500',
-    textAlign: 'center',
-    marginBottom: 4,
-    marginTop: 20,
-  },
-  intentItem: {
-    fontSize: 16,
-    color: '#F0EEF8',
-    textAlign: 'center',
-    opacity: 0.8,
   },
   cardContainer: {
     flexDirection: 'row',
@@ -419,12 +576,6 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     // shadowOpacity is animated
   },
-  cardText: {
-    color: '#F0EEF8',
-    fontSize: 14,
-    fontWeight: '500',
-    textAlign: 'center',
-  },
   particleOverlay: {
     position: 'absolute',
     top: 0,
@@ -432,24 +583,6 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     zIndex: 0,
-  },
-  journeyPrompt: {
-    fontSize: 16,
-    color: '#F0EEF8',
-    textAlign: 'center',
-    marginTop: 4,
-    marginBottom: 8,
-    opacity: 1,
-    fontStyle: 'italic',
-    zIndex: 2, // ensure above overlay
-  },
-  cardDescriptor: {
-    color: '#F0EEF8',
-    fontSize: 12,
-    fontStyle: 'italic',
-    marginTop: 4,
-    textAlign: 'center',
-    opacity: 0.85,
   },
   descriptionSheenHost: {
     alignSelf: 'center',
@@ -469,6 +602,79 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     left: 0,
-    zIndex: 1, // above particles, below text/orb (journeyPrompt has zIndex:2)
+    pointerEvents: 'none',
+    zIndex: 2, // orb is forced above with zIndex 10
+  },
+  nameOverlayWrap: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 3,
+  },
+  nameOverlay: {
+    width: '86%',
+    backgroundColor: 'transparent', // remove panel
+    borderRadius: 0,
+    paddingVertical: 0,
+    paddingHorizontal: 0,
+    borderWidth: 0,
+    borderColor: 'transparent',
+    shadowColor: 'transparent',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0,
+    shadowRadius: 0,
+    elevation: 0,
+    alignItems: 'center',
+  },
+  nameBackdrop: {
+    width: '92%',
+    paddingTop: 8,
+    paddingBottom: 14,
+    paddingHorizontal: 14,
+    borderRadius: 18,
+    backgroundColor: 'rgba(0,0,0,0.18)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+
+    //soft lift
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.22,
+    shadowRadius: 22,
+    elevation: 10,
+  },
+  nameInput: {
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    color: '#F0EEF8',
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.10)',
+    alignSelf: 'stretch',
+  },
+  nameActions: {
+    marginTop: 10,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 16,
+  },
+  nameSaveBtn: {
+    backgroundColor: '#CFC3E0',
+    paddingVertical: 8,
+    paddingHorizontal: 20,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.20)',
+  },
+  nameSkipBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 18,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.14)',
+    backgroundColor: 'rgba(255,255,255,0.06)',
   },
 });

@@ -3,8 +3,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const STORAGE_KEY = 'inner.progress.v1';
 
-type TrackId = 'lucid' | 'obe';
-type ProgressMap = {
+export type TrackId = 'lucid' | 'obe';
+export type ProgressMap = {
   [trackId in TrackId]?: {
     [lessonId: string]: number;
   };

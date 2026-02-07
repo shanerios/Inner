@@ -7,21 +7,62 @@ export type TrackMeta = {
   artist?: string;
   kind: TrackKind;
   loop?: boolean;          // override default if needed
-  local: any;              // require(...) asset
+  local?: any;             // require(...) asset (optional when using remote URLs)
   remote?: string;         // remote URL asset
+  remoteLow?: string;      // optional fallback lower-quality URL
   durationHintMs?: number; // optional, for predisplay
   category?: string;       // add category for grouping (e.g. 'tones')
+  description?: string;
+  frequencies?: number[];
+  frequencyLabel?: string;
+  meta?: any;              // optional extra metadata (e.g., envId for chambers)
+  isPremium?: boolean;                 // gated behind subscription
+  paywallKey?: 'continuing_with_inner'; // which paywall/entitlement should unlock (for now, single entitlement)
 };
+
+export type AudioQuality = 'hq' | 'lq';
+let preferredQuality: AudioQuality = 'hq';
+
+/** Set global preferred audio quality (affects getTrackUrl). */
+export function setPreferredQuality(q: AudioQuality) {
+  preferredQuality = q;
+}
+
+/** Read current global preferred audio quality. */
+export function getPreferredQuality(): AudioQuality {
+  return preferredQuality;
+}
+
+// -----------------------------------------------------------------------------
+// Premium gating helpers
+// -----------------------------------------------------------------------------
+
+
+// Soundscape gating (category-based)
+export const DEEPER_CATEGORY = 'deeper' as const;
+export const CONTINUING_PAYWALL_KEY = 'continuing_with_inner' as const;
+
+/** True if this track is meant to be gated behind "Continuing with Inner". */
+export function isContinuingPremiumTrack(t?: TrackMeta): boolean {
+  return !!t?.isPremium && t?.paywallKey === CONTINUING_PAYWALL_KEY;
+}
+
+/** True if this track is in the Deeper soundscape category (category-based gating). */
+export function isDeeperCategoryTrack(t?: TrackMeta): boolean {
+  return t?.category === DEEPER_CATEGORY;
+}
 
 export const TRACKS: TrackMeta[] = [
   {
     id: 'harmonic_resonance',
     title: 'Harmonic Resonance',
-    description: 'A powerful, yet calming journey of frequencies that harmonize mind and body. Center your focus and embrace inner balance as you ascend into deep clarity.',
+    description: 'A powerful, yet calming journey of frequencies that harmonize mind and body. Center your focus and embrace inner balance as you ascend into deep clarity. Frequency Signature: 963 Hz with 432 Hz and 528 Hz supporting tones for crown clarity, natural harmony, and heart resonance.',
+    frequencies: [963, 432, 528],
+    frequencyLabel: '963 Hz • 432 Hz • 528 Hz',
     kind: 'soundscape',
     loop: true,
-    /** TEMP: using preview file until full-length asset is added */
-    remote: 'https://f005.backblazeb2.com/file/inner-audio/Soundscapes/Harmonic_Resonance-64k.m4a',
+    remote: 'https://f005.backblazeb2.com/file/inner-audio/Soundscapes/harmonic_resonance_hq_ios.m4a',
+    remoteLow: 'https://f005.backblazeb2.com/file/inner-audio/Soundscapes/Harmonic_Resonance-64k_ios.m4a',
     category: 'stillness',
     durationHintMs: 60 * 60 * 1000,
   },
@@ -29,44 +70,127 @@ export const TRACKS: TrackMeta[] = [
   {
     id: 'deep_focus',
     title: 'Deep Focus',
-    description: 'Immerse yourself in a soundscape designed to enhance concentration and mental clarity.',
+    description: 'Immerse yourself in a soundscape designed to enhance concentration and mental clarity. Frequency Signature: 963 Hz for a spacious clarity field around your thoughts.',
+    frequencies: [963],
+    frequencyLabel: '963 Hz • Clarity Field',
     kind: 'soundscape',
     loop: true,
-    remote: 'https://f005.backblazeb2.com/file/inner-audio/Soundscapes/Deep_Focus-64k.m4a',
+    remote: 'https://f005.backblazeb2.com/file/inner-audio/Soundscapes/deep_focus_hq_ios.m4a',
+    remoteLow: 'https://f005.backblazeb2.com/file/inner-audio/Soundscapes/Deep_Focus-64k_ios.m4a',
     category: 'clarity',
-    durationHintMs: 10 * 60 * 1000,
+    durationHintMs: 60 * 60 * 1000,
 
   },
 
   {
     id: 'yoga_movement',
     title: 'Yoga & Movement',
-    description: 'A dynamic soundscape to accompany your yoga practice or movement flow, enhancing body awareness and rhythm.',
+    description: 'A dynamic soundscape to accompany your yoga practice or movement flow, enhancing body awareness, rhythm, and natural alignment. Frequency Signature: 432 Hz for body-mind balance and organic flow.',
+    frequencies: [432],
+    frequencyLabel: '432 Hz • Natural Alignment',
     kind: 'soundscape',
     loop: true,
-    remote: 'https://f005.backblazeb2.com/file/inner-audio/Soundscapes/Yoga_and_Movement-64k.m4a',
+    remote: 'https://f005.backblazeb2.com/file/inner-audio/Soundscapes/yoga_and_movement_hq_ios.m4a',
+    remoteLow: 'https://f005.backblazeb2.com/file/inner-audio/Soundscapes/Yoga_and_Movement-64k_ios.m4a',
     category: 'clarity',
-    durationHintMs: 10 * 60 * 1000,
+    durationHintMs: 60 * 60 * 1000,
   },
 
   {
     id: 'calm_presence',
     title: 'Calm Presence',
-    description: 'A tranquil soundscape to cultivate mindfulness and presence, helping you find calm in the moment.',
+    description: 'A tranquil soundscape to cultivate mindfulness and presence, helping you find calm in the moment. Frequency Signature: 528 Hz for gentle heart-centered resonance and emotional ease.',
+    frequencies: [528],
+    frequencyLabel: '528 Hz • Heart Resonance',
     kind: 'soundscape',
     loop: true,
-    remote: 'https://f005.backblazeb2.com/file/inner-audio/Soundscapes/Calm_Presence-64k.m4a',
+    remote: 'https://f005.backblazeb2.com/file/inner-audio/Soundscapes/calm_presence_hq_ios.m4a',
+    remoteLow: 'https://f005.backblazeb2.com/file/inner-audio/Soundscapes/Calm_Presence-64k_ios.m4a',
     category: 'renewal',
-    durationHintMs: 10 * 60 * 1000,
+    durationHintMs: 60 * 60 * 1000,
   },
+
+  {
+    id: 'focus_field',
+    title: 'Focus Field',
+    description: 'An immersive soundscape designed to sharpen your focus and enhance cognitive function. Frequency Signature: 852 Hz for heightened intuition and mental clarity.',
+    frequencies: [741],
+    frequencyLabel: '741 hz',
+    kind: 'soundscape',
+    loop: true,
+    remote: 'https://f005.backblazeb2.com/file/inner-audio/Soundscapes/focus_field_hq_ios.m4a',
+    remoteLow: 'https://f005.backblazeb2.com/file/inner-audio/Soundscapes/focus_field_64k_ios.m4a',
+    category: 'clarity',
+    durationHintMs: 60 * 60 * 1000,
+  },
+
+  {
+    id: 'stillness_between_breaths',
+    title: 'Stillness Between Breaths',
+    description: 'A serene soundscape to guide you into deep relaxation and inner stillness. Frequency Signature: 396 Hz for releasing tension and embracing tranquility.',
+    frequencies: [528],
+    frequencyLabel: '528 hz',
+    kind: 'soundscape',
+    loop: true,
+    remote: 'https://f005.backblazeb2.com/file/inner-audio/Soundscapes/stillness_between_breaths_hq_ios.m4a',
+    remoteLow: 'https://f005.backblazeb2.com/file/inner-audio/Soundscapes/stillness_between_breaths_64k_ios.m4a',
+    category: 'stillness',
+    durationHintMs: 60 * 60 * 1000,
+  },
+
+  {
+    id: 'grounding_field',
+    title: 'Grounding Field',
+    description: 'A grounding soundscape to connect you with the earth and foster a sense of stability. Frequency Signature: 174 Hz for deep relaxation and rooted presence.',
+    frequencies: [396],
+    frequencyLabel: '396 hz',
+    kind: 'soundscape',
+    loop: true,
+    remote: 'https://f005.backblazeb2.com/file/inner-audio/Soundscapes/grounding_field_hq_ios.m4a',
+    remoteLow: 'https://f005.backblazeb2.com/file/inner-audio/Soundscapes/grounding_field_64k_ios.m4a',
+    category: 'renewal',
+    durationHintMs: 60 * 60 * 1000,
+  },
+
+  {
+    id: 'dream_descent',
+    title: 'Dream Descent',
+    description: 'A mystical soundscape to accompany your journey into the dream state, enhancing vivid imagery and deep rest. Frequency Signature: 285 Hz for healing presence and subconscious connection.',
+    frequencies: [174],
+    frequencyLabel: '174 hz',
+    kind: 'soundscape',
+    loop: true,
+    remote: 'https://f005.backblazeb2.com/file/inner-audio/Soundscapes/dream_descent_hq_ios.m4a',
+    remoteLow: 'https://f005.backblazeb2.com/file/inner-audio/Soundscapes/dream_descent_64k_ios.m4a',
+    category: DEEPER_CATEGORY,
+    durationHintMs: 60 * 60 * 1000,
+  },
+
+  {
+    id: 'liminal_space',
+    title: 'Liminal Space',
+    description: 'An ethereal soundscape to guide you through transitional states of consciousness, fostering openness and transformation. Frequency Signature: 741 Hz for awakening intuition and spiritual alignment.',
+    frequencies: [963],
+    frequencyLabel: '963 hz',
+    kind: 'soundscape',
+    loop: true,
+    remote: 'https://f005.backblazeb2.com/file/inner-audio/Soundscapes/liminal_space_hq_ios.m4a',
+    remoteLow: 'https://f005.backblazeb2.com/file/inner-audio/Soundscapes/liminal_space_64k_ios.m4a',
+    category: DEEPER_CATEGORY,
+    durationHintMs: 60 * 60 * 1000,
+  },
+    
+    // --- Chamber tracks ---
 
   {
     id: 'chamber_one',
     title: 'Chamber One: Outer Sanctum',
     kind: 'chamber',
     loop: false,
-    durationHintMs: 30 * 60 * 1000, // adjust if you know exact
-    local: require('../assets/audio/Chambers/Chamber1_Guided_AI-64k.m4a'),
+    remote: 'https://f005.backblazeb2.com/file/inner-audio/Chambers/chamber_1_hq_ios.m4a',
+    remoteLow: 'https://f005.backblazeb2.com/file/inner-audio/Chambers/chamber_1_64k_ios.m4a',
+    durationHintMs: 30 * 60 * 1000,
+    meta: { envId: 'chamber_one' },
   },
 
   {
@@ -74,16 +198,42 @@ export const TRACKS: TrackMeta[] = [
     title: 'Chamber Two: Inner Flame',
     kind: 'chamber',
     loop: false,
-    durationHintMs: 30 * 60 * 1000, // adjust if exact length is known
-    local: require('../assets/audio/Chambers/Chamber2_guided-64k.m4a'),
+    durationHintMs: 30 * 60 * 1000,
+    remote: 'https://f005.backblazeb2.com/file/inner-audio/Chambers/chamber_2_hq_ios.m4a',
+    remoteLow: 'https://f005.backblazeb2.com/file/inner-audio/Chambers/chamber_2_64k_ios.m4a',
+    meta: { envId: 'chamber_two' },
   },
   {
     id: 'chamber_three',
     title: 'Chamber Three: Horizon Gate',
     kind: 'chamber',
     loop: false,
-    durationHintMs: 30 * 60 * 1000, // adjust if exact length is known
-    local: require('../assets/audio/Chambers/Chamber3_guided-64k.m4a'),
+    durationHintMs: 30 * 60 * 1000,
+    remote: 'https://f005.backblazeb2.com/file/inner-audio/Chambers/chamber_3_hq_ios.m4a',
+    remoteLow: 'https://f005.backblazeb2.com/file/inner-audio/Chambers/chamber_3_64k_ios.m4a',
+    meta: { envId: 'chamber_three' },
+  },
+  {
+    id: 'chamber_four',
+    title: 'Chamber Four: Resonance Field',
+    kind: 'chamber',
+    loop: false,
+    durationHintMs: 33 * 60 * 1000,
+    remote: 'https://f005.backblazeb2.com/file/inner-audio/Chambers/chamber_4_hq_ios.m4a',
+    remoteLow: 'https://f005.backblazeb2.com/file/inner-audio/Chambers/chamber_4_64k_ios.m4a',
+    meta: { envId: 'chamber_four' },
+  },
+  {
+    id: 'chamber_five',
+    title: 'Chamber Five: Remembrance Code',
+    kind: 'chamber',
+    loop: false,
+    durationHintMs: 33 * 60 * 1000,
+    remote: 'https://f005.backblazeb2.com/file/inner-audio/Chambers/chamber_5_hq_ios.m4a',
+    remoteLow: 'https://f005.backblazeb2.com/file/inner-audio/Chambers/chamber_5_64k_ios.m4a',
+    meta: { envId: 'chamber_five' },
+    isPremium: true,
+    paywallKey: CONTINUING_PAYWALL_KEY,
   },
 
   // --- Tone frequency tracks ---
@@ -95,6 +245,8 @@ export const TRACKS: TrackMeta[] = [
     local: require('../assets/audio/Tones/174hz.m4a'),
     category: 'tones',
     durationHintMs: 5 * 60 * 1000,
+    frequencies: [174],
+    frequencyLabel: '174 Hz',
   },
   {
     id: 'tone_285',
@@ -104,6 +256,8 @@ export const TRACKS: TrackMeta[] = [
     local: require('../assets/audio/Tones/285hz.m4a'),
     category: 'tones',
     durationHintMs: 5 * 60 * 1000,
+    frequencies: [285],
+    frequencyLabel: '285 Hz',
   },
   {
     id: 'tone_396',
@@ -113,6 +267,8 @@ export const TRACKS: TrackMeta[] = [
     local: require('../assets/audio/Tones/396hz.m4a'),
     category: 'tones',
     durationHintMs: 5 * 60 * 1000,
+    frequencies: [396],
+    frequencyLabel: '396 Hz',
   },
   {
     id: 'tone_432',
@@ -122,6 +278,8 @@ export const TRACKS: TrackMeta[] = [
     local: require('../assets/audio/Tones/432hz.m4a'),
     category: 'tones',
     durationHintMs: 5 * 60 * 1000,
+    frequencies: [432],
+    frequencyLabel: '432 Hz',
   },
   {
     id: 'tone_528',
@@ -131,6 +289,8 @@ export const TRACKS: TrackMeta[] = [
     local: require('../assets/audio/Tones/528hz.m4a'),
     category: 'tones',
     durationHintMs: 5 * 60 * 1000,
+    frequencies: [528],
+    frequencyLabel: '528 Hz',
   },
   {
     id: 'tone_639',
@@ -140,6 +300,8 @@ export const TRACKS: TrackMeta[] = [
     local: require('../assets/audio/Tones/639hz.m4a'),
     category: 'tones',
     durationHintMs: 5 * 60 * 1000,
+    frequencies: [639],
+    frequencyLabel: '639 Hz',
   },
   {
     id: 'tone_741',
@@ -149,6 +311,8 @@ export const TRACKS: TrackMeta[] = [
     local: require('../assets/audio/Tones/741hz.m4a'),
     category: 'tones',
     durationHintMs: 5 * 60 * 1000,
+    frequencies: [741],
+    frequencyLabel: '741 Hz',
   },
   {
     id: 'tone_852',
@@ -158,6 +322,8 @@ export const TRACKS: TrackMeta[] = [
     local: require('../assets/audio/Tones/852hz.m4a'),
     category: 'tones',
     durationHintMs: 5 * 60 * 1000,
+    frequencies: [852],
+    frequencyLabel: '852 Hz',
   },
   {
     id: 'tone_888',
@@ -167,6 +333,8 @@ export const TRACKS: TrackMeta[] = [
     local: require('../assets/audio/Tones/888hz.m4a'),
     category: 'tones',
     durationHintMs: 5 * 60 * 1000,
+    frequencies: [888],
+    frequencyLabel: '888 Hz',
   },
   {
     id: 'tone_963',
@@ -176,6 +344,8 @@ export const TRACKS: TrackMeta[] = [
     local: require('../assets/audio/Tones/963hz.m4a'),
     category: 'tones',
     durationHintMs: 5 * 60 * 1000,
+    frequencies: [963],
+    frequencyLabel: '963 Hz',
   },
 
   // --- Noise environment tracks ---
@@ -280,8 +450,16 @@ export function resolveTrack(idOrTitle?: string): TrackMeta | undefined {
 
 /** Helper to get the URL and whether it is remote or local for a track */
 export function getTrackUrl(t: TrackMeta): { url: string; isRemote: boolean } {
+  // Prefer explicit quality if available
+  if (preferredQuality === 'lq' && t.remoteLow) {
+    return { url: t.remoteLow, isRemote: true };
+  }
+
+  // Default to HQ remote if present
   if (t.remote) {
     return { url: t.remote, isRemote: true };
   }
+
+  // Fallback to local bundled asset
   return { url: t.local, isRemote: false };
 }

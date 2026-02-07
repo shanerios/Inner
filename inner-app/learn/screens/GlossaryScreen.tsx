@@ -4,6 +4,12 @@ import { SafeAreaView, View, Text, StyleSheet, TextInput, SectionList, Pressable
 import { useRoute, RouteProp, useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { Typography, Body as _Body } from '../../core/typography';
+const Body = _Body ?? ({
+  regular: { ...Typography.body },
+  subtle:  { ...Typography.caption },
+} as const);
+
 type RootStackParamList = {
   Glossary: { trackId: 'lucid' | 'obe' };
 };
@@ -85,8 +91,10 @@ export default function GlossaryScreen() {
         </Pressable>
 
         <View style={{ flex: 1 }}>
-          <Text style={styles.kicker}>{trackId === 'lucid' ? 'Lucid Glossary' : 'OBE Glossary'}</Text>
-          <Text style={styles.title}>Glossary of Terms</Text>
+          <Text style={[Typography.caption, { color: '#B9B0EB', textTransform: 'uppercase', letterSpacing: 1 }]}>
+            {trackId === 'lucid' ? 'Lucid Glossary' : 'OBE Glossary'}
+          </Text>
+          <Text style={[Typography.display, { color: '#EDE8FA', marginTop: 2 }]}>Glossary of Terms</Text>
         </View>
       </View>
 
@@ -96,7 +104,7 @@ export default function GlossaryScreen() {
           onChangeText={setQuery}
           placeholder="Search terms…"
           placeholderTextColor="rgba(237,232,250,0.55)"
-          style={styles.search}
+          style={[styles.search, { fontFamily: 'Inter-ExtraLight', fontSize: 16, color: '#EDE8FA' }]}
           accessibilityLabel="Search glossary"
           returnKeyType="search"
         />
@@ -109,7 +117,7 @@ export default function GlossaryScreen() {
         stickySectionHeadersEnabled
         renderSectionHeader={({ section }) => (
           <View style={styles.sectionHdr}>
-            <Text style={styles.sectionHdrText}>{section.title}</Text>
+            <Text style={[Typography.caption, { color: '#B9B0EB', letterSpacing: 1 }]}>{section.title}</Text>
           </View>
         )}
         renderItem={({ item }) => {
@@ -122,17 +130,15 @@ export default function GlossaryScreen() {
                 accessibilityLabel={`Toggle definition for ${item.term}`}
                 style={styles.cardHeader}
               >
-                <Text style={styles.term}>{item.term}</Text>
+                <Text style={[Typography.title, { color: '#EDE8FA' }]}>{item.term}</Text>
                 <Text style={[styles.chev, isOpen && styles.chevOpen]}>›</Text>
               </Pressable>
 
               {isOpen && (
                 <View style={styles.cardBody}>
-                  <Text style={styles.def}>{item.definition}</Text>
+                  <Text style={{ fontFamily: 'Inter-ExtraLight', fontSize: 16, lineHeight: 22, color: '#DCD6F5' }}>{item.definition}</Text>
                   {!!item.related?.length && (
-                    <Text style={styles.related}>
-                      Related: {item.related.join(' • ')}
-                    </Text>
+                    <Text style={{ fontFamily: 'Inter-ExtraLight', fontSize: 14, color: '#B9B0EB', letterSpacing: 0.2 }}>Related: {item.related.join(' • ')}</Text>
                   )}
                 </View>
               )}
@@ -141,7 +147,7 @@ export default function GlossaryScreen() {
         }}
         ListEmptyComponent={
           <View style={{ padding: 24 }}>
-            <Text style={{ color: '#DCD6F5' }}>No terms found.</Text>
+            <Text style={[Body.subtle, { color: '#DCD6F5' }]}>No terms found.</Text>
           </View>
         }
       />
@@ -154,29 +160,20 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', gap: 12, paddingHorizontal: 20, paddingBottom: 8, alignItems: 'center' },
   backBtn: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, borderColor: 'rgba(185,176,235,0.45)', alignItems: 'center', justifyContent: 'center' },
   backIcon: { color: '#EDE8FA', fontSize: 22, lineHeight: 22, marginTop: -2 },
-  kicker: { color: '#B9B0EB', textTransform: 'uppercase', letterSpacing: 1, fontSize: 12 },
-  title: { color: '#EDE8FA', fontSize: 22, fontWeight: '700' },
-
   searchRow: { paddingHorizontal: 20, paddingVertical: 8 },
   search: {
     borderWidth: 1, borderColor: 'rgba(185,176,235,0.35)',
     backgroundColor: 'rgba(185,176,235,0.10)',
     borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, color: '#EDE8FA'
   },
-
   sectionHdr: { backgroundColor: 'rgba(185,176,235,0.12)', paddingHorizontal: 16, paddingVertical: 6 },
-  sectionHdrText: { color: '#B9B0EB', fontWeight: '700', letterSpacing: 1 },
-
   card: {
     marginHorizontal: 16, marginVertical: 8, borderRadius: 14,
     borderWidth: 1, borderColor: 'rgba(185,176,235,0.25)',
     backgroundColor: 'rgba(185,176,235,0.08)', overflow: 'hidden'
   },
   cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 12 },
-  term: { color: '#EDE8FA', fontSize: 16, fontWeight: '700' },
   chev: { color: '#EDE8FA', fontSize: 22, transform: [{ rotate: '90deg' }], opacity: 0.8 },
   chevOpen: { transform: [{ rotate: '270deg' }] },
   cardBody: { paddingHorizontal: 14, paddingBottom: 12, gap: 8 },
-  def: { color: '#DCD6F5', lineHeight: 22, fontSize: 15 },
-  related: { color: '#B9B0EB', fontSize: 12 }
 });

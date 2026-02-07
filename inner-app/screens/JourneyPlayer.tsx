@@ -1,20 +1,29 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, BackHandler, Pressable, PanResponder, Animated, Easing, InteractionManager } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, BackHandler, Pressable, PanResponder, Animated, Easing, InteractionManager, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import SleepIcon from '../assets/images/sleep.svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Slider from '@react-native-community/slider';
-import { Audio, AVPlaybackStatus } from 'expo-av';
+// Removed expo-av import: project now uses only react-native-track-player
 import TrackPlayer, { RepeatMode, State, Event, Capability } from 'react-native-track-player';
 import { Asset } from 'expo-asset';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import OrbPortal from '../components/OrbPortal';
-import { TRACKS, TRACK_INDEX, getTrackUrl } from '../data/tracks';
+import AuraOverlay from '../components/AuraOverlay';
+import { TRACKS, TRACK_INDEX, getTrackUrl, getPreferredQuality, setPreferredQuality } from '../data/tracks';
 import { cacheRemoteOnce } from '../utils/audioCache';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Circle } from 'react-native-svg';
 import { saveNow, markCompleted } from '../data/playbackStore';
+import { Typography } from '../core/typography';
+import { chamberEnvForTrack } from '../theme/chamberEnvironments';
+import { saveThreadSignature } from '../src/core/threading/ThreadEngine';
+import { ThreadMood } from '../src/core/threading/threadTypes';
+import { maybeQueueThreshold } from '../src/core/thresholds/ThresholdEngine';
+
+import { useSleepTimer } from '../hooks/useSleepTimer';
 
 type RouteParams = { id?: string; chamber?: string; trackId?: string };
 
@@ -24,17 +33,21 @@ const DEFAULT_VOL = 0.9;
 const RING_DIM_OPACITY = 0.2;
 const RING_NORM_OPACITY = 0.7;
 const RING_FLASH_MS = 120;
+const SOUNDSCAPE_DEFAULT_MS = 60 * 60 * 1000; // 60 min default for long-form beds
 
-const DEBUG_AUDIO = true;
-const logStatus = async (label: string, s: Audio.Sound | null) => {
-  if (!DEBUG_AUDIO || !s) return;
-  try {
-    const st = await s.getStatusAsync();
-    console.log(`[AUDIO] ${label}:`, JSON.stringify(st));
-  } catch (e) {
-    console.log(`[AUDIO] ${label} error:`, e);
-  }
-};
+// Near-gapless loop tuning (Option B)
+const TIGHT_LOOP_MARGIN_MS = 260;   // pre-empt earlier to avoid EOF
+const TIGHT_LOOP_ARM_MS = 3000;     // arm earlier for safety on slower devices
+const TIGHT_LOOP_MICRO_INTERVAL_MS = 25; // micro-poll cadence while armed
+
+// Force early end & restart a bit into the file (soundscapes only)
+const TIGHT_LOOP_EARLY_MS = 2000;     // cut ~2s before end
+const TIGHT_LOOP_RESTART_SEC = 1.2;   // restart ~1.5s from start
+
+const DEBUG_AUDIO = false; // flip on when debugging audio
+// logStatus removed: expo-av specific
+
+const DEBUG_OVERLAY = false; // set to true only when debugging
 
 export default function JourneyPlayer() {
   const route = useRoute();
@@ -73,33 +86,237 @@ export default function JourneyPlayer() {
     : (meta?.title && String(meta.title).trim().length > 0)
       ? (meta.title as string)
       : (chamber || 'Journey');
+  const env = chamberEnvForTrack((selectedTrack?.id || legacyId || ''), (selectedTrack as any) || (meta as any));
+  const accent = env?.accent || '#8E7CFF';
   const insets = useSafeAreaInsets();
 
-  const soundRef = useRef<Audio.Sound | null>(null);
   const saveTimer = useRef<NodeJS.Timeout | null>(null);
-  // --- Duration watchdog refs ---
-  const durationWatchRef = useRef<NodeJS.Timeout | null>(null);
-  const watchStartRef = useRef<number>(0);
 
   const [isPlaying, setIsPlaying] = useState(false);
+  const [engineLabel, setEngineLabel] = useState<'TP' | '—'>('—');
   const [position, setPosition] = useState(0);     // ms
-  const [duration, setDuration] = useState(1);     // ms (avoid div by zero)
+  const [duration, setDuration] = useState(0);     // ms
   const [seeking, setSeeking] = useState(false);
   const [volume, setVolume] = useState(DEFAULT_VOL);
+  const [sleepMinutes, setSleepMinutes] = useState<number | null>(null);
+  const [showTimerMenu, setShowTimerMenu] = useState(false);
+  // --- TrackPlayer UI state smoothing ---
+const [tpState, setTpState] = useState<State | null>(null);
+const uiHoldUntilRef = useRef(0);
+const now = () => Date.now();
 
-  const durationRef = useRef<number>(1);
+useEffect(() => {
+  const subState = TrackPlayer.addEventListener(Event.PlaybackState, ({ state }) => {
+    setTpState(state);
+  });
+
+  const subError = TrackPlayer.addEventListener(Event.PlaybackError as any, (e: any) => {
+    // This is the most useful signal on TestFlight when a remote URL can't be decoded / ATS blocks / range requests fail.
+    console.log('[TP][ERROR] PlaybackError', {
+      code: e?.code,
+      message: e?.message,
+      error: e?.error,
+      track: e?.track,
+    });
+  });
+
+  return () => {
+    try { subState.remove(); } catch {}
+    try { subError.remove(); } catch {}
+  };
+}, []);
+
+// Treat Buffering/Connecting as Playing for UI; honor brief hold after seeks/toggles
+const isPlayingUI =
+  (tpState === State.Playing || tpState === State.Buffering || tpState === State.Connecting) ||
+  now() < uiHoldUntilRef.current;
+// Canonical play-state for VISUALS (animations).
+// Keep this tied to TrackPlayer UI truth so the mandala still breathes while buffering/connecting.
+const playingForVisuals = isPlayingUI;
+  // Animated controller for drop-up menu
+  const menuAnim = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (showTimerMenu) {
+      Animated.sequence([
+        Animated.delay(90), // subtle organic reveal
+        Animated.timing(menuAnim, {
+          toValue: 1,
+          duration: 240,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      Animated.timing(menuAnim, {
+        toValue: 0,
+        duration: 180, // snappier close
+        easing: Easing.in(Easing.cubic),
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [showTimerMenu]);
+  // --- Sleep timer icon pulse animation ---
+  const sleepScale = useRef(new Animated.Value(1)).current;
+  const pulseSleepIcon = useCallback(() => {
+    Animated.sequence([
+      Animated.timing(sleepScale, { toValue: 0.94, duration: 90, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(sleepScale, { toValue: 1.06, duration: 110, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(sleepScale, { toValue: 1.0, duration: 120, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+    ]).start();
+  }, [sleepScale]);
+  // Per-option scale animation values for sleep timer
+  const optionScales = useRef<{ [key: number]: Animated.Value }>({
+    15: new Animated.Value(1),
+    30: new Animated.Value(1),
+    45: new Animated.Value(1),
+    60: new Animated.Value(1),
+  }).current;
+  // --- Tiny in-app toast for quality swaps ---
+  const [toast, setToast] = useState<string | null>(null);
+  const toastOpacity = useRef(new Animated.Value(0)).current;
+  const showToast = useCallback((msg: string) => {
+    setToast(msg);
+    toastOpacity.setValue(0);
+    Animated.sequence([
+      Animated.timing(toastOpacity, { toValue: 1, duration: 180, useNativeDriver: true }),
+      Animated.delay(900),
+      Animated.timing(toastOpacity, { toValue: 0, duration: 220, useNativeDriver: true }),
+    ]).start(() => setToast(null));
+  }, [toastOpacity]);
+  // One-time gate so we only show the Low Data toast once per session
+  const lowToastShownRef = useRef(false);
+  // Integrate sleep timer hook
+  useSleepTimer(sleepMinutes);
+
+  const durationRef = useRef<number>(0);
   const tpCompletedRef = useRef(false);
+  const loopGuardTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const loopMicroPollRef = useRef<NodeJS.Timeout | null>(null);
+  // --- Quality tracking (hot-swap when user toggles Low/High) ---
+  const appliedQualityRef = useRef(getPreferredQuality());
+  const qualitySwapInProgressRef = useRef(false);
 
-  const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
+  const hotSwapQualityIfNeeded = useCallback(async () => {
+    try {
+      const currentPref = getPreferredQuality();
+      if (currentPref === appliedQualityRef.current || qualitySwapInProgressRef.current) return;
+      qualitySwapInProgressRef.current = true;
+
+      // capture current play state + position
+      const wasPlayingNow = (await TrackPlayer.getState()) === State.Playing;
+      const posSecNow = await TrackPlayer.getPosition();
+      const posMsNow = Math.floor((posSecNow || 0) * 1000);
+
+      // resolve new URL via getTrackUrl() honoring global preferredQuality
+      const baseMeta: any = selectedTrack ?? meta;
+      if (!baseMeta) { qualitySwapInProgressRef.current = false; return; }
+      let nextUrl: string | undefined;
+      try {
+        const res2 = getTrackUrl(baseMeta);
+        if (res2.isRemote) {
+          // Stream-first for soundscapes to avoid downloading the whole file just to switch quality.
+          const cacheFirst = Platform.OS === 'ios' && ((baseMeta as any)?.kind !== 'soundscape');
+          if (cacheFirst) {
+            try {
+              const local = await cacheRemoteOnce(res2.url);
+              nextUrl = local || undefined;
+            } catch {
+              nextUrl = undefined;
+            }
+          } else {
+            nextUrl = res2.url;
+          }
+        } else if (baseMeta.local) {
+          const a2 = Asset.fromModule(baseMeta.local as any);
+          await a2.downloadAsync();
+          nextUrl = a2.localUri ?? a2.uri;
+        }
+      } catch {}
+
+      if (!nextUrl) { qualitySwapInProgressRef.current = false; return; }
+
+      // rebuild TP queue with the new source and resume at prior position
+      const tpId = selectedTrack?.id || legacyId || 'default';
+      try {
+        await TrackPlayer.reset();
+        const kind2 = (selectedTrack as any)?.kind || (meta as any)?.kind;
+        const titleStr2 = displayTitle;
+        let albumStr2 = 'Inner Journeys';
+        if (kind2 === 'soundscape') albumStr2 = 'Inner Soundscapes';
+        else if (kind2 === 'chamber') albumStr2 = 'Chamber Series';
+
+        const artAsset2 = Asset.fromModule(require('../assets/images/orb-player-cover.png'));
+        try { await artAsset2.downloadAsync(); } catch {}
+
+        await TrackPlayer.add({
+          id: tpId,
+          url: nextUrl,
+          title: titleStr2,
+          artist: 'Inner',
+          album: albumStr2,
+          artwork: (artAsset2 as any).localUri ?? (artAsset2 as any).uri,
+          type: 'default',
+        } as any);
+
+        if (posMsNow > 0) {
+          await TrackPlayer.seekTo(Math.max(0.01, posMsNow / 1000));
+          setPosition(posMsNow);
+        }
+        appliedQualityRef.current = currentPref;
+        // Announce first switch to Low data mode only once per session
+        if (currentPref === 'lq' && !lowToastShownRef.current) {
+          lowToastShownRef.current = true;
+          try { await Haptics.selectionAsync(); } catch {}
+          showToast('Switched to Low data mode');
+        }
+        if (currentPref === 'hq' && !lowToastShownRef.current) {
+          // Do not set the ref here so Low data toast still shows the first time that happens.
+          try { await Haptics.selectionAsync(); } catch {}
+          showToast('Switched to High quality');
+        }
+        if (wasPlayingNow) {
+          await TrackPlayer.play();
+          setIsPlaying(true);
+          uiHoldUntilRef.current = Date.now() + 600;
+        }
+      } catch {}
+    } finally {
+      qualitySwapInProgressRef.current = false;
+    }
+  }, [selectedTrack, meta, displayTitle, showToast]);
+
+  // Keep global preferred quality in sync with AsyncStorage (in case Settings didn’t fire the setter)
+  const ensurePreferredFromStorage = useCallback(async () => {
+    try {
+      const v = await AsyncStorage.getItem('audio:quality');
+      const desired = v === 'low' ? 'lq' : 'hq';
+      if (desired !== getPreferredQuality()) {
+        setPreferredQuality(desired as any);
+      }
+    } catch {}
+    // After syncing, try to swap if needed
+    try { await hotSwapQualityIfNeeded(); } catch {}
+  }, [hotSwapQualityIfNeeded]);
+  // --- Tight loop control refs ---
+  const tightLoopArmedRef = useRef(false);
+  const tightLoopDidJumpAtRef = useRef<number>(0);
+
+const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
+
 
   // Decide if we should use TrackPlayer (system media controls) for soundscapes
   const isSoundscape = ((selectedTrack as any)?.kind || (meta as any)?.kind) === 'soundscape';
-  // Temporary hotfix: route soundscapes back to expo-av while stabilizing TrackPlayer
-  const USE_TP_FOR_SOUNDSCAPES = true;
-  const USE_TP_FOR_CHAMBERS = true;
-  const useTP = 
-    (isSoundscape && USE_TP_FOR_SOUNDSCAPES) ||
-    (!isSoundscape && USE_TP_FOR_CHAMBERS);
+  const inferChamberMood = (id?: string): ThreadMood => {
+    const safe = (id || '').toLowerCase();
+    if (safe.includes('chamber-1') || safe === 'chamber1' || safe.includes('outer-sanctum')) return 'grounded';
+    if (safe.includes('chamber-2') || safe === 'chamber2' || safe.includes('inner-flame')) return 'activated';
+    if (safe.includes('chamber-3') || safe === 'chamber3' || safe.includes('horizon-gate')) return 'expanded';
+    if (safe.includes('chamber-4') || safe === 'chamber4' || safe.includes('resonance-field') || safe.includes('resonance')) return 'reflective';
+    if (safe.includes('chamber-5') || safe === 'chamber5' || safe.includes('remembrance-code') || safe.includes('remembrance')) return 'reflective';
+    return 'grounded';
+  };
+  // Always use TrackPlayer now
+  const useTP = true;
 
   // Minimal one-time setup for TrackPlayer (v4-safe)
   const setupTrackPlayerOnce = useCallback(async () => {
@@ -145,22 +362,128 @@ export default function JourneyPlayer() {
   const lastSeekAtRef = useRef<number>(0); // throttle live setPositionAsync
   const [isLooping, setIsLooping] = useState(false);
 
+  // TrackPlayer scrub state
+  const tpWasPlayingRef = useRef(false);
+  const tpPausedDuringScrubRef = useRef(false);
+
   const [ringOpacity, setRingOpacity] = useState(RING_NORM_OPACITY);
   const [ringStrokeBoost, setRingStrokeBoost] = useState(false);
 
   const [isPrimed, setIsPrimed] = useState(false);
+  const startedAtRef = useRef<number>(0); // timestamp when playback actually advances (>0 position)
+  const suppressCompleteRef = useRef<boolean>(true); // block early complete until real start
+
+  // Guarded completion predicate – avoids false "complete" when no real playback occurred
+  const shouldMarkComplete = useCallback((posMs: number, durMs: number) => {
+    // must have known duration, advanced position, primed playback, and not suppressed
+    if (!isPrimed) return false;
+    if (suppressCompleteRef.current) return false;
+    if (!durMs || durMs <= 1500) return false;
+    if (!posMs || posMs <= 0) return false;
+    const startedForMs = startedAtRef.current ? (Date.now() - startedAtRef.current) : 0;
+    if (startedForMs <= 1500) return false;
+    // within last ~0.8s of the track counts as completion
+    return posMs >= (durMs - 800);
+  }, [isPrimed]);
   const veilOpacity = useRef(new Animated.Value(1)).current;
 
   const closeOpacity = useRef(new Animated.Value(0)).current;
+
+  // Crossfade from aura → chamber tint
+  const chamberFade = useRef(new Animated.Value(0)).current;
+  // Brief aura pulse at start (strength 1.0 → 0.75 over ~1s)
+  const auraPulse = useRef(new Animated.Value(1)).current;
+  // Boosted aura strength for transition (a touch stronger, clamped to 0..1)
+  const auraStrength = Animated.multiply(auraPulse, 1.2).interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 1],
+    extrapolate: 'clamp',
+  });
 
   // Mandala overlay breathing using a continuous phase (avoids end-of-cycle snap)
   const mandalaPhase = useRef(new Animated.Value(0)).current; // 0..1 repeating
   const mandalaLoopRef = useRef<Animated.CompositeAnimation | null>(null);
   const mandalaOpacity = mandalaPhase.interpolate({
     inputRange: [0, 0.5, 1],
-    outputRange: [0.20, 0.62, 0.20], // min → max → min
+    outputRange: [0.22, 0.74, 0.22], // min → max → min (stronger, more visible “breath”)
     extrapolate: 'clamp',
   });
+
+  // Mandala focus crossfade: blurred when paused, sharp when playing
+  // IMPORTANT: we do NOT animate blurRadius (driver conflict). We crossfade two layers instead.
+  const mandalaFocus = useRef(new Animated.Value(0)).current; // 0=blurred, 1=sharp
+  const mandalaSharpMix = mandalaFocus.interpolate({ inputRange: [0, 1], outputRange: [0, 1] });
+  const mandalaBlurMix = mandalaFocus.interpolate({ inputRange: [0, 1], outputRange: [1, 0] });
+
+  useEffect(() => {
+    Animated.timing(mandalaFocus, {
+      toValue: playingForVisuals ? 1 : 0,
+      duration: 520,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [playingForVisuals, mandalaFocus]);
+
+  // Subtle orb stack vertical drift (soundscapes) — runs only while playing
+  const orbDriftPhase = useRef(new Animated.Value(0)).current; // 0..1 repeating
+  const orbDriftLoopRef = useRef<Animated.CompositeAnimation | null>(null);
+  const orbDriftY = orbDriftPhase.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: [0, -2, 0], // 1–2px max feels right
+    extrapolate: 'clamp',
+  });
+
+  const startOrbDrift = useCallback(() => {
+    orbDriftPhase.setValue(0);
+    try { orbDriftLoopRef.current?.stop?.(); } catch {}
+    orbDriftLoopRef.current = Animated.loop(
+      Animated.timing(orbDriftPhase, {
+        toValue: 1,
+        duration: 24000, // slow = subconscious
+        easing: Easing.inOut(Easing.quad),
+        useNativeDriver: true,
+      })
+    );
+    orbDriftLoopRef.current.start();
+  }, [orbDriftPhase]);
+
+  const stopOrbDrift = useCallback(() => {
+    try { orbDriftLoopRef.current?.stop(); } catch {}
+    orbDriftLoopRef.current = null;
+    orbDriftPhase.stopAnimation(() => {});
+  }, [orbDriftPhase]);
+
+  // Background parallax (chambers only)
+  const bgPhase = useRef(new Animated.Value(0)).current;
+  const bgLoopRef = useRef<Animated.CompositeAnimation | null>(null);
+  const bgScale = bgPhase.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: [1, 1.04, 1],
+    extrapolate: 'clamp',
+  });
+  const bgTx = bgPhase.interpolate({ inputRange: [0, 0.5, 1], outputRange: [-8, 8, -8] });
+  const bgTy = bgPhase.interpolate({ inputRange: [0, 0.5, 1], outputRange: [-6, 6, -6] });
+
+  const startBgParallax = useCallback(() => {
+    // restart cleanly
+    bgPhase.setValue(0);
+    bgLoopRef.current?.stop?.();
+    bgLoopRef.current = Animated.loop(
+      Animated.timing(bgPhase, {
+        toValue: 1,
+        duration: 16000,
+        easing: Easing.inOut(Easing.quad),
+        useNativeDriver: true,
+      })
+    );
+    bgLoopRef.current.start();
+  }, [bgPhase]);
+
+  const stopBgParallax = useCallback(() => {
+    try { bgLoopRef.current?.stop(); } catch {}
+    bgLoopRef.current = null;
+    bgPhase.stopAnimation(() => {});
+  }, [bgPhase]);
 
   const startMandala = useCallback(() => {
     // Create a fresh loop each time we (re)start to avoid stale animations
@@ -184,25 +507,59 @@ export default function JourneyPlayer() {
 
   // Start/stop breathing based on play state
   useEffect(() => {
-    if (isPlaying) {
+    if (playingForVisuals) {
       startMandala();
+      if (!isSoundscape) startBgParallax();
+      if (isSoundscape) startOrbDrift();
     } else {
       stopMandala();
-      // hold whatever opacity parent sets (finalMandalaOpacity will clamp to 0.22)
+      if (!isSoundscape) stopBgParallax();
+      if (isSoundscape) stopOrbDrift();
+      // hold whatever opacity parent sets
     }
     return () => { /* no-op here; unmount handled below */ };
-  }, [isPlaying, startMandala, stopMandala]);
+  }, [
+    playingForVisuals,
+    startMandala,
+    stopMandala,
+    startBgParallax,
+    stopBgParallax,
+    isSoundscape,
+    startOrbDrift,
+    stopOrbDrift,
+  ]);
 
   // Cleanup on unmount
+  // On enter, fade from the app's current aura to the chamber-tinted overlay
   useEffect(() => {
+    chamberFade.setValue(0);
+    Animated.timing(chamberFade, {
+      toValue: 1,
+      duration: 2500, // was 350 — longer to make the effect more noticeable
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+    // Reset and animate aura strength down slightly (keep it stronger, fade a bit longer)
+    auraPulse.setValue(1);
+    Animated.timing(auraPulse, {
+      toValue: 0.88,
+      duration: 1400,
+      easing: Easing.inOut(Easing.quad),
+      useNativeDriver: true,
+    }).start();
+
     return () => {
       stopMandala();
+      stopBgParallax();
+      stopOrbDrift();
       mandalaPhase.setValue(0);
     };
-  }, [stopMandala, mandalaPhase]);
+  }, [stopMandala, stopBgParallax, stopOrbDrift, mandalaPhase]);
 
   // Tie mandala breathing to play state: breathe when playing, dim when paused
-  const finalMandalaOpacity = isPlaying ? mandalaOpacity : 0.22;
+  const finalMandalaBaseOpacity: any = playingForVisuals ? mandalaOpacity : 0.24;
+  const finalMandalaSharpOpacity: any = Animated.multiply(finalMandalaBaseOpacity, mandalaSharpMix);
+  const finalMandalaBlurOpacity: any = Animated.multiply(finalMandalaBaseOpacity, mandalaBlurMix);
 
   // --- Completion banner state ---
   const [showComplete, setShowComplete] = useState(false);
@@ -234,8 +591,13 @@ export default function JourneyPlayer() {
   const handleReplay = async () => {
     try {
       setRingOpacity(RING_NORM_OPACITY);
-      await soundRef.current?.setPositionAsync(0);
-      await soundRef.current?.playAsync();
+      if (useTP) {
+        try { await TrackPlayer.seekTo(0); } catch {}
+        try { await TrackPlayer.play(); } catch {}
+      } else {
+        await soundRef.current?.setPositionAsync(0);
+        await soundRef.current?.playAsync();
+      }
       Haptics.selectionAsync().catch(() => {});
     } catch {}
   };
@@ -253,17 +615,7 @@ export default function JourneyPlayer() {
     return `${m}:${s < 10 ? '0' + s : s}`;
   };
 
-  // Fade helper
-  const fadeTo = async (target: number, ms = FADE_MS) => {
-    const steps = 12;
-    const start = volume;
-    for (let i = 1; i <= steps; i++) {
-      const v = start + (target - start) * (i / steps);
-      await soundRef.current?.setVolumeAsync(v);
-      setVolume(v);
-      await new Promise(r => setTimeout(r, Math.max(1, Math.floor(ms / steps))));
-    }
-  };
+  // fadeTo removed: expo-av only
 
   const loadResume = async (): Promise<number> => {
     try {
@@ -291,30 +643,80 @@ export default function JourneyPlayer() {
     Animated.timing(closeOpacity, { toValue: 1, duration: 200, useNativeDriver: true }).start();
 
     const setup = async () => {
+      // Fresh state for new track load
+      setShowComplete(false);
+      setIsPlaying(false);
+      setPosition(0);
+      setDuration(0);
+      durationRef.current = 0;
+      setIsPrimed(false);
+      veilOpacity.setValue(1);
+      setRingOpacity(RING_NORM_OPACITY);
+      setEngineLabel('TP');
+      suppressCompleteRef.current = true;
+      startedAtRef.current = 0;
+      // Track which quality is currently applied
+      appliedQualityRef.current = getPreferredQuality();
+
       try {
-        // --- TrackPlayer path for soundscapes ---
+        // --- TrackPlayer path (now always used) ---
         if (useTP) { tpCompletedRef.current = false;
           await setupTrackPlayerOnce();
 
-          // Resolve URL (remote-first via B2 cache, fallback to local asset/registry/hum)
+          // Resolve URL (prefer cached local if available, else remote, else asset)
           let url: string | undefined;
           try {
             const baseMeta: any = selectedTrack ?? meta;
             if (baseMeta) {
               const res = getTrackUrl(baseMeta);
               if (res.isRemote) {
-                // Cache remote once, return file:// for TrackPlayer
-                url = await cacheRemoteOnce(res.url);
-                console.log('[TP] using cached remote →', url);
+                // Stream-first for soundscapes to avoid huge cache + long “first play” waits.
+                // Cache-first for chambers on iOS for reliability.
+                const cacheFirst = Platform.OS === 'ios' && !isSoundscape;
+
+                if (cacheFirst) {
+                  try {
+                    const local = await cacheRemoteOnce(res.url);
+                    if (local) {
+                      url = local;
+                      console.log('[TP] using cached local (cache-first) →', url);
+                    } else {
+                      console.log('[TP] cache-first required but cacheRemoteOnce returned null', { remote: res.url });
+                      url = undefined;
+                    }
+                  } catch (err) {
+                    console.log('[TP] cacheRemoteOnce failed (cache-first)', { remote: res.url, err });
+                    url = undefined;
+                  }
+                } else {
+                  // Stream immediately (no implicit caching). Explicit download/offline flows handled elsewhere.
+                  url = res.url;
+                  console.log('[TP] streaming remote (no cache) →', url);
+                }
               } else if (baseMeta.local) {
-                const a = Asset.fromModule(baseMeta.local as any);
-                await a.downloadAsync();
-                url = a.localUri ?? a.uri;
-                console.log('[TP] using local asset →', url);
+                // Bundled/local asset
+                const asset = Asset.fromModule(baseMeta.local as any);
+                await asset.downloadAsync();
+                url = asset.localUri ?? asset.uri;
+                console.log('[TP] using bundled asset →', url);
               }
             }
           } catch (e) {
             console.log('[TP] getTrackUrl/cache resolve error', e);
+          }
+
+          // Guard: abort setup if no URL was resolved
+          if (!url) {
+            console.log('[TP] No URL resolved for playback', {
+              platform: Platform.OS,
+              dev: __DEV__,
+              trackId: selectedTrack?.id || legacyId,
+              kind: (selectedTrack as any)?.kind || (meta as any)?.kind,
+            });
+            // Keep UI in a safe state; this will surface as 00:00/— but with clear logs.
+            setIsPlaying(false);
+            setEngineLabel('TP');
+            return;
           }
 
           // --- Minimal TP queueing + play (no artwork/metadata/repeat) ---
@@ -322,7 +724,22 @@ export default function JourneyPlayer() {
           try {
             console.log('[TP] reset()');
             await TrackPlayer.reset();
-            console.log('[TP] add() start', { id: tpId, url: url, title: displayTitle });
+            // Sanity check: confirm the cached file exists and has non-zero size.
+            try {
+              const FileSystem = require('expo-file-system');
+              if (typeof url === 'string' && url.startsWith('file://')) {
+                const info = await FileSystem.getInfoAsync(url);
+                console.log('[TP] local file info', { exists: info?.exists, size: info?.size, uri: info?.uri });
+              }
+            } catch (e) {
+              console.log('[TP] local file info error', e);
+            }
+            console.log('[TP] add() start', {
+              id: tpId,
+              title: displayTitle,
+              url,
+              isLocalFile: typeof url === 'string' ? url.startsWith('file://') : false,
+            });
 
             // Build Inner-branded metadata (artist fixed, series via album)
             const kind = (selectedTrack as any)?.kind || (meta as any)?.kind;
@@ -342,13 +759,30 @@ export default function JourneyPlayer() {
               artist: 'Inner',
               album: albumStr,
               artwork: (artAsset as any).localUri ?? (artAsset as any).uri,
+              type: 'default',
             } as any);
             console.log('[TP] add() done');
 
+            // Fallback: if the queue ends unexpectedly on a soundscape, restart immediately
+            try {
+              const endSub = TrackPlayer.addEventListener(Event.PlaybackQueueEnded, async (e: any) => {
+                if (!isSoundscape) return;
+                // If we just jumped pre-EOF, ignore the event
+                if (tightLoopDidJumpAtRef.current && Date.now() - tightLoopDidJumpAtRef.current < 400) return;
+                try {
+                  await TrackPlayer.seekTo(Math.max(0.01, TIGHT_LOOP_RESTART_SEC));
+                  await TrackPlayer.play();
+                  setPosition(Math.floor(TIGHT_LOOP_RESTART_SEC * 1000));
+                  uiHoldUntilRef.current = Date.now() + 600;
+                } catch {}
+              });
+              (saveNow as any).__tpEndSub = endSub;
+            } catch {}
+
             // Loop soundscapes by default (safe, v4)
             if (isSoundscape) {
-              console.log('[TP] setRepeatMode(Track)');
-              await TrackPlayer.setRepeatMode(RepeatMode.Track);
+              console.log('[TP] setRepeatMode(Off) for tight loop');
+              await TrackPlayer.setRepeatMode(RepeatMode.Off);
             } else {
               console.log('[TP] setRepeatMode(Off) for chamber');
               await TrackPlayer.setRepeatMode(RepeatMode.Off);
@@ -370,6 +804,8 @@ export default function JourneyPlayer() {
             console.log('[TP] play()');
             await TrackPlayer.play();
             setIsPlaying(true);
+            setEngineLabel('TP');
+            uiHoldUntilRef.current = Date.now() + 600;
 
             // --- TrackPlayer start watchdog: ensure playback actually advances ---
             try {
@@ -388,8 +824,33 @@ export default function JourneyPlayer() {
               }
               if (!advanced) {
                 console.log('[TP] watchdog: playback did not advance — retrying play + tiny seek');
-                try { await TrackPlayer.play(); } catch {}
+                try { await TrackPlayer.play(); uiHoldUntilRef.current = Date.now() + 600; } catch {}
                 try { await TrackPlayer.seekTo(0.05); } catch {}
+              }
+              // Second check: if still not advancing, surface a clear log and keep UI safe.
+              // (We removed expo-av fallback; a missing fallback was causing a runtime ReferenceError.)
+              try {
+                let advanced2 = false;
+                const t1 = Date.now();
+                while (Date.now() - t1 < 1500) {
+                  const pos2 = await TrackPlayer.getPosition();
+                  const dur2 = await TrackPlayer.getDuration();
+                  const st2 = await TrackPlayer.getState();
+                  if ((pos2 ?? 0) > 0.05 || (st2 === State.Playing && (dur2 ?? 0) > 0)) { advanced2 = true; break; }
+                  await new Promise(r => setTimeout(r, 150));
+                }
+                if (!advanced2) {
+                  console.log('[TP] watchdog: still stalled — TrackPlayer could not start playback', {
+                    platform: Platform.OS,
+                    url,
+                  });
+                  // Ensure we don't show a misleading playing state.
+                  setIsPlaying(false);
+                  uiHoldUntilRef.current = 0;
+                  return;
+                }
+              } catch (e) {
+                console.log('[TP] secondary watchdog error', e);
               }
             } catch (e) {
               console.log('[TP] watchdog error', e);
@@ -398,6 +859,8 @@ export default function JourneyPlayer() {
             // Mark UI as primed now that playback started (TrackPlayer path)
             if (!isPrimed) {
               setIsPrimed(true);
+              startedAtRef.current = Date.now();
+              suppressCompleteRef.current = false;
               try { Animated.timing(veilOpacity, { toValue: 0, duration: 300, useNativeDriver: true }).start(); } catch {}
             }
             setRingOpacity(RING_NORM_OPACITY);
@@ -410,6 +873,7 @@ export default function JourneyPlayer() {
                   console.log('[TP] verify kick: state=', stVerify, '→ play()');
                   await TrackPlayer.play();
                   setIsPlaying(true);
+                  uiHoldUntilRef.current = Date.now() + 600;
                 }
               } catch {}
             }, 500);
@@ -420,6 +884,63 @@ export default function JourneyPlayer() {
                 const pos = await TrackPlayer.getPosition();
                 const dur = (await TrackPlayer.getDuration()) || durationRef.current || 1;
                 setPosition(Math.floor(pos * 1000));
+
+                // --- Tight loop (soundscapes only) ---
+                if (isSoundscape) {
+                  const pMs = Math.floor((pos || 0) * 1000);
+                  const dSecLive = await TrackPlayer.getDuration();
+                  const dMs = Math.floor(((dSecLive || 0) * 1000));
+                  if (dMs > 1000) {
+                    const remaining = dMs - pMs;
+
+                    // Enter high-frequency poller in the last few seconds
+                    if (remaining <= TIGHT_LOOP_ARM_MS) {
+                      if (!tightLoopArmedRef.current) {
+                        tightLoopArmedRef.current = true;
+                        tightLoopDidJumpAtRef.current = 0;
+                      }
+                      if (!loopMicroPollRef.current) {
+                        loopMicroPollRef.current = setInterval(async () => {
+                          try {
+                            const posNow = await TrackPlayer.getPosition();
+                            const durNow = await TrackPlayer.getDuration();
+                            const remNow = Math.floor(((durNow || 0) * 1000) - ((posNow || 0) * 1000));
+
+                            // If we've already jumped and we're clearly past restart point, nothing to do
+                            if (tightLoopDidJumpAtRef.current && (posNow * 1000) > (TIGHT_LOOP_RESTART_SEC * 1000 + 600)) {
+                              // keep polling for next cycle arm
+                            }
+
+                            // Pre-empt EOF aggressively: cut ~2s early and restart ~1.5s in
+                            if (remNow <= TIGHT_LOOP_EARLY_MS) {
+                              const stNow = await TrackPlayer.getState();
+                              if (stNow === State.Playing || stNow === State.Buffering || stNow === State.Connecting) {
+                                try {
+                                  const restartSec = Math.max(0.01, TIGHT_LOOP_RESTART_SEC);
+                                  await TrackPlayer.seekTo(restartSec);
+                                  setPosition(Math.floor(restartSec * 1000));
+                                  uiHoldUntilRef.current = Date.now() + 600;
+                                  tightLoopDidJumpAtRef.current = Date.now();
+                                } catch {}
+                              }
+                            }
+
+                            // If we left the arm window (user scrubbed away), stop micropoll
+                            if (remNow > (TIGHT_LOOP_ARM_MS + 50)) {
+                              if (loopMicroPollRef.current) { clearInterval(loopMicroPollRef.current); loopMicroPollRef.current = null; }
+                              tightLoopArmedRef.current = false;
+                            }
+                          } catch {}
+                        }, TIGHT_LOOP_MICRO_INTERVAL_MS);
+                      }
+                    } else {
+                      // Not inside ARM window: ensure micro-poller is stopped
+                      if (loopMicroPollRef.current) { clearInterval(loopMicroPollRef.current); loopMicroPollRef.current = null; }
+                      tightLoopArmedRef.current = false;
+                    }
+                  }
+                }
+
                 if (!isPrimed && pos > 0) {
                   setIsPrimed(true);
                   try { Animated.timing(veilOpacity, { toValue: 0, duration: 300, useNativeDriver: true }).start(); } catch {}
@@ -442,7 +963,7 @@ export default function JourneyPlayer() {
                   if (!isSoundscape && !tpCompletedRef.current) {
                     const dMs = durationRef.current || Math.floor(dur * 1000);
                     const pMs = Math.floor(pos * 1000);
-                    if (dMs > 0 && pMs >= dMs - 800) {
+                    if (shouldMarkComplete(pMs, dMs)) {
                       tpCompletedRef.current = true;
                       try {
                         await TrackPlayer.pause();
@@ -452,7 +973,32 @@ export default function JourneyPlayer() {
                       setPosition(0);
                       try { await savePosition(0); } catch {}
                       showCompletionBanner();
-                      try { markCompleted(selectedTrack?.id || legacyId || 'default'); } catch {}
+                      const chamberId = selectedTrack?.id || legacyId || 'default';
+
+                      // Mark chamber complete (existing behavior)
+                      try {
+                        markCompleted(chamberId);
+                      } catch {}
+
+                      // ThresholdEngine now handles queuing a structured payload for HomeScreen
+                      try {
+                        await maybeQueueThreshold({ event: { type: 'chamber_complete', chamberId } });
+                      } catch (e) {
+                        console.log('[Threshold] chamber threshold error', e);
+                      }
+
+                      // Journey Threading v1: record this chamber as the last completed step
+                      try {
+                        const mood = inferChamberMood(chamberId);
+                        await saveThreadSignature({
+                          type: 'chamber',
+                          id: chamberId,
+                          mood,
+                          timestamp: Date.now(),
+                        });
+                      } catch (e) {
+                        console.log('[Threading] chamber thread save error', e);
+                      }
                     }
                   }
                 } catch {}
@@ -469,229 +1015,8 @@ export default function JourneyPlayer() {
           return; // skip expo-av path
         }
 
-        await Audio.setIsEnabledAsync(true);
-        const audioMode: any = {
-          playsInSilentModeIOS: true,
-          staysActiveInBackground: true,
-          shouldDuckAndroid: false, // request exclusive focus (no ducking)
-          playThroughEarpieceAndroid: false,
-        };
-        // SDK 53+: use the new namespaced enum if available; otherwise omit
-        const AIM = (Audio as any).AndroidAudioInterruptionMode;
-        if (AIM && AIM.DoNotMix != null) {
-          audioMode.interruptionModeAndroid = AIM.DoNotMix;
-        }
-        await Audio.setAudioModeAsync(audioMode);
-
-        const s = new Audio.Sound();
-        soundRef.current = s;
-
-        try {
-          // Remote-first resolver for expo-av: cache remote to file:// once, else use local asset, else registry, else hum
-          let playUri: string | undefined;
-          try {
-            const baseMeta: any = selectedTrack ?? meta;
-            if (baseMeta) {
-              const res = getTrackUrl(baseMeta);
-              if (res.isRemote) {
-                playUri = await cacheRemoteOnce(res.url);
-                if (DEBUG_AUDIO) console.log('[AUDIO] cached remote →', playUri);
-                await s.loadAsync({ uri: playUri }, { volume: 0.0, shouldPlay: true });
-              } else if (baseMeta.local) {
-                const a = Asset.fromModule(baseMeta.local as any);
-                await a.downloadAsync();
-                playUri = a.localUri ?? a.uri;
-                if (DEBUG_AUDIO) console.log('[AUDIO] using local asset →', playUri);
-                await s.loadAsync({ uri: playUri }, { volume: 0.0, shouldPlay: true });
-              }
-            }
-          } catch (e) {
-            console.log('[AUDIO] getTrackUrl/cache resolve error', e);
-          }
-
-          if (!playUri) {
-            const cachedUris = (globalThis as any).__TRACK_URIS || {};
-            const cacheKey = selectedTrack?.id || legacyId;
-            const cachedUri: string | undefined = cacheKey ? cachedUris[cacheKey] : undefined;
-            if (cachedUri) {
-              if (DEBUG_AUDIO) console.log('[AUDIO] Loading from preloaded URI for id=', cacheKey, '→', cachedUri);
-              await s.loadAsync({ uri: cachedUri }, { volume: 0.0, shouldPlay: true });
-              playUri = cachedUri;
-            } else {
-              if (DEBUG_AUDIO) console.log('[AUDIO] Registry miss; loading fallback Homepage_Hum.mp3 for id=', selectedTrack?.id || legacyId);
-              await s.loadAsync(require('../assets/audio/Homepage_Hum.mp3'), { volume: 0.0, shouldPlay: true });
-              playUri = 'bundle://Homepage_Hum.mp3';
-            }
-          }
-
-          await s.setVolumeAsync(0.0);
-          setVolume(0.0);
-        } catch (e) {
-          console.log('[AUDIO] Local/registry load failed, trying remote test URL:', e);
-          await s.loadAsync({ uri: 'https://www2.cs.uic.edu/~i101/SoundFiles/StarWars60.wav' }, { volume: 0.0, shouldPlay: true });
-        }
-
-        await logStatus('after loadAsync', s);
-        // Log which source path was used at runtime
-        try {
-          const st = await s.getStatusAsync();
-          if ((st as any)?.uri) {
-            console.log('[AUDIO] playing from URI', (st as any).uri);
-          }
-        } catch {}
-
-        // Loop behavior: soundscapes loop, chambers do not (overrideable by flags)
-        const loopDefault = inferShouldLoop();
-        await s.setIsLoopingAsync(loopDefault);
-        setIsLooping(loopDefault);
-
-        // Resume position if any
-        const resumeAt = await loadResume();
-        if (resumeAt > 0) {
-          try { await s.setPositionAsync(resumeAt); } catch {}
-          setPosition(resumeAt);
-          if (DEBUG_AUDIO) console.log('[AUDIO] Resumed at', resumeAt);
-        }
-        // Prime duration ref once if available
-        try {
-          const stInit = await s.getStatusAsync();
-          const dm = (stInit as any)?.durationMillis;
-          const pd = (stInit as any)?.playableDurationMillis;
-          const initialDur = (typeof dm === 'number' && dm > 0)
-            ? dm
-            : (typeof pd === 'number' && pd > 0)
-              ? pd
-              : 0;
-          if (initialDur > 0) {
-            durationRef.current = initialDur;
-            setDuration(initialDur);
-          }
-          if (typeof (stInit as any)?.isLooping === 'boolean') {
-            setIsLooping(!!(stInit as any).isLooping);
-          }
-        } catch {}
-
-        // --- Duration Watchdog: short-lived poller to seed duration/position early ---
-        const startDurationWatch = () => {
-          if (durationWatchRef.current) clearInterval(durationWatchRef.current);
-          watchStartRef.current = Date.now();
-          durationWatchRef.current = setInterval(async () => {
-            try {
-              const st = await s.getStatusAsync();
-              if (!st.isLoaded) return;
-              const dm = (st as any)?.durationMillis || (st as any)?.playableDurationMillis || 0;
-              const pm = (st as any)?.positionMillis || 0;
-              if (dm > 0) {
-                if (durationRef.current !== dm) {
-                  durationRef.current = dm;
-                  setDuration(dm);
-                }
-              }
-              if (!seeking) setPosition(pm);
-              // Stop watching once we have both duration and the position has advanced, or after 10s fallback
-              if ((dm > 0 && pm > 0) || (Date.now() - watchStartRef.current > 10000)) {
-                if (durationWatchRef.current) {
-                  clearInterval(durationWatchRef.current);
-                  durationWatchRef.current = null;
-                }
-              }
-            } catch {}
-          }, 300);
-        };
-
-        // Attach status updates BEFORE play
-        s.setOnPlaybackStatusUpdate((st: AVPlaybackStatus) => {
-          if (!mounted || !st.isLoaded) return;
-          const d1 = (st as any).durationMillis;
-          const d2 = (st as any).playableDurationMillis;
-          const dur = (typeof d1 === 'number' && d1 > 0)
-            ? d1
-            : (typeof d2 === 'number' && d2 > 0)
-              ? d2
-              : durationRef.current;
-          if (dur !== durationRef.current) {
-            durationRef.current = dur;
-            if (dur > 0) setDuration(dur);
-          }
-          const pos = (st as any).positionMillis ?? 0;
-          if (!seeking) setPosition(pos);
-          setIsPlaying(!!st.isPlaying);
-          if (!isPrimed && pos > 0) {
-            setIsPrimed(true);
-            Animated.timing(veilOpacity, { toValue: 0, duration: 300, useNativeDriver: true }).start();
-          }
-          if ((st as any).isPlaying) {
-            setRingOpacity(RING_NORM_OPACITY);
-          }
-          if (typeof (st as any).isLooping === 'boolean') setIsLooping(!!(st as any).isLooping);
-          if ((st as any).error) console.log('[AUDIO] status error:', (st as any).error);
-          // ---- Persist "last session" snapshot (throttled) ----
-          {
-            const nowTs = Date.now();
-            (saveNow as any).__lastAt = (saveNow as any).__lastAt || 0;
-            if (nowTs - (saveNow as any).__lastAt > 1200) {
-              (saveNow as any).__lastAt = nowTs;
-              try {
-                saveNow({
-                  trackId: selectedTrack?.id || legacyId || 'default',
-                  title: displayTitle,
-                  category: (selectedTrack as any)?.kind || (meta as any)?.kind || undefined,
-                  positionMillis: (st as any).positionMillis ?? 0,
-                  durationMillis: (st as any).durationMillis ?? durationRef.current ?? 1,
-                  isLooping: (st as any).isLooping,
-                  completed: false,
-                });
-              } catch {}
-            }
-          }
-          if (st.didJustFinish) {
-            // If looping, ignore completion events
-            if ((st as any).isLooping) {
-              return;
-            }
-            // For non-looping journeys, reset to start and stop
-            setIsPlaying(false);
-            setPosition(0);
-            savePosition(0);
-            const snd = soundRef.current;
-            setTimeout(() => { snd?.stopAsync().catch(() => {}); }, 0);
-            showCompletionBanner();
-            try { markCompleted(selectedTrack?.id || legacyId || 'default'); } catch {}
-          }
-        });
-        await s.setProgressUpdateIntervalAsync(250);
-        // Start duration watchdog before play (to catch duration/position before callback fires)
-        startDurationWatch();
-
-        // Start playback
-        try {
-          await s.playAsync();
-          await logStatus('after playAsync', s);
-          // Immediately query and seed position/duration in case callback lags
-          try {
-            const stNow = await s.getStatusAsync();
-            const dmNow = (stNow as any)?.durationMillis || (stNow as any)?.playableDurationMillis;
-            if (typeof dmNow === 'number' && dmNow > 0) {
-              durationRef.current = dmNow;
-              setDuration(dmNow);
-            }
-            const posNow = (stNow as any)?.positionMillis;
-            if (typeof posNow === 'number') setPosition(posNow);
-          } catch {}
-          // Start duration watchdog again after play (to catch both cases)
-          startDurationWatch();
-        } catch (e) {
-          console.log('[AUDIO] playAsync error:', e);
-        }
-
-        // Optional: fade in to target volume after play
-        try {
-          await fadeTo(DEFAULT_VOL, FADE_MS);
-        } catch (e) {
-          console.log('[AUDIO] fade error:', e);
-        }
-
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+        // No expo-av fallback path
+        return;
       } catch (e) {
         console.log('[AUDIO] setup fatal error:', e);
       }
@@ -709,31 +1034,17 @@ export default function JourneyPlayer() {
       mounted = false;
       sub.remove();
       if (saveTimer.current) clearInterval(saveTimer.current);
-      // --- Clear duration watchdog ---
-      if (durationWatchRef.current) { clearInterval(durationWatchRef.current); durationWatchRef.current = null; }
       // Clear TrackPlayer poller if set
       if ((saveNow as any).__tpInt) { clearInterval((saveNow as any).__tpInt); (saveNow as any).__tpInt = null; }
       setIsPrimed(false);
       veilOpacity.setValue(1);
       setRingOpacity(RING_NORM_OPACITY);
-
-      // If we were using expo-av (chambers), defer unload to avoid ExoPlayer wrong-thread crash.
-      if (!useTP) {
-        const s = soundRef.current;
-        soundRef.current = null;
-        if (s) {
-          try {
-            requestAnimationFrame(() => {
-              InteractionManager.runAfterInteractions(() => {
-                s.unloadAsync().catch(() => {});
-              });
-            });
-          } catch {}
-        }
-      } else {
-        // TrackPlayer path: no expo-av sound to unload
-        soundRef.current = null;
-      }
+      // No expo-av cleanup needed
+      if (loopGuardTimeoutRef.current) { clearTimeout(loopGuardTimeoutRef.current); loopGuardTimeoutRef.current = null; }
+      if (loopMicroPollRef.current) { clearInterval(loopMicroPollRef.current); loopMicroPollRef.current = null; }
+      tightLoopArmedRef.current = false;
+      tightLoopDidJumpAtRef.current = 0;
+      try { (saveNow as any).__tpEndSub?.remove?.(); (saveNow as any).__tpEndSub = null; } catch {}
     };
   }, [selectedTrack?.id, legacyId]);
 
@@ -747,123 +1058,105 @@ export default function JourneyPlayer() {
   }, [position, seeking]);
 
   const toggle = useCallback(async () => {
-    if (useTP) {
-      try {
-        const st = await TrackPlayer.getState();
-        if (st === State.Playing) {
-          const pos = await TrackPlayer.getPosition();
-          await TrackPlayer.pause();
-          await savePosition(Math.floor(pos * 1000));
-          setIsPlaying(false);
-        } else {
-          // If at end (no end for repeat track), just play
-          await TrackPlayer.play();
-          setIsPlaying(true);
-        }
-      } catch {}
-      return;
-    }
-
-    // expo-av path (chambers)
-    const s = soundRef.current; if (!s) return;
-    const st = await s.getStatusAsync();
-    if (!st.isLoaded) return;
-
-    const pos = st.positionMillis ?? 0;
-    const dur = st.durationMillis ?? 0;
-    const atEnd = dur > 0 && pos >= (dur - 500);
-
-    if (st.isPlaying) {
-      await s.pauseAsync();
-      await savePosition(pos);
-    } else {
-      if (atEnd) {
-        try {
-          await s.setPositionAsync(0);
-          setPosition(0);
-          await savePosition(0);
-        } catch {}
+    // TrackPlayer only
+    try {
+      const durWarm = durationRef.current || (await TrackPlayer.getDuration()) || 0;
+      const stWarm = await TrackPlayer.getState();
+      if (durWarm <= 0 || !isPrimed || stWarm === State.Buffering) {
+        try { await TrackPlayer.play(); } catch {}
+        setIsPlaying(true);
+        return;
       }
-      await s.playAsync();
-    }
-  }, [isSoundscape]);
+    } catch {}
+    try {
+      const st = await TrackPlayer.getState();
+      if (st === State.Playing) {
+        const pos = await TrackPlayer.getPosition();
+        await TrackPlayer.pause();
+        await savePosition(Math.floor(pos * 1000));
+        setIsPlaying(false);
+      } else {
+        await TrackPlayer.play();
+        setIsPlaying(true);
+        uiHoldUntilRef.current = Date.now() + 600; // ~0.6s smoothing
+      }
+    } catch {}
+    return;
+  }, [isPrimed]);
 
   const onSlidingStart = () => setSeeking(true);
   const onSlidingComplete = async (val: number) => {
     setSeeking(false);
     try {
       await seekToMs(val);
-      if (useTP) {
-        // TrackPlayer path doesn't immediately reflect via expo-av status, so force UI update
-        setPosition(val);
-      } else {
-        const s = soundRef.current; if (s) {
-          try {
-            const st = await s.getStatusAsync();
-            if (st.isLoaded && !st.isPlaying) setPosition(val);
-          } catch {}
-        }
-      }
+      setPosition(val);
       await savePosition(val);
       await Haptics.selectionAsync();
+      uiHoldUntilRef.current = Date.now() + 600; // ~0.6s smoothing
     } catch {}
   };
 
   const handleClose = async () => {
-    const s = soundRef.current;
-    if (useTP) {
-      try {
-        const pos = await TrackPlayer.getPosition();
-        await savePosition(Math.floor(pos * 1000));
-        // Save snapshot
-        try {
-          const dur = (await TrackPlayer.getDuration()) || 0;
-          await saveNow({
-            trackId: selectedTrack?.id || legacyId || 'default',
-            title: displayTitle,
-            category: (selectedTrack as any)?.kind || (meta as any)?.kind || undefined,
-            positionMillis: Math.floor(pos * 1000),
-            durationMillis: Math.floor(dur * 1000),
-            isLooping: true,
-            completed: false,
-          });
-        } catch {}
-        await TrackPlayer.pause();
-      } catch {}
-      navigation.goBack();
-      return;
-    }
     try {
-      if (s) {
-        await fadeTo(0.0, FADE_MS);
-        await s.pauseAsync();
-        const st = await s.getStatusAsync();
-        if (st.isLoaded) await savePosition(st.positionMillis ?? 0);
-        if (st && st.isLoaded) {
-          try {
-            await saveNow({
-              trackId: selectedTrack?.id || legacyId || 'default',
-              title: displayTitle,
-              category: (selectedTrack as any)?.kind || (meta as any)?.kind || undefined,
-              positionMillis: st.positionMillis ?? 0,
-              durationMillis: st.durationMillis ?? durationRef.current ?? 1,
-              isLooping: (st as any).isLooping as boolean,
-              completed: false,
-            });
-          } catch {}
+      const pos = await TrackPlayer.getPosition();
+      const posMs = Math.floor(pos * 1000);
+      await savePosition(posMs);
+      // Save snapshot
+      try {
+        const dur = (await TrackPlayer.getDuration()) || 0;
+        await saveNow({
+          trackId: selectedTrack?.id || legacyId || 'default',
+          title: displayTitle,
+          category: (selectedTrack as any)?.kind || (meta as any)?.kind || undefined,
+          positionMillis: posMs,
+          durationMillis: Math.floor(dur * 1000),
+          isLooping: true,
+          completed: false,
+        });
+      } catch {}
+      // Journey Threading v1: treat closing an active soundscape as a completed soundscape session
+      try {
+        if (isSoundscape && posMs > 5000) {
+          await saveThreadSignature({
+            type: 'soundscape',
+            id: selectedTrack?.id || legacyId || 'default',
+            mood: 'expanded',
+            timestamp: Date.now(),
+          });
         }
+      } catch (e) {
+        console.log('[Threading] soundscape thread save error', e);
       }
+      // ThresholdEngine now handles queuing a structured payload for HomeScreen
+      try {
+        if (isSoundscape && posMs > 5 * 60 * 1000) {
+          await maybeQueueThreshold({ event: { type: 'ritual_complete', ritualId: 'soundscape_session' } });
+        }
+      } catch (e) {
+        console.log('[Threshold] soundscape threshold error', e);
+      }
+      await TrackPlayer.pause();
     } catch {}
     navigation.goBack();
   };
 
   // Orb / ring geometry
-  const ORB_SIZE = 250;        // orb is 280px
-  const RING_SIZE = 270;       // ring wraps the orb with a bit of margin
+  const ORB_SIZE = 250;
+  const ORB_VISUAL_SCALE = 1.10;
+  const ORB_VISUAL_SIZE = ORB_SIZE * ORB_VISUAL_SCALE;
+
+  // Mandala overlay tuning (keeps breathing, hides outer ember rim)
+  const MANDALA_SCALE = 1.0;          // keep 1.0 unless you want the mandala slightly smaller/larger
+  const MANDALA_EDGE_MASK = 32;       // px thickness that covers the orange rim
+  const MANDALA_EDGE_MASK_COLOR = 'rgba(8,6,12,0.78)'; // matches the app veil/space tone
+
+  // Ring now exactly matches orb visual diameter
+  const RING_SIZE = ORB_VISUAL_SIZE;
   const STROKE = 8;
 
   // Playback progress 0..1
-  const progress = Math.min(1, Math.max(0, duration ? position / duration : 0));
+  const safeDur = duration && duration > 50 ? duration : 0; // ignore sub-50ms noise
+  const progress = Math.min(1, Math.max(0, safeDur ? position / safeDur : 0));
   const r = (RING_SIZE - STROKE) / 2;
   const c = 2 * Math.PI * r;
   const dash = c * progress;
@@ -891,6 +1184,20 @@ export default function JourneyPlayer() {
   const lastTapRef = useRef<{ ts: number, x: number, y: number } | null>(null);
   const DOUBLE_TAP_MS = 300;
   const SEEK_AMOUNT = 15000; // 15 seconds
+
+  // Choose a safe, non-zero duration for scrubbing math
+  const getSeekableDuration = () => {
+    const metaAny: any = selectedTrack ?? meta;
+    const metaDur =
+      (metaAny?.durationMs ? Number(metaAny.durationMs) : 0) ||
+      (metaAny?.durationSec ? Number(metaAny.durationSec) * 1000 : 0);
+    const candidate =
+      (durationRef.current && durationRef.current > 0 ? durationRef.current : 0) ||
+      (duration && duration > 0 ? duration : 0) ||
+      (isSoundscape ? SOUNDSCAPE_DEFAULT_MS : 0) ||
+      metaDur;
+    return Math.max(1000, candidate); // never below 1s, avoids 0→seek-to-start glitches
+  };
 
   const panResponder = useRef(
     PanResponder.create({
@@ -930,13 +1237,28 @@ export default function JourneyPlayer() {
         }
         // Not a double-tap, store this tap
         lastTapRef.current = { ts: now, x: locationX, y: locationY };
-        // Scrubbing logic
+        // While scrubbing, suppress accidental "complete" and pause engines as needed
+        suppressCompleteRef.current = true;
+
+        if (useTP) {
+          tpWasPlayingRef.current = false;
+          tpPausedDuringScrubRef.current = false;
+          try {
+            const st = await TrackPlayer.getState();
+            tpWasPlayingRef.current = (st === State.Playing);
+            if (tpWasPlayingRef.current) {
+              try { await TrackPlayer.pause(); } catch {}
+              tpPausedDuringScrubRef.current = true;
+            }
+          } catch {}
+        }
+
         const p = pointToProgress(locationX, locationY);
         if (p == null) return;
         isScrubbingRef.current = true;
         setSeeking(true);
 
-        // If using expo-av, remember play state and pause during scrub to avoid stutter
+        // Expo‑AV path: remember running state and pause handled above for TP
         if (!useTP) {
           const s = soundRef.current;
           pausedDuringScrubRef.current = false;
@@ -947,13 +1269,14 @@ export default function JourneyPlayer() {
               wasPlayingRef.current = wasPlaying;
               if (wasPlaying) {
                 try { await s.pauseAsync(); } catch {}
-                pausedDuringScrubRef.current = true; // we actually paused during this scrub
+                pausedDuringScrubRef.current = true;
               }
             } catch {}
           }
         }
 
-        const target = Math.floor((durationRef.current || 0) * p);
+        const safeDur = getSeekableDuration();
+        const target = Math.max(10, Math.min(safeDur - 1, Math.floor(safeDur * p)));
         setPosition(target);
         try { await seekToMs(target); } catch {}
       },
@@ -962,7 +1285,8 @@ export default function JourneyPlayer() {
         const { locationX, locationY } = (evt as any).nativeEvent;
         const p = pointToProgress(locationX, locationY);
         if (p == null) return;
-        const target = Math.floor((durationRef.current || 0) * p);
+        const safeDur = getSeekableDuration();
+        const target = Math.max(10, Math.min(safeDur - 1, Math.floor(safeDur * p)));
         const now = Date.now();
         if (now - lastSeekAtRef.current > 80) { // ~12 fps
           lastSeekAtRef.current = now;
@@ -976,7 +1300,8 @@ export default function JourneyPlayer() {
         const { locationX, locationY } = (evt as any).nativeEvent;
         const p = pointToProgress(locationX, locationY);
         const baseP = (p == null ? progress : p);
-        const target = Math.floor((durationRef.current || 0) * baseP);
+        const safeDur = getSeekableDuration();
+        const target = Math.max(10, Math.min(safeDur - 1, Math.floor(safeDur * baseP)));
         try {
           await seekToMs(target);
           await savePosition(target);
@@ -991,6 +1316,16 @@ export default function JourneyPlayer() {
           wasPlayingRef.current = false;
         }
 
+        // Resume TrackPlayer playback only if we paused during this scrub
+        if (useTP && tpPausedDuringScrubRef.current) {
+          try { await TrackPlayer.play(); uiHoldUntilRef.current = Date.now() + 600; } catch {}
+          tpPausedDuringScrubRef.current = false;
+          tpWasPlayingRef.current = false;
+        }
+
+        // Re-enable completion check after a tiny delay so post-seek state settles
+        setTimeout(() => { suppressCompleteRef.current = false; }, 200);
+
         setSeeking(false);
       },
       onPanResponderTerminationRequest: () => true,
@@ -1002,55 +1337,55 @@ export default function JourneyPlayer() {
   ).current;
 
   // --- Loop and skip helpers ---
-  const toggleLoop = useCallback(async () => {
-    const s = soundRef.current; if (!s) return;
-    try {
-      await s.setIsLoopingAsync(!isLooping);
-      setIsLooping(!isLooping);
-      await Haptics.selectionAsync();
-    } catch {}
-  }, [isLooping]);
+  // Loop toggle removed: expo-av only (TrackPlayer loop is set on load)
 
   const skipBy = useCallback(async (deltaMs: number) => {
-    if (useTP) {
-      try {
-        const posSec = await TrackPlayer.getPosition();
-        const durSec = (await TrackPlayer.getDuration()) || 0;
-        const curMs = Math.floor((posSec || 0) * 1000);
-        const durMs = Math.floor((durSec || 0) * 1000);
-        const maxTarget = Math.max(0, durMs - 1);
-        const target = Math.max(0, Math.min(maxTarget, curMs + deltaMs));
-        await TrackPlayer.seekTo(target / 1000);
-        setPosition(target);
-        await savePosition(target);
-        await Haptics.selectionAsync();
-      } catch {}
-      return;
-    }
-
-    const s = soundRef.current; if (!s) return;
     try {
-      const st = await s.getStatusAsync();
-      if (!st.isLoaded) return;
-      const dur = durationRef.current || st.durationMillis || 0;
-      const cur = st.positionMillis || 0;
-      const target = Math.max(0, Math.min(dur - 1, cur + deltaMs));
-      await s.setPositionAsync(target);
+      const posSec = await TrackPlayer.getPosition();
+      const durSec = (await TrackPlayer.getDuration()) || 0;
+      const curMs = Math.floor((posSec || 0) * 1000);
+      const durMs = Math.floor((durSec || 0) * 1000);
+      const maxTarget = Math.max(0, durMs - 1);
+      const target = Math.max(0, Math.min(maxTarget, curMs + deltaMs));
+      await TrackPlayer.seekTo(target / 1000);
       setPosition(target);
       await savePosition(target);
       await Haptics.selectionAsync();
+      uiHoldUntilRef.current = Date.now() + 600;
     } catch {}
-  }, [useTP]);
+    return;
+  }, []);
 
   // --- Seek to ms helper (TP/expo-av aware) ---
   const seekToMs = useCallback(async (ms: number) => {
-    const clamped = Math.max(0, ms);
-    if (useTP) {
-      try { await TrackPlayer.seekTo(clamped / 1000); } catch {}
-      return;
-    }
-    try { await soundRef.current?.setPositionAsync(clamped); } catch {}
-  }, [useTP]);
+    // Clamp into [0, duration-1] to avoid end-of-track edge cases
+    const maxDur = (durationRef.current && durationRef.current > 0)
+      ? durationRef.current - 1
+      : Number.MAX_SAFE_INTEGER;
+    const clamped = Math.max(0, Math.min(maxDur, ms));
+    try {
+      await TrackPlayer.seekTo(clamped / 1000);
+      setPosition(clamped);
+      try {
+        const st = await TrackPlayer.getState();
+        if (st !== State.Playing) {
+          await TrackPlayer.play();
+          uiHoldUntilRef.current = Date.now() + 600; // ~0.6s smoothing
+        }
+      } catch {}
+      setTimeout(async () => {
+        try {
+          const posSec = await TrackPlayer.getPosition();
+          const posMs = Math.floor((posSec || 0) * 1000);
+          if (clamped > 2000 && posMs <= 250) {
+            await TrackPlayer.seekTo(clamped / 1000);
+            setPosition(clamped);
+          }
+        } catch {}
+      }, 120);
+    } catch {}
+    return;
+  }, []);
 
   // --- Orb single/double tap handler (left/right aware) ---
   const handleOrbPressIn = useCallback(async (evt: any) => {
@@ -1086,165 +1421,259 @@ export default function JourneyPlayer() {
     }, ORB_DOUBLE_TAP_MS + 20);
   }, [toggle, skipBy]);
 
+  // Watch for storage or global preference changes and hot-swap accordingly
+  useEffect(() => {
+    const int = setInterval(() => { ensurePreferredFromStorage().catch(() => {}); }, 1200);
+    return () => clearInterval(int);
+  }, [ensurePreferredFromStorage]);
+
   return (
-    <LinearGradient colors={["#0d0d1a", "#1a0f2d"]} style={styles.container}>
-      <Text style={styles.title}>{displayTitle}</Text>
-      <Text style={styles.subtitle}>ID: {selectedTrack?.id || legacyId || '—'}</Text>
-      <View style={{ alignSelf: 'center', marginTop: 2, marginBottom: 12, paddingVertical: 4, paddingHorizontal: 10, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.08)' }}>
-        <Text style={{ color: '#EDE8FA', fontSize: 12, letterSpacing: 0.4 }}>
-          {isSoundscape ? 'Soundscape' : 'Chamber'}
-        </Text>
-      </View>
+    <View style={styles.container}>
+      {/* Chamber environment background (blurred image) */}
+      {!!env?.backgroundImage && (
+        <Animated.Image
+          pointerEvents="none"
+          source={env.backgroundImage as any}
+          blurRadius={env?.blur ?? 1}
+          resizeMode="cover"
+          // On some Android devices very large images may not auto-scale; this
+          // forces a proper downscale instead of showing only the top-left corner.
+          resizeMethod="resize"
+          style={[
+            StyleSheet.absoluteFill,
+            { width: '100%', height: '100%', transform: [{ scale: bgScale }, { translateX: bgTx }, { translateY: bgTy }] }
+          ]}
+        />
+      )}
+
+      {/* Aura → Chamber crossfade overlays */}
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          StyleSheet.absoluteFill,
+          { opacity: Animated.subtract(1, chamberFade) },
+        ]}
+      >
+        {/* Uses the existing aura overlay from Home/Essence; if this component renders nothing, the fade is effectively a no-op on the aura layer */}
+        <AuraOverlay strength={auraStrength as any} />
+      </Animated.View>
+
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          StyleSheet.absoluteFill,
+          { opacity: chamberFade },
+        ]}
+      >
+        {/* Chamber-tinted gradient that softly lifts the environment using its accent color */}
+        <LinearGradient
+          colors={[`${accent}24`, `${accent}14`, 'transparent']}
+          locations={[0, 0.35, 1]}
+          style={StyleSheet.absoluteFill}
+        />
+      </Animated.View>
+
+      {/* Ambient veil to keep foreground legible */}
+      <View
+        pointerEvents="none"
+        style={[
+          StyleSheet.absoluteFill,
+          {
+            backgroundColor: 'rgba(8,6,12,0.55)',
+            opacity: env?.overlayOpacity ?? 1,
+          },
+        ]}
+      />
+
+      {/* Foreground content wrapper (keeps previous layout) */}
+      <View style={{ flex: 1, paddingTop: 80, paddingHorizontal: 20 }}>
+      <Text style={[Typography.display, { color: '#F0EEF8', textAlign: 'center', letterSpacing: 0.3 }]}>{displayTitle}</Text>
+      <View style={{ height: 16 }} />
 
       {/* Transport */}
       <View style={styles.transport}>
         <LinearGradient
-          colors={[isPlaying ? '#FFAD66' : '#B28BFF', '#7D5BD6']}
+          colors={[playingForVisuals ? 'rgba(255,173,102,0.78)' : 'rgba(178,139,255,0.75)', 'rgba(125,91,214,0.85)']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={styles.controlBtn}
         >
+          <View pointerEvents="none" style={styles.controlBtnInset} />
           <TouchableOpacity
             onPress={toggle}
             hitSlop={12}
             accessibilityRole="button"
-            accessibilityLabel={isPlaying ? 'Pause' : 'Play'}
-            accessibilityHint={isPlaying ? 'Pauses playback' : 'Starts playback'}
+            accessibilityLabel={isPlayingUI ? 'Pause' : 'Play'}
+            accessibilityHint={isPlayingUI ? 'Pauses playback' : 'Starts playback'}
             style={{ width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' }}
             activeOpacity={0.85}
           >
-            <Ionicons name={isPlaying ? 'pause' : 'play'} size={28} color="#0E0A14" />
+            <Ionicons name={isPlayingUI ? 'pause' : 'play'} size={28} color="rgba(14,10,20,0.9)" />
           </TouchableOpacity>
         </LinearGradient>
       </View>
 
-      {/* Time above orb */}
-      <Text style={styles.timeAbove}>{mmss(position)} / {mmss(duration)}</Text>
+      {/* 
+        Use a "safe" duration (fallback if needed) for display so users don't see 0:00/0:00 on streams.
+      */}
+      <Text
+        style={[
+          Typography.caption,
+          {
+            color: '#B9B5C9',
+            textAlign: 'center',
+            marginTop: 6,
+            marginBottom: 6,
+            letterSpacing: 0.9,
+          },
+        ]}
+      >
+        {(durationRef.current && durationRef.current > 0)
+          ? `${mmss(position)} / −${mmss(Math.max(0, durationRef.current - position))}`
+          : (duration > 0
+              ? `${mmss(position)} / −${mmss(Math.max(0, duration - position))}`
+              : 'warming…')}
+      </Text>
+
+      {/* Quality indicator */}
+      <View style={styles.qualityWrap}>
+        <Text style={styles.qualityText}>
+          {getPreferredQuality() === 'hq' ? 'High Quality Audio' : 'Low Data Mode'}
+        </Text>
+      </View>
 
       {/* Orb portal player visual */}
-      <View style={styles.orbContainer} {...panResponder.panHandlers}>
-        {/* Loading veil overlay */}
-        {!isPrimed && (
+      {isSoundscape && (
+        <View style={styles.orbContainer} {...panResponder.panHandlers}>
           <Animated.View
-            pointerEvents="none"
             style={{
-              position: 'absolute',
-              top: 0, left: 0, right: 0, bottom: 0,
-              backgroundColor: 'rgba(10,8,14,0.35)',
-              zIndex: 3,
-              opacity: veilOpacity,
-              borderRadius: 16,
+              width: RING_SIZE,
+              height: RING_SIZE,
+              alignItems: 'center',
+              justifyContent: 'center',
+              transform: [{ translateY: orbDriftY }],
             }}
-          />
-        )}
-        {/* Circular progress ring (track + progress + soft halo) */}
-        <Svg
-          width={RING_SIZE}
-          height={RING_SIZE}
-          style={{
-            position: 'absolute',
-            top: '50%',
-            left: '50%',
-            transform: [{ translateX: -RING_SIZE / 2 }, { translateY: -RING_SIZE / 2 }],
-            zIndex: 1,
-            pointerEvents: 'none',
-          }}
-        >
-          {/* Track */}
-          <Circle
-            cx={RING_SIZE / 2}
-            cy={RING_SIZE / 2}
-            r={r}
-            stroke="#5A4E9C"   //indigo wash
-            strokeWidth={STROKE + (ringStrokeBoost ? 2 : 0)}
-            fill="none"
-            opacity={0.20}
-          />
-          {/* Progress */}
-          <Circle
-            cx={RING_SIZE / 2}
-            cy={RING_SIZE / 2}
-            r={r}
-            stroke="#5A4E9C"   // ember
-            strokeWidth={STROKE + (ringStrokeBoost ? 2 : 0)}
-            strokeLinecap="round"
-            strokeDasharray={`${dash},${gap}`}
-            rotation="-90"
-            originX={RING_SIZE / 2}
-            originY={RING_SIZE / 2}
-            fill="none"
-            opacity={ringOpacity}
-          />
-          {/* Soft halo */}
-          <Circle
-            cx={RING_SIZE / 2}
-            cy={RING_SIZE / 2}
-            r={r}
-            stroke="rgba(255,140,80,0.25)"
-            strokeWidth={STROKE * 1.6}
-            strokeDasharray={`${dash},${gap}`}
-            rotation="-90"
-            originX={RING_SIZE / 2}
-            originY={RING_SIZE / 2}
-            strokeLinecap="round"
-            fill="none"
-            opacity={Math.min(0.25, ringOpacity)}
-          />
-        </Svg>
+          >
+            {/* Loading veil overlay */}
+            {!isPrimed && (
+              <Animated.View
+                pointerEvents="none"
+                style={{
+                  position: 'absolute',
+                  top: 0, left: 0, right: 0, bottom: 0,
+                  backgroundColor: 'rgba(10,8,14,0.35)',
+                  zIndex: 3,
+                  opacity: veilOpacity,
+                  borderRadius: 16,
+                }}
+              />
+            )}
+            {/* Circular progress ring (track + progress + soft halo) */}
+            <Svg
+              width={RING_SIZE}
+              height={RING_SIZE}
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                zIndex: 1,
+                pointerEvents: 'none',
+              }}
+            >
+              <Circle cx={RING_SIZE / 2} cy={RING_SIZE / 2} r={r} stroke="#5A4E9C" strokeWidth={STROKE + (ringStrokeBoost ? 2 : 0)} fill="none" opacity={0.20} />
+              <Circle cx={RING_SIZE / 2} cy={RING_SIZE / 2} r={r} stroke="#5A4E9C" strokeWidth={STROKE + (ringStrokeBoost ? 2 : 0)} strokeLinecap="round" strokeDasharray={`${dash},${gap}`} rotation="-90" originX={RING_SIZE / 2} originY={RING_SIZE / 2} fill="none" opacity={ringOpacity} />
+            </Svg>
 
+            <Pressable
+              onPressIn={handleOrbPressIn}
+              accessibilityRole="button"
+              accessibilityLabel={isPlayingUI ? 'Pause' : 'Play'}
+              accessibilityHint={isPlayingUI
+                ? 'Pauses playback. Double-tap left to go back 15 seconds or right to skip forward 15 seconds.'
+                : 'Starts playback. Double-tap left to go back 15 seconds or right to skip forward 15 seconds.'}
+              hitSlop={10}
+              style={{
+                position: 'absolute',
+                width: ORB_SIZE - 40,
+                height: ORB_SIZE - 40,
+                borderRadius: (ORB_SIZE - 40) / 2,
+                alignItems: 'center',
+                justifyContent: 'center',
+                top: '50%',
+                left: '50%',
+                transform: [{ translateX: -(ORB_SIZE - 40) / 2 }, { translateY: -(ORB_SIZE - 40) / 2 }],
+              }}
+            >
+              <OrbPortal
+                variant="inner"
+                size={ORB_VISUAL_SIZE}
+                imageSource={require('../assets/splash.webp')}
+                enhance
+                overlayScale={0.83}
+                overlayOffsetX={-3}
+                overlayOffsetY={0}
+              />
+              {/* Mandala (blurred layer when paused) */}
+              <Animated.Image
+                source={require('../assets/images/orb-player-mandala.webp')}
+                resizeMode="contain"
+                blurRadius={2}
+                style={{
+                  position: 'absolute',
+                  width: ORB_VISUAL_SIZE * MANDALA_SCALE,
+                  height: ORB_VISUAL_SIZE * MANDALA_SCALE,
+                  top: '50%',
+                  left: '50%',
+                  transform: [
+                    { translateX: -(ORB_VISUAL_SIZE * MANDALA_SCALE) / 2 },
+                    { translateY: -(ORB_VISUAL_SIZE * MANDALA_SCALE) / 2 },
+                    { scale: 1.002 },
+                  ],
+                  opacity: finalMandalaBlurOpacity,
+                }}
+              />
 
-        <Pressable
-          onPressIn={handleOrbPressIn}
-          accessibilityRole="button"
-          accessibilityLabel={isPlaying ? 'Pause' : 'Play'}
-          accessibilityHint={isPlaying
-            ? 'Pauses playback. Double-tap left to go back 15 seconds or right to skip forward 15 seconds.'
-            : 'Starts playback. Double-tap left to go back 15 seconds or right to skip forward 15 seconds.'}
-          hitSlop={10}
-          style={{
-            position: 'absolute',
-            width: ORB_SIZE - 40,
-            height: ORB_SIZE - 40,
-            borderRadius: (ORB_SIZE - 40) / 2,
-            alignItems: 'center',
-            justifyContent: 'center',
-            top: '50%',
-            left: '50%',
-            transform: [{ translateX: -(ORB_SIZE - 40) / 2 }, { translateY: -(ORB_SIZE - 40) / 2 }],
-          }}
-        >
-          <OrbPortal
-            variant="inner"
-            size={ORB_SIZE}
-            imageSource={require('../assets/images/orb-player.png')}
-            enhance
-            // Fit / alignment
-            overlayScale={0.83}
-            overlayOffsetX={-3}
-            overlayOffsetY={0}
-          />
-          {/* Mandala overlay with breathing opacity */}
-          <Animated.Image
-            source={require('../assets/images/orb-player-mandala.png')}
-            resizeMode="contain"
-            style={{
-              position: 'absolute',
-              width: ORB_SIZE * 0.99,
-              height: ORB_SIZE * 0.99,
-              top: '40%',
-              left: '40%',
-              transform: [
-                { translateX: -(ORB_SIZE * 0.83) / 2 },
-                { translateY: -(ORB_SIZE * 0.83) / 2 },
-              ],
-              opacity: finalMandalaOpacity,
-            }}
-          />
-        </Pressable>
+              {/* Mandala (sharp layer when playing) */}
+              <Animated.Image
+                source={require('../assets/images/orb-player-mandala.webp')}
+                resizeMode="contain"
+                style={{
+                  position: 'absolute',
+                  width: ORB_VISUAL_SIZE * MANDALA_SCALE,
+                  height: ORB_VISUAL_SIZE * MANDALA_SCALE,
+                  top: '50%',
+                  left: '50%',
+                  transform: [
+                    { translateX: -(ORB_VISUAL_SIZE * MANDALA_SCALE) / 2 },
+                    { translateY: -(ORB_VISUAL_SIZE * MANDALA_SCALE) / 2 },
+                  ],
+                  opacity: finalMandalaSharpOpacity,
+                }}
+              />
 
-        {/* Side actions */}
-        {/* Loop button removed */}
-      </View>
+              {/* Mask the mandala’s outer rim so the orange/ember edge doesn’t show */}
+              <View
+                pointerEvents="none"
+                style={{
+                  position: 'absolute',
+                  width: ORB_VISUAL_SIZE,
+                  height: ORB_VISUAL_SIZE,
+                  top: '50%',
+                  left: '50%',
+                  transform: [
+                    { translateX: -ORB_VISUAL_SIZE / 2 },
+                    { translateY: -ORB_VISUAL_SIZE / 2 },
+                  ],
+                  borderRadius: ORB_VISUAL_SIZE / 2,
+                  borderWidth: MANDALA_EDGE_MASK,
+                  borderColor: MANDALA_EDGE_MASK_COLOR,
+                }}
+              />
+            </Pressable>
+          </Animated.View>
+        </View>
+      )}
+      {!isSoundscape && <View style={{ flex: 1 }} />}
 
       {showComplete && (
         <Animated.View
@@ -1274,28 +1703,165 @@ export default function JourneyPlayer() {
             }}
           >
             <Text
-              style={{
-                color: '#EDE8FA',
-                fontSize: 16,
-                fontWeight: '700',
-                textAlign: 'center',
-                letterSpacing: 0.3,
-                marginBottom: 6,
-              }}
+              style={[Typography.title, { color: '#EDE8FA', textAlign: 'center', letterSpacing: 0.3, marginBottom: 6 }]}
             >
               {displayTitle}: Journey Complete
             </Text>
 
             <View style={{ flexDirection: 'row', columnGap: 16, justifyContent: 'center' }}>
               <Pressable onPress={handleReplay} accessibilityRole="button" accessibilityLabel="Replay session">
-                <Text style={{ color: '#C9B6FF' }}>Replay</Text>
+                <Text style={[Typography.caption, { color: '#C9B6FF' }]}>Replay</Text>
               </Pressable>
               <Pressable onPress={() => navigation.goBack()} accessibilityRole="button" accessibilityLabel="Return Home">
-                <Text style={{ color: '#FFC7A3' }}>Return Home</Text>
+                <Text style={[Typography.caption, { color: '#FFC7A3' }]}>Return Home</Text>
               </Pressable>
             </View>
           </View>
         </Animated.View>
+      )}
+
+      {/* Toast overlay */}
+      {toast && (
+        <Animated.View
+          pointerEvents="none"
+          style={{
+            position: 'absolute',
+            top: insets.top + 10,
+            left: 24,
+            right: 24,
+            alignItems: 'center',
+            opacity: toastOpacity,
+            zIndex: 50,
+            transform: [{ translateY: toastOpacity.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) }],
+          }}
+        >
+          <View style={{
+            paddingVertical: 8,
+            paddingHorizontal: 12,
+            borderRadius: 12,
+            backgroundColor: 'rgba(12, 8, 14, 0.8)',
+            borderWidth: 1,
+            borderColor: 'rgba(255,255,255,0.08)'
+          }}>
+            <Text style={[Typography.caption, { color: '#EDE8FA' }]}>{toast}</Text>
+          </View>
+        </Animated.View>
+      )}
+
+      {/* Sleep Timer UI */}
+      {isSoundscape && (
+        <View style={{ alignItems: 'center', marginTop: 12 }}>
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel={showTimerMenu ? 'Close sleep timer menu' : 'Open sleep timer menu'}
+            accessibilityHint="Opens options for 15, 30, 45, or 60 minutes"
+            accessibilityState={{ expanded: showTimerMenu }}
+            onPress={async () => {
+              pulseSleepIcon();
+              try { await Haptics.selectionAsync(); } catch {}
+              setShowTimerMenu(prev => !prev);
+            }}
+            activeOpacity={0.95}
+            style={{
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 12, // 44x44-ish hit target
+            }}
+          >
+            <Animated.View
+              style={{
+                width: 72,
+                height: 72,
+                borderRadius: 36,
+                alignItems: 'center',
+                justifyContent: 'center',
+                position: 'relative',
+                backgroundColor: sleepMinutes ? '#CFC3E0' : 'transparent',
+                // Disable glow when selected; keep mild lifted shadow when not selected (iOS-only)
+                shadowColor: sleepMinutes ? 'transparent' : '#CFC3E0',
+                shadowOpacity: sleepMinutes ? 0 : 0.45,
+                shadowRadius: sleepMinutes ? 0 : 12,
+                shadowOffset: sleepMinutes ? { width: 0, height: 0 } : { width: 0, height: -16 },
+                elevation: 0, // no Android elevation; we want a flat filled circle when selected
+                transform: [{ scale: sleepScale }],
+              }}
+            >
+              <SleepIcon width={60} height={60} fill={sleepMinutes ? '#1F233A' : '#CFC3E0'} />
+              {sleepMinutes && (
+                <View
+                  style={{
+                    position: 'absolute',
+                    right: -8,
+                    top: -6,
+                    paddingHorizontal: 6,
+                    paddingVertical: 2,
+                    borderRadius: 10,
+                    backgroundColor: '#CFC3E0',
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontFamily: 'Inter-ExtraLight',
+                      fontSize: 10,
+                      color: '#1F233A',
+                    }}
+                  >
+                    {sleepMinutes}m
+                  </Text>
+                </View>
+              )}
+            </Animated.View>
+          </TouchableOpacity>
+
+          <Animated.View
+            style={{
+              opacity: menuAnim,
+              transform: [{
+                translateY: menuAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [10, -6],
+                }),
+              }],
+            }}
+          >
+            <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 10 }}>
+              {[15, 30, 45, 60].map(opt => (
+                <TouchableOpacity
+                  key={opt}
+                  onPress={() => {
+                    Animated.sequence([
+                      Animated.timing(optionScales[opt], { toValue: 0.94, duration: 70, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+                      Animated.timing(optionScales[opt], { toValue: 1.06, duration: 100, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+                      Animated.timing(optionScales[opt], { toValue: 1.0, duration: 90, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+                    ]).start();
+                    setSleepMinutes(prev => prev === opt ? null : opt);
+                    setShowTimerMenu(false);
+                  }}
+                  style={{
+                    paddingVertical: 8,
+                    paddingHorizontal: 14,
+                    borderRadius: 14,
+                    borderWidth: 1,
+                    borderColor: sleepMinutes === opt ? '#CFC3E0' : 'rgba(207,195,224,0.4)',
+                    backgroundColor: sleepMinutes === opt ? '#CFC3E0' : 'transparent',
+                    marginHorizontal: 4,
+                    transform: [{ scale: optionScales[opt] }],
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontFamily: 'Inter-ExtraLight',
+                      fontSize: 13,
+                      color: sleepMinutes === opt ? '#1F233A' : '#E8E4F3',
+                    }}
+                  >
+                    {opt} min
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </Animated.View>
+        </View>
       )}
 
       {/* Close */}
@@ -1308,25 +1874,28 @@ export default function JourneyPlayer() {
           onPress={handleClose}
           hitSlop={12}
         >
-          <Text style={styles.closeText}>Close</Text>
+          <Text style={[Typography.body, { color: '#E8E4F3' }]}>Close</Text>
         </TouchableOpacity>
       </Animated.View>
-    </LinearGradient>
+      {__DEV__ && DEBUG_OVERLAY && (
+        <View style={{ position: 'absolute', right: 10, bottom: 10, backgroundColor: 'rgba(0,0,0,0.38)', paddingHorizontal: 10, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' }}>
+          <Text style={[Typography.caption, { color: '#EDE8FA' }]}>Engine: {engineLabel}</Text>
+          <Text style={[Typography.caption, { color: '#C6C1D8' }]}>Playing: {String(isPlaying)}</Text>
+          <Text style={[Typography.caption, { color: '#C6C1D8' }]}>Primed: {String(isPrimed)}</Text>
+          <Text style={[Typography.caption, { color: '#C6C1D8' }]}>Pos/Dur: {duration > 0 ? `${mmss(position)} / ${mmss(duration)}` : '—'}</Text>
+        </View>
+      )}
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0d0d1a', paddingTop: 80, paddingHorizontal: 20 },
-  title: { color: '#F0EEF8', fontSize: 26, textAlign: 'center', letterSpacing: 1.5 },
-  subtitle: { color: 'rgba(185,181,201,0.7)', fontSize: 14, textAlign: 'center', marginTop: 6, marginBottom: 16 },
+  container: { flex: 1 },
   transport: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 0 },
   btn: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 12, backgroundColor: 'rgba(207,195,224,0.18)' },
-  btnText: { color: '#E8E4F3', fontSize: 16 },
-  time: { color: '#B9B5C9', fontSize: 12 },
-  timeAbove: { color: '#B9B5C9', fontSize: 12, textAlign: 'center', marginTop: 6, marginBottom: 6 },
   slider: { width: '90%', alignSelf: 'center', height: 30, marginTop: 12 },
   close: { alignSelf: 'center', marginTop: 18, marginBottom: 56, paddingVertical: 10, paddingHorizontal: 18, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(207,195,224,0.4)', backgroundColor: 'transparent' },
-  closeText: { color: '#E8E4F3', fontSize: 16 },
   orbWrap: { alignItems: 'center', justifyContent: 'center', marginVertical: 12 },
 
   orbContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', marginVertical: 24 },
@@ -1343,5 +1912,24 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 6 },
     elevation: 4,
+  },
+  controlBtnInset: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 36,
+    // subtle “inset” depth + etched rim (deeper inner-shadow, softer rim)
+    backgroundColor: 'rgba(0,0,0,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.16)',
+  },
+  qualityWrap: {
+    alignItems: 'center',
+    marginTop: 4,
+    marginBottom: 8,
+  },
+  qualityText: {
+    fontFamily: 'CalSans-SemiBold',
+    fontSize: 12,
+    letterSpacing: 0.5,
+    color: 'rgba(255,255,255,0.6)',
   },
 });

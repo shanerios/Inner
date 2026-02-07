@@ -1,14 +1,17 @@
 // screens/JournalEntryScreen.tsx
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, Alert, KeyboardAvoidingView, Platform, ScrollView, Animated } from 'react-native';
+import { View, Text, TextInput, StyleSheet, TouchableOpacity, Pressable, Alert, KeyboardAvoidingView, Platform, ScrollView, Animated } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useHeaderHeight } from '@react-navigation/elements';
 import * as Haptics from 'expo-haptics';
 import { getEntry, saveEntry, deleteEntry, JournalEntry } from '../core/journalRepo';
 import { useIntention } from '../core/IntentionProvider';
 import { INTENTION_THEME } from '../core/session';
 import type { IntentionKey } from '../core/session';
 import { useBreath } from '../core/BreathProvider';
+import { Typography, Body as _Body } from '../core/typography';
+const Body = _Body ?? ({ regular: { ...Typography.body }, subtle: { ...Typography.caption } } as const);
 
 function fmtDate(ts: number) {
   const d = new Date(ts);
@@ -50,6 +53,7 @@ export default function JournalEntryScreen({ route, navigation }: Props) {
   const { id } = route.params || {};
   const { intentions: globalIntentions } = useIntention();
   const insets = useSafeAreaInsets();
+  const headerHeight = useHeaderHeight();
 
   const [entry, setEntry] = useState<JournalEntry | null>(null);
   const [title, setTitle] = useState('');
@@ -65,6 +69,18 @@ export default function JournalEntryScreen({ route, navigation }: Props) {
 
   const breath = useBreath();
   const veilOpacity = breath.interpolate({ inputRange: [0, 1], outputRange: [0.00, 0.06] });
+
+  // Screen-enter micro-haze (mirrors LearnHub → LessonReader feel)
+  const enterVeil = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    enterVeil.setValue(1);
+    Animated.timing(enterVeil, {
+      toValue: 0,
+      duration: 720,
+      easing: undefined,
+      useNativeDriver: true,
+    }).start();
+  }, [enterVeil]);
 
   const load = useCallback(async () => {
     const e = await getEntry(id);
@@ -120,7 +136,31 @@ export default function JournalEntryScreen({ route, navigation }: Props) {
   // Header actions
   useEffect(() => {
     navigation.setOptions({
-      headerTitle: entry ? fmtDate(entry.updatedAt) : 'Journal',
+      // NativeStack title prefers a string; keeps layout stable and avoids yellow iOS back styling.
+      headerTitle: entry ? fmtDate(entry.updatedAt) : 'Dream Log',
+      headerTransparent: true,
+      headerShadowVisible: false,
+      headerStyle: { backgroundColor: 'transparent' },
+
+      // Soft veil-like transition on push/pop (in addition to our micro-haze overlay)
+      animation: 'fade',
+
+      headerLeft: () => (
+        <Pressable
+          onPress={() => {
+            try { Haptics.selectionAsync(); } catch {}
+            navigation.goBack();
+          }}
+          style={({ pressed }) => [
+            styles.returnPill,
+            pressed && { opacity: 0.85 },
+          ]}
+          hitSlop={10}
+        >
+          <Text style={styles.returnPillText}>Return</Text>
+        </Pressable>
+      ),
+
       headerRight: () => (
         <TouchableOpacity
           onPress={() => {
@@ -137,7 +177,7 @@ export default function JournalEntryScreen({ route, navigation }: Props) {
           }}
           style={{ paddingHorizontal: 12, paddingVertical: 8 }}
         >
-          <Text style={{ color: '#EAA', fontSize: 14 }}>Delete</Text>
+          <Text style={[Typography.caption, { color: '#EAA' }]}>Delete</Text>
         </TouchableOpacity>
       ),
     });
@@ -174,6 +214,18 @@ export default function JournalEntryScreen({ route, navigation }: Props) {
         />
       </Animated.View>
 
+      {/* Screen-enter micro-haze (fades away) */}
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          StyleSheet.absoluteFill,
+          {
+            backgroundColor: 'rgba(126, 98, 170, 0.22)',
+            opacity: enterVeil,
+          },
+        ]}
+      />
+
       {/* Breathing veil overlay */}
       <Animated.View
         pointerEvents="none"
@@ -184,10 +236,12 @@ export default function JournalEntryScreen({ route, navigation }: Props) {
       />
 
       <ScrollView
-        contentContainerStyle={{ paddingTop: insets.top + 12, paddingBottom: insets.bottom + 24, paddingHorizontal: 16 }}
+        contentContainerStyle={{ paddingTop: headerHeight + 12, paddingBottom: insets.bottom + 24, paddingHorizontal: 16 }}
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.label}>{entry ? fmtDate(entry.createdAt) : ''}</Text>
+        <Text style={[Typography.caption, { color: '#CFC9E8', marginTop: 6, marginBottom: 10, opacity: 0.85 }]}>
+          {entry ? fmtDate(entry.createdAt) : ''}
+        </Text>
         <TextInput
           value={title}
           onChangeText={(t) => { setTitle(t); scheduleSave(); }}
@@ -208,7 +262,7 @@ export default function JournalEntryScreen({ route, navigation }: Props) {
                 activeOpacity={0.9}
                 style={[styles.chip, selected ? { borderColor: tint, backgroundColor: 'rgba(255,255,255,0.10)' } : { borderColor: 'rgba(255,255,255,0.14)', backgroundColor: 'rgba(255,255,255,0.05)' }]}
               >
-                <Text style={[styles.chipLabel, { color: selected ? tint : '#D8D3EA' }]}>
+                <Text style={[Typography.caption, { letterSpacing: 0.2, color: selected ? tint : '#D8D3EA' }]}>
                   {String(key).charAt(0).toUpperCase() + String(key).slice(1)}
                 </Text>
               </TouchableOpacity>
@@ -231,14 +285,32 @@ export default function JournalEntryScreen({ route, navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  label: { color: '#CFC9E8', fontSize: 12, marginBottom: 10, opacity: 0.85 },
+  returnPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.14)',
+    backgroundColor: 'rgba(255,255,255,0.06)',
+  },
+  returnPillText: {
+    ...Typography.caption,
+    color: '#EDEAF6',
+    letterSpacing: 0.2,
+  },
+  label: { ...Typography.caption, color: '#CFC9E8', marginBottom: 8, opacity: 0.85 },
   title: {
-    color: '#F0EEF8', fontSize: 20, fontWeight: '600',
-    marginBottom: 12, borderBottomWidth: 1, borderColor: 'rgba(255,255,255,0.08)', paddingBottom: 6,
+    ...Typography.title,
+    color: '#F0EEF8',
+    marginBottom: 12,
+    borderBottomWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    paddingBottom: 6,
   },
   body: {
+    ...Typography.body,
     minHeight: 320,
-    color: '#EDEAF6', fontSize: 16, lineHeight: 22,
+    color: '#EDEAF6',
   },
   chipsRow: {
     flexDirection: 'row',
@@ -252,8 +324,5 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
   },
-  chipLabel: {
-    fontSize: 12,
-    letterSpacing: 0.2,
-  },
+  chipLabel: { ...Typography.caption, letterSpacing: 0.2 },
 });

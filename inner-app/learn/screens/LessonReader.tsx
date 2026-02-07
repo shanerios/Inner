@@ -1,13 +1,18 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { SafeAreaView, View, Text, StyleSheet, ScrollView, ActivityIndicator, Pressable, NativeSyntheticEvent, NativeScrollEvent } from 'react-native';
+import { SafeAreaView, View, Text, StyleSheet, ScrollView, ActivityIndicator, Pressable, NativeSyntheticEvent, NativeScrollEvent, Animated } from 'react-native';
 import { useRoute, RouteProp, useNavigation } from '@react-navigation/native';
 import Markdown from 'react-native-markdown-display';
 import * as FileSystem from 'expo-file-system';
 import { Asset } from 'expo-asset';
+import * as Haptics from 'expo-haptics';
 import * as Speech from 'expo-speech';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { setLessonProgress, loadProgress } from '../progress';
+import { setLessonProgress, loadProgress, getProgressMap } from '../progress';
 import { learn_tracks } from '../../data/learn';
+import { Typography } from '../../core/typography';
+import { registerPracticeActivity } from '../../core/DailyRitual';
+import { saveThreadSignature } from '../../src/core/threading/ThreadEngine';
+import { ThreadTier } from '../../src/core/threading/threadTypes';
 
 function clamp01(n: number) { return Math.max(0, Math.min(1, n)); }
 function debounce<T extends (...args: any[]) => void>(fn: T, ms = 300) {
@@ -26,8 +31,25 @@ const toTitle = (slug: string) =>
     .replace(/[_-]+/g, ' ')
     .replace(/\b([a-z])/g, (m) => m.toUpperCase());
 
+
 const TITLE_MAP: Record<string, string> = {
   'guide/howto': 'Guides & How‑Tos',
+};
+
+const getLessonTier = (trackId: string, lessonId: string): ThreadTier => {
+  try {
+    const lessons = (learn_tracks as any)[trackId]?.lessons ?? [];
+    const lesson =
+      lessons.find((l: any) => l.id === lessonId) ||
+      lessons.find((l: any) => (l.id || '').replace(/[_\s]/g, '-').toLowerCase() === lessonId.toLowerCase());
+    const rawTier = (lesson as any)?.tier;
+    if (rawTier === 'intro' || rawTier === 'core' || rawTier === 'advanced' || rawTier === 'mastery') {
+      return rawTier;
+    }
+  } catch {
+    // fall through
+  }
+  return 'intro';
 };
 
 export default function LessonReader() {
@@ -42,14 +64,31 @@ export default function LessonReader() {
 
   useEffect(() => {
     // Ensure progress map is hydrated (e.g., if user deep-links into Reader first)
-    loadProgress().catch(() => {});
-  }, []);
+    (async () => {
+      try {
+        await loadProgress();
+        const map = getProgressMap();
+        const trackMap = map[trackId as 'lucid' | 'obe'];
+        const existing = trackMap?.[lessonId] ?? 0;
+        if (existing > 0) {
+          lastSentRef.current = existing;
+          if (existing >= 0.85) {
+            hasCelebratedRef.current = true;
+          }
+        }
+      } catch {
+        // ignore hydration errors and fall back to fresh progress
+      }
+    })();
+  }, [trackId, lessonId]);
 
   // --- TTS state ---
   const [speaking, setSpeaking] = useState(false);
   const ttsQueueRef = useRef<string[]>([]);
   const ttsIndexRef = useRef(0);
   const lastSentRef = useRef(0);
+  const hasCelebratedRef = useRef(false);
+  const hasLoggedPracticeRef = useRef(false);
 
   useEffect(() => {
     async function loadMarkdown() {
@@ -97,13 +136,22 @@ export default function LessonReader() {
   const [scrollH, setScrollH] = useState(1);
   const [offsetY, setOffsetY] = useState(0);
 
-  const debouncedSave = useMemo(() => debounce((p: number) => {
-    const pRounded = Math.round(p * 100) / 100; // 2 decimals
-    if (Math.abs(pRounded - lastSentRef.current) < 0.01) return; // skip tiny no-ops
-    lastSentRef.current = pRounded;
-    try { setLessonProgress(trackId, lessonId, pRounded); } catch {}
-    // console.log('[LessonReader] progress', trackId, lessonId, pRounded);
-  }, 300), [trackId, lessonId]);
+  const debouncedSave = useMemo(
+    () =>
+      debounce((p: number) => {
+        const pRounded = Math.round(p * 100) / 100; // 2 decimals
+        // Never allow progress to move backwards; keep the max we've seen
+        if (pRounded <= lastSentRef.current + 0.001) {
+          return;
+        }
+        lastSentRef.current = pRounded;
+        try {
+          setLessonProgress(trackId, lessonId, pRounded);
+        } catch {}
+        // console.log('[LessonReader] progress', trackId, lessonId, pRounded);
+      }, 300),
+    [trackId, lessonId]
+  );
 
   const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const { contentSize, layoutMeasurement, contentOffset } = e.nativeEvent;
@@ -119,12 +167,67 @@ export default function LessonReader() {
   const progress = Math.max(0, Math.min(1, scrollH ? offsetY / scrollH : 0));
   const progressRef = useRef(0);
   useEffect(() => { progressRef.current = progress; }, [progress]);
+  const finalizeAndMaybeRecordPractice = () => {
+    const latest = Math.max(progressRef.current, lastSentRef.current);
+    const final = latest > 0.85 ? 1 : latest > 0 ? latest : 0.02;
+    try {
+      setLessonProgress(trackId, lessonId, clamp01(final));
+    } catch {
+      // ignore persistence errors
+    }
+    if (!hasLoggedPracticeRef.current && final >= 0.85) {
+      hasLoggedPracticeRef.current = true;
+      try {
+        registerPracticeActivity('lesson');
+      } catch {
+        // streak logging is best-effort only
+      }
+      // Journey Threading v1: record this lesson as the last completed step
+      try {
+        const tier = getLessonTier(trackId, lessonId);
+        saveThreadSignature({
+          type: 'lesson',
+          id: lessonId,
+          tier,
+          mood: 'reflective',
+          timestamp: Date.now(),
+        });
+      } catch {
+        // threading is best-effort
+      }
+    }
+  };
+
+  const [celebrate, setCelebrate] = useState(false);
+
+  const triggerCompletionMoment = () => {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch {
+      // haptics are a nice-to-have; ignore failures
+    }
+  };
+
+  useEffect(() => {
+    const p = Math.max(progress, lastSentRef.current);
+    if (!celebrate && !hasCelebratedRef.current && p >= 0.85) {
+      hasCelebratedRef.current = true;
+      setCelebrate(true);
+      triggerCompletionMoment();
+    }
+  }, [progress, celebrate]);
+
+  useEffect(() => {
+    if (!celebrate) return;
+    const timeout = setTimeout(() => {
+      setCelebrate(false);
+    }, 4800); // a bit longer than the ~4.5s toast animation
+    return () => clearTimeout(timeout);
+  }, [celebrate]);
 
   useEffect(() => {
     return () => {
-      const latest = Math.max(progressRef.current, lastSentRef.current);
-      const final = latest > 0.97 ? 1 : latest > 0 ? latest : 0.02;
-      try { setLessonProgress(trackId, lessonId, clamp01(final)); } catch {}
+      finalizeAndMaybeRecordPractice();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -200,48 +303,53 @@ export default function LessonReader() {
         onScroll={onScroll}
         scrollEventThrottle={16}
       >
-        {/* Back to Learning Hub */}
-        <Pressable
-          onPress={() => {
-            const latest = Math.max(progress, lastSentRef.current);
-            const final = latest > 0.97 ? 1 : latest > 0 ? latest : 0.02;
-            try { setLessonProgress(trackId, lessonId, clamp01(final)); } catch {}
-            (navigation as any).goBack();
-          }}
-          accessibilityRole="button"
-          accessibilityLabel="Go back to Learning Hub"
-          accessibilityHint="Returns you to the previous screen"
-          style={styles.backButton}
-        >
-          <Text style={styles.backText}>← Back</Text>
-        </Pressable>
-        <View style={styles.headerRow}>
-          <Text style={styles.kicker}>
-            {trackId === 'lucid'
-              ? 'Lucid Dreaming'
-              : trackId === 'obe'
-              ? 'OBE Foundations'
-              : 'Guides & How‑Tos'}
-          </Text>
+        {/* Top controls */}
+        <View style={styles.topControlsRow}>
+          <Pressable
+            onPress={() => {
+              finalizeAndMaybeRecordPractice();
+              (navigation as any).goBack();
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Go back to Learning Hub"
+            accessibilityHint="Returns you to the previous screen"
+            style={styles.controlPill}
+          >
+            <Text style={[Typography.caption, { color: '#EDE8FA', letterSpacing: 0.3 }]}>← Back</Text>
+          </Pressable>
 
-          {/* Simple TTS controls */}
           {content && !loading ? (
-            <View style={styles.ttsRow}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={speaking ? 'Stop reading lesson' : 'Read lesson aloud'}
-                onPress={speaking ? pauseTTS : startTTS}
-                style={[styles.ttsBtn, speaking ? styles.ttsBtnActive : null]}
-              >
-                <Text style={styles.ttsBtnText}>{speaking ? '■ Stop' : '▶ Read'}</Text>
-              </Pressable>
-            </View>
-          ) : null}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={speaking ? 'Stop reading lesson' : 'Read lesson aloud'}
+              onPress={speaking ? pauseTTS : startTTS}
+              style={[styles.controlPill, speaking ? styles.controlPillActive : null]}
+            >
+              <Text style={[Typography.caption, { color: '#EDE8FA' }]}>{speaking ? '■ Stop' : '▶ Read'}</Text>
+            </Pressable>
+          ) : (
+            <View style={{ width: 86 }} />
+          )}
         </View>
 
-        <Text accessibilityRole="header" style={styles.title}>
+        <Text style={[Typography.caption, { color: '#B9B0EB', letterSpacing: 1, textTransform: 'uppercase', marginTop: 14 }]}
+        >
+          {trackId === 'lucid'
+            ? 'Lucid Dreaming'
+            : trackId === 'obe'
+            ? 'OBE Foundations'
+            : 'Guides & How‑Tos'}
+        </Text>
+
+        <Text accessibilityRole="header" style={[Typography.display, { color: '#EDE8FA', marginTop: 10 }]}>
           {headerTitle}
         </Text>
+
+        {Math.max(progress, lastSentRef.current) >= 0.85 && (
+          <View style={styles.completedBadge}>
+            <Text style={styles.completedBadgeText}>Completed</Text>
+          </View>
+        )}
 
         <View style={{ height: 14 }} />
 
@@ -255,69 +363,257 @@ export default function LessonReader() {
 
         <View style={{ height: insets.bottom + 24 }} />
       </ScrollView>
+
+            {celebrate && (
+        <CompletionToast
+          bottomInset={insets.bottom}
+          onReturn={() => {
+            finalizeAndMaybeRecordPractice();
+            (navigation as any).goBack();
+          }}
+        />
+      )}
     </SafeAreaView>
+  );
+}
+
+type CompletionToastProps = {
+  bottomInset: number;
+  onReturn?: () => void;
+};
+
+function CompletionToast({ bottomInset, onReturn }: CompletionToastProps) {
+  const opacity = React.useRef(new Animated.Value(0)).current;
+  const translateY = React.useRef(new Animated.Value(12)).current;
+  const glowScale = React.useRef(new Animated.Value(0.92)).current;
+  const glowOpacity = React.useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.sequence([
+        Animated.timing(opacity, {
+          toValue: 1,
+          duration: 220,
+          useNativeDriver: true,
+        }),
+        Animated.delay(3700),
+        Animated.timing(opacity, {
+          toValue: 0,
+          duration: 260,
+          useNativeDriver: true,
+        }),
+      ]),
+      Animated.sequence([
+        Animated.parallel([
+          Animated.timing(translateY, {
+            toValue: 0,
+            duration: 220,
+            useNativeDriver: true,
+          }),
+          Animated.sequence([
+            Animated.timing(glowOpacity, {
+              toValue: 0.22,
+              duration: 280,
+              useNativeDriver: true,
+            }),
+            Animated.timing(glowOpacity, {
+              toValue: 0,
+              duration: 620,
+              useNativeDriver: true,
+            }),
+          ]),
+          Animated.sequence([
+            Animated.timing(glowScale, {
+              toValue: 1.05,
+              duration: 450,
+              useNativeDriver: true,
+            }),
+            Animated.timing(glowScale, {
+              toValue: 1.0,
+              duration: 450,
+              useNativeDriver: true,
+            }),
+          ]),
+        ]),
+      ]),
+    ]).start();
+  }, [opacity, translateY, glowScale, glowOpacity]);
+
+  const toastBottom = bottomInset + 40;
+  const glowBottom = -110; // half of 220px height so the circle sits half offscreen
+
+  return (
+    <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
+      {/* Glow pulse behind the toast */}
+      <Animated.View
+        style={{
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          bottom: glowBottom,
+          alignItems: 'center',
+          opacity: glowOpacity,
+          transform: [{ scale: glowScale }],
+        }}
+      >
+        <View
+          style={{
+            width: 220,
+            height: 220,
+            borderRadius: 110,
+            backgroundColor: 'rgba(143, 227, 179, 0.24)',
+          }}
+        />
+      </Animated.View>
+
+      {/* Toast content */}
+      <Animated.View
+        style={{
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          bottom: toastBottom,
+          alignItems: 'center',
+          opacity,
+          transform: [{ translateY }],
+        }}
+      >
+        <View
+          style={{
+            paddingHorizontal: 16,
+            paddingVertical: 10,
+            borderRadius: 999,
+            backgroundColor: 'rgba(6, 10, 24, 0.96)',
+            borderWidth: 1,
+            borderColor: 'rgba(143, 227, 179, 0.55)',
+          }}
+        >
+          <Text
+            style={[
+              Typography.caption,
+              {
+                color: '#EDE8FA',
+                textAlign: 'center',
+              },
+            ]}
+          >
+            Lesson Complete
+          </Text>
+          <Text
+            style={{
+              fontFamily: 'Inter-ExtraLight',
+              fontSize: 12,
+              color: 'rgba(237,232,250,0.78)',
+              textAlign: 'center',
+              marginTop: 2,
+            }}
+          >
+            Now part of your Completed shelf
+          </Text>
+          {onReturn && (
+            <Pressable
+              onPress={onReturn}
+              accessibilityRole="button"
+              accessibilityLabel="Return to Learning Hub"
+              accessibilityHint="Closes this lesson and returns you to the Learning Hub"
+              style={{
+                marginTop: 8,
+                alignSelf: 'center',
+                paddingHorizontal: 14,
+                paddingVertical: 6,
+                borderRadius: 999,
+                backgroundColor: 'rgba(143, 227, 179, 0.16)',
+              }}
+            >
+              <Text
+                style={{
+                  fontFamily: 'Inter-ExtraLight',
+                  fontSize: 12,
+                  color: '#8FE3B3',
+                  textAlign: 'center',
+                }}
+              >
+                Return to Library
+              </Text>
+            </Pressable>
+          )}
+        </View>
+      </Animated.View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: 'transparent' },
   inner: { paddingHorizontal: 24, paddingBottom: 16 },
-  backButton: {
-    alignSelf: 'flex-start',
-    paddingVertical: 6,
+  topControlsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  controlPill: {
+    paddingVertical: 8,
     paddingHorizontal: 12,
-    marginBottom: 12,
-    borderRadius: 10,
+    borderRadius: 12,
     backgroundColor: 'rgba(185,176,235,0.14)',
     borderWidth: 1,
     borderColor: 'rgba(185,176,235,0.35)',
   },
-  backText: {
-    color: '#EDE8FA',
-    fontSize: 14,
-    fontWeight: '600',
-    letterSpacing: 0.3,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  kicker: {
-    color: '#B9B0EB',
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-    fontSize: 12,
-  },
-  title: {
-    color: '#EDE8FA',
-    fontSize: 28,
-    fontWeight: '700',
-    marginTop: 10,
-  },
-  ttsRow: { flexDirection: 'row', gap: 8 },
-  ttsBtn: {
-    borderWidth: 1,
-    borderColor: 'rgba(185,176,235,0.5)',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 10,
-    backgroundColor: 'rgba(185,176,235,0.12)',
-  },
-  ttsBtnActive: {
+  controlPillActive: {
     backgroundColor: 'rgba(185,176,235,0.22)',
     borderColor: 'rgba(185,176,235,0.85)',
   },
-  ttsBtnText: { color: '#EDE8FA', fontSize: 12, fontWeight: '600' },
+  completedBadge: {
+    alignSelf: 'flex-start',
+    marginTop: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: 'rgba(151, 220, 174, 0.18)',
+  },
+  completedBadgeText: {
+    ...Typography.caption,
+    fontSize: 11,
+    color: '#8FE3B3',
+  },
 });
 
 // Readability tuning for markdown
 const markdownStyles = {
-  body: { color: '#DCD6F5', fontSize: 17, lineHeight: 28 },
-  heading1: { color: '#EDE8FA', fontSize: 24, lineHeight: 32, marginTop: 14, marginBottom: 6 },
-  heading2: { color: '#EDE8FA', fontSize: 21, lineHeight: 30, marginTop: 12, marginBottom: 6 },
-  paragraph: { marginTop: 6, marginBottom: 10 },
-  list_item: { marginTop: 0, marginBottom: 6 },
-  strong: { color: '#EDE8FA' },
+  body: {
+    color: '#E0DAF7',
+    fontFamily: 'Inter-ExtraLight',
+    fontSize: 16,
+    lineHeight: 26,
+    letterSpacing: 0.2,
+  },
+  heading1: { color: '#EDE8FA', fontFamily: 'CalSans-SemiBold', fontSize: 18, lineHeight: 26, marginTop: 14, marginBottom: 6 },
+  heading2: { color: '#EDE8FA', fontFamily: 'CalSans-SemiBold', fontSize: 16, lineHeight: 24, marginTop: 12, marginBottom: 6 },
+  paragraph: { marginTop: 8, marginBottom: 14 },
+  list_item: { marginTop: 2, marginBottom: 8 },
+  bullet_list: { marginTop: 6, marginBottom: 8 },
+  ordered_list: { marginTop: 6, marginBottom: 8 },
+  bullet_list_icon: {
+    color: '#EDE8FA',
+    fontSize: 16,
+    lineHeight: 24,
+    marginRight: 12,
+  },
+  bullet_list_content: { flex: 1 },
+  ordered_list_icon: {
+    color: '#EDE8FA',
+    fontSize: 14,
+    lineHeight: 24,
+    marginRight: 12,
+  },
+  ordered_list_content: { flex: 1 },
+  strong: { color: '#EDE8FA', fontFamily: 'CalSans-SemiBold' },
   link: { color: '#B9B0EB' },
+  hr: {
+    borderColor: 'rgba(237,232,250,0.10)',
+    borderBottomWidth: 1,
+    marginTop: 18,
+    marginBottom: 18
+  }
 };

@@ -5,6 +5,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const KEY = 'inner.lastSession.v1';
 const INTENTIONS_KEY = 'inner.intentions.v1';
 
+// Intention timeline + nudges
+const INTENTION_SET_AT_KEY = 'inner.intentions.setAt.v1';
+const LAST_NUDGE_SHOWN_AT_KEY = 'inner.nudges.lastShownAt.v1';
+
 // User may select up to two intentions
 export type IntentionKey =
   | 'calm'
@@ -63,10 +67,26 @@ export async function clearLastSession() {
 export async function setIntentions(keys: string[] | Intentions) {
   const normalized = normalizeIntentions(keys as string[]);
   try {
+    // If clearing intentions, also clear the timeline timestamp
     if (normalized.length === 0) {
       await AsyncStorage.removeItem(INTENTIONS_KEY);
-    } else {
-      await AsyncStorage.setItem(INTENTIONS_KEY, JSON.stringify(normalized));
+      await AsyncStorage.removeItem(INTENTION_SET_AT_KEY);
+      return;
+    }
+
+    const nextStr = JSON.stringify(normalized);
+
+    // Only bump the "set at" timestamp when the intention state actually changes.
+    const prevStr = await AsyncStorage.getItem(INTENTIONS_KEY);
+    const prevSetAt = await AsyncStorage.getItem(INTENTION_SET_AT_KEY);
+
+    const changed = !prevStr || prevStr !== nextStr;
+
+    await AsyncStorage.setItem(INTENTIONS_KEY, nextStr);
+
+    // Set timeline start time if changed OR missing.
+    if (changed || !prevSetAt) {
+      await AsyncStorage.setItem(INTENTION_SET_AT_KEY, String(Date.now()));
     }
   } catch {}
 }
@@ -83,9 +103,48 @@ export async function getIntentions(): Promise<Intentions> {
   }
 }
 
+/** When the current intention state was last set. Returns null when unknown. */
+export async function getIntentionSetAt(): Promise<number | null> {
+  try {
+    const raw = await AsyncStorage.getItem(INTENTION_SET_AT_KEY);
+    if (!raw) return null;
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Persist the last time we actually *showed* a nudge (cooldown control). */
+export async function setLastNudgeShownAt(tsMs: number) {
+  try {
+    await AsyncStorage.setItem(LAST_NUDGE_SHOWN_AT_KEY, String(tsMs));
+  } catch {}
+}
+
+/** Read the last time we actually *showed* a nudge. */
+export async function getLastNudgeShownAt(): Promise<number | null> {
+  try {
+    const raw = await AsyncStorage.getItem(LAST_NUDGE_SHOWN_AT_KEY);
+    if (!raw) return null;
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Clear the stored nudge cooldown timestamp. */
+export async function clearLastNudgeShownAt() {
+  try { await AsyncStorage.removeItem(LAST_NUDGE_SHOWN_AT_KEY); } catch {}
+}
+
 /** Clear any stored intentions. */
 export async function clearIntentions() {
-  try { await AsyncStorage.removeItem(INTENTIONS_KEY); } catch {}
+  try {
+    await AsyncStorage.removeItem(INTENTIONS_KEY);
+    await AsyncStorage.removeItem(INTENTION_SET_AT_KEY);
+  } catch {}
 }
 
 /** ------------------ UI & convenience helpers ------------------ */

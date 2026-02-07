@@ -1,6 +1,23 @@
 {
-  "cli": { "version": ">= 12.0.0", "appVersionSource":"remote" },
+  "cli": { "version": ">= 16.0.0", "appVersionSource": "local" },
   "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "android": { "buildType": "apk" },
+      "ios": {
+        "simulator": true
+      },
+      "env": {
+        "EXPO_NEW_ARCH_ENABLED": "0"
+      }
+    },
+    "development-client": {
+      "extends": "development",
+      "ios": {
+        "simulator": true
+      }
+    },
     "apk": {
       "channel": "preview",
       "android": { "buildType": "apk" }
@@ -8,28 +25,75 @@
     "internal": {
       "channel": "internal",
       "android": { "buildType": "app-bundle" },
+      "ios": {
+        "simulator": false
+      },
       "autoIncrement": true,
-      "env": { "EXPO_NEW_ARCH_ENABLED": "0" }
+      "env": {
+        "EXPO_NEW_ARCH_ENABLED": "0"
+      }
     },
-    "development": {
-      "developmentClient": true,
-      "distribution": "internal",
-      "android": { "buildType": "apk" },
-      "env": { "EXPO_NEW_ARCH_ENABLED": "0" }
+    "preview": {
+      "distribution": "store",
+      "channel": "preview",
+      "android": { "buildType": "app-bundle" },
+      "ios": {
+        "simulator": false
+      },
+      "autoIncrement": true,
+      "env": {
+        "EXPO_NEW_ARCH_ENABLED": "0"
+      }
     },
     "production": {
       "distribution": "store",
-      "android": {
-        "buildType": "app-bundle"
+      "channel": "production",
+      "android": { "buildType": "app-bundle" },
+      "ios": {
+        "simulator": false
       },
       "autoIncrement": true,
-      "env": { "EXPO_NEW_ARCH_ENABLED": "0" }
+      "env": {
+        "EXPO_NEW_ARCH_ENABLED": "0"
+      }
     }
   },
   "submit": {
     "internal": {
+      "ios": {
+        "ascAppId": "6755213270"
+      },
       "android": {
-        "track": "internal"
+        "serviceAccountKeyPath": "./inner-playapi-c5ef8cb3eabd.json",
+        "track": "internal",
+        "changesNotSentForReview": true
+      }
+    },
+    "preview": {
+      "ios": {
+        "ascAppId": "6755213270"
+      },
+      "android": {
+        "serviceAccountKeyPath": "./inner-playapi-c5ef8cb3eabd.json",
+        "track": "closed",
+        "changesNotSentForReview": true
+      }
+    },
+    "open": {
+      "android": {
+        "serviceAccountKeyPath": "./inner-playapi-c5ef8cb3eabd.json",
+        "track": "open",
+        "changesNotSentForReview": true
+      }
+    },
+    "production": {
+      "ios": {
+        "ascAppId": "6755213270"
+      },
+      "android": {
+        "serviceAccountKeyPath": "./inner-playapi-c5ef8cb3eabd.json",
+        "track": "production",
+        "changesNotSentForReview": false
       }
     }
   }

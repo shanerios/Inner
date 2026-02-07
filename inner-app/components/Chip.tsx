@@ -1,13 +1,13 @@
 // components/Chip.tsx
 import React from 'react';
-import { Pressable, Text, StyleSheet, ViewStyle } from 'react-native';
+import { Pressable, Text, StyleSheet, StyleProp, ViewStyle, TextStyle } from 'react-native';
 
 export default function Chip({
-  label, active, onPress, style,
-}: { label: string; active?: boolean; onPress?: () => void; style?: ViewStyle }) {
+  label, active, onPress, style, containerStyle, labelStyle,
+}: { label: string; active?: boolean; onPress?: () => void; style?: ViewStyle; containerStyle?: StyleProp<ViewStyle>; labelStyle?: StyleProp<TextStyle> }) {
   return (
-    <Pressable onPress={onPress} style={[styles.base, active && styles.active, style]}>
-      <Text style={[styles.text, active && styles.textActive]}>{label}</Text>
+    <Pressable onPress={onPress} style={[styles.base, active && styles.active, style, containerStyle]}>
+      <Text style={[styles.text, active && styles.textActive, labelStyle]}>{label}</Text>
     </Pressable>
   );
 }

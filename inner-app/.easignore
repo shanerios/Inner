@@ -1,11 +1,12 @@
-# ---- CLEAN & OPTIMIZED EAS IGNORE ----
+# ---- CLEAN & OPTIMIZED EAS IGNORE (REFINED) ----
 
 # 1) Ignore everything by default
 *
 
-# 2) Whitelist only what’s actually needed
+# 2) Whitelist only what the build actually needs (JS/TS, configs, app assets)
 !.easignore
 !app.json
+!app.config.js
 !eas.json
 !package.json
 !package-lock.json
@@ -26,10 +27,20 @@
 !core/**
 !data/
 !data/**
+!hooks/
+!hooks/**
+!utils/
+!utils/**
+!navigation/
+!navigation/**
 !learn/
 !learn/**
 !types/
 !types/**
+
+# Common entry/service files (TrackPlayer, etc.)
+!service.js
+!service.ts
 
 # 3) Re-exclude unnecessary or heavy items even inside whitelisted folders
 node_modules/
@@ -41,16 +52,18 @@ dist/
 .github/
 .DS_Store
 *.log
+
+# Native folders are optional to upload — let EAS prebuild on the server
 android/
 ios/
 
-# Android/iOS build junk
+# Android/iOS build caches
 **/build/
 **/DerivedData/
 **/.gradle/
 **/Pods/
 
-# Raw/uncompressed audio or large design files
+# Raw/uncompressed or design masters (keep only optimized assets inside /assets)
 **/*.wav
 **/*.aiff
 **/*.aif
@@ -75,3 +88,7 @@ assets_raw/
 .vscode/
 .idea/
 Thumbs.db
+
+# Environment variables / secrets
+.env
+.env.*

@@ -322,18 +322,6 @@ export const LEARN_TRACKS = {
         mdPath: require('../learn/content/obe/20_akashic_hall.md')
       }
     ]
-  },
-  guide: {
-    id: 'guide',
-    title: 'Guides & How-Tos',
-    lessons: [
-      {
-        id: 'howto',
-        title: 'How to Use the Learning Hub',
-        durationMin: 3,
-        mdPath: require('../learn/howto.md')
-      }
-    ]
   }
 };
 // === Auto-metadata enrichment for Suggestion Engine ===

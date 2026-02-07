@@ -16,27 +16,35 @@ import * as Haptics from 'expo-haptics';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
 
-import Wordmark from '../assets/images/wordmark.svg';
 
+import Wordmark from '../assets/images/wordmark.svg';
+import { Typography, Body as _Body } from '../core/typography';
+
+const Body = _Body ?? ({
+  regular: { ...Typography.body },
+  subtle:  { ...Typography.caption },
+} as const);
 
 const { width } = Dimensions.get('window');
+// Keep captions visually consistent across platforms and inside the portal area
+const CAPTION_FONT_SIZE = Math.round(Math.min(17, width * 0.045));
 const WORDMARK_RATIO = 528 / 96.8; // original width:height ratio
 const WORDMARK_TARGET = 370; // ~30% smaller than 528
 const wordmarkWidth = Math.round(Math.min(WORDMARK_TARGET, width * 0.78));
 const wordmarkHeight = Math.round(wordmarkWidth / WORDMARK_RATIO);
 
 const captions = [
-  { time: 2, text: 'A sacred space' },
-  { time: 3.7, text: 'to remember' },
-  { time: 5.2, text: 'who you are.' },
-  { time: 7, text: 'To return to center.' },
-  { time: 10.1, text: 'To lift the veil' },
-  { time: 11.7, text: 'on the deeper self.' },
-  { time: 14, text: 'through gentle ritual,' },
-  { time: 16.5, text: 'living sound,' },
-  { time: 18.3, text: 'and stillness.' },
-  { time: 20.5, text: 'When you are ready' },
-  { time: 22.5, text: 'Enter.' },
+  { time: 3, text: 'A sacred space' },
+  { time: 5, text: 'of sound and stillness' },
+  { time: 9, text: 'remember who you are.' },
+  { time: 13, text: 'To return to center' },
+  { time: 15.1, text: 'and lift the veil' },
+  { time: 17.7, text: 'on your deeper self.' },
+  { time: 20.5, text: 'through gentle ritual,' },
+  { time: 23, text: 'living sound,' },
+  { time: 25.7, text: 'and stillness.' },
+  { time: 28.3, text: 'When you are ready' },
+  { time: 30, text: 'move inward.' },
 ];
 
 export default function IntroScreen() {
@@ -54,6 +62,64 @@ export default function IntroScreen() {
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const emberHapticTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const emberHapticIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const firedRef = useRef(false);
+  // Ember cycle timing (22s) and runner
+  const EMBER_TOTAL = 22000;
+  const t70 = 15400; // ~70%
+  const t74 = 880;   // +4%
+  const t76 = 440;   // +2%
+  const t82 = 1320;  // +6%
+  const tRest = EMBER_TOTAL - (t70 + t74 + t76 + t82);
+
+  const runEmber = () => {
+    // Immediate, stronger pulse at the veil moment
+    Animated.sequence([
+      Animated.parallel([
+        Animated.timing(emberOpacity, { toValue: 1.0, duration: 800, useNativeDriver: true, easing: Easing.out(Easing.ease) }),
+        Animated.timing(emberScale,   { toValue: 1.05, duration: 800, useNativeDriver: true, easing: Easing.out(Easing.ease) }),
+      ]),
+      Animated.parallel([
+        Animated.timing(emberOpacity, { toValue: 0.0, duration: 1800, useNativeDriver: true, easing: Easing.inOut(Easing.ease) }),
+        Animated.timing(emberScale,   { toValue: 1.0,  duration: 1800, useNativeDriver: true, easing: Easing.inOut(Easing.ease) }),
+      ]),
+    ]).start(() => {
+      // After the reveal pulse, resume the calm 22s loop
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(t70),
+          // Bloom
+          Animated.parallel([
+            Animated.timing(emberOpacity, { toValue: 0.85, duration: t74, useNativeDriver: true, easing: Easing.inOut(Easing.ease) }),
+            Animated.timing(emberScale,   { toValue: 1.012, duration: t74, useNativeDriver: true, easing: Easing.inOut(Easing.ease) }),
+          ]),
+          // Bright flash + outward pulse
+          Animated.parallel([
+            Animated.timing(emberOpacity, { toValue: 1.0, duration: t76, useNativeDriver: true, easing: Easing.inOut(Easing.ease) }),
+            Animated.timing(emberScale,   { toValue: 1.02, duration: t76, useNativeDriver: true, easing: Easing.inOut(Easing.ease) }),
+          ]),
+          // Fade back
+          Animated.parallel([
+            Animated.timing(emberOpacity, { toValue: 0.0, duration: t82, useNativeDriver: true, easing: Easing.inOut(Easing.ease) }),
+            Animated.timing(emberScale,   { toValue: 1.0,  duration: t82, useNativeDriver: true, easing: Easing.inOut(Easing.ease) }),
+          ]),
+          Animated.delay(tRest),
+        ])
+      ).start();
+
+      // Haptic alignment: fire once at the veil reveal, then sync with the loop's bright flash
+      if (emberHapticTimeoutRef.current) clearTimeout(emberHapticTimeoutRef.current);
+      if (emberHapticIntervalRef.current) clearInterval(emberHapticIntervalRef.current);
+
+      // Hit haptic now for the initial reveal
+      triggerEmberHaptic();
+
+      // Then schedule recurring haptics to align with loop flash timing (t70 + t74 from loop start)
+      emberHapticTimeoutRef.current = setTimeout(() => {
+        triggerEmberHaptic();
+        emberHapticIntervalRef.current = setInterval(triggerEmberHaptic, EMBER_TOTAL);
+      }, t70 + t74);
+    });
+  };
 
   const triggerEmberHaptic = async () => {
     try {
@@ -83,12 +149,31 @@ export default function IntroScreen() {
 
   const playVoice = async () => {
     const { sound } = await Audio.Sound.createAsync(
-      require('../assets/audio/Inner_Intro_Brand-64k.m4a')
+      require('../assets/audio/intro_v2.mp3')
     );
     soundRef.current = sound;
     // Set intro voiceover volume to 60% before playback
     await sound.setVolumeAsync(isMuted ? 0 : 0.6);
     await sound.playAsync();
+
+    // Audio-clock synced cue for "lift the veil" at 16.0s
+    firedRef.current = false;
+    sound.setOnPlaybackStatusUpdate((status) => {
+      if (!status.isLoaded) return;
+      const t = status.positionMillis ?? 0;
+      if (!firedRef.current && t >= 16000) {
+        firedRef.current = true;
+        runEmber();
+      }
+      if ((status as any).didJustFinish) {
+        // Voiceover complete → reveal CTA
+        Animated.timing(ctaFadeAnim, {
+          toValue: 1,
+          duration: 1200,
+          useNativeDriver: true,
+        }).start();
+      }
+    });
 
     const start = Date.now();
     intervalRef.current = setInterval(() => {
@@ -132,70 +217,17 @@ export default function IntroScreen() {
       }).start();
     }, 4800);
 
-    const ctaTimer = setTimeout(() => {
-      Animated.timing(ctaFadeAnim, {
-        toValue: 1,
-        duration: 1200,
-        useNativeDriver: true,
-      }).start();
-    }, 5200); // ~400ms after wordmark, near voice start
-
-    // "The Call" – ember flicker animation (22s cycle)
-    const EMBER_TOTAL = 22000;
-    const t70 = 15400; // ~70%
-    const t74 = 880;   // +4%
-    const t76 = 440;   // +2%
-    const t82 = 1320;  // +6%
-    const tRest = EMBER_TOTAL - (t70 + t74 + t76 + t82);
-
-    const runEmber = () => {
-      Animated.loop(
-        Animated.sequence([
-          Animated.delay(t70),
-          // Bloom starts
-          Animated.parallel([
-            Animated.timing(emberOpacity, { toValue: 0.85, duration: t74, useNativeDriver: true, easing: Easing.inOut(Easing.ease) }),
-            Animated.timing(emberScale,   { toValue: 1.012, duration: t74, useNativeDriver: true, easing: Easing.inOut(Easing.ease) }),
-          ]),
-          // Quick bright flash + slight outward pulse
-          Animated.parallel([
-            Animated.timing(emberOpacity, { toValue: 1.0, duration: t76, useNativeDriver: true, easing: Easing.inOut(Easing.ease) }),
-            Animated.timing(emberScale,   { toValue: 1.02, duration: t76, useNativeDriver: true, easing: Easing.inOut(Easing.ease) }),
-          ]),
-          // Fade back to calm state
-          Animated.parallel([
-            Animated.timing(emberOpacity, { toValue: 0, duration: t82, useNativeDriver: true, easing: Easing.inOut(Easing.ease) }),
-            Animated.timing(emberScale,   { toValue: 1.0, duration: t82, useNativeDriver: true, easing: Easing.inOut(Easing.ease) }),
-          ]),
-          Animated.delay(tRest),
-        ])
-      ).start();
-
-      // Schedule haptic to hit exactly at the bright flash each cycle
-      if (emberHapticTimeoutRef.current) clearTimeout(emberHapticTimeoutRef.current);
-      if (emberHapticIntervalRef.current) clearInterval(emberHapticIntervalRef.current);
-
-      emberHapticTimeoutRef.current = setTimeout(() => {
-        triggerEmberHaptic();
-        emberHapticIntervalRef.current = setInterval(triggerEmberHaptic, EMBER_TOTAL);
-      }, t70 + t74);
-    };
-
-    // Start ember after brief arrival pause (so it feels natural)
-    const emberTimer = setTimeout(runEmber, 2000);
-
     // Delay audio + captions by 5s so The Call can land first
     const voiceTimer = setTimeout(playVoice, 3500);
 
     return () => {
       clearTimeout(wordmarkTimer);
-      clearTimeout(emberTimer);
       clearTimeout(voiceTimer);
-      clearTimeout(ctaTimer);
       if (intervalRef.current) clearInterval(intervalRef.current);
       if (emberHapticTimeoutRef.current) clearTimeout(emberHapticTimeoutRef.current);
       if (emberHapticIntervalRef.current) clearInterval(emberHapticIntervalRef.current);
       if (soundRef.current) {
+        try { soundRef.current.setOnPlaybackStatusUpdate(null as any); } catch {}
         soundRef.current.unloadAsync();
         soundRef.current = null;
       }
@@ -270,30 +302,49 @@ export default function IntroScreen() {
 
           <View style={styles.captionBox}>
             {showCaptions && (
-              <Animated.Text style={[styles.caption, { opacity: captionAnim }]}>
+              <Animated.Text
+                allowFontScaling={false}
+                maxFontSizeMultiplier={1}
+                style={[
+                  Typography.display,
+                  {
+                    // Force caption font to be consistent (CalSans can appear larger on iOS)
+                    fontFamily: 'Inter-ExtraLight',
+                    fontStyle: 'italic',
+                    color: 'white',
+                    textAlign: 'center',
+                    fontSize: CAPTION_FONT_SIZE,
+                    lineHeight: Math.round(CAPTION_FONT_SIZE * 1.35),
+                    opacity: captionAnim,
+                  },
+                ]}
+              >
                 {currentCaption}
               </Animated.Text>
             )}
           </View>
 
-          <Animated.View style={[styles.buttons, { opacity: ctaFadeAnim }]}>
-            <View style={styles.primaryButtonWrap}>
-              <Animated.View style={{ transform: [{ scale: ctaScale }], backgroundColor: buttonBg, borderRadius: 24, overflow: 'hidden' }}>
-                <TouchableOpacity
-                  onPress={async () => {
-                    setCtaPressed(true);
-                    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                    setCtaPressed(false);
-                    stopAudioAndNavigate();
-                  }}
-                  style={[styles.primaryButton, { backgroundColor: 'transparent' }]}
-                  accessibilityRole="button"
-                  accessibilityLabel="Move inward. Begin your inner journey."
-                >
-                  <Text style={styles.primaryText}>Move Inward</Text>
-                </TouchableOpacity>
-              </Animated.View>
-            </View>
+          <View style={styles.buttons}>
+            <Animated.View style={{ opacity: ctaFadeAnim }}>
+              <View style={styles.primaryButtonWrap}>
+                <Animated.View style={{ transform: [{ scale: ctaScale }], backgroundColor: buttonBg, borderRadius: 24, overflow: 'hidden' }}>
+                  <TouchableOpacity
+                    onPress={async () => {
+                      setCtaPressed(true);
+                      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                      setCtaPressed(false);
+                      stopAudioAndNavigate();
+                    }}
+                    style={[styles.primaryButton, { backgroundColor: 'transparent' }]}
+                    accessibilityRole="button"
+                    accessibilityLabel="Move inward. Begin your inner journey."
+                  >
+                    <Text style={[Typography.title, { color: '#1F233A' }]}>Move Inward</Text>
+                  </TouchableOpacity>
+                </Animated.View>
+              </View>
+            </Animated.View>
+
             <TouchableOpacity
               onPress={async () => {
                 await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -302,9 +353,9 @@ export default function IntroScreen() {
               accessibilityRole="button"
               accessibilityLabel="Skip intro and continue to next screen."
             >
-              <Text style={styles.skipText}>skip</Text>
+              <Text style={[Body.regular, { fontFamily: 'Inter-ExtraLight', color: 'white', marginTop: 10, opacity: 0.7 }]}>skip</Text>
             </TouchableOpacity>
-          </Animated.View>
+          </View>
         </View>
 
         {/* Caption Toggle (Right) */}
@@ -321,7 +372,7 @@ export default function IntroScreen() {
             accessibilityLabel="Captions toggle"
             accessibilityHint="Turn on or off the on-screen captions for this intro."
           />
-          <Text style={styles.toggleLabel}>Captions</Text>
+          <Text style={[Body.subtle, { fontFamily: 'Inter-ExtraLight', color: '#ccc', marginTop: 0 }]}>Captions</Text>
         </View>
 
         {/* Mute Toggle (Left) */}
@@ -338,7 +389,7 @@ export default function IntroScreen() {
             accessibilityLabel="Audio toggle"
             accessibilityHint="Mute or unmute the voice audio."
           />
-          <Text style={styles.toggleLabel}>Audio</Text>
+          <Text style={[Body.subtle, { fontFamily: 'Inter-ExtraLight', color: '#ccc', marginTop: 0 }]}>Audio</Text>
         </View>
       </ImageBackground>
     </View>
@@ -369,33 +420,11 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
-  headerText: {
-    fontSize: 24,
-    color: 'white',
-    fontWeight: '600',
-    textAlign: 'center',
-    marginBottom: 2,
-    zIndex: 1,
-  },
-  wordmarkText: {
-    fontSize: 42,
-    color: 'white',
-    fontWeight: '700',
-    textAlign: 'center',
-    marginTop: 8,
-    letterSpacing: 1,
-  },
   captionBox: {
     justifyContent: 'center',
     alignItems: 'center',
     height: 120,
     width: width * 0.8,
-  },
-  caption: {
-    fontSize: 20,
-    color: 'white',
-    textAlign: 'center',
-    fontStyle: 'italic',
   },
   buttons: {
     alignItems: 'center',
@@ -415,17 +444,6 @@ const styles = StyleSheet.create({
   primaryButtonEmber: {
     backgroundColor: '#FFB86C',
   },
-  primaryText: {
-    color: '#1F233A',
-    fontSize: 20,
-    fontWeight: '600',
-  },
-  skipText: {
-    color: 'white',
-    fontSize: 16,
-    marginTop: 10,
-    opacity: 0.7,
-  },
   accessibilityToggleRight: {
     position: 'absolute',
     bottom: 20,
@@ -437,11 +455,6 @@ const styles = StyleSheet.create({
     bottom: 20,
     left: 20,
     alignItems: 'center',
-  },
-  toggleLabel: {
-    fontSize: 12,
-    color: '#ccc',
-    marginTop: 0,
   },
   overlayContainer: {
     position: 'absolute',

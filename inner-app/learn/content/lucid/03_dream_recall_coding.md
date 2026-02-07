@@ -64,10 +64,10 @@ Most people treat recall as luck. It’s a *skill*. Your brain saves what it bel
 - 🔁 REP = Repeat motif  
 
 ### Sample Entry
-*Example dream journal line:*
-> “In a neon city, I climbed a glass elevator. Relief after escaping the underground tunnel.”
+**Example dream journal line:**
+ “In a neon city, I climbed a glass elevator. Relief after escaping the underground tunnel.”
 
-*Applied tags:* `⚑ DS, 🚪 TH, ✳ RC`
+*Applied tags:* ⚑ DS, 🚪 TH, ✳ RC
 
 ---
 

@@ -39,7 +39,21 @@ async function keyFrom(url: string): Promise<string> {
   }
 }
 
-/** Returns a file:// URI – downloads once, reuses afterward. */
+/**
+ * Returns a playable URI.
+ * - If cached locally (offline download), returns file:// URI
+ * - Otherwise returns the remote URL for streaming
+ */
+export async function resolvePlayableUri(url: string): Promise<string> {
+  const cached = await getCachedPath(url);
+  return cached ?? url;
+}
+
+// IMPORTANT:
+// cacheRemoteOnce() MUST ONLY be called from explicit user intent
+// (e.g. “Download for offline”). It should never be invoked
+// automatically during playback, otherwise large files will
+// accumulate in inner_audio/.
 export async function cacheRemoteOnce(url: string): Promise<string> {
   await ensureDir();
   const hash = await keyFrom(url);
