@@ -153,6 +153,13 @@ export default function App() {
   // RevenueCat (Subscriptions) — initialize once
   useEffect(() => {
     try {
+      if (Purchases.setLogHandler) {
+        Purchases.setLogHandler((level: any, message: string) => {
+          if (__DEV__) {
+            console.log('[RC]', level, message);
+          }
+        });
+      }
       // Verbose logs in dev only
       Purchases.setLogLevel(__DEV__ ? LOG_LEVEL.VERBOSE : LOG_LEVEL.WARN);
 
