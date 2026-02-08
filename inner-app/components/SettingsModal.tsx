@@ -25,6 +25,8 @@ const Body = _Body ?? ({ regular: { ..._Typography.body }, subtle: { ..._Typogra
 export interface SettingsModalProps {
   visible: boolean;
   onClose: () => void;
+  /** Fires once the Settings Modal's dismiss animation has fully completed (iOS). */
+  onSettingsDismiss?: () => void;
 
   // Profile
   profileName: string | null;
@@ -53,6 +55,7 @@ const AUDIO_CACHE_DIR = `${FileSystem.cacheDirectory}inner_audio/`;
 export default function SettingsModal({
   visible,
   onClose,
+  onSettingsDismiss,
   profileName,
   onProfileNameSaved,
   onChangeIntentions,
@@ -202,6 +205,17 @@ export default function SettingsModal({
     try { await AsyncStorage.setItem('audio:quality', q); } catch {}
   }, []);
 
+  const handleOpenPrivacy = useCallback(() => {
+    // iOS cannot present two RN <Modal>s simultaneously.
+    // Close Settings first, then open Privacy on the next tick.
+    onClose();
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        setShowPrivacy(true);
+      }, 50);
+    });
+  }, [onClose]);
+
   const handleOpenClearCache = useCallback(() => {
     __DEV__ && console.log('[CACHE] Clear audio cache tapped (settings)');
     // iOS can fail to present a second modal on top of another Modal.
@@ -224,7 +238,10 @@ export default function SettingsModal({
         transparent
         animationType="fade"
         onDismiss={() => {
-          // Paywall after dismiss is handled by the parent via onOpenPaywall
+          // Fires once iOS has fully finished the dismiss animation.
+          // The parent uses this to present the paywall (or any other
+          // native modal) without colliding with the Settings dismiss.
+          onSettingsDismiss?.();
         }}
       >
         <View style={modalStyles.backdrop}>
@@ -572,7 +589,7 @@ export default function SettingsModal({
               {/* Privacy entry */}
               <View style={{ marginBottom: 8 }}>
                 <TouchableOpacity
-                  onPress={() => setShowPrivacy(true)}
+                  onPress={handleOpenPrivacy}
                   accessibilityRole="button"
                   accessibilityLabel="Open privacy notice"
                   style={{

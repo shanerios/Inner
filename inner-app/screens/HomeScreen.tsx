@@ -666,18 +666,33 @@ const presentPaywall = React.useCallback(async () => {
   }
 }, [presentingPaywall, logEntitlementState]);
 
-// Paywall from Settings: close Settings first, then present paywall after modal dismisses
+// Paywall from Settings: close Settings first, present paywall AFTER Modal fully dismisses.
+// We use a ref so the Settings Modal's onDismiss can fire it reliably (no stale closures).
+const paywallPendingRef = React.useRef(false);
+
 const handleSettingsPaywall = useCallback(async () => {
   try { await Haptics.selectionAsync(); } catch {}
   await logEntitlementState('settings_cta_pressed');
+  paywallPendingRef.current = true;
   setShowSettings(false);
-  // Let the modal fully dismiss before presenting the paywall
-  setTimeout(() => {
-    requestAnimationFrame(() => {
-      presentPaywall();
-    });
-  }, Platform.OS === 'ios' ? 60 : 200);
+  // Android: Modal.onDismiss doesn't fire, so use a timed fallback
+  if (Platform.OS === 'android') {
+    setTimeout(() => {
+      if (paywallPendingRef.current) {
+        paywallPendingRef.current = false;
+        presentPaywall();
+      }
+    }, 350);
+  }
 }, [logEntitlementState, presentPaywall]);
+
+// Called by <SettingsModal>'s onSettingsDismiss once iOS has finished the dismiss animation
+const handleSettingsModalDismissed = useCallback(() => {
+  if (paywallPendingRef.current) {
+    paywallPendingRef.current = false;
+    presentPaywall();
+  }
+}, [presentPaywall]);
 
   // Load Ember state once when Home mounts
   React.useEffect(() => {
@@ -4058,6 +4073,7 @@ const openInnerFlame = useCallback(async () => {
       <SettingsModal
         visible={showSettings}
         onClose={() => setShowSettings(false)}
+        onSettingsDismiss={handleSettingsModalDismissed}
         profileName={profileName}
         onProfileNameSaved={setProfileName}
         onChangeIntentions={handleChangeIntentions}
