@@ -333,6 +333,20 @@
     .topbar a:hover {
       color: rgba(161, 140, 255, 0.95);
     }
+    .topbar a.active {
+      color: rgba(161, 140, 255, 1);
+      position: relative;
+    }
+    .topbar a.active::after {
+      content: '';
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: -6px;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, rgba(161, 140, 255, 0.9), transparent);
+      border-radius: 2px;
+    }
     .brand {
       display: inline-flex;
       align-items: center;
@@ -428,8 +442,14 @@
     /* Chambers Science Block (Second Descent) */
     .chambers-science {
       max-width: 820px;
-      margin: 24px auto 0 auto;
+      margin: 48px auto 0 auto;
+      padding: 28px 24px 32px 24px;
       text-align: left;
+      background: linear-gradient(180deg, rgba(24, 23, 52, 0.55), rgba(24, 23, 52, 0.25));
+      border-radius: 22px;
+      border: 1px solid rgba(161, 140, 255, 0.18);
+      box-shadow: 0 0 40px rgba(161, 140, 255, 0.08);
+      backdrop-filter: blur(10px);
     }
     .chambers-science h3 {
       text-align: left;
@@ -673,6 +693,22 @@
     }, { threshold: 0.12 });
 
     revealEls.forEach((el) => io.observe(el));
+
+    // Active nav tracking
+    const sections = document.querySelectorAll('section[id]');
+    const navLinks = document.querySelectorAll('.topbar nav a');
+
+    const navObserver = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          navLinks.forEach(link => link.classList.remove('active'));
+          const activeLink = document.querySelector(`.topbar nav a[href="#${entry.target.id}"]`);
+          if (activeLink) activeLink.classList.add('active');
+        }
+      });
+    }, { threshold: 0.4 });
+
+    sections.forEach(section => navObserver.observe(section));
   </script>
 </body>
 </html>
