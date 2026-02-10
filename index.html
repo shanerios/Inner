@@ -16,6 +16,9 @@
       font-style: normal;
       font-display: swap;
     }
+    :root {
+      --topbar-height: 58px;
+    }
     @keyframes breathe {
       0%, 100% {
         transform: scale(1);
@@ -41,7 +44,7 @@
       -moz-osx-font-smoothing: grayscale;
       color: #fff;
       padding: 20px;
-      padding-top: calc(20px + env(safe-area-inset-top, 0px));
+      padding-top: calc(20px + env(safe-area-inset-top, 0px) + var(--topbar-height));
       box-sizing: border-box;
     }
     .breathing-orb {
@@ -317,8 +320,11 @@
       justify-content: space-between;
       padding: 14px 18px;
       box-sizing: border-box;
-      position: sticky;
-      top: 0;
+      position: fixed;
+      top: env(safe-area-inset-top, 0px);
+      left: 50%;
+      transform: translateX(-50%);
+      height: var(--topbar-height);
       z-index: 10;
       background: linear-gradient(180deg, rgba(13, 12, 31, 0.92) 0%, rgba(13, 12, 31, 0.35) 100%);
       backdrop-filter: blur(10px);
@@ -474,6 +480,7 @@
     }
     /* Responsive tweaks */
     @media (max-width: 480px) {
+      :root { --topbar-height: 64px; }
       form {
         flex-direction: column;
         gap: 15px;
