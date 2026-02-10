@@ -31,9 +31,9 @@
       box-sizing: border-box;
     }
     .breathing-orb {
-      width: 450px;
-      height: 450px;
-      margin-top: 40px;
+      width: min(450px, 82vw);
+      height: min(450px, 82vw);
+      margin-top: 22px;
       margin-bottom: 0;
       border-radius: 50%;
       animation: breathe 4s ease-in-out infinite;
@@ -102,6 +102,201 @@
     button:hover {
       background-color: #c0badd;
     }
+
+    /* --- Scroll Experience Layout --- */
+    .section {
+      width: 100%;
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 72px 0;
+      position: relative;
+    }
+    .section.compact {
+      padding: 48px 0;
+    }
+    .container {
+      width: 100%;
+      padding: 0 18px;
+      box-sizing: border-box;
+    }
+    .center {
+      text-align: center;
+    }
+    .kicker {
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      font-size: 0.78rem;
+      color: rgba(210, 205, 240, 0.70);
+      margin: 0 0 12px 0;
+      user-select: none;
+    }
+    h1 {
+      font-weight: 700;
+      font-size: 2.35rem;
+      line-height: 1.1;
+      margin: 0 0 14px 0;
+      text-align: center;
+    }
+    .lead {
+      font-size: 1.08rem;
+      line-height: 1.55;
+      max-width: 740px;
+      margin: 0 auto 22px auto;
+      color: rgba(235, 232, 255, 0.88);
+    }
+    .subtle {
+      color: rgba(210, 205, 240, 0.70);
+    }
+    .cta-row {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-top: 14px;
+    }
+    .ghost {
+      background: rgba(144, 140, 159, 0.14);
+      border: 1px solid rgba(144, 140, 159, 0.35);
+      color: rgba(235, 232, 255, 0.92);
+    }
+    .ghost:hover {
+      background: rgba(192, 186, 221, 0.18);
+      border-color: rgba(192, 186, 221, 0.50);
+    }
+
+    /* Panels */
+    .panel {
+      background: linear-gradient(135deg, rgba(31, 30, 56, 0.82), rgba(42, 41, 78, 0.72));
+      border: 1px solid rgba(144, 140, 159, 0.26);
+      border-radius: 16px;
+      padding: 22px;
+      box-sizing: border-box;
+      backdrop-filter: blur(8px);
+    }
+
+    /* Feature grid */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+      margin-top: 22px;
+    }
+    .feature {
+      padding: 18px 16px;
+      border-radius: 14px;
+      border: 1px solid rgba(144, 140, 159, 0.22);
+      background: rgba(20, 18, 45, 0.35);
+      transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+      min-height: 118px;
+    }
+    .feature:hover {
+      transform: translateY(-2px);
+      border-color: rgba(161, 140, 255, 0.45);
+      box-shadow: 0 0 18px 3px rgba(161, 140, 255, 0.16);
+    }
+    .feature h4 {
+      margin: 0 0 8px 0;
+      font-size: 1.02rem;
+      color: rgba(235, 232, 255, 0.95);
+    }
+    .feature p {
+      margin: 0;
+      max-width: none;
+      font-size: 0.98rem;
+      color: rgba(210, 205, 240, 0.78);
+      text-align: left;
+    }
+
+    /* Split layout */
+    .split {
+      display: grid;
+      grid-template-columns: 1.25fr 0.75fr;
+      gap: 18px;
+      align-items: center;
+    }
+    .stack {
+      display: grid;
+      gap: 12px;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(144, 140, 159, 0.30);
+      background: rgba(20, 18, 45, 0.35);
+      color: rgba(235, 232, 255, 0.86);
+      font-size: 0.92rem;
+      user-select: none;
+    }
+
+    /* Scroll reveal */
+    .reveal {
+      opacity: 0;
+      transform: translateY(18px);
+      transition: opacity 0.8s ease, transform 0.8s ease;
+    }
+    .reveal.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* Section separators */
+    .veil-line {
+      width: 100%;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(161, 140, 255, 0.35), transparent);
+      margin: 10px 0 0 0;
+      opacity: 0.7;
+    }
+
+    /* Top nav */
+    .topbar {
+      width: 100%;
+      max-width: 1100px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 18px;
+      box-sizing: border-box;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: linear-gradient(180deg, rgba(13, 12, 31, 0.92) 0%, rgba(13, 12, 31, 0.35) 100%);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid rgba(144, 140, 159, 0.16);
+    }
+    .topbar a {
+      color: rgba(235, 232, 255, 0.84);
+      text-decoration: none;
+      font-size: 0.95rem;
+      margin-left: 12px;
+    }
+    .topbar a:hover {
+      color: rgba(161, 140, 255, 0.95);
+    }
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .brand img {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+    }
+
+    /* Responsive grids */
+    @media (max-width: 900px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+      .split {
+        grid-template-columns: 1fr;
+      }
+    }
+
     /* Chambers Preview */
     .chambers-preview {
       display: flex;
@@ -192,42 +387,182 @@
       }
 
       .wordmark {
-        width: 50vw;
-        margin-top: -110px !important;
+        width: 52vw;
+        margin-top: -86px !important;
       }
     }
   </style>
 </head>
 <body>
-  <div class="breathing-orb">
-    <img src="inner_orb.png" alt="Breathing Orb" />
-  </div>
-  <img src="wordmark.svg" alt="Inner Wordmark" class="wordmark" />
-  <h3>Beneath the veil, <span style="color:#A18CFF;">something awakens.</span></h3>
-  <p>A new form of inner technology — sound, stillness, and design guiding you inward.</p>
+  <header class="topbar" aria-label="Inner navigation">
+    <div class="brand">
+      <img src="inner_orb.png" alt="Inner" />
+      <span class="subtle" style="font-weight:600; letter-spacing:0.02em;">Inner</span>
+    </div>
+    <nav aria-label="Sections">
+      <a href="#what">What</a>
+      <a href="#how">How</a>
+      <a href="#chambers">Chambers</a>
+      <a href="#trust">Trust</a>
+      <a href="#join">Join</a>
+    </nav>
+  </header>
 
-  <form action="https://formsubmit.co/3dc4842116379509a3ba0bc4ccb46e00" method="POST">
-    <input type="hidden" name="_next" value="https://getinner.app/thankyou.html" />
-    <input type="email" name="email" placeholder="Enter your email" required />
-    <button type="submit">Join the waitlist</button>
-  </form>
+  <!-- HERO / THRESHOLD -->
+  <section class="section compact" aria-label="Hero">
+    <div class="container center reveal">
+      <div class="breathing-orb" aria-hidden="true">
+        <img src="inner_orb.png" alt="" />
+      </div>
+      <img src="wordmark.svg" alt="Inner Wordmark" class="wordmark" />
+      <h1>Beneath the veil, <span style="color:#A18CFF;">something awakens.</span></h1>
+      <p class="lead">A guided audio experience for deep rest, lucid awareness, and inner exploration — built like a ritual, not a feed.</p>
 
-  <section class="chambers-preview" aria-label="Chambers Preview">
-    <article class="chamber-card">
-      <h4 class="chamber-title">I — Outer Sanctum</h4>
-      <p class="chamber-desc">The stillpoint. The breath before awakening.</p>
-    </article>
-    <article class="chamber-card">
-      <h4 class="chamber-title">II — Inner Flame</h4>
-      <p class="chamber-desc">The spark that burns away illusion.</p>
-    </article>
-    <article class="chamber-card">
-      <h4 class="chamber-title">III — Horizon Gate</h4>
-      <p class="chamber-desc">The crossing beyond self.</p>
-    </article>
+      <div class="cta-row">
+        <button type="button" class="ghost" onclick="document.querySelector('#what').scrollIntoView({behavior:'smooth'})">What is Inner?</button>
+        <button type="button" onclick="document.querySelector('#join').scrollIntoView({behavior:'smooth'})">Join the waitlist</button>
+      </div>
+
+      <div class="veil-line" aria-hidden="true"></div>
+      <p class="subtle" style="margin:18px auto 0 auto; max-width:720px;">Headphones recommended. Repeat sessions are part of the design.</p>
+    </div>
   </section>
 
-  <p class="chambers-note">Deeper chambers unlock March 3, 2026.</p>
+  <!-- WHAT -->
+  <section id="what" class="section" aria-label="What is Inner">
+    <div class="container reveal">
+      <p class="kicker">What it is</p>
+      <div class="panel">
+        <h3 style="margin-top:0;">Inner is a guided audio environment for entering deeper states.</h3>
+        <p style="max-width:900px; margin:0 auto;">Inner blends psychoacoustic sound design, breath-guided ritual, and focused listening experiences to help you access calm, clarity, and non-ordinary awareness — safely and intentionally.</p>
+        <p class="subtle" style="max-width:900px; margin:14px auto 0 auto;"><em>Not to escape the world — but to meet yourself more clearly within it.</em></p>
 
+        <div class="grid" aria-label="What you can use it for">
+          <div class="feature">
+            <h4>Deep Rest</h4>
+            <p>Downshift the nervous system, slow the mind, and return to baseline — fast.</p>
+          </div>
+          <div class="feature">
+            <h4>Lucid Awareness</h4>
+            <p>Train stillness and presence in a way that carries into sleep, dreams, and daily life.</p>
+          </div>
+          <div class="feature">
+            <h4>Inner Exploration</h4>
+            <p>Use repetition to move from surface calm into depth — where insight tends to appear.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- HOW -->
+  <section id="how" class="section" aria-label="How it works">
+    <div class="container reveal">
+      <p class="kicker">How it works</p>
+      <div class="split">
+        <div class="panel">
+          <h3 style="margin-top:0;">Three steps. One doorway.</h3>
+          <div class="stack" style="margin-top:14px;">
+            <div class="badge">1 — Choose a Chamber</div>
+            <p style="margin:0; max-width:none;">Each Chamber is a focused audio environment designed for a specific internal state.</p>
+            <div class="badge">2 — Listen & Breathe</div>
+            <p style="margin:0; max-width:none;">Spatial sound, rhythm, and guidance gently lead the body into coherence.</p>
+            <div class="badge">3 — Return Changed</div>
+            <p style="margin:0; max-width:none;">Calm. Clarity. Insight. Or simply deeper rest — without forcing anything.</p>
+          </div>
+        </div>
+        <div class="panel">
+          <h3 style="margin-top:0;">Designed for repetition.</h3>
+          <p style="margin:0; max-width:none;">Inner isn’t built for novelty. Many users return to the same Chamber until the experience changes.</p>
+          <div class="veil-line" aria-hidden="true" style="margin-top:16px;"></div>
+          <p class="subtle" style="margin:16px 0 0 0; max-width:none;">This is where depth comes from.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CHAMBERS PREVIEW -->
+  <section id="chambers" class="section" aria-label="Chambers preview">
+    <div class="container reveal">
+      <p class="kicker">Chambers</p>
+      <h3 class="center" style="margin-top:0;">A nine‑chamber arc. Each one a different room.</h3>
+      <p class="center" style="max-width:740px;">Start with the first three. Return as often as needed. Deeper chambers unlock on <span style="color:#A18CFF; font-weight:700;">March 3, 2026</span>.</p>
+
+      <section class="chambers-preview" aria-label="Chambers Preview">
+        <article class="chamber-card" role="article" aria-label="Outer Sanctum">
+          <h4 class="chamber-title">I — Outer Sanctum</h4>
+          <p class="chamber-desc">The stillpoint. The breath before awakening.</p>
+        </article>
+        <article class="chamber-card" role="article" aria-label="Inner Flame">
+          <h4 class="chamber-title">II — Inner Flame</h4>
+          <p class="chamber-desc">The spark that burns away illusion.</p>
+        </article>
+        <article class="chamber-card" role="article" aria-label="Horizon Gate">
+          <h4 class="chamber-title">III — Horizon Gate</h4>
+          <p class="chamber-desc">The crossing beyond self.</p>
+        </article>
+      </section>
+
+      <p class="chambers-note">More chambers will appear as doors — not as noise.</p>
+    </div>
+  </section>
+
+  <!-- TRUST -->
+  <section id="trust" class="section" aria-label="Trust & principles">
+    <div class="container reveal">
+      <p class="kicker">Trust</p>
+      <div class="panel">
+        <h3 style="margin-top:0;">Built slowly. Used intentionally.</h3>
+        <div class="grid" aria-label="Principles">
+          <div class="feature">
+            <h4>No dopamine loops</h4>
+            <p>No endless feed. No ads. No pressure to consume more.</p>
+          </div>
+          <div class="feature">
+            <h4>Psychoacoustic craft</h4>
+            <p>Sound design that respects attention, breath, and the nervous system.</p>
+          </div>
+          <div class="feature">
+            <h4>Ritual over hype</h4>
+            <p>Clarity without shouting. Mystery without vagueness.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- JOIN -->
+  <section id="join" class="section" aria-label="Join the waitlist">
+    <div class="container center reveal">
+      <p class="kicker">Invitation</p>
+      <div class="panel">
+        <h3 style="margin-top:0;">Enter when you’re ready.</h3>
+        <p style="max-width:740px; margin:0 auto 18px auto;">Join the waitlist for updates, new Chamber drops, and early access.</p>
+
+        <form action="https://formsubmit.co/3dc4842116379509a3ba0bc4ccb46e00" method="POST">
+          <input type="hidden" name="_next" value="https://getinner.app/thankyou.html" />
+          <input type="email" name="email" placeholder="Enter your email" required />
+          <button type="submit">Join the waitlist</button>
+        </form>
+
+        <p class="subtle" style="margin:0 auto; max-width:740px;">We’ll keep it rare and meaningful. No spam.</p>
+      </div>
+
+      <div class="veil-line" aria-hidden="true" style="margin-top:34px;"></div>
+      <p class="subtle" style="margin:18px auto 0 auto;">© Inner • getinner.app</p>
+    </div>
+  </section>
+
+  <script>
+    // Scroll reveal
+    const revealEls = document.querySelectorAll('.reveal');
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach((e) => {
+        if (e.isIntersecting) e.target.classList.add('visible');
+      });
+    }, { threshold: 0.12 });
+
+    revealEls.forEach((el) => io.observe(el));
+  </script>
 </body>
 </html>
