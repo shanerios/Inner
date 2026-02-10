@@ -75,10 +75,11 @@
     form {
       display: flex;
       gap: 10px;
-      max-width: 400px;
+      max-width: 520px;
       width: 100%;
       justify-content: center;
-      margin-bottom: 3rem;
+      align-items: center;
+      margin: 0 auto 3rem auto;
     }
     input[type="email"] {
       flex: 1;
@@ -313,6 +314,8 @@
       width: 100%;
       justify-content: center;
       flex-wrap: wrap;
+      margin-left: auto;
+      margin-right: auto;
       margin-bottom: 1.5rem;
     }
     .chamber-card {
@@ -332,6 +335,9 @@
       padding-bottom: 20px;
       user-select: none;
       transition: box-shadow 0.3s ease;
+    }
+    .chamber-card {
+      flex: 0 1 280px;
     }
     .chamber-card:hover {
       box-shadow: 0 0 15px 4px rgba(161, 140, 255, 0.6);
@@ -384,6 +390,8 @@
         flex-direction: column;
         gap: 1rem;
         max-width: 320px;
+        margin-left: auto;
+        margin-right: auto;
       }
       .chamber-card {
         max-width: 100%;
