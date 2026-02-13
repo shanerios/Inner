@@ -1,11 +1,10 @@
-// @refresh reset
 import { Asset } from 'expo-asset';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useMemo, useRef } from 'react';
 import { Animated, AppState, Dimensions, Easing, Image, Modal, Platform, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Directions, Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Purchases from 'react-native-purchases';
-import RevenueCatUI from 'react-native-purchases-ui';
+import { safePresentPaywall } from '../src/core/subscriptions/safePresentPaywall';
 import FogPulse from '../components/FogPulse';
 import HomeAuraContinuity from '../components/HomeAuraContinuity';
 import SettingsModal from '../components/SettingsModal';
@@ -655,9 +654,9 @@ const presentPaywall = React.useCallback(async () => {
     setPresentingPaywall(true);
 
     await logEntitlementState('presentPaywall_start');
-    __DEV__ && console.log('[PAYWALL] calling RevenueCatUI.presentPaywall()');
-    const result = await RevenueCatUI.presentPaywall();
-    __DEV__ && console.log('[PAYWALL] presentPaywall result:', result);
+    __DEV__ && console.log('[PAYWALL] calling safePresentPaywall()');
+    await safePresentPaywall();
+    __DEV__ && console.log('[PAYWALL] safePresentPaywall finished');
   } catch (e) {
     __DEV__ && console.log('[PAYWALL] Failed to present paywall:', e);
   } finally {
@@ -677,20 +676,20 @@ const handleSettingsPaywall = useCallback(async () => {
   setShowSettings(false);
   // Android: Modal.onDismiss doesn't fire, so use a timed fallback
   if (Platform.OS === 'android') {
-    setTimeout(() => {
+    setTimeout(async () => {
       if (paywallPendingRef.current) {
         paywallPendingRef.current = false;
-        presentPaywall();
+        await presentPaywall();
       }
     }, 350);
   }
 }, [logEntitlementState, presentPaywall]);
 
 // Called by <SettingsModal>'s onSettingsDismiss once iOS has finished the dismiss animation
-const handleSettingsModalDismissed = useCallback(() => {
+const handleSettingsModalDismissed = useCallback(async () => {
   if (paywallPendingRef.current) {
     paywallPendingRef.current = false;
-    presentPaywall();
+    await presentPaywall();
   }
 }, [presentPaywall]);
 
