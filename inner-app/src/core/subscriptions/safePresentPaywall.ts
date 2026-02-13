@@ -29,6 +29,9 @@ export async function safePresentPaywall(): Promise<void> {
     // 2) Present paywall only when safe
     await presentPaywall();
   } catch (e) {
+    if (__DEV__) {
+        console.log("[Paywall] safePresentPaywall error:", e);
+    }
     Alert.alert(
       "Membership unavailable",
       "We couldn’t open the membership screen right now. Please try again."
