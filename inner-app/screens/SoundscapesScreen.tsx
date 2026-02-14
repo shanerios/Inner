@@ -12,8 +12,9 @@ import { setLastSession } from '../core/session';
 import { useOfflineAsset } from '../core/useOfflineAsset';
 import { Typography, Body as _Body } from '../core/typography';
 import { usePrecacheTracks } from '../hooks/usePrecacheTracks';
-import RevenueCatUI from 'react-native-purchases-ui';
 import Purchases from 'react-native-purchases';
+import { isLockedTrack } from '../src/core/subscriptions/accessPolicy';
+import { safePresentPaywall } from '../src/core/subscriptions/safePresentPaywall';
 const Body = _Body ?? ({
   regular: { ...Typography.body },
   subtle:  { ...Typography.caption },
@@ -280,15 +281,12 @@ export default function SoundscapesScreen() {
     } catch {}
 
     try {
-      // Use RevenueCat UI Paywalls (this matches the flow that works from Settings)
-      const result = await RevenueCatUI.presentPaywall();
-      console.log('[RevenueCatUI] presentPaywall result:', result);
+      await safePresentPaywall();
       return;
     } catch (e) {
-      console.log('[RevenueCatUI] Failed to present paywall', e);
+      console.log('[PAYWALL] Failed to present paywall', e);
     }
 
-    // Fallback: avoid breaking the UI
     Alert.alert(
       'Continuing with Inner',
       'Membership is not available to display right now. Please try again in a moment.',
@@ -549,14 +547,10 @@ export default function SoundscapesScreen() {
         {/* Category cards (stack of 3, then scroll) */}
         <View style={[styles.catListContainer, { height: LIST_HEIGHT }]}> 
           <SoundscapeCardList
-            isDeeperLocked={!hasContinuing}
-            onDeeperLockedPress={openPaywall}
+            hasMembership={hasContinuing}
+            onDeeperLockedPress={openPaywall} // legacy fallback; safePresentPaywall is used when hasMembership is provided
             onSelectCategory={(key) => {
               Haptics.selectionAsync();
-
-              // Guard: if Deeper is locked, SoundscapeCardList will open the paywall.
-              if (key === 'deeper' && !hasContinuing) return;
-
               setActiveCategory(key as any);
             }}
           />
@@ -666,8 +660,14 @@ export default function SoundscapesScreen() {
                 </View>
               ) : (
                 filteredTracks.map((item: any) => {
-                  const requiresContinuing = !!(item as any).requiresContinuing;
-                  const isLocked = requiresContinuing && !hasContinuing;
+                  // Centralized gating: Deeper soundscapes + premium tracks are locked without membership.
+                  const policyTrack: any = {
+                    id: item.id,
+                    category: (item as any).category,
+                    isPremium: !!(item as any).isPremium,
+                    kind: (item as any).kind,
+                  };
+                  const isLocked = isLockedTrack(policyTrack, hasContinuing);
 
                   return (
                     <View key={item.id}>

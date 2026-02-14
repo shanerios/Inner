@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useCallback, useState } from 'react';
 import Purchases, { CustomerInfo } from 'react-native-purchases';
-import RevenueCatUI from 'react-native-purchases-ui';
 import { ImageBackground, StyleSheet, View, Text, Pressable, Animated, Easing, FlatList, Dimensions, Modal, Image } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -15,6 +14,8 @@ import { usePrecacheTracks } from '../hooks/usePrecacheTracks';
 
 import { Body as _Body } from '../core/typography';
 import { chamberEnvironments } from '../theme/chamberEnvironments';
+import { isLockedTrack } from '../src/core/subscriptions/accessPolicy';
+import { safePresentPaywall } from '../src/core/subscriptions/safePresentPaywall';
 
 import { Gesture, GestureDetector, Directions, GestureHandlerRootView } from 'react-native-gesture-handler';
 
@@ -197,9 +198,8 @@ export default function ChambersScreen() {
     if (presentingPaywall) return;
     try {
       setPresentingPaywall(true);
-      // Present RevenueCat paywall (same approach used in Settings)
-      const result = await RevenueCatUI.presentPaywall();
-      console.log('[PAYWALL] presentPaywall result:', result);
+      // Crash-safe RevenueCat paywall
+      await safePresentPaywall();
     } catch (e) {
       console.log('[PAYWALL] Failed to present paywall:', e);
     } finally {
@@ -339,8 +339,9 @@ export default function ChambersScreen() {
   }, []);
 
   const enterChamber = (trackId: string, title?: string) => {
-    // Gate Chambers 5–9 if user is not entitled
-    if (isPremiumChamber(trackId) && !hasContinuing) {
+    // Gate premium Chambers if user is not entitled (centralized policy)
+    const pseudoTrack = { id: trackId, isPremium: isPremiumChamber(trackId) };
+    if (isLockedTrack(pseudoTrack as any, hasContinuing)) {
       openGate(title ?? 'This Chamber');
       return;
     }
@@ -669,7 +670,8 @@ export default function ChambersScreen() {
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => {
             const chamberId = toTrackId(item.id);
-            const locked = isPremiumChamber(chamberId) && !hasContinuing;
+            const pseudoTrack = { id: chamberId, isPremium: isPremiumChamber(chamberId) };
+            const locked = isLockedTrack(pseudoTrack as any, hasContinuing);
             return <ChamberRow item={item} onEnter={enterChamber} isLocked={locked} />;
           }}
           showsVerticalScrollIndicator={false}

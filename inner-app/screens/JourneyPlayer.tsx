@@ -4,8 +4,8 @@ import { Ionicons } from '@expo/vector-icons';
 import SleepIcon from '../assets/images/sleep.svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Slider from '@react-native-community/slider';
-// Removed expo-av import: project now uses only react-native-track-player
 import TrackPlayer, { RepeatMode, State, Event, Capability } from 'react-native-track-player';
+import Purchases from 'react-native-purchases';
 import { Asset } from 'expo-asset';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -22,6 +22,8 @@ import { chamberEnvForTrack } from '../theme/chamberEnvironments';
 import { saveThreadSignature } from '../src/core/threading/ThreadEngine';
 import { ThreadMood } from '../src/core/threading/threadTypes';
 import { maybeQueueThreshold } from '../src/core/thresholds/ThresholdEngine';
+import { isLockedTrack } from '../src/core/subscriptions/accessPolicy';
+import { safePresentPaywall } from '../src/core/subscriptions/safePresentPaywall';
 
 import { useSleepTimer } from '../hooks/useSleepTimer';
 
@@ -91,6 +93,51 @@ export default function JourneyPlayer() {
   const insets = useSafeAreaInsets();
 
   const saveTimer = useRef<NodeJS.Timeout | null>(null);
+
+  // --- Membership / entitlement cache (player-level gate) ---
+  const entitlementCacheRef = useRef<{ ts: number; has: boolean } | null>(null);
+  const getHasMembership = useCallback(async () => {
+    try {
+      const cached = entitlementCacheRef.current;
+      if (cached && (Date.now() - cached.ts) < 10_000) return cached.has;
+      const info = await Purchases.getCustomerInfo();
+      const has = !!info && !!info.entitlements && Object.keys(info.entitlements.active || {}).length > 0;
+      entitlementCacheRef.current = { ts: Date.now(), has };
+      return has;
+    } catch (e) {
+      // Fail closed: if we cannot confirm membership, treat as not entitled.
+      return false;
+    }
+  }, []);
+
+  const presentingGateRef = useRef(false);
+  const ensureNotLocked = useCallback(async () => {
+    const base: any = selectedTrack ?? meta;
+    const id = (selectedTrack as any)?.id || (meta as any)?.id || legacyId || 'default';
+
+    // Build a policy-friendly shape from whatever metadata exists.
+    const policyTrack: any = {
+      id,
+      // Many of your tracks use `category` (soundscapes list) and `isPremium` (chambers).
+      // We also map `kind` as a fallback signal.
+      category: base?.category ?? base?.categoryKey ?? base?.kind,
+      kind: base?.kind,
+      isPremium: !!base?.isPremium,
+    };
+
+    const hasMembership = await getHasMembership();
+    if (isLockedTrack(policyTrack, hasMembership)) {
+      if (presentingGateRef.current) return false;
+      presentingGateRef.current = true;
+      try {
+        await safePresentPaywall();
+      } catch {}
+      try { navigation.goBack(); } catch {}
+      presentingGateRef.current = false;
+      return false;
+    }
+    return true;
+  }, [selectedTrack, meta, legacyId, getHasMembership, navigation]);
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [engineLabel, setEngineLabel] = useState<'TP' | '—'>('—');
@@ -643,6 +690,9 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
     Animated.timing(closeOpacity, { toValue: 1, duration: 200, useNativeDriver: true }).start();
 
     const setup = async () => {
+      // Player-level hard gate: prevents deep links / search from bypassing locks.
+      const allowed = await ensureNotLocked();
+      if (!allowed) return;
       // Fresh state for new track load
       setShowComplete(false);
       setIsPlaying(false);
@@ -1045,6 +1095,7 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
       tightLoopArmedRef.current = false;
       tightLoopDidJumpAtRef.current = 0;
       try { (saveNow as any).__tpEndSub?.remove?.(); (saveNow as any).__tpEndSub = null; } catch {}
+      presentingGateRef.current = false;
     };
   }, [selectedTrack?.id, legacyId]);
 

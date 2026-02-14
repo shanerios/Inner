@@ -10,6 +10,8 @@ import TonesSigil from '../assets/sigils/tones.svg';
 import NoiseSigil from '../assets/sigils/noise.svg';
 
 import { Body as _Body } from '../core/typography';
+import { isLockedTrack } from '../src/core/subscriptions/accessPolicy';
+import { safePresentPaywall } from '../src/core/subscriptions/safePresentPaywall';
 const Body = _Body ?? ({
   regular: { fontFamily: 'Inter-ExtraLight', fontSize: 14 },
   subtle: { fontFamily: 'Inter-ExtraLight', fontSize: 12 },
@@ -128,17 +130,27 @@ const CATEGORIES: Category[] = [
 
 type Props = {
   onSelectCategory?: (key: Category['key']) => void;
+
+  // NEW (preferred): pass the current membership state so this component can gate reliably
+  hasMembership?: boolean;
+
+  // Legacy support (still works if parent is using the older pattern)
   onDeeperLockedPress?: () => void; // when Deeper is locked, open paywall directly
-  spacing?: number;           // vertical gap between cards
-  isDeeperLocked?: boolean;   // controls lock overlay on Deeper card
+  isDeeperLocked?: boolean; // controls lock overlay on Deeper card
+
+  spacing?: number; // vertical gap between cards
 };
 
 export default function SoundscapeCardList({
   onSelectCategory,
+  hasMembership,
   onDeeperLockedPress,
   spacing = 16,
   isDeeperLocked = true,
 }: Props) {
+  const effectiveHasMembership = hasMembership ?? false;
+  const deeperLocked = hasMembership != null ? !effectiveHasMembership : isDeeperLocked;
+
   return (
     <View style={[styles.list, { height: '100%' }]}>
       <ScrollView
@@ -151,13 +163,29 @@ export default function SoundscapeCardList({
             label={cat.label}
             colors={cat.colors}
             subtitle={<Text style={[Body.regular, { color: 'rgba(237,232,250,0.85)' }]}>{cat.subtitle}</Text>}
-            sigil={cat.key === 'deeper' ? (isDeeperLocked ? <DeeperSigilWithLock /> : <DeeperSigil width={48} height={48} />) : cat.sigil}
+            sigil={cat.key === 'deeper' ? (deeperLocked ? <DeeperSigilWithLock /> : <DeeperSigil width={48} height={48} />) : cat.sigil}
             showArrow={true}
-            onPress={() => {
-              if (cat.key === 'deeper' && isDeeperLocked) {
+            onPress={async () => {
+              // Centralized gating for the Deeper category
+              if (cat.key === 'deeper' && deeperLocked) {
+                // Preferred path: use safe paywall presentation (crash-safe)
+                if (hasMembership != null) {
+                  const pseudoTrack = { id: 'category:deeper', category: cat.key };
+                  if (isLockedTrack(pseudoTrack, effectiveHasMembership)) {
+                    await safePresentPaywall();
+                    return;
+                  }
+                }
+
+                // Legacy fallback: if parent wants to handle paywall
                 onDeeperLockedPress?.();
+                // If no legacy handler provided, still present paywall
+                if (!onDeeperLockedPress) {
+                  await safePresentPaywall();
+                }
                 return;
               }
+
               onSelectCategory?.(cat.key);
             }}
           />
