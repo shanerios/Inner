@@ -17,7 +17,7 @@
       "supportsTablet": true,
       "requireFullScreen": true,
       "bundleIdentifier": "com.getinner.app",
-      "buildNumber": "2018",
+      "buildNumber": "2019",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
