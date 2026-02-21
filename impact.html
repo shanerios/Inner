@@ -1,0 +1,456 @@
+
+
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Inner • Impact</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,200;0,300;0,400;0,500;0,600;1,200;1,300&display=swap" rel="stylesheet">
+  <!-- CalSans should be self-hosted. Ensure CalSans-SemiBold.woff2 sits next to this file. -->
+
+  <style>
+    @font-face {
+      font-family: 'CalSans';
+      src: url('CalSans-SemiBold.woff2') format('woff2');
+      font-weight: 600;
+      font-style: normal;
+      font-display: swap;
+    }
+
+    :root {
+      --topbar-height: 58px;
+      --max: 1100px;
+      --veil: rgba(161, 140, 255, 0.22);
+    }
+
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: linear-gradient(180deg, #0D0C1F 0%, #1F233A 100%);
+      background-attachment: fixed;
+      background-repeat: no-repeat;
+      background-size: cover;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-weight: 200;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      color: #fff;
+      padding: 20px;
+      padding-top: calc(20px + env(safe-area-inset-top, 0px) + var(--topbar-height));
+      box-sizing: border-box;
+    }
+
+    /* Top nav */
+    .topbar {
+      width: 100%;
+      max-width: var(--max);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 18px;
+      box-sizing: border-box;
+      position: fixed;
+      top: env(safe-area-inset-top, 0px);
+      left: 50%;
+      transform: translateX(-50%);
+      height: var(--topbar-height);
+      z-index: 10;
+      background: linear-gradient(180deg, rgba(13, 12, 31, 0.92) 0%, rgba(13, 12, 31, 0.35) 100%);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid rgba(144, 140, 159, 0.16);
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .brand img {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+    }
+
+    .topbar a {
+      color: rgba(235, 232, 255, 0.84);
+      text-decoration: none;
+      font-size: 0.95rem;
+      margin-left: 12px;
+    }
+
+    .topbar a:hover {
+      color: rgba(161, 140, 255, 0.95);
+    }
+
+    /* Brand Typography */
+    h1, h2, h3, h4, .kicker, .topbar a, .brand span {
+      font-family: 'CalSans', 'Inter', sans-serif;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+    }
+
+    p, .subtle, li, .badge, input, button {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-weight: 200;
+    }
+
+    h1 {
+      font-size: 2.1rem;
+      line-height: 1.15;
+      margin: 0 0 14px 0;
+      text-align: center;
+    }
+
+    .kicker {
+      text-align: center;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      font-size: 0.78rem;
+      color: rgba(210, 205, 240, 0.70);
+      margin: 0 0 12px 0;
+      user-select: none;
+    }
+
+    .subtle {
+      color: rgba(210, 205, 240, 0.72);
+    }
+
+    /* Layout */
+    .section {
+      width: 100%;
+      max-width: var(--max);
+      margin: 0 auto;
+      padding: 58px 0;
+      position: relative;
+    }
+
+    .section.compact {
+      padding: 24px 0;
+    }
+
+    .container {
+      width: 100%;
+      padding: 0 18px;
+      box-sizing: border-box;
+    }
+
+    .center {
+      text-align: center;
+    }
+
+    .panel {
+      background: linear-gradient(135deg, rgba(31, 30, 56, 0.82), rgba(42, 41, 78, 0.72));
+      border: 1px solid rgba(144, 140, 159, 0.26);
+      border-radius: 18px;
+      padding: 24px;
+      box-sizing: border-box;
+      backdrop-filter: blur(8px);
+    }
+
+    .veil-line {
+      width: 100%;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(161, 140, 255, 0.35), transparent);
+      margin: 18px 0 0 0;
+      opacity: 0.7;
+    }
+
+    /* Copy rhythm */
+    p {
+      margin: 0 auto 16px auto;
+      max-width: 820px;
+      line-height: 1.65;
+      color: rgba(235, 232, 255, 0.86);
+    }
+
+    h2 {
+      margin: 0 0 12px 0;
+      text-align: center;
+      font-size: 1.55rem;
+    }
+
+    h3 {
+      margin: 22px 0 10px 0;
+      font-size: 1.25rem;
+      text-align: left;
+      color: rgba(235, 232, 255, 0.96);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+      margin-top: 18px;
+    }
+
+    .feature {
+      padding: 18px 16px;
+      border-radius: 14px;
+      border: 1px solid rgba(144, 140, 159, 0.22);
+      background: rgba(20, 18, 45, 0.35);
+      transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+      min-height: 118px;
+      text-align: left;
+    }
+
+    .feature:hover {
+      transform: translateY(-2px);
+      border-color: rgba(161, 140, 255, 0.45);
+      box-shadow: 0 0 18px 3px rgba(161, 140, 255, 0.16);
+    }
+
+    .feature h4 {
+      margin: 0 0 8px 0;
+      font-size: 1.02rem;
+      color: rgba(235, 232, 255, 0.95);
+    }
+
+    .feature p {
+      margin: 0;
+      max-width: none;
+      font-size: 0.98rem;
+      color: rgba(210, 205, 240, 0.78);
+      text-align: left;
+    }
+
+    ul {
+      margin: 8px auto 0 auto;
+      max-width: 820px;
+      padding-left: 18px;
+      color: rgba(235, 232, 255, 0.86);
+      line-height: 1.65;
+    }
+
+    li {
+      margin: 8px 0;
+    }
+
+    .callout {
+      max-width: 820px;
+      margin: 18px auto 0 auto;
+      padding: 16px 16px;
+      border-radius: 14px;
+      border: 1px solid rgba(161, 140, 255, 0.20);
+      background: linear-gradient(180deg, rgba(24, 23, 52, 0.55), rgba(24, 23, 52, 0.25));
+      box-shadow: 0 0 40px rgba(161, 140, 255, 0.08);
+    }
+
+    .callout strong {
+      color: rgba(235, 232, 255, 0.94);
+    }
+
+    .footer-links {
+      display: inline-flex;
+      gap: 12px;
+      align-items: center;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .footer-links a {
+      color: rgba(210, 205, 240, 0.78);
+      text-decoration: none;
+      border-bottom: 1px solid rgba(161, 140, 255, 0.22);
+      padding-bottom: 1px;
+    }
+
+    .footer-links a:hover {
+      color: rgba(161, 140, 255, 0.95);
+      border-bottom-color: rgba(161, 140, 255, 0.55);
+    }
+
+    /* Scroll reveal */
+    .reveal {
+      opacity: 0;
+      transform: translateY(18px);
+      transition: opacity 0.8s ease, transform 0.8s ease;
+    }
+
+    .reveal.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    @media (max-width: 900px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 480px) {
+      :root { --topbar-height: 64px; }
+      h1 { font-size: 1.85rem; }
+      .section { padding: 44px 0; }
+      .panel { padding: 18px; }
+    }
+  </style>
+</head>
+
+<body>
+  <header class="topbar" aria-label="Inner navigation">
+    <div class="brand">
+      <img src="inner_orb.png" alt="Inner" />
+      <span class="subtle" style="font-weight:600; letter-spacing:0.02em;">Inner</span>
+    </div>
+    <nav aria-label="Pages">
+      <a href="/">Home</a>
+      <a href="/impact.html" style="color: rgba(161, 140, 255, 1);">Impact</a>
+      <a href="/privacy.html">Privacy</a>
+      <a href="/support.html">Support</a>
+    </nav>
+  </header>
+
+  <!-- HERO -->
+  <section class="section compact" aria-label="Impact hero">
+    <div class="container center reveal">
+      <p class="kicker">Impact & Funding</p>
+      <h1>Inner is a digital audio arts project—composed for clarity, regulation, and depth.</h1>
+      <p class="subtle" style="max-width:820px;">This page is designed for grantmakers, arts organizations, and partners reviewing Inner as an evolving body of audio work.</p>
+      <div class="veil-line" aria-hidden="true"></div>
+    </div>
+  </section>
+
+  <!-- CORE IDENTITY -->
+  <section class="section" aria-label="Core identity">
+    <div class="container reveal">
+      <div class="panel">
+        <h2>Core Identity</h2>
+        <p><strong>Inner</strong> is a digital audio arts experience that uses sound, guided narrative, and immersive environments to support mental clarity, emotional regulation, and expanded states of awareness.</p>
+        <p>It exists at the intersection of art, sound design, and self-guided healing—offering accessible experiences that help individuals reconnect with themselves.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- EXPANDED DESCRIPTION -->
+  <section class="section" aria-label="Expanded description">
+    <div class="container reveal">
+      <div class="panel">
+        <h2>Expanded Description</h2>
+        <p><strong>Inner</strong> is an evolving digital audio arts project that blends sound design, voice, and interactive environments into guided experiences that support emotional well-being, self-awareness, and mental clarity.</p>
+        <p>The project presents a series of immersive <em>Chambers</em> and sound-based journeys—each designed as a standalone artistic work guiding participants through states of reflection, grounding, and expanded awareness.</p>
+        <p>Rooted in principles of ritual, repetition, and sonic immersion, Inner reimagines how art can be experienced in a modern, accessible format—transforming a mobile device into a space for intentional pause, inner exploration, and restoration.</p>
+        <p>While delivered digitally, Inner is fundamentally an artistic practice: each experience is composed with intention—combining voice performance, spatial sound, and symbolic environments to create a cohesive emotional and psychological journey.</p>
+        <p>The project is designed to grow as a living body of work, expanding with new compositions, collaborations, and culturally influenced soundscapes over time.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- PUBLIC BENEFIT -->
+  <section class="section" aria-label="Public benefit">
+    <div class="container reveal">
+      <div class="panel">
+        <h2>Public Benefit</h2>
+        <p>Inner provides accessible tools for emotional regulation, stress reduction, and self-reflection through art.</p>
+        <p>In a time where many individuals lack access to traditional wellness resources, Inner offers a low-barrier, on-demand experience that can be accessed privately and without cost barriers in its foundational form.</p>
+
+        <div class="grid" aria-label="Priorities">
+          <div class="feature">
+            <h4>Accessibility</h4>
+            <p>Mobile-first design with low-cost / free entry experiences.</p>
+          </div>
+          <div class="feature">
+            <h4>Non-clinical healing</h4>
+            <p>Emotional well-being supported through art-based methods.</p>
+          </div>
+          <div class="feature">
+            <h4>Inclusive participation</h4>
+            <p>Open to participants regardless of background or prior experience.</p>
+          </div>
+        </div>
+
+        <div class="callout">
+          <p style="margin:0; max-width:none;"><strong>Future phases</strong> include free public releases of select audio works, community activations and workshops, and collaborations with artists and voice practitioners—including those based in Puerto Rico.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ARTISTIC FRAMING -->
+  <section class="section" aria-label="Artistic framing">
+    <div class="container reveal">
+      <div class="panel">
+        <h2>Artistic Framing</h2>
+        <p>Each Inner experience is treated as a composed piece of audio art, created through a layered process involving:</p>
+        <ul>
+          <li><strong>Voice performance</strong> (guided narration)</li>
+          <li><strong>Sound design</strong> and frequency-based composition</li>
+          <li><strong>Environmental storytelling</strong> through audio and visual tone</li>
+        </ul>
+        <p style="margin-top:14px;">Rather than passive listening, participants are guided through structured internal experiences—making the audience an active participant in the work itself.</p>
+        <p class="subtle" style="max-width:820px;">This positions Inner within a lineage of sound art, experimental audio, and ritual-based artistic practice—translated into a contemporary digital format.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- CULTURAL ALIGNMENT -->
+  <section class="section" aria-label="Cultural alignment">
+    <div class="container reveal">
+      <div class="panel">
+        <h2>Cultural & Puerto Rico Alignment</h2>
+        <p>A core direction of Inner includes collaboration with artists and sound designers from Puerto Rico—integrating natural soundscapes, cultural textures, and local creative voices into future works.</p>
+        <ul>
+          <li><strong>Field recordings</strong> (e.g., coquí frogs, ocean, natural environments)</li>
+          <li><strong>Bilingual voice work</strong> (English / Spanish)</li>
+          <li><strong>Partnerships</strong> with local artists and creators</li>
+        </ul>
+        <p style="margin-top:14px;">These collaborations aim to support local creative economies while ensuring the work reflects a diverse and grounded cultural presence.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- FUNDING USE -->
+  <section class="section" aria-label="Funding use">
+    <div class="container reveal">
+      <div class="panel">
+        <h2>Funding Use</h2>
+        <p>Funding will support the creation of new audio works within the Inner series, including:</p>
+        <ul>
+          <li>Compensation for voice artists (including bilingual performers)</li>
+          <li>Sound design and composition by collaborating artists</li>
+          <li>Development of new guided experiences (<em>Chambers</em>)</li>
+          <li>Expansion of free, publicly accessible content</li>
+        </ul>
+        <div class="callout">
+          <p style="margin:0; max-width:none;">Additional support enables <strong>fair pay</strong> for artists, higher production quality and accessibility, and broader distribution of the work to public audiences.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CONTACT -->
+  <section class="section compact" aria-label="Contact">
+    <div class="container center reveal">
+      <div class="panel">
+        <h2>Contact</h2>
+        <p class="subtle" style="max-width:820px;">If you’re reviewing Inner for partnership or funding, reach out and we’ll share additional materials (budgets, timelines, work samples, and impact plans).</p>
+        <p style="margin:0 auto; max-width:820px;"><strong>Email:</strong> <a href="mailto:hello@getinner.app" style="color: rgba(161, 140, 255, 0.95); text-decoration:none; border-bottom:1px solid rgba(161, 140, 255, 0.35); padding-bottom:1px;">hello@getinner.app</a></p>
+        <div class="veil-line" aria-hidden="true" style="margin-top:24px;"></div>
+        <p class="subtle" style="margin:18px auto 0 auto;">
+          <span class="footer-links">© Inner • getinner.app <a href="/">Home</a> <a href="/impact.html">Impact</a></span>
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <script>
+    // Scroll reveal
+    const revealEls = document.querySelectorAll('.reveal');
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach((e) => {
+        if (e.isIntersecting) e.target.classList.add('visible');
+      });
+    }, { threshold: 0.12 });
+
+    revealEls.forEach((el) => io.observe(el));
+  </script>
+</body>
+</html>
