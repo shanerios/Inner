@@ -167,8 +167,7 @@
     h4,
     .kicker,
     .chamber-title,
-    .topbar a,
-    .brand span {
+    .topbar a {
       font-family: 'CalSans', sans-serif;
       font-weight: 600;
       letter-spacing: 0.03em;
@@ -376,11 +375,16 @@
       display: inline-flex;
       align-items: center;
       gap: 10px;
+      flex: 0 0 auto;
     }
     .brand img {
-      width: 26px;
-      height: 26px;
+      width: 28px;
+      height: 28px;
+      aspect-ratio: 1 / 1;
       border-radius: 50%;
+      object-fit: contain;
+      flex: 0 0 auto;
+      display: block;
     }
 
     /* Responsive grids */
@@ -534,7 +538,6 @@
   <header class="topbar" aria-label="Inner navigation">
     <div class="brand">
       <img src="inner_orb.png" alt="Inner" />
-      <span class="subtle" style="font-weight:600; letter-spacing:0.02em;">Inner</span>
     </div>
     <nav aria-label="Sections">
       <a href="#what">What</a>
