@@ -35,6 +35,10 @@ interface PackageOption {
 const TERMS_URL = 'https://www.apple.com/legal/internet-services/itunes/dev/stdeula/';   // ← update if needed
 const PRIVACY_URL = 'https://www.getinner.app/privacy'; // ← update if needed
 
+// IMPORTANT: set this to the entitlement identifier you use in RevenueCat
+// (Dashboard → Entitlements). Used to determine if the user should be unlocked.
+const ENTITLEMENT_ID = 'continuing_with_inner';
+
 const FEATURES = [
   { icon: '♪', label: 'Chambers 5–9' },
   { icon: '🎧', label: '"Deeper" soundscapes' },
@@ -64,6 +68,8 @@ export default function PaywallModal({
   useEffect(() => {
     if (!visible) return;
 
+    let cancelled = false;
+
     // Animate in
     slideAnim.setValue(60);
     fadeAnim.setValue(0);
@@ -81,63 +87,69 @@ export default function PaywallModal({
       }),
     ]).start();
 
-    fetchOfferings();
-  }, [visible]);
+    const fetchOfferings = async () => {
+      setLoading(true);
+      setError(null);
 
-  const fetchOfferings = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const offerings = await Purchases.getOfferings();
-      const current = offerings.current;
-      if (!current) {
-        setError('No offerings available.');
-        setLoading(false);
-        return;
-      }
-
-      const mapped: PackageOption[] = current.availablePackages.map((pkg) => {
-        const product = pkg.product;
-        const id = pkg.packageType; // 'ANNUAL', 'MONTHLY', 'LIFETIME', etc.
-
-        let label = product.title || id;
-        let priceLabel = product.priceString;
-        let badge: string | undefined;
-
-        // Normalize labels based on package type or identifier
-        const idLower = pkg.identifier.toLowerCase();
-        if (id === 'ANNUAL' || idLower.includes('annual') || idLower.includes('year')) {
-          label = 'Yearly';
-          priceLabel = `${product.priceString}/yr`;
-          badge = '29% Off';
-        } else if (id === 'MONTHLY' || idLower.includes('month')) {
-          label = 'Monthly';
-          priceLabel = `${product.priceString}/mo`;
-        } else if (id === 'LIFETIME' || idLower.includes('lifetime')) {
-          label = 'Lifetime';
-          priceLabel = product.priceString;
+      try {
+        const offerings = await Purchases.getOfferings();
+        const current = offerings.current;
+        if (!current) {
+          if (!cancelled) setError('No offerings available.');
+          return;
         }
 
-        return { pkg, label, priceLabel, badge, identifier: pkg.identifier };
-      });
+        const mapped: PackageOption[] = current.availablePackages.map((pkg) => {
+          const product = pkg.product;
+          const id = pkg.packageType; // 'ANNUAL', 'MONTHLY', 'LIFETIME', etc.
 
-      // Sort: Yearly first, Monthly second, Lifetime third
-      const order = ['yearly', 'annual', 'monthly', 'lifetime'];
-      mapped.sort((a, b) => {
-        const ai = order.findIndex((o) => a.identifier.toLowerCase().includes(o));
-        const bi = order.findIndex((o) => b.identifier.toLowerCase().includes(o));
-        return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
-      });
+          let label = product.title || id;
+          let priceLabel = product.priceString;
+          let badge: string | undefined;
 
-      setPackages(mapped);
-      // Default select yearly (index 0)
-      setSelectedIndex(0);
-    } catch (e: any) {
-      setError(e?.message || 'Failed to load offerings.');
-    } finally {
-      setLoading(false);
-    }
-  };
+          // Normalize labels based on package type or identifier
+          const idLower = pkg.identifier.toLowerCase();
+          if (id === 'ANNUAL' || idLower.includes('annual') || idLower.includes('year')) {
+            label = 'Yearly';
+            priceLabel = `${product.priceString}/yr`;
+            badge = 'Best value';
+          } else if (id === 'MONTHLY' || idLower.includes('month')) {
+            label = 'Monthly';
+            priceLabel = `${product.priceString}/mo`;
+          } else if (id === 'LIFETIME' || idLower.includes('lifetime')) {
+            label = 'Lifetime';
+            priceLabel = product.priceString;
+          }
+
+          return { pkg, label, priceLabel, badge, identifier: pkg.identifier };
+        });
+
+        // Sort: Yearly first, Monthly second, Lifetime third
+        const order = ['yearly', 'annual', 'monthly', 'lifetime'];
+        mapped.sort((a, b) => {
+          const ai = order.findIndex((o) => a.identifier.toLowerCase().includes(o));
+          const bi = order.findIndex((o) => b.identifier.toLowerCase().includes(o));
+          return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+        });
+
+        if (!cancelled) {
+          setPackages(mapped);
+          // Default select yearly (index 0)
+          setSelectedIndex(0);
+        }
+      } catch (e: any) {
+        if (!cancelled) setError(e?.message || 'Failed to load offerings.');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    fetchOfferings();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [visible, fadeAnim, slideAnim]);
 
   // ── Purchase ────────────────────────────────────────────────────────────────
 
@@ -149,9 +161,11 @@ export default function PaywallModal({
       const selected = packages[selectedIndex];
       const { customerInfo } = await Purchases.purchasePackage(selected.pkg);
       const entitlements = customerInfo.entitlements.active;
-      if (Object.keys(entitlements).length > 0) {
+      if (entitlements && entitlements[ENTITLEMENT_ID]) {
         onPurchaseSuccess?.();
         onClose();
+      } else {
+        setError('Purchase completed, but access could not be verified yet. Please try again in a moment, or restore purchases.');
       }
     } catch (e: any) {
       if (!e.userCancelled) {
@@ -170,11 +184,11 @@ export default function PaywallModal({
     try {
       const customerInfo = await Purchases.restorePurchases();
       const entitlements = customerInfo.entitlements.active;
-      if (Object.keys(entitlements).length > 0) {
+      if (entitlements && entitlements[ENTITLEMENT_ID]) {
         onPurchaseSuccess?.();
         onClose();
       } else {
-        setError('No previous purchases found.');
+        setError('No active subscription found for this Apple ID.');
       }
     } catch (e: any) {
       setError(e?.message || 'Restore failed. Please try again.');
