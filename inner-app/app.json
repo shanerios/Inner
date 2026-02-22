@@ -34,11 +34,11 @@
         "backgroundColor": "#1f233a"
       },
       "edgeToEdgeEnabled": true,
-      "newArchEnabled": false,
-      "notification": {
-        "icon": "./assets/images/inner_orb_icon.png",
-        "color": "#FFFFFF"
-      }
+      "newArchEnabled": false
+    },
+    "notification": {
+      "icon": "./assets/images/inner_orb_icon.png",
+      "color": "#FFFFFF"
     },
     "plugins": [
       [
