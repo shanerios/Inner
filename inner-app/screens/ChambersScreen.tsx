@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useCallback, useState } from 'react';
 import Purchases, { CustomerInfo } from 'react-native-purchases';
-import { ImageBackground, StyleSheet, View, Text, Pressable, Animated, Easing, FlatList, Dimensions, Modal, Image } from 'react-native';
+import { ImageBackground, StyleSheet, View, Text, Pressable, Animated, Easing, FlatList, Dimensions, Modal, Image, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -197,11 +197,15 @@ export default function ChambersScreen() {
   const openPaywall = useCallback(() => {
     if (presentingPaywall) return;
     setPresentingPaywall(true);
-    safePresentPaywall(() => {
-      // Runs only on successful purchase/restore inside PaywallModal
-      refreshEntitlement();
-      setShowGate(false);
-    }).finally(() => setPresentingPaywall(false));
+    // Dismiss the gate modal first — iOS/Android block a second Modal from
+    // appearing while one is already visible.
+    setShowGate(false);
+    setTimeout(() => {
+      safePresentPaywall(() => {
+        // Runs only on successful purchase/restore inside PaywallModal
+        refreshEntitlement();
+      }).finally(() => setPresentingPaywall(false));
+    }, Platform.OS === 'ios' ? 400 : 200);
   }, [presentingPaywall, refreshEntitlement]);
 
   const DEBUG_GESTURES = __DEV__;
