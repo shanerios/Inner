@@ -367,6 +367,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#ffffff',
     marginBottom: 12,
+    textAlign: 'center',
     letterSpacing: -0.5,
   },
   subtitle: {
