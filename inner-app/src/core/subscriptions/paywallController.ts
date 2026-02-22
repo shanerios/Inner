@@ -20,7 +20,7 @@ export function registerPaywallController(fn: ShowPaywallFn): void {
   _showPaywall = fn;
 }
 
-export function openPaywall(onSuccess?: () => void): void {
+export function openPaywall(onSuccess?: () => void, onDismiss?: () => void) {
   if (_showPaywall) {
     _showPaywall(onSuccess);
   } else if (__DEV__) {
