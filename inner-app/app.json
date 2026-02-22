@@ -46,7 +46,9 @@
         {
           "icon": "./assets/images/inner_orb_icon.png"
         }
-      ]
+      ],
+      "expo-font",
+      "expo-asset"
     ],
     "web": {
       "favicon": "./assets/favicon.png"
