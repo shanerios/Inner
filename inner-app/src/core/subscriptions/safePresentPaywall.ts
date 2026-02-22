@@ -8,11 +8,12 @@ export async function safePresentPaywall(onSuccess?: () => void): Promise<void> 
   presenting = true;
 
   try {
-    openPaywall(onSuccess);
-  } finally {
-    // Release the lock after a moment (prevents rapid taps reopening the modal)
-    setTimeout(() => {
-      presenting = false;
-    }, Platform.OS === "ios" ? 900 : 600);
+    openPaywall(
+      onSuccess,
+      () => { presenting = false; } // release exactly on dismiss
+    );
+  } catch (e) {
+    presenting = false;
+    console.log('[Paywall] openPaywall failed', e);
   }
 }
