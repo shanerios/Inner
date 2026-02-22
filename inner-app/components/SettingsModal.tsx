@@ -228,6 +228,16 @@ export default function SettingsModal({
     });
   }, [onClose]);
 
+  const handleOpenPaywall = useCallback(() => {
+    // Close Settings first, then open paywall on the next tick.
+    onClose();
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        onOpenPaywall();
+      }, 50);
+    });
+  }, [onClose, onOpenPaywall]);
+
   // ── Render ───────────────────────────────────────────────────────────────
 
   return (
@@ -364,7 +374,7 @@ export default function SettingsModal({
               {/* Membership / Subscription */}
               <View style={{ marginBottom: 20 }}>
                 <TouchableOpacity
-                  onPress={onOpenPaywall}
+                  onPress={handleOpenPaywall}
                   accessibilityRole="button"
                   accessibilityLabel="Open Continuing with Inner"
                   accessibilityHint="Opens the membership paywall"
