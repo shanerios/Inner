@@ -155,6 +155,7 @@ export default function App() {
   // ── Paywall modal state ──────────────────────────────────────────────────────
   const [paywallVisible, setPaywallVisible] = React.useState(false);
   const paywallSuccessRef = React.useRef<(() => void) | undefined>(undefined);
+  const paywallDismissRef = React.useRef<(() => void) | undefined>(undefined);
 
   // RevenueCat (Subscriptions) — initialize once
   useEffect(() => {
@@ -206,8 +207,9 @@ export default function App() {
 
   // Register the imperative paywall controller so safePresentPaywall() works anywhere
   React.useEffect(() => {
-    registerPaywallController((onSuccess) => {
+    registerPaywallController((onSuccess, onDismiss) => {
       paywallSuccessRef.current = onSuccess;
+      paywallDismissRef.current = onDismiss;
       setPaywallVisible(true);
     });
   }, []);
@@ -395,6 +397,8 @@ export default function App() {
             onClose={() => {
               setPaywallVisible(false);
               paywallSuccessRef.current = undefined;
+              paywallDismissRef.current?.();
+              paywallDismissRef.current = undefined;
             }}
             onPurchaseSuccess={() => {
               paywallSuccessRef.current?.();

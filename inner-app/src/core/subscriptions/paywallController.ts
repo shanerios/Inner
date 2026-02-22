@@ -12,7 +12,7 @@
  *   openPaywall(() => refreshEntitlement());
  */
 
-type ShowPaywallFn = (onSuccess?: () => void) => void;
+type ShowPaywallFn = (onSuccess?: () => void, onDismiss?: () => void) => void;
 
 let _showPaywall: ShowPaywallFn | null = null;
 
@@ -22,7 +22,7 @@ export function registerPaywallController(fn: ShowPaywallFn): void {
 
 export function openPaywall(onSuccess?: () => void, onDismiss?: () => void) {
   if (_showPaywall) {
-    _showPaywall(onSuccess);
+    _showPaywall(onSuccess, onDismiss);
   } else if (__DEV__) {
     console.warn('[Paywall] openPaywall() called before controller was registered.');
   }
