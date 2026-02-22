@@ -129,9 +129,7 @@ export default function JourneyPlayer() {
     if (isLockedTrack(policyTrack, hasMembership)) {
       if (presentingGateRef.current) return false;
       presentingGateRef.current = true;
-      try {
-        await safePresentPaywall();
-      } catch {}
+      safePresentPaywall(); // modal renders at App level; goBack immediately
       try { navigation.goBack(); } catch {}
       presentingGateRef.current = false;
       return false;

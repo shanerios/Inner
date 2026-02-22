@@ -194,20 +194,14 @@ export default function ChambersScreen() {
     Haptics.selectionAsync().catch(() => {});
   }, []);
 
-  const openPaywall = useCallback(async () => {
+  const openPaywall = useCallback(() => {
     if (presentingPaywall) return;
-    try {
-      setPresentingPaywall(true);
-      // Crash-safe RevenueCat paywall
-      await safePresentPaywall();
-    } catch (e) {
-      console.log('[PAYWALL] Failed to present paywall:', e);
-    } finally {
-      // Refresh entitlement regardless; if user purchased, this will unlock.
-      await refreshEntitlement();
-      setPresentingPaywall(false);
+    setPresentingPaywall(true);
+    safePresentPaywall(() => {
+      // Runs only on successful purchase/restore inside PaywallModal
+      refreshEntitlement();
       setShowGate(false);
-    }
+    }).finally(() => setPresentingPaywall(false));
   }, [presentingPaywall, refreshEntitlement]);
 
   const DEBUG_GESTURES = __DEV__;

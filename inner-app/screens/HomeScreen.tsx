@@ -644,25 +644,17 @@ const logEntitlementState = useCallback(
   []
 );
 
-const presentPaywall = React.useCallback(async () => {
+const presentPaywall = React.useCallback(() => {
   if (presentingPaywall) {
     __DEV__ && console.log('[PAYWALL] presentPaywall: already presenting, skipping');
     return;
   }
-
-  try {
-    setPresentingPaywall(true);
-
-    await logEntitlementState('presentPaywall_start');
-    __DEV__ && console.log('[PAYWALL] calling safePresentPaywall()');
-    await safePresentPaywall();
-    __DEV__ && console.log('[PAYWALL] safePresentPaywall finished');
-  } catch (e) {
-    __DEV__ && console.log('[PAYWALL] Failed to present paywall:', e);
-  } finally {
-    await logEntitlementState('presentPaywall_end');
-    setPresentingPaywall(false);
-  }
+  setPresentingPaywall(true);
+  __DEV__ && logEntitlementState('presentPaywall_start');
+  safePresentPaywall(() => {
+    // Runs only on successful purchase/restore
+    __DEV__ && logEntitlementState('presentPaywall_success');
+  }).finally(() => setPresentingPaywall(false));
 }, [presentingPaywall, logEntitlementState]);
 
 // Paywall from Settings: close Settings first, present paywall AFTER Modal fully dismisses.

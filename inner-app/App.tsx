@@ -67,6 +67,8 @@ async function preloadTracks() {
 }
 
 import FogTransitionOverlay from './components/FogTransitionOverlay';
+import PaywallModal from './components/PaywallModal';
+import { registerPaywallController } from './src/core/subscriptions/paywallController';
 
 type RootStackParamList = {
   Splash: undefined;
@@ -150,6 +152,10 @@ export default function App() {
   const [fogVisible, setFogVisible] = React.useState(false);
   const [sealBoost, setSealBoost] = React.useState(0);
 
+  // ── Paywall modal state ──────────────────────────────────────────────────────
+  const [paywallVisible, setPaywallVisible] = React.useState(false);
+  const paywallSuccessRef = React.useRef<(() => void) | undefined>(undefined);
+
   // RevenueCat (Subscriptions) — initialize once
   useEffect(() => {
     try {
@@ -196,6 +202,14 @@ export default function App() {
       },
     };
     return () => { (globalThis as any).__fog = undefined; };
+  }, []);
+
+  // Register the imperative paywall controller so safePresentPaywall() works anywhere
+  React.useEffect(() => {
+    registerPaywallController((onSuccess) => {
+      paywallSuccessRef.current = onSuccess;
+      setPaywallVisible(true);
+    });
   }, []);
 
   // Safety auto-hide: fog will always disappear after 7 seconds
@@ -376,6 +390,17 @@ export default function App() {
               sealBoost={sealBoost}
             />
           </NavigationContainer>
+          <PaywallModal
+            visible={paywallVisible}
+            onClose={() => {
+              setPaywallVisible(false);
+              paywallSuccessRef.current = undefined;
+            }}
+            onPurchaseSuccess={() => {
+              paywallSuccessRef.current?.();
+              paywallSuccessRef.current = undefined;
+            }}
+          />
         </IntentionProvider>
       </BreathProvider>
     </SafeAreaProvider>
