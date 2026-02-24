@@ -82,6 +82,7 @@ export default function PaywallModal({
   const [purchasing, setPurchasing] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
 
   // Entrance animation
   const slideAnim = useRef(new Animated.Value(60)).current;
@@ -98,12 +99,13 @@ export default function PaywallModal({
   const fetchOfferings = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setInfo(null);
 
     try {
       const offerings = await Purchases.getOfferings();
       const current = offerings.current;
       if (!current) {
-        setError('No purchase options are available right now. Please try again.');
+        setInfo('Purchase options are temporarily unavailable. Please try again.');
         setPackages([]);
         return;
       }
@@ -145,14 +147,26 @@ export default function PaywallModal({
       setSelectedIndex(0);
     } catch (e: any) {
       const msg = String(e?.message || '');
+
       // If Purchases isn't configured yet, wait briefly and retry a few times.
-      if (RC_NOT_CONFIGURED_RE.test(msg) && offeringRetryRef.current < 8) {
+      // IMPORTANT: do not show a scary error to users/review while the SDK initializes.
+      if (RC_NOT_CONFIGURED_RE.test(msg) && offeringRetryRef.current < 10) {
         offeringRetryRef.current += 1;
+        setInfo('Loading purchase options…');
         await sleep(350);
         return fetchOfferings();
       }
+
       setPackages([]);
-      setError(toUserFacingPaywallError(e));
+
+      // Show a calm, user-facing message (no raw SDK text).
+      const friendly = toUserFacingPaywallError(e);
+
+      // For initial load failures, prefer an info-style message rather than a red error.
+      setInfo(friendly);
+
+      // Keep the raw error in state only for internal flows that already have packages.
+      setError(null);
     } finally {
       setLoading(false);
     }
@@ -200,6 +214,7 @@ export default function PaywallModal({
     if (packages.length === 0) return;
     setPurchasing(true);
     setError(null);
+    setInfo(null);
 
     try {
       const selected = packages[selectedIndex];
@@ -239,6 +254,7 @@ export default function PaywallModal({
   const handleRestore = async () => {
     setRestoring(true);
     setError(null);
+    setInfo(null);
     try {
       const customerInfo = await Purchases.restorePurchases();
       const entitlements = customerInfo.entitlements.active;
@@ -256,6 +272,11 @@ export default function PaywallModal({
   };
 
   // ── Render ──────────────────────────────────────────────────────────────────
+
+  const handleRetryOfferings = async () => {
+    offeringRetryRef.current = 0;
+    await fetchOfferings();
+  };
 
   return (
     <Modal
@@ -305,11 +326,25 @@ export default function PaywallModal({
                 </Text>
               </View>
             ) : loading ? (
-              <ActivityIndicator color="#9b8ec4" size="large" style={{ marginVertical: 32 }} />
+              <View style={{ marginVertical: 32, alignItems: 'center' }}>
+                <ActivityIndicator color="#9b8ec4" size="large" />
+                <Text style={{ marginTop: 12, color: 'rgba(255,255,255,0.6)', fontSize: 14 }}>
+                  {info || 'Loading purchase options…'}
+                </Text>
+              </View>
             ) : packages.length === 0 ? (
-              <Text style={styles.errorText}>
-                {error || 'No purchase options are available right now. Please try again.'}
-              </Text>
+              <View style={{ marginVertical: 24, alignItems: 'center' }}>
+                <Text style={styles.infoText}>
+                  {info || 'Purchase options are temporarily unavailable. Please try again.'}
+                </Text>
+                <TouchableOpacity
+                  onPress={handleRetryOfferings}
+                  activeOpacity={0.85}
+                  style={styles.retryButton}
+                >
+                  <Text style={styles.retryButtonText}>Try again</Text>
+                </TouchableOpacity>
+              </View>
             ) : (
               <View style={styles.packagesContainer}>
                 {packages.map((option, index) => {
@@ -373,9 +408,9 @@ export default function PaywallModal({
 
             {/* ── Continue Button ── */}
             <TouchableOpacity
-              style={[styles.continueButton, (purchasing || loading) && styles.continueButtonDisabled]}
+              style={[styles.continueButton, (purchasing || loading || !rcReady) && styles.continueButtonDisabled]}
               onPress={handleContinue}
-              disabled={purchasing || loading || packages.length === 0}
+              disabled={purchasing || loading || !rcReady || packages.length === 0}
               activeOpacity={0.85}
             >
               {purchasing ? (
@@ -572,6 +607,28 @@ const styles = StyleSheet.create({
     color: '#ff6b6b',
     textAlign: 'center',
     marginBottom: 12,
+  },
+  infoText: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.65)',
+    textAlign: 'center',
+    marginBottom: 12,
+    lineHeight: 18,
+  },
+  retryButton: {
+    marginTop: 8,
+    borderRadius: 999,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    backgroundColor: 'rgba(255,255,255,0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(155,142,196,0.45)',
+  },
+  retryButtonText: {
+    color: '#9b8ec4',
+    fontSize: 14,
+    fontWeight: '700',
+    letterSpacing: 0.2,
   },
 
   // ── Continue Button ──
