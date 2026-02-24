@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Modal,
   View,
@@ -20,6 +20,7 @@ interface PaywallModalProps {
   visible: boolean;
   onClose: () => void;
   onPurchaseSuccess?: () => void;
+  rcReady?: boolean; // indicates whether RevenueCat is initialized
 }
 
 interface PackageOption {
@@ -45,12 +46,35 @@ const FEATURES = [
   { icon: '🧠', label: 'Future content' },
 ];
 
+// ─── RevenueCat error helpers ────────────────────────────────────────────────
+const RC_NOT_CONFIGURED_RE = /no singleton instance|configure purchases|default instance/i;
+const RC_NETWORK_RE = /network|timed?\s*out|offline|connection|could not connect|internet/i;
+
+const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
+
+function toUserFacingPaywallError(err: any): string {
+  const msg = String(err?.message || err || '').trim();
+  if (!msg) return 'Unable to load purchase options. Please try again.';
+
+  // Avoid showing raw RevenueCat setup/internal errors to users (and App Review).
+  if (RC_NOT_CONFIGURED_RE.test(msg)) {
+    return 'Preparing purchase options… please try again in a moment.';
+  }
+
+  if (RC_NETWORK_RE.test(msg)) {
+    return 'Unable to reach the store right now. Please check your connection and try again.';
+  }
+
+  return 'Something went wrong while loading purchase options. Please try again.';
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function PaywallModal({
   visible,
   onClose,
   onPurchaseSuccess,
+  rcReady = true,
 }: PaywallModalProps) {
   const [packages, setPackages] = useState<PackageOption[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -63,7 +87,76 @@ export default function PaywallModal({
   const slideAnim = useRef(new Animated.Value(60)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
+  // Retry tracking
+  const offeringRetryRef = useRef(0);
+  const purchaseRetryRef = useRef(0);
+
   // ── Load offerings ──────────────────────────────────────────────────────────
+
+
+  // Hardened fetchOfferings with retry for RC not configured
+  const fetchOfferings = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const offerings = await Purchases.getOfferings();
+      const current = offerings.current;
+      if (!current) {
+        setError('No purchase options are available right now. Please try again.');
+        setPackages([]);
+        return;
+      }
+
+      const mapped: PackageOption[] = current.availablePackages.map((pkg) => {
+        const product = pkg.product;
+        const id = pkg.packageType; // 'ANNUAL', 'MONTHLY', 'LIFETIME', etc.
+
+        let label = product.title || id;
+        let priceLabel = product.priceString;
+        let badge: string | undefined;
+
+        // Normalize labels based on package type or identifier
+        const idLower = pkg.identifier.toLowerCase();
+        if (id === 'ANNUAL' || idLower.includes('annual') || idLower.includes('year')) {
+          label = 'Yearly';
+          priceLabel = `${product.priceString}/yr`;
+          badge = 'Best value';
+        } else if (id === 'MONTHLY' || idLower.includes('month')) {
+          label = 'Monthly';
+          priceLabel = `${product.priceString}/mo`;
+        } else if (id === 'LIFETIME' || idLower.includes('lifetime')) {
+          label = 'Lifetime';
+          priceLabel = product.priceString;
+        }
+
+        return { pkg, label, priceLabel, badge, identifier: pkg.identifier };
+      });
+
+      // Sort: Yearly first, Monthly second, Lifetime third
+      const order = ['yearly', 'annual', 'monthly', 'lifetime'];
+      mapped.sort((a, b) => {
+        const ai = order.findIndex((o) => a.identifier.toLowerCase().includes(o));
+        const bi = order.findIndex((o) => b.identifier.toLowerCase().includes(o));
+        return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+      });
+
+      setPackages(mapped);
+      setSelectedIndex(0);
+    } catch (e: any) {
+      const msg = String(e?.message || '');
+      // If Purchases isn't configured yet, wait briefly and retry a few times.
+      if (RC_NOT_CONFIGURED_RE.test(msg) && offeringRetryRef.current < 8) {
+        offeringRetryRef.current += 1;
+        await sleep(350);
+        return fetchOfferings();
+      }
+      setPackages([]);
+      setError(toUserFacingPaywallError(e));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     if (!visible) return;
@@ -87,69 +180,19 @@ export default function PaywallModal({
       }),
     ]).start();
 
-    const fetchOfferings = async () => {
-      setLoading(true);
-      setError(null);
+    offeringRetryRef.current = 0;
+    purchaseRetryRef.current = 0;
 
-      try {
-        const offerings = await Purchases.getOfferings();
-        const current = offerings.current;
-        if (!current) {
-          if (!cancelled) setError('No offerings available.');
-          return;
-        }
-
-        const mapped: PackageOption[] = current.availablePackages.map((pkg) => {
-          const product = pkg.product;
-          const id = pkg.packageType; // 'ANNUAL', 'MONTHLY', 'LIFETIME', etc.
-
-          let label = product.title || id;
-          let priceLabel = product.priceString;
-          let badge: string | undefined;
-
-          // Normalize labels based on package type or identifier
-          const idLower = pkg.identifier.toLowerCase();
-          if (id === 'ANNUAL' || idLower.includes('annual') || idLower.includes('year')) {
-            label = 'Yearly';
-            priceLabel = `${product.priceString}/yr`;
-            badge = 'Best value';
-          } else if (id === 'MONTHLY' || idLower.includes('month')) {
-            label = 'Monthly';
-            priceLabel = `${product.priceString}/mo`;
-          } else if (id === 'LIFETIME' || idLower.includes('lifetime')) {
-            label = 'Lifetime';
-            priceLabel = product.priceString;
-          }
-
-          return { pkg, label, priceLabel, badge, identifier: pkg.identifier };
-        });
-
-        // Sort: Yearly first, Monthly second, Lifetime third
-        const order = ['yearly', 'annual', 'monthly', 'lifetime'];
-        mapped.sort((a, b) => {
-          const ai = order.findIndex((o) => a.identifier.toLowerCase().includes(o));
-          const bi = order.findIndex((o) => b.identifier.toLowerCase().includes(o));
-          return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
-        });
-
-        if (!cancelled) {
-          setPackages(mapped);
-          // Default select yearly (index 0)
-          setSelectedIndex(0);
-        }
-      } catch (e: any) {
-        if (!cancelled) setError(e?.message || 'Failed to load offerings.');
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-
-    fetchOfferings();
+    // Give App-level RevenueCat configuration a brief moment to run, then fetch.
+    (async () => {
+      await sleep(50);
+      if (!cancelled) await fetchOfferings();
+    })();
 
     return () => {
       cancelled = true;
     };
-  }, [visible, fadeAnim, slideAnim]);
+  }, [visible, fadeAnim, slideAnim, fetchOfferings]);
 
   // ── Purchase ────────────────────────────────────────────────────────────────
 
@@ -157,20 +200,35 @@ export default function PaywallModal({
     if (packages.length === 0) return;
     setPurchasing(true);
     setError(null);
+
     try {
       const selected = packages[selectedIndex];
       const { customerInfo } = await Purchases.purchasePackage(selected.pkg);
       const entitlements = customerInfo.entitlements.active;
+
       if (entitlements && entitlements[ENTITLEMENT_ID]) {
         onPurchaseSuccess?.();
         onClose();
-      } else {
-        setError('Purchase completed, but access could not be verified yet. Please try again in a moment, or restore purchases.');
+        return;
       }
+
+      setError(
+        'Purchase completed, but access could not be verified yet. Please try again in a moment, or restore purchases.'
+      );
     } catch (e: any) {
-      if (!e.userCancelled) {
-        setError(e?.message || 'Purchase failed. Please try again.');
+      if (e?.userCancelled) return;
+
+      const msg = String(e?.message || '');
+      if (RC_NOT_CONFIGURED_RE.test(msg) && purchaseRetryRef.current < 1) {
+        purchaseRetryRef.current += 1;
+        await sleep(400);
+        // Re-fetch offerings (helps if config finished after first attempt)
+        await fetchOfferings();
+        setError('Purchase system is still initializing. Please tap Continue again.');
+        return;
       }
+
+      setError(toUserFacingPaywallError(e));
     } finally {
       setPurchasing(false);
     }
@@ -191,7 +249,7 @@ export default function PaywallModal({
         setError('No active subscription found for this Apple ID.');
       }
     } catch (e: any) {
-      setError(e?.message || 'Restore failed. Please try again.');
+      setError(toUserFacingPaywallError(e));
     } finally {
       setRestoring(false);
     }
@@ -239,11 +297,18 @@ export default function PaywallModal({
             </View>
 
             {/* ── Package Options ── */}
-            {loading ? (
+            {!rcReady ? (
+              <View style={{ marginVertical: 32, alignItems: 'center' }}>
+                <ActivityIndicator color="#9b8ec4" size="large" />
+                <Text style={{ marginTop: 12, color: 'rgba(255,255,255,0.6)', fontSize: 14 }}>
+                  Loading purchase options…
+                </Text>
+              </View>
+            ) : loading ? (
               <ActivityIndicator color="#9b8ec4" size="large" style={{ marginVertical: 32 }} />
             ) : packages.length === 0 ? (
               <Text style={styles.errorText}>
-                {error || 'No packages available.'}
+                {error || 'No purchase options are available right now. Please try again.'}
               </Text>
             ) : (
               <View style={styles.packagesContainer}>

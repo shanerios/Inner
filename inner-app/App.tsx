@@ -88,6 +88,56 @@ type RootStackParamList = {
 
 const Stack = createStackNavigator<RootStackParamList>();
 
+// ── RevenueCat init (must be ready BEFORE any paywall calls) ──────────────────
+let __rcInitPromise: Promise<boolean> | null = null;
+
+function initRevenueCatOnce(): Promise<boolean> {
+  if (__rcInitPromise) return __rcInitPromise;
+
+  __rcInitPromise = (async () => {
+    try {
+      // Verbose logs in dev only
+      Purchases.setLogLevel(__DEV__ ? LOG_LEVEL.VERBOSE : LOG_LEVEL.WARN);
+
+      const apiKey =
+        Platform.OS === 'android'
+          ? process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_KEY
+          : process.env.EXPO_PUBLIC_REVENUECAT_IOS_KEY;
+
+      // Safe log presence of env keys (do NOT log raw key)
+      if (__DEV__) {
+        console.log('[RC ENV] iOS key present?', !!process.env.EXPO_PUBLIC_REVENUECAT_IOS_KEY);
+        console.log('[RC ENV] Android key present?', !!process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_KEY);
+      }
+
+      if (!apiKey) {
+        console.warn('[RevenueCat] Missing API key for platform:', Platform.OS);
+        return false;
+      }
+
+      // Configure creates the singleton. This MUST happen before any SDK calls.
+      Purchases.configure({ apiKey });
+      if (__DEV__) console.log('[RevenueCat] configured for', Platform.OS);
+
+      // Optional: touch the SDK once to ensure the singleton is actually usable.
+      // (Do not block app startup on network; this will be fast if offline.)
+      try {
+        await Purchases.getCustomerInfo();
+      } catch {}
+
+      return true;
+    } catch (e) {
+      console.log('[RevenueCat] configure error', e);
+      return false;
+    }
+  })();
+
+  return __rcInitPromise;
+}
+
+// Kick off ASAP at module load (helps prevent "no singleton" on fast taps)
+initRevenueCatOnce().catch(() => {});
+
 // Soft “veil lift” transition: gentle fade-in + stronger upward settle + more noticeable dark veil overlay
 const veilLiftInterpolator = ({ current }: any) => {
   const progress = current.progress;
@@ -152,44 +202,13 @@ export default function App() {
   const [fogVisible, setFogVisible] = React.useState(false);
   const [sealBoost, setSealBoost] = React.useState(0);
 
+  const [rcReady, setRcReady] = React.useState(false);
+
   // ── Paywall modal state ──────────────────────────────────────────────────────
   const [paywallVisible, setPaywallVisible] = React.useState(false);
   const paywallSuccessRef = React.useRef<(() => void) | undefined>(undefined);
   const paywallDismissRef = React.useRef<(() => void) | undefined>(undefined);
 
-  // RevenueCat (Subscriptions) — initialize once
-  useEffect(() => {
-    try {
-      if (Purchases.setLogHandler) {
-        Purchases.setLogHandler((level: any, message: string) => {
-          if (__DEV__) {
-            console.log('[RC]', level, message);
-          }
-        });
-      }
-      // Verbose logs in dev only
-      Purchases.setLogLevel(__DEV__ ? LOG_LEVEL.VERBOSE : LOG_LEVEL.WARN);
-
-      const apiKey =
-        Platform.OS === 'android'
-          ? process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_KEY
-          : process.env.EXPO_PUBLIC_REVENUECAT_IOS_KEY;
-
-      // Safe log presence of env keys (do NOT log raw key)
-      console.log('[RC ENV] iOS key present?', !!process.env.EXPO_PUBLIC_REVENUECAT_IOS_KEY);
-      console.log('[RC ENV] Android key present?', !!process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_KEY);
-
-      if (!apiKey) {
-        console.warn('[RevenueCat] Missing API key for platform:', Platform.OS);
-        return;
-      }
-
-      Purchases.configure({ apiKey });
-      console.log('[RevenueCat] configured for', Platform.OS);
-    } catch (e) {
-      console.log('[RevenueCat] configure error', e);
-    }
-  }, []);
 
 
   // Expose global controls so screens can trigger the shared fog without remounting
@@ -205,12 +224,29 @@ export default function App() {
     return () => { (globalThis as any).__fog = undefined; };
   }, []);
 
+
+  // Ensure RevenueCat is configured before any paywall work
+  useEffect(() => {
+    initRevenueCatOnce().then((ok) => setRcReady(!!ok));
+  }, []);
+
   // Register the imperative paywall controller so safePresentPaywall() works anywhere
   React.useEffect(() => {
     registerPaywallController((onSuccess, onDismiss) => {
-      paywallSuccessRef.current = onSuccess;
-      paywallDismissRef.current = onDismiss;
-      setPaywallVisible(true);
+      // Always ensure the singleton exists before any PaywallModal code runs.
+      initRevenueCatOnce()
+        .then(() => {
+          setRcReady(true);
+          paywallSuccessRef.current = onSuccess;
+          paywallDismissRef.current = onDismiss;
+          setPaywallVisible(true);
+        })
+        .catch(() => {
+          // Still present the modal, but avoid crashing the app.
+          paywallSuccessRef.current = onSuccess;
+          paywallDismissRef.current = onDismiss;
+          setPaywallVisible(true);
+        });
     });
   }, []);
 
@@ -392,19 +428,20 @@ export default function App() {
               sealBoost={sealBoost}
             />
           </NavigationContainer>
-          <PaywallModal
-            visible={paywallVisible}
-            onClose={() => {
-              setPaywallVisible(false);
-              paywallSuccessRef.current = undefined;
-              paywallDismissRef.current?.();
-              paywallDismissRef.current = undefined;
-            }}
-            onPurchaseSuccess={() => {
-              paywallSuccessRef.current?.();
-              paywallSuccessRef.current = undefined;
-            }}
-          />
+        <PaywallModal
+          visible={paywallVisible}
+          rcReady={rcReady}
+          onClose={() => {
+            setPaywallVisible(false);
+            paywallSuccessRef.current = undefined;
+            paywallDismissRef.current?.();
+            paywallDismissRef.current = undefined;
+          }}
+          onPurchaseSuccess={() => {
+            paywallSuccessRef.current?.();
+            paywallSuccessRef.current = undefined;
+          }}
+        />
         </IntentionProvider>
       </BreathProvider>
     </SafeAreaProvider>
