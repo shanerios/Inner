@@ -282,6 +282,7 @@ export default function PointZeroScreen({ navigation }: PointZeroScreenProps) {
             );
           } else {
             await TrackPlayer.reset();
+            await TrackPlayer.setVolume(1.0);
 
             const prerollAsset = Asset.fromModule(
               require('../assets/audio/point_zero_preroll.m4a')
@@ -378,6 +379,7 @@ export default function PointZeroScreen({ navigation }: PointZeroScreenProps) {
         );
       } else {
         await TrackPlayer.reset();
+        await TrackPlayer.setVolume(1.0);
 
         let uriToUse = exerciseUri;
         if (!uriToUse) {

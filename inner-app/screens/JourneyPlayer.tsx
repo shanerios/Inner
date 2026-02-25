@@ -284,6 +284,7 @@ const playingForVisuals = isPlayingUI;
       const tpId = selectedTrack?.id || legacyId || 'default';
       try {
         await TrackPlayer.reset();
+        await TrackPlayer.setVolume(1.0);
         const kind2 = (selectedTrack as any)?.kind || (meta as any)?.kind;
         const titleStr2 = displayTitle;
         let albumStr2 = 'Inner Journeys';
@@ -772,6 +773,7 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
           try {
             console.log('[TP] reset()');
             await TrackPlayer.reset();
+            await TrackPlayer.setVolume(1.0);
             // Sanity check: confirm the cached file exists and has non-zero size.
             try {
               const FileSystem = require('expo-file-system');

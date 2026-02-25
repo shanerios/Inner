@@ -13,6 +13,7 @@ import { getTodaySuggestion } from '../utils/suggest';
 
 import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { Audio } from 'expo-av';
+import TrackPlayer, { RepeatMode, State } from 'react-native-track-player';
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -96,6 +97,16 @@ function normalizeChamberName(v?: string) {
 // IDs we should never "resume" (ambient/background)
 const AMBIENT_IDS = new Set(['home_hum', 'homepage_hum', 'ambient_hum']);
 const isAmbient = (id?: string) => !!id && AMBIENT_IDS.has(id);
+
+// --- Ambient hum (TrackPlayer) ---
+const HUM_TRACK_ID = 'homepage_hum';
+const HUM_TRACK = {
+  id: HUM_TRACK_ID,
+  url: require('../assets/audio/Homepage_Hum.mp3'),
+  title: 'Inner',
+  artist: '',
+};
+const HUM_BASE_VOL = 0.35;
 
 // --- Inline Home Helper Modal (first version; can be extracted later) ---
 type HomeWalkSteps = {
@@ -928,42 +939,43 @@ const loop = Animated.loop(
 React.useEffect(() => {
   if (innerPulseEnabled && innerPulseUnlocked && isFocused) {
     __DEV__ && console.log('[InnerPulse] state-active → ducking hum from state effect');
-    humRef.current?.setVolumeAsync(0.0).catch(() => {});
+    TrackPlayer.setVolume(0).catch(() => {});
   }
 }, [innerPulseEnabled, innerPulseUnlocked, isFocused]);
   
   const appStateRef = useRef<'active' | 'inactive' | 'background'>('active');
-  const retryTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const maybeStartHum = useCallback(async () => {
-    if (retryTimerRef.current) {
-      clearTimeout(retryTimerRef.current);
-      retryTimerRef.current = null;
-    }
-    if (!isFocused || appStateRef.current !== 'active') return;
 
+  const maybeStartHum = useCallback(async () => {
+    if (!isFocused || appStateRef.current !== 'active') return;
     try {
-      await ensureHumLoaded();
-      await humRef.current!.playAsync();
-    } catch (e: any) {
-      const msg = String(e?.message || e);
-      if (msg.includes('AudioFocusNotAcquiredException')) {
-        // give Android a beat after coming to foreground, then try once
-        retryTimerRef.current = setTimeout(async () => {
-          if (isFocused && appStateRef.current === 'active') {
-            try {
-              await ensureHumLoaded();
-              await humRef.current!.playAsync();
-            } catch {}
-          }
-        }, 300);
+      const active = await TrackPlayer.getActiveTrack();
+      if (active?.id === HUM_TRACK_ID) {
+        // Already queued — just ensure it's playing
+        const pb = await TrackPlayer.getPlaybackState();
+        if (pb.state !== State.Playing) {
+          await TrackPlayer.setVolume(HUM_BASE_VOL);
+          await TrackPlayer.play();
+        }
+        return;
       }
+      // Load the hum fresh into TrackPlayer
+      await TrackPlayer.reset();
+      await TrackPlayer.add(HUM_TRACK as any);
+      await TrackPlayer.setRepeatMode(RepeatMode.Track);
+      await TrackPlayer.setVolume(HUM_BASE_VOL);
+      await TrackPlayer.play();
+    } catch (e) {
+      __DEV__ && console.log('[Hum] start error', e);
     }
-  }, [ensureHumLoaded, isFocused]);
+  }, [isFocused]);
+
   useEffect(() => {
     const sub = AppState.addEventListener('change', (s) => {
       appStateRef.current = s as any;
       if (s !== 'active') {
-        try { humRef.current?.pauseAsync(); } catch {}
+        TrackPlayer.getActiveTrack().then(active => {
+          if (active?.id === HUM_TRACK_ID) TrackPlayer.pause().catch(() => {});
+        }).catch(() => {});
       } else if (isFocused) {
         maybeStartHum();
       }
@@ -1519,27 +1531,9 @@ const goToLearnHub = useCallback(async () => {
     }
   }
 
-  // Ambient hum sound ref
-  const humRef = useRef<Audio.Sound | null>(null);
   // Inner Pulse heartbeat sound ref + loading guard
   const innerPulseSoundRef = useRef<Audio.Sound | null>(null);
   const innerPulseLoadingRef = useRef<boolean>(false);
-
-  const ensureHumLoaded = useCallback(async () => {
-    try {
-      if (!humRef.current) {
-        humRef.current = new Audio.Sound();
-      }
-      const status = await humRef.current.getStatusAsync().catch(() => null as any);
-      if (!status || !('isLoaded' in status) || !status.isLoaded) {
-        await humRef.current.loadAsync(require('../assets/audio/Homepage_Hum.mp3'));
-        await humRef.current.setIsLoopingAsync(true);
-        await humRef.current.setVolumeAsync(0.15);
-      }
-    } catch (e) {
-      __DEV__ && console.log('ensureHumLoaded error', e);
-    }
-  }, []);
 
   // Load / play / pause the Inner Pulse heartbeat loop
   useEffect(() => {
@@ -1563,7 +1557,7 @@ const goToLearnHub = useCallback(async () => {
           } catch {}
         }
         try {
-          await humRef.current?.setVolumeAsync(0.35);
+          await TrackPlayer.setVolume(HUM_BASE_VOL);
         } catch {}
         return;
       }
@@ -1625,7 +1619,7 @@ const goToLearnHub = useCallback(async () => {
 
         // Drop the hum while the heartbeat is active so it can be clearly heard
         try {
-          await humRef.current?.setVolumeAsync(0.0);
+          await TrackPlayer.setVolume(0);
         } catch {}
       } catch (e: any) {
         const msg = String(e?.message || e);
@@ -1644,16 +1638,6 @@ const goToLearnHub = useCallback(async () => {
     };
   }, [innerPulseEnabled, innerPulseUnlocked, isFocused]);
 
-  // Ensure audio plays politely (silent mode iOS, duck others on Android)
-  useEffect(() => {
-    Audio.setAudioModeAsync({
-      playsInSilentModeIOS: true,
-      staysActiveInBackground: false,
-      shouldDuckAndroid: true,
-      interruptionModeIOS: Audio.INTERRUPTION_MODE_IOS_DO_NOT_MIX,
-      interruptionModeAndroid: Audio.INTERRUPTION_MODE_ANDROID_DO_NOT_MIX,
-    }).catch(() => {});
-  }, []);
 
   const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
   // --- Swipe navigation gesture (edge-aware) ---
@@ -1963,8 +1947,8 @@ useEffect(() => {
     }
 
     const d = Math.max(0, Math.min(1, value / 240));
-    const vol = 0.50 - 0.15 * d;
-    humRef.current?.setVolumeAsync(vol).catch(() => {});
+    const vol = HUM_BASE_VOL - 0.10 * d;
+    TrackPlayer.setVolume(vol).catch(() => {});
   });
 
   return () => scrollY.removeListener(listenerId);
@@ -2132,7 +2116,10 @@ useEffect(() => {
 
       return () => {
         cancelled = true;
-        humRef.current?.pauseAsync().catch(() => {});
+        // Pause hum on blur only if it's still the active track (don't interrupt journeys)
+        TrackPlayer.getActiveTrack().then(active => {
+          if (active?.id === HUM_TRACK_ID) TrackPlayer.pause().catch(() => {});
+        }).catch(() => {});
       };
     }, [maybeStartHum, loadResumeInfo])
   );
@@ -2163,7 +2150,6 @@ useEffect(() => {
   );
 
    useEffect(() => () => {
-    humRef.current?.unloadAsync().catch(() => {});
     innerPulseSoundRef.current?.unloadAsync().catch(() => {});
     if (orbTapTimeoutRef.current) {
       clearTimeout(orbTapTimeoutRef.current);
@@ -2219,17 +2205,16 @@ useEffect(() => {
   }, [intentions, topAffOpacity, topAffTranslate]);
 
 
-  // Fade the ambient hum before navigating into a Journey / Library
+  // Fade the ambient hum before navigating away (only acts when hum is the active track)
   const fadeOutHum = useCallback(async () => {
     try {
-      const s = humRef.current;
-      if (!s) return;
-      const st = await s.getStatusAsync().catch(() => null as any);
-      if (!st || !('isLoaded' in st) || !st.isLoaded) return;
-      await s.setVolumeAsync(0);
-      await s.pauseAsync();
+      const active = await TrackPlayer.getActiveTrack();
+      if (active?.id === HUM_TRACK_ID) {
+        await TrackPlayer.setVolume(0);
+        await TrackPlayer.pause();
+      }
     } catch (e) {
-      __DEV__ && console.log('Hum fade/pause error', e);
+      __DEV__ && console.log('[Hum] fadeOut error', e);
     }
   }, []);
 
