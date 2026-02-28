@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useCallback, useState } from 'react';
 import Purchases, { CustomerInfo } from 'react-native-purchases';
 import { ImageBackground, StyleSheet, View, Text, Pressable, Animated, Easing, FlatList, Dimensions, Modal, Image, Platform } from 'react-native';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -152,6 +153,17 @@ function ChamberRow({
 export default function ChambersScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
+
+  const bgPlayer = useVideoPlayer(require('../assets/images/chambers_screen.mp4'), player => {
+    player.loop = true;
+    player.muted = true;
+    player.play();
+  });
+
+  useFocusEffect(React.useCallback(() => {
+    bgPlayer.play();
+    return () => { bgPlayer.pause(); };
+  }, [bgPlayer]));
 
   // --- Paywall / gating ---
   // NOTE: Ensure this matches your RevenueCat entitlement identifier.
@@ -513,15 +525,26 @@ export default function ChambersScreen() {
         />
       </GestureDetector>
       <GestureDetector gesture={gesture}>
-        <ImageBackground
-        accessible={false}
-        importantForAccessibility={showInfo ? 'no-hide-descendants' : 'auto'}
-        accessibilityElementsHidden={showInfo}
-        source={require('../assets/images/chambers-bg-expanded.png')}
-        style={styles.container}
-        fadeDuration={0}
-        resizeMode="cover"
-      >
+        <View
+          accessible={false}
+          importantForAccessibility={showInfo ? 'no-hide-descendants' : 'auto'}
+          accessibilityElementsHidden={showInfo}
+          style={styles.container}
+        >
+          <View
+            style={StyleSheet.absoluteFill}
+            pointerEvents="none"
+            accessible={false}
+            importantForAccessibility="no"
+          >
+            <VideoView
+              player={bgPlayer}
+              style={StyleSheet.absoluteFill}
+              contentFit="cover"
+              nativeControls={false}
+              allowsPictureInPicture={false}
+            />
+          </View>
         <LinearGradient
         accessible={false}
         importantForAccessibility="no"
@@ -938,7 +961,7 @@ export default function ChambersScreen() {
             </Pressable>
           </Pressable>
         </Modal>
-        </ImageBackground>
+        </View>
       </GestureDetector>
     </GestureHandlerRootView>
   );

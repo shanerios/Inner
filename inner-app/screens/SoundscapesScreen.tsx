@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useState, useRef } from 'react';
-import { ImageBackground, StyleSheet, View, Text, Pressable, ScrollView, Dimensions, Animated, Easing, TextInput, Alert, Platform } from 'react-native';
+import { StyleSheet, View, Text, Pressable, ScrollView, Dimensions, Animated, Easing, TextInput, Alert, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import SoundscapeCardList from '../components/SoundscapeCardList';
 import { Image } from 'react-native';
 import { Gesture, GestureDetector, Directions, GestureHandlerRootView } from 'react-native-gesture-handler';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import * as Haptics from 'expo-haptics';
 import { TRACKS, Track } from '../data/tracks';
 import { setLastSession } from '../core/session';
@@ -239,6 +240,17 @@ function SoundscapeRow({
 export default function SoundscapesScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
+
+  const bgPlayer = useVideoPlayer(require('../assets/images/soundscapes_screen.mp4'), player => {
+    player.loop = true;
+    player.muted = true;
+    player.play();
+  });
+
+  useFocusEffect(React.useCallback(() => {
+    bgPlayer.play();
+    return () => { bgPlayer.pause(); };
+  }, [bgPlayer]));
 
   // Background should always fill the screen (prevents iPad letterboxing)
 
@@ -479,12 +491,21 @@ export default function SoundscapesScreen() {
           }}
         />
       </GestureDetector>
-    <ImageBackground
-      source={require('../assets/images/soundscapes-bg-expanded.png')}
-      style={styles.container}
-      fadeDuration={0}
-      resizeMode="cover"
-    >
+    <View style={styles.container}>
+      <View
+        style={StyleSheet.absoluteFill}
+        pointerEvents="none"
+        accessible={false}
+        importantForAccessibility="no"
+      >
+        <VideoView
+          player={bgPlayer}
+          style={StyleSheet.absoluteFill}
+          contentFit="cover"
+          nativeControls={false}
+          allowsPictureInPicture={false}
+        />
+      </View>
       {/* subtle top/bottom vignette so cards and text read */}
       <LinearGradient
         colors={['rgba(0,0,0,0.35)', 'rgba(0,0,0,0.0)', 'rgba(0,0,0,0.55)']}
@@ -733,7 +754,7 @@ export default function SoundscapesScreen() {
           ›
         </Text>
       </Pressable>
-    </ImageBackground>
+    </View>
     </GestureHandlerRootView>
   );
 }
