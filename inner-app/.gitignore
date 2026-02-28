@@ -70,3 +70,6 @@ fog.png
 inner-clean/
 .DS_Store
 **/.DS_Store
+
+##worktrees
+.claude/
