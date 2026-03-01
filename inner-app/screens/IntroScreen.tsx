@@ -34,17 +34,14 @@ const wordmarkWidth = Math.round(Math.min(WORDMARK_TARGET, width * 0.78));
 const wordmarkHeight = Math.round(wordmarkWidth / WORDMARK_RATIO);
 
 const captions = [
-  { time: 3, text: 'A sacred space' },
-  { time: 5, text: 'of sound and stillness' },
-  { time: 9, text: 'remember who you are.' },
-  { time: 13, text: 'To return to center' },
-  { time: 15.1, text: 'and lift the veil' },
-  { time: 17.7, text: 'on your deeper self.' },
-  { time: 20.5, text: 'through gentle ritual,' },
-  { time: 23, text: 'living sound,' },
-  { time: 25.7, text: 'and stillness.' },
-  { time: 28.3, text: 'When you are ready' },
-  { time: 30, text: 'move inward.' },
+  { time: 0.1, text: 'You\'ve felt it.' },
+  { time: 2.7, text: 'That quiet pull' },
+  { time: 4.1, text: 'towards something more.' },
+  { time: 7, text: 'It doesn\'t shout.' },
+  { time: 9.5, text: 'It doesn\'t demand' },
+  { time: 11, text: 'attention.' },
+  { time: 13, text: 'It just needs space.' },
+  { time: 17, text: 'We\'ll begin with clarity.' },
 ];
 
 export default function IntroScreen() {
@@ -149,7 +146,7 @@ export default function IntroScreen() {
 
   const playVoice = async () => {
     const { sound } = await Audio.Sound.createAsync(
-      require('../assets/audio/intro_v2.mp3')
+      require('../assets/audio/intro_v3.mp3')
     );
     soundRef.current = sound;
     // Set intro voiceover volume to 60% before playback
@@ -208,17 +205,20 @@ export default function IntroScreen() {
   };
 
   useEffect(() => {
-    // Fade in the wordmark slightly after arrival
+    // Delay audio + captions so The Call can land first
+    const voiceDelayMs = 3500;
+    const wordmarkFadeAfterVoiceMs = 20000; // ~"Welcome to Inner"
+
+    const voiceTimer = setTimeout(playVoice, voiceDelayMs);
+
+    // Fade in the wordmark on "welcome to inner" (~20s into the voiceover)
     const wordmarkTimer = setTimeout(() => {
       Animated.timing(wordmarkFadeAnim, {
         toValue: 1,
         duration: 1800,
         useNativeDriver: true,
       }).start();
-    }, 4800);
-
-    // Delay audio + captions by 5s so The Call can land first
-    const voiceTimer = setTimeout(playVoice, 3500);
+    }, voiceDelayMs + wordmarkFadeAfterVoiceMs);
 
     return () => {
       clearTimeout(wordmarkTimer);
@@ -408,7 +408,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: 60, // move header higher on screen
+    paddingTop: 80, // move header slightly lower (closer to portal)
     paddingBottom: 60,
   },
   fill: {
