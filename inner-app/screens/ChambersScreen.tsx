@@ -31,7 +31,7 @@ const CHAMBERS = [
   { id: 'chamber_three', label: 'Chamber 3 • Horizon Gate',          colors: ['#24171a', '#6a3a2c'] },
   { id: 'chamber_four',  label: 'Chamber 4 • Resonance Field',       colors: ['#0e1a1f', '#205055'] },
   { id: 'chamber_five',  label: 'Chamber 5 • Remembrance Code',      colors: ['#171314', '#5b4a26'] },
-  { id: 'chamber_six',   label: 'Chamber 6 • Transcendence Veil',    colors: ['#171b2a', '#364a6a'] },
+  { id: 'chamber_six',   label: 'Chamber 6 • Transcendence Veil',    subtitle: 'Reveals more over time.', colors: ['#171b2a', '#364a6a'] },
   { id: 'chamber_seven', label: 'Chamber 7 • Return to Light',       colors: ['#20161c', '#51352a'] },
   { id: 'chamber_eight', label: 'Chamber 8 • Free Flow Corridor',    colors: ['#1a1a24', '#3a3a6a'] },
   { id: 'chamber_nine',  label: 'Chamber 9 • Inquiry Gate (Mirror)', colors: ['#1f1b14', '#5a4d2e'] },
@@ -109,7 +109,7 @@ function ChamberRow({
   onEnter,
   isLocked,
 }: {
-  item: { id: string; label: string; colors: string[] };
+  item: { id: string; label: string; subtitle?: string; colors: string[] };
   onEnter: (trackId: string, title?: string) => void;
   isLocked: boolean;
 }) {
@@ -122,6 +122,7 @@ function ChamberRow({
     <View style={{ marginBottom: 10 }}>
       <Tile
         label={item.label}
+        subtitle={item.subtitle}
         onPress={async () => {
           Haptics.selectionAsync();
           const trackId = chamberId;
@@ -969,6 +970,7 @@ export default function ChambersScreen() {
 
 function Tile({
   label,
+  subtitle,
   onPress,
   colors,
   backgroundSource,
@@ -976,6 +978,7 @@ function Tile({
   locked,
 }: {
   label: string;
+  subtitle?: string;
   onPress: () => void;
   colors: string[];
   backgroundSource?: any;
@@ -1050,7 +1053,7 @@ function Tile({
         },
       ]}
       accessibilityRole="button"
-      accessibilityLabel={label}
+      accessibilityLabel={subtitle ? `${label}. ${subtitle}` : label}
       accessibilityHint="Opens this Chamber"
       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
     >
@@ -1221,6 +1224,25 @@ function Tile({
               : 'Save'}
           </Text>
         </Pressable>
+      ) : null}
+      {subtitle ? (
+        <Text
+          style={{
+            fontFamily: 'Inter-ExtraLight',
+            fontSize: 11,
+            lineHeight: 14,
+            color: 'rgba(237,232,250,0.86)',
+            position: 'absolute',
+            left: 14,
+            bottom: 2,
+            right: 84,
+            letterSpacing: 0.25,
+            opacity: locked ? 0.62 : 0.78,
+          }}
+          numberOfLines={1}
+        >
+          {subtitle}
+        </Text>
       ) : null}
       <Text
         style={[

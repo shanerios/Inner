@@ -13,6 +13,7 @@ import {
   Dimensions,
 } from 'react-native';
 import Purchases, { PurchasesPackage } from 'react-native-purchases';
+import { initRevenueCatOnce } from '../utils/revenueCat';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -102,6 +103,12 @@ export default function PaywallModal({
     setInfo(null);
 
     try {
+      const rcOk = await initRevenueCatOnce();
+      if (!rcOk) {
+        setError('Preparing purchase options... please try again in a moment.');
+        return;
+      }
+
       const offerings = await Purchases.getOfferings();
       const current = offerings.current;
       if (!current) {

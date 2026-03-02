@@ -9,7 +9,6 @@ import { BreathProvider } from './core/BreathProvider';
 import { createStackNavigator, CardStyleInterpolators } from "@react-navigation/stack";
 import TrackPlayer from "react-native-track-player";
 
-import Purchases, { LOG_LEVEL } from 'react-native-purchases';
 import SplashScreen from "./screens/SplashScreen";
 import IntroScreen from "./screens/IntroScreen";
 import IntentionScreen from "./screens/IntentionScreen";
@@ -36,6 +35,7 @@ import * as FileSystem from 'expo-file-system';
 import { InteractionManager, AppState, Easing } from 'react-native';
 // import NetInfo from '@react-native-community/netinfo';
 import { initAudioOnce } from './core/initAudio';
+import { initRevenueCatOnce } from './utils/revenueCat';
 // import { TRACKS, getTrackUrl } from './data/tracks';
 // import { cacheRemoteOnce } from './utils/audioCache';
 
@@ -87,53 +87,6 @@ type RootStackParamList = {
 };
 
 const Stack = createStackNavigator<RootStackParamList>();
-
-// ── RevenueCat init (must be ready BEFORE any paywall calls) ──────────────────
-let __rcInitPromise: Promise<boolean> | null = null;
-
-function initRevenueCatOnce(): Promise<boolean> {
-  if (__rcInitPromise) return __rcInitPromise;
-
-  __rcInitPromise = (async () => {
-    try {
-      // Verbose logs in dev only
-      Purchases.setLogLevel(__DEV__ ? LOG_LEVEL.VERBOSE : LOG_LEVEL.WARN);
-
-      const apiKey =
-        Platform.OS === 'android'
-          ? process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_KEY
-          : process.env.EXPO_PUBLIC_REVENUECAT_IOS_KEY;
-
-      // Safe log presence of env keys (do NOT log raw key)
-      if (__DEV__) {
-        console.log('[RC ENV] iOS key present?', !!process.env.EXPO_PUBLIC_REVENUECAT_IOS_KEY);
-        console.log('[RC ENV] Android key present?', !!process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_KEY);
-      }
-
-      if (!apiKey) {
-        console.warn('[RevenueCat] Missing API key for platform:', Platform.OS);
-        return false;
-      }
-
-      // Configure creates the singleton. This MUST happen before any SDK calls.
-      Purchases.configure({ apiKey });
-      if (__DEV__) console.log('[RevenueCat] configured for', Platform.OS);
-
-      // Optional: touch the SDK once to ensure the singleton is actually usable.
-      // (Do not block app startup on network; this will be fast if offline.)
-      try {
-        await Purchases.getCustomerInfo();
-      } catch {}
-
-      return true;
-    } catch (e) {
-      console.log('[RevenueCat] configure error', e);
-      return false;
-    }
-  })();
-
-  return __rcInitPromise;
-}
 
 // Kick off ASAP at module load (helps prevent "no singleton" on fast taps)
 initRevenueCatOnce().catch(() => {});
