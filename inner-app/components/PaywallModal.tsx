@@ -59,7 +59,7 @@ function toUserFacingPaywallError(err: any): string {
 
   // Avoid showing raw RevenueCat setup/internal errors to users (and App Review).
   if (RC_NOT_CONFIGURED_RE.test(msg)) {
-    return 'Preparing purchase options… please try again in a moment.';
+    return 'Loading purchase options…';
   }
 
   if (RC_NETWORK_RE.test(msg)) {
@@ -101,19 +101,42 @@ export default function PaywallModal({
     setLoading(true);
     setError(null);
     setInfo(null);
+    setPackages([]);
+    setSelectedIndex(0);
 
-    try {
-      const rcOk = await initRevenueCatOnce();
-      if (!rcOk) {
-        setError('Preparing purchase options... please try again in a moment.');
-        return;
+    let keepLoading = false;
+
+  try {
+    const rcOk = await initRevenueCatOnce();
+
+    if (!rcOk) {
+      // show info, not error
+      setInfo('Loading purchase options…');
+
+      // keep spinner going (prevent finally from turning it off)
+      keepLoading = true;
+
+      // retry shortly
+      if (offeringRetryRef.current < 10) {
+        offeringRetryRef.current += 1;
+        setTimeout(() => {
+          fetchOfferings();
+        }, 350);
+      } else {
+        // if we've tried enough, allow loading to stop and show a retry UI
+        keepLoading = false;
+        setInfo('Purchase options are temporarily unavailable. Please try again.');
       }
+
+      return;
+    }
 
       const offerings = await Purchases.getOfferings();
       const current = offerings.current;
+
       if (!current) {
         setInfo('Purchase options are temporarily unavailable. Please try again.');
-        setPackages([]);
+        keepLoading = false;
         return;
       }
 
@@ -160,8 +183,11 @@ export default function PaywallModal({
       if (RC_NOT_CONFIGURED_RE.test(msg) && offeringRetryRef.current < 10) {
         offeringRetryRef.current += 1;
         setInfo('Loading purchase options…');
-        await sleep(350);
-        return fetchOfferings();
+        keepLoading = true;
+        setTimeout(() => {
+          fetchOfferings();
+        }, 350);
+        return;
       }
 
       setPackages([]);
@@ -175,7 +201,9 @@ export default function PaywallModal({
       // Keep the raw error in state only for internal flows that already have packages.
       setError(null);
     } finally {
-      setLoading(false);
+      if (!keepLoading) {
+        setLoading(false);
+      }
     }
   }, []);
 
