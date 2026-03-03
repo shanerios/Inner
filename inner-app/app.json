@@ -19,7 +19,8 @@
       "bundleIdentifier": "com.getinner.app",
       "buildNumber": "2023",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "UIBackgroundModes": ["audio"]
       }
     },
     "android": {

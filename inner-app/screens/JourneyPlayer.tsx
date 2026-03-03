@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import SleepIcon from '../assets/images/sleep.svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Slider from '@react-native-community/slider';
-import TrackPlayer, { RepeatMode, State, Event, Capability } from 'react-native-track-player';
+import TrackPlayer, { RepeatMode, State, Event, Capability, IOSCategory, IOSCategoryOptions, IOSMode } from 'react-native-track-player';
 import Purchases from 'react-native-purchases';
 import { Asset } from 'expo-asset';
 import * as Haptics from 'expo-haptics';
@@ -369,7 +369,15 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
     try {
       // In v4, simply attempt setup; if already set up, it will throw and we ignore
       try {
-        await TrackPlayer.setupPlayer({ waitForBuffer: true });
+        await TrackPlayer.setupPlayer({
+          waitForBuffer: true,
+          iosCategory: IOSCategory.Playback,
+          iosMode: IOSMode.Default,
+          iosCategoryOptions: [
+            IOSCategoryOptions.AllowBluetooth,
+            IOSCategoryOptions.AllowBluetoothA2DP,
+          ],
+        });
       } catch {}
 
       await TrackPlayer.updateOptions({
