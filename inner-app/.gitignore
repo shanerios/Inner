@@ -73,3 +73,4 @@ inner-clean/
 
 ##worktrees
 .claude/
+inner-playapi.json
