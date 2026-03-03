@@ -64,7 +64,6 @@
         "ascAppId": "6755213270"
       },
       "android": {
-        "serviceAccountKeyPath": "./inner-playapi-c5ef8cb3eabd.json",
         "track": "internal",
         "changesNotSentForReview": true
       }
@@ -74,14 +73,12 @@
         "ascAppId": "6755213270"
       },
       "android": {
-        "serviceAccountKeyPath": "./inner-playapi-c5ef8cb3eabd.json",
         "track": "closed",
         "changesNotSentForReview": true
       }
     },
     "open": {
       "android": {
-        "serviceAccountKeyPath": "./inner-playapi-c5ef8cb3eabd.json",
         "track": "open",
         "changesNotSentForReview": true
       }
@@ -91,7 +88,6 @@
         "ascAppId": "6755213270"
       },
       "android": {
-        "serviceAccountKeyPath": "./inner-playapi-c5ef8cb3eabd.json",
         "track": "production",
         "changesNotSentForReview": false
       }
