@@ -8,6 +8,9 @@ node_modules/
 dist/
 web-build/
 expo-env.d.ts
+ios/build/
+android/build/
+android/app/build/
 
 # Native
 .kotlin/
@@ -73,4 +76,5 @@ inner-clean/
 
 ##worktrees
 .claude/
+.claude-worktrees/
 inner-playapi.json

@@ -1,5 +1,6 @@
 // metro.config.js
 const { getDefaultConfig } = require('@expo/metro-config');
+const exclusionList = require('metro-config/src/defaults/exclusionList');
 
 const config = getDefaultConfig(__dirname);
 
@@ -15,6 +16,14 @@ config.resolver = {
   ...config.resolver,
   assetExts: [...assetExts.filter(ext => ext !== 'svg'), 'md'],
   sourceExts: [...sourceExts, 'svg'],
+  blockList: exclusionList([
+    /\/dist\/.*/,
+    /\/\.claude\/.*/,
+    /\/\.claude-worktrees\/.*/,
+    /\/ios\/Pods\/.*/,
+    /\/ios\/build\/.*/,
+    /\/android\/.*/,
+  ]),
 };
 
 module.exports = config;
