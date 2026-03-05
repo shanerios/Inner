@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import SleepIcon from '../assets/images/sleep.svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Slider from '@react-native-community/slider';
-import TrackPlayer, { RepeatMode, State, Event, Capability, IOSCategory, IOSCategoryOptions, IOSMode } from 'react-native-track-player';
+import TrackPlayer, { RepeatMode, State, Event, Capability, IOSCategory, IOSCategoryOptions } from 'react-native-track-player';
 import Purchases from 'react-native-purchases';
 import { Asset } from 'expo-asset';
 import * as Haptics from 'expo-haptics';
@@ -367,18 +367,23 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
   // Minimal one-time setup for TrackPlayer (v4-safe)
   const setupTrackPlayerOnce = useCallback(async () => {
     try {
-      // In v4, simply attempt setup; if already set up, it will throw and we ignore
+      // In v4, setupPlayer throws if already initialized — swallow only that error.
+      // Any other failure means the player is not ready; re-throw to skip updateOptions.
       try {
         await TrackPlayer.setupPlayer({
           waitForBuffer: true,
           iosCategory: IOSCategory.Playback,
-          iosMode: IOSMode.Default,
           iosCategoryOptions: [
             IOSCategoryOptions.AllowBluetooth,
             IOSCategoryOptions.AllowBluetoothA2DP,
           ],
         });
-      } catch {}
+      } catch (e: any) {
+        if (!String(e).toLowerCase().includes('already')) {
+          console.log('[AUDIO][TP] setupPlayer error', e);
+          throw e;
+        }
+      }
 
       await TrackPlayer.updateOptions({
         stopWithApp: false,
@@ -386,7 +391,7 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
         icon: require('../assets/images/inner_orb_icon.png'),
       });
     } catch (e) {
-      console.log('[AUDIO][TP] updateOptions error', e);
+      console.log('[AUDIO][TP] setup error', e);
     }
   }, []);
 

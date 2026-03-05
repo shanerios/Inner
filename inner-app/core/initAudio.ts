@@ -1,5 +1,5 @@
 import { Audio } from 'expo-av';
-import TrackPlayer, { Capability, IOSCategory, IOSCategoryOptions, IOSMode } from 'react-native-track-player';
+import TrackPlayer, { Capability, IOSCategory, IOSCategoryOptions } from 'react-native-track-player';
 
 let didInit = false;
 
@@ -10,15 +10,18 @@ export async function initAudioOnce() {
   // TrackPlayer first — on iOS its setupPlayer configures AVAudioSession.
   // expo-av's setAudioModeAsync must run AFTER so it wins over TrackPlayer's session settings.
   try {
-    try { await TrackPlayer.setupPlayer({
-      waitForBuffer: true,
-      iosCategory: IOSCategory.Playback,
-      iosMode: IOSMode.Default,
-      iosCategoryOptions: [
-        IOSCategoryOptions.AllowBluetooth,
-        IOSCategoryOptions.AllowBluetoothA2DP,
-      ],
-    }); } catch {}
+    try {
+      await TrackPlayer.setupPlayer({
+        waitForBuffer: true,
+        iosCategory: IOSCategory.Playback,
+        iosCategoryOptions: [
+          IOSCategoryOptions.AllowBluetooth,
+          IOSCategoryOptions.AllowBluetoothA2DP,
+        ],
+      });
+    } catch (e: any) {
+      if (!String(e).toLowerCase().includes('already')) throw e;
+    }
     await TrackPlayer.updateOptions({
       stopWithApp: false,
       capabilities: [Capability.Play, Capability.Pause, Capability.SeekTo],
