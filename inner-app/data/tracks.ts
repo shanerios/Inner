@@ -305,6 +305,30 @@ export const TRACKS: TrackMeta[] = [
     isPremium: true,
     paywallKey: CONTINUING_PAYWALL_KEY,
   },
+  {
+    id: 'chamber_six',
+    title: 'Chamber Six: Transcendence Veil',
+    kind: 'chamber',
+    loop: false,
+    durationHintMs: 30 * 60 * 1000,
+    remote: 'https://f005.backblazeb2.com/file/inner-audio/Chambers/chamber_6_hq_ios.m4a',
+    remoteLow: 'https://f005.backblazeb2.com/file/inner-audio/Chambers/chamber_6_64k_ios.m4a',
+    meta: { envId: 'chamber_six' },
+     isPremium: true,
+     paywallKey: CONTINUING_PAYWALL_KEY,
+  },
+  {
+    id: 'chamber_seven',
+    title: 'Chamber Seven: Return to Light',
+    kind: 'chamber',
+    loop: false,
+    durationHintMs: 31 * 60 * 1000,
+    remote: 'https://f005.backblazeb2.com/file/inner-audio/Chambers/chamber_7_hq_ios.m4a',
+    remoteLow: 'https://f005.backblazeb2.com/file/inner-audio/Chambers/chamber_7_64k_ios.m4a',
+    meta: { envId: 'chamber_seven' },
+     isPremium: true,
+     paywallKey: CONTINUING_PAYWALL_KEY,
+  },
 
   // --- Tone frequency tracks ---
   {
