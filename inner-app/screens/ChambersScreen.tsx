@@ -16,6 +16,8 @@ import { usePrecacheTracks } from '../hooks/usePrecacheTracks';
 import { Body as _Body } from '../core/typography';
 import { chamberEnvironments } from '../theme/chamberEnvironments';
 import { isLockedTrack } from '../src/core/subscriptions/accessPolicy';
+import { chamberReleaseManifest } from '../src/content/chamberReleaseManifest';
+import { getReleaseCountdownLabel } from '../src/content/releaseUtils';
 import { safePresentPaywall } from '../src/core/subscriptions/safePresentPaywall';
 
 import { Gesture, GestureDetector, Directions, GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -109,7 +111,7 @@ function ChamberRow({
   onEnter,
   isLocked,
 }: {
-  item: { id: string; label: string; subtitle?: string; colors: string[] };
+  item: { id: string; label: string; subtitle?: string; colors: string[]; comingSoon?: boolean };
   onEnter: (trackId: string, title?: string) => void;
   isLocked: boolean;
 }) {
@@ -146,12 +148,41 @@ function ChamberRow({
                 label: item.label,
               }
         }
+        highlight={!!item.comingSoon}
       />
     </View>
   );
 }
 
 export default function ChambersScreen() {
+  const chambersWithReleaseState = useMemo(() => {
+    const now = new Date();
+
+    return CHAMBERS.map((item) => {
+      const trackId = toTrackId(item.id);
+      const meta = chamberReleaseManifest?.[trackId];
+
+      if (!meta) return { ...item, comingSoon: false };
+
+      const released =
+        meta.isPublished &&
+        (!meta.releaseDate || new Date(meta.releaseDate).getTime() <= now.getTime());
+
+      if (released) {
+        return { ...item, comingSoon: false };
+      }
+
+      if (meta.releaseDate) {
+        return {
+          ...item,
+          comingSoon: true,
+          subtitle: getReleaseCountdownLabel(meta.releaseDate, now) ?? item.subtitle,
+        };
+      }
+
+      return { ...item, comingSoon: true };
+    });
+  }, []);
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
 
@@ -687,13 +718,12 @@ export default function ChambersScreen() {
 
         <FlatList
           ref={listRef}
-          simultaneousHandlers={[]}
-          data={CHAMBERS}
+          data={chambersWithReleaseState}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => {
             const chamberId = toTrackId(item.id);
             const pseudoTrack = { id: chamberId, isPremium: isPremiumChamber(chamberId) };
-            const locked = isLockedTrack(pseudoTrack as any, hasContinuing);
+            const locked = isLockedTrack(pseudoTrack as any, hasContinuing) || item.comingSoon;
             return <ChamberRow item={item} onEnter={enterChamber} isLocked={locked} />;
           }}
           showsVerticalScrollIndicator={false}
@@ -976,6 +1006,7 @@ function Tile({
   backgroundSource,
   offline,
   locked,
+  highlight,
 }: {
   label: string;
   subtitle?: string;
@@ -991,6 +1022,7 @@ function Tile({
     label: string;
   };
   locked?: boolean;
+  highlight?: boolean;
 }) {
   // Locked gate icon (PNG) + subtle pulse
   // NOTE: Create this file: `assets/images/locked_gate.png` (transparent background).
@@ -1005,6 +1037,10 @@ function Tile({
   const lockPulse = React.useRef(new Animated.Value(0)).current;
   const lockOpacity = lockPulse.interpolate({ inputRange: [0, 1], outputRange: [0.55, 0.82] });
   const lockScale = lockPulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.07] });
+
+  const glowPulse = React.useRef(new Animated.Value(0)).current;
+  const glowOpacity = glowPulse.interpolate({ inputRange: [0, 1], outputRange: [0.24, 0.62] });
+  const glowScale = glowPulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.025] });
 
   React.useEffect(() => {
     if (!locked) {
@@ -1041,15 +1077,72 @@ function Tile({
     };
   }, [locked, lockPulse]);
 
-  return (
-    <Pressable
+    React.useEffect(() => {
+    if (!highlight) {
+      glowPulse.stopAnimation();
+      glowPulse.setValue(0);
+      return;
+    }
+
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(glowPulse, {
+          toValue: 1,
+          duration: 1200,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+        Animated.timing(glowPulse, {
+          toValue: 0,
+          duration: 1200,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+      ])
+    );
+
+    loop.start();
+    return () => loop.stop();
+  }, [highlight, glowPulse]);
+
+    return (
+    <View
+    style={{ marginHorizontal: 2, marginVertical: 2 }}>
+      {highlight ? (
+        <Animated.View
+          pointerEvents="none"
+          style={{
+            position: 'absolute',
+            top: -3,
+            left: -3,
+            right: -3,
+            bottom: -3,
+            borderRadius: 17,
+            borderWidth: 1,
+            borderColor: 'rgba(207,195,224,0.72)',
+            opacity: glowOpacity,
+            transform: [{ scale: glowScale }],
+            shadowColor: '#CFC3E0',
+            shadowOpacity: 0.55,
+            shadowRadius: 14,
+            shadowOffset: { width: 0, height: 0 },
+            elevation: 10,
+          }}
+        />
+      ) : null}
+
+      <Pressable
       onPress={onPress}
       style={({ pressed }) => [
         styles.tile,
         {
           opacity: pressed ? 0.96 : 1,
           transform: [{ scale: pressed ? 0.992 : 1 }],
-          borderColor: pressed ? 'rgba(255,255,255,0.14)' : 'rgba(255,255,255,0.08)',
+          borderColor: pressed
+            ? 'rgba(255,255,255,0.14)'
+            : highlight
+            ? 'rgba(207,195,224,0.26)'
+            : 'rgba(255,255,255,0.08)',
         },
       ]}
       accessibilityRole="button"
@@ -1261,7 +1354,8 @@ function Tile({
       >
         {label}
       </Text>
-    </Pressable>
+          </Pressable>
+    </View>
   );
 }
 
