@@ -3,8 +3,12 @@ const path = require('path');
 const { getDefaultConfig } = require('@expo/metro-config');
 const exclusionList = require('metro-config/src/defaults/exclusionList');
 
+const {
+  getSentryExpoConfig
+} = require("@sentry/react-native/metro");
+
 const projectRoot = __dirname;
-const config = getDefaultConfig(projectRoot);
+const config = getSentryExpoConfig(projectRoot);
 
 // Enable SVG support via react-native-svg-transformer
 config.transformer = {

@@ -48,6 +48,7 @@
     "production": {
       "distribution": "store",
       "channel": "production",
+      "environment": "production",
       "android": { "buildType": "app-bundle" },
       "ios": {
         "simulator": false

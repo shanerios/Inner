@@ -32,6 +32,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useIntention } from '../core/IntentionProvider';
 import { startFromSuggestion } from '../lib/startRoutes';
 
+import * as Sentry from '@sentry/react-native';
+import { Button } from 'react-native';
+
 import { useBreath } from '../core/BreathProvider';
 import { Body as _Body, Typography as _Typography, Typography } from '../core/typography';
 import { useLunarWhisper } from '../hooks/useLunarWhisper';
@@ -4061,7 +4064,7 @@ const openInnerFlame = useCallback(async () => {
         totalEmbers={totalEmbers}
       />
     </View>
-</GestureDetector>
+    </GestureDetector>
     );
 }
 

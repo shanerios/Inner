@@ -78,3 +78,5 @@ inner-clean/
 .claude/
 .claude-worktrees/
 inner-playapi.json
+
+.env.local

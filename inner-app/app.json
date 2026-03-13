@@ -52,7 +52,15 @@
       ],
       "expo-font",
       "expo-asset",
-      "expo-video"
+      "expo-video",
+      [
+        "@sentry/react-native/expo",
+        {
+          "url": "https://sentry.io/",
+          "project": "react-native",
+          "organization": "kolor-design-llc"
+        }
+      ]
     ],
     "web": {
       "favicon": "./assets/favicon.png"
