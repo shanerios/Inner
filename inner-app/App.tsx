@@ -70,6 +70,7 @@ import FogTransitionOverlay from './components/FogTransitionOverlay';
 import PaywallModal from './components/PaywallModal';
 import { registerPaywallController } from './src/core/subscriptions/paywallController';
 import * as Sentry from '@sentry/react-native';
+import { PostHogProvider, usePostHog } from 'posthog-react-native';
 
 Sentry.init({
   dsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
@@ -159,6 +160,19 @@ function JourneyPicker() {
   );
 }
 
+
+
+function PostHogBootTracker() {
+  const posthog = usePostHog();
+
+  React.useEffect(() => {
+    posthog.capture('app_opened', {
+      platform: Platform.OS,
+    });
+  }, [posthog]);
+
+  return null;
+}
 
 export default Sentry.wrap(function App() {
   const [fontsLoaded] = useFonts({
@@ -268,151 +282,161 @@ export default Sentry.wrap(function App() {
   if (!fontsLoaded) return null;
 
   return (
-    <SafeAreaProvider>
-      <BreathProvider>
-        <IntentionProvider>
-          <NavigationContainer theme={InnerTheme}>
-            <StatusBar style="light" backgroundColor="#0d0d1a" translucent={false} />
-            <Stack.Navigator initialRouteName="Splash"
-              detachInactiveScreens={false}
-              screenOptions={{
-                headerShown: false,
-                cardStyle: { backgroundColor: '#0d0d1a' },
-                cardStyleInterpolator: CardStyleInterpolators.forFadeFromCenter,
-                transitionSpec: {
-                  open:  { animation: 'timing', config: { duration: 500 } },
-                  close: { animation: 'timing', config: { duration: 500 } },
-                },
-              }}
-            >
-              <Stack.Screen name="Splash" component={SplashScreen} />
-              <Stack.Screen name="Intro" component={IntroScreen} />
-              <Stack.Screen
-                name="Intention"
-                component={IntentionScreen}
-                options={{
-                  cardStyle: { backgroundColor: 'transparent' },
-                  presentation: 'transparentModal',
-                }}
-              />
-              <Stack.Screen
-                name="EssenceScreen"
-                component={EssenceScreen}
-                options={{
-                  cardStyle: { backgroundColor: 'transparent' },
-                  presentation: 'transparentModal',
-                }}
-              />
-              <Stack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
-              <Stack.Screen name="LearnHub" component={LearnHub} options={{ headerShown: false }} />
-              <Stack.Screen name="LessonList" component={LessonList} options={{ headerShown: false }} />
-              <Stack.Screen
-                name="LessonReader"
-                component={LessonReader}
-                listeners={{
-                  transitionStart: (e) => {
-                    // Only on open (not closing)
-                    // @ts-ignore
-                    if (e?.data?.closing) return;
-                    try {
-                      (globalThis as any).__fog?.show?.();
-                      (globalThis as any).__fog?.boost?.(0.08, 1200);
-                      setTimeout(() => (globalThis as any).__fog?.hide?.(), 1200);
-                    } catch {}
-                  },
-                  focus: () => {
-                    // Fallback: ensure a tiny haze even if transition events are missed
-                    try {
-                      (globalThis as any).__fog?.show?.();
-                      (globalThis as any).__fog?.boost?.(0.06, 900);
-                      setTimeout(() => (globalThis as any).__fog?.hide?.(), 900);
-                    } catch {}
-                  },
-                }}
-                options={{
+    <PostHogProvider
+      apiKey={process.env.EXPO_PUBLIC_POSTHOG_KEY ?? ''}
+      autocapture={false}
+      options={{
+        host: process.env.EXPO_PUBLIC_POSTHOG_HOST ?? 'https://us.i.posthog.com',
+        captureAppLifecycleEvents: true,
+      }}
+    >
+      <PostHogBootTracker />
+      <SafeAreaProvider>
+        <BreathProvider>
+          <IntentionProvider>
+            <NavigationContainer theme={InnerTheme}>
+              <StatusBar style="light" backgroundColor="#0d0d1a" translucent={false} />
+              <Stack.Navigator initialRouteName="Splash"
+                detachInactiveScreens={false}
+                screenOptions={{
                   headerShown: false,
-                  cardOverlayEnabled: true,
-                  cardStyleInterpolator: veilLiftInterpolator,
+                  cardStyle: { backgroundColor: '#0d0d1a' },
+                  cardStyleInterpolator: CardStyleInterpolators.forFadeFromCenter,
                   transitionSpec: {
-                    open: { animation: 'timing', config: { duration: 1100, easing: Easing.out(Easing.cubic) } },
-                    close:{ animation: 'timing', config: { duration: 650, easing: Easing.out(Easing.cubic) } },
+                    open:  { animation: 'timing', config: { duration: 500 } },
+                    close: { animation: 'timing', config: { duration: 500 } },
                   },
                 }}
+              >
+                <Stack.Screen name="Splash" component={SplashScreen} />
+                <Stack.Screen name="Intro" component={IntroScreen} />
+                <Stack.Screen
+                  name="Intention"
+                  component={IntentionScreen}
+                  options={{
+                    cardStyle: { backgroundColor: 'transparent' },
+                    presentation: 'transparentModal',
+                  }}
+                />
+                <Stack.Screen
+                  name="EssenceScreen"
+                  component={EssenceScreen}
+                  options={{
+                    cardStyle: { backgroundColor: 'transparent' },
+                    presentation: 'transparentModal',
+                  }}
+                />
+                <Stack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
+                <Stack.Screen name="LearnHub" component={LearnHub} options={{ headerShown: false }} />
+                <Stack.Screen name="LessonList" component={LessonList} options={{ headerShown: false }} />
+                <Stack.Screen
+                  name="LessonReader"
+                  component={LessonReader}
+                  listeners={{
+                    transitionStart: (e) => {
+                      // Only on open (not closing)
+                      // @ts-ignore
+                      if (e?.data?.closing) return;
+                      try {
+                        (globalThis as any).__fog?.show?.();
+                        (globalThis as any).__fog?.boost?.(0.08, 1200);
+                        setTimeout(() => (globalThis as any).__fog?.hide?.(), 1200);
+                      } catch {}
+                    },
+                    focus: () => {
+                      // Fallback: ensure a tiny haze even if transition events are missed
+                      try {
+                        (globalThis as any).__fog?.show?.();
+                        (globalThis as any).__fog?.boost?.(0.06, 900);
+                        setTimeout(() => (globalThis as any).__fog?.hide?.(), 900);
+                      } catch {}
+                    },
+                  }}
+                  options={{
+                    headerShown: false,
+                    cardOverlayEnabled: true,
+                    cardStyleInterpolator: veilLiftInterpolator,
+                    transitionSpec: {
+                      open: { animation: 'timing', config: { duration: 1100, easing: Easing.out(Easing.cubic) } },
+                      close:{ animation: 'timing', config: { duration: 650, easing: Easing.out(Easing.cubic) } },
+                    },
+                  }}
+                />
+                <Stack.Screen name="Chambers" component={ChambersScreen} options={{ headerShown: false }} />
+                <Stack.Screen name="Soundscapes" component={SoundscapesScreen} options={{ headerShown: false }} />
+                <Stack.Screen name="JourneyPicker" component={JourneyPicker} />
+                <Stack.Screen name="JourneyPlayer" component={JourneyPlayer} options={{ headerShown: false, presentation: 'transparentModal' }} />
+                <Stack.Screen name="Glossary" component={require('./learn/screens/GlossaryScreen').default} options={{ headerShown: false }} />
+                <Stack.Screen
+                  name="Journal"
+                  component={JournalListScreen}
+                  options={{ headerShown: true, headerTransparent: true, headerTitle: '' }}
+                />
+                <Stack.Screen
+                  name="JournalEntry"
+                  component={JournalEntryScreen}
+                  listeners={{
+                    transitionStart: (e) => {
+                      // Only on open (not closing)
+                      // @ts-ignore
+                      if (e?.data?.closing) return;
+                      try {
+                        (globalThis as any).__fog?.show?.();
+                        (globalThis as any).__fog?.boost?.(0.08, 1200);
+                        setTimeout(() => (globalThis as any).__fog?.hide?.(), 1200);
+                      } catch {}
+                    },
+                    focus: () => {
+                      // Fallback: ensure a tiny haze even if transition events are missed
+                      try {
+                        (globalThis as any).__fog?.show?.();
+                        (globalThis as any).__fog?.boost?.(0.06, 900);
+                        setTimeout(() => (globalThis as any).__fog?.hide?.(), 900);
+                      } catch {}
+                    },
+                  }}
+                  options={{
+                    headerShown: true,
+                    headerTransparent: true,
+                    headerTitle: '',
+                    cardOverlayEnabled: true,
+                    cardStyleInterpolator: veilLiftInterpolator,
+                    transitionSpec: {
+                      open: { animation: 'timing', config: { duration: 1100, easing: Easing.out(Easing.cubic) } },
+                      close:{ animation: 'timing', config: { duration: 650, easing: Easing.out(Easing.cubic) } },
+                    },
+                  }}
+                />
+                <Stack.Screen name="PointZero" component={PointZeroScreen} options={{ headerShown: false }} />
+                <Stack.Screen name="CleanSlate" component={CleanSlateScreen} options={{ headerShown: false }} />
+                <Stack.Screen name="InnerFlame" component={InnerFlameScreen} options={{ headerShown: false }} />
+                <Stack.Screen name="DailyRitual" component={DailyRitualScreen} options={{ headerShown: false }} />
+              </Stack.Navigator>
+              <FogTransitionOverlay
+                visible={fogVisible}
+                tint={'#5e3b7c'}
+                onHidden={() => setFogVisible(false)}
+                sealBoost={sealBoost}
               />
-              <Stack.Screen name="Chambers" component={ChambersScreen} options={{ headerShown: false }} />
-              <Stack.Screen name="Soundscapes" component={SoundscapesScreen} options={{ headerShown: false }} />
-              <Stack.Screen name="JourneyPicker" component={JourneyPicker} />
-              <Stack.Screen name="JourneyPlayer" component={JourneyPlayer} options={{ headerShown: false, presentation: 'transparentModal' }} />
-              <Stack.Screen name="Glossary" component={require('./learn/screens/GlossaryScreen').default} options={{ headerShown: false }} />
-              <Stack.Screen
-                name="Journal"
-                component={JournalListScreen}
-                options={{ headerShown: true, headerTransparent: true, headerTitle: '' }}
-              />
-              <Stack.Screen
-                name="JournalEntry"
-                component={JournalEntryScreen}
-                listeners={{
-                  transitionStart: (e) => {
-                    // Only on open (not closing)
-                    // @ts-ignore
-                    if (e?.data?.closing) return;
-                    try {
-                      (globalThis as any).__fog?.show?.();
-                      (globalThis as any).__fog?.boost?.(0.08, 1200);
-                      setTimeout(() => (globalThis as any).__fog?.hide?.(), 1200);
-                    } catch {}
-                  },
-                  focus: () => {
-                    // Fallback: ensure a tiny haze even if transition events are missed
-                    try {
-                      (globalThis as any).__fog?.show?.();
-                      (globalThis as any).__fog?.boost?.(0.06, 900);
-                      setTimeout(() => (globalThis as any).__fog?.hide?.(), 900);
-                    } catch {}
-                  },
-                }}
-                options={{
-                  headerShown: true,
-                  headerTransparent: true,
-                  headerTitle: '',
-                  cardOverlayEnabled: true,
-                  cardStyleInterpolator: veilLiftInterpolator,
-                  transitionSpec: {
-                    open: { animation: 'timing', config: { duration: 1100, easing: Easing.out(Easing.cubic) } },
-                    close:{ animation: 'timing', config: { duration: 650, easing: Easing.out(Easing.cubic) } },
-                  },
-                }}
-              />
-              <Stack.Screen name="PointZero" component={PointZeroScreen} options={{ headerShown: false }} />
-              <Stack.Screen name="CleanSlate" component={CleanSlateScreen} options={{ headerShown: false }} />
-              <Stack.Screen name="InnerFlame" component={InnerFlameScreen} options={{ headerShown: false }} />
-              <Stack.Screen name="DailyRitual" component={DailyRitualScreen} options={{ headerShown: false }} />
-            </Stack.Navigator>
-            <FogTransitionOverlay
-              visible={fogVisible}
-              tint={'#5e3b7c'}
-              onHidden={() => setFogVisible(false)}
-              sealBoost={sealBoost}
+            </NavigationContainer>
+            <PaywallModal
+              visible={paywallVisible}
+              rcReady={rcReady}
+              onClose={() => {
+                setPaywallVisible(false);
+                paywallSuccessRef.current = undefined;
+                paywallDismissRef.current?.();
+                paywallDismissRef.current = undefined;
+              }}
+              onPurchaseSuccess={() => {
+                paywallSuccessRef.current?.();
+                paywallSuccessRef.current = undefined;
+              }}
             />
-          </NavigationContainer>
-        <PaywallModal
-          visible={paywallVisible}
-          rcReady={rcReady}
-          onClose={() => {
-            setPaywallVisible(false);
-            paywallSuccessRef.current = undefined;
-            paywallDismissRef.current?.();
-            paywallDismissRef.current = undefined;
-          }}
-          onPurchaseSuccess={() => {
-            paywallSuccessRef.current?.();
-            paywallSuccessRef.current = undefined;
-          }}
-        />
-        </IntentionProvider>
-      </BreathProvider>
-    </SafeAreaProvider>
+          </IntentionProvider>
+        </BreathProvider>
+      </SafeAreaProvider>
+    </PostHogProvider>
   );
 });
 

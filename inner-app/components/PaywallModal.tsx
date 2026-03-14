@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import Purchases, { PurchasesPackage } from 'react-native-purchases';
 import { initRevenueCatOnce } from '../utils/revenueCat';
+import { usePostHog } from 'posthog-react-native';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -92,6 +93,8 @@ export default function PaywallModal({
   // Retry tracking
   const offeringRetryRef = useRef(0);
   const purchaseRetryRef = useRef(0);
+  const posthog = usePostHog();
+  const paywallViewTrackedRef = useRef(false);
 
   // ── Load offerings ──────────────────────────────────────────────────────────
 
@@ -232,6 +235,14 @@ export default function PaywallModal({
     offeringRetryRef.current = 0;
     purchaseRetryRef.current = 0;
 
+    if (!paywallViewTrackedRef.current) {
+      posthog.capture('paywall_viewed', {
+        source: 'unspecified',
+        rc_ready: rcReady,
+      });
+      paywallViewTrackedRef.current = true;
+    }
+
     // Give App-level RevenueCat configuration a brief moment to run, then fetch.
     (async () => {
       await sleep(50);
@@ -239,6 +250,7 @@ export default function PaywallModal({
     })();
 
     return () => {
+      paywallViewTrackedRef.current = false;
       cancelled = true;
     };
   }, [visible, fadeAnim, slideAnim, fetchOfferings]);
@@ -257,6 +269,11 @@ export default function PaywallModal({
       const entitlements = customerInfo.entitlements.active;
 
       if (entitlements && entitlements[ENTITLEMENT_ID]) {
+        posthog.capture('purchase_success', {
+          entitlement: ENTITLEMENT_ID,
+          product_id: selected.pkg.product.identifier,
+          package_identifier: selected.identifier,
+        });
         onPurchaseSuccess?.();
         onClose();
         return;
@@ -266,7 +283,13 @@ export default function PaywallModal({
         'Purchase completed, but access could not be verified yet. Please try again in a moment, or restore purchases.'
       );
     } catch (e: any) {
-      if (e?.userCancelled) return;
+      if (e?.userCancelled) {
+        posthog.capture('purchase_cancelled', {
+          entitlement: ENTITLEMENT_ID,
+          package_identifier: packages[selectedIndex]?.identifier,
+        });
+        return;
+      }
 
       const msg = String(e?.message || '');
       if (RC_NOT_CONFIGURED_RE.test(msg) && purchaseRetryRef.current < 1) {

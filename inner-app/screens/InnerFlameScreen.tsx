@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { usePostHog } from 'posthog-react-native';
 import {
   View,
   Text,
@@ -51,6 +52,8 @@ export default function InnerFlameScreen({ navigation }: InnerFlameScreenProps) 
 
   const { intentions } = useIntention();
 
+  const posthog = usePostHog();
+
   const emberTint =
     (intentions && intentions.length > 0 && INTENTION_AURA[intentions[0]]) ||
     DEFAULT_AURA;
@@ -72,9 +75,15 @@ export default function InnerFlameScreen({ navigation }: InnerFlameScreenProps) 
   const hasLoggedPracticeRef = useRef(false);
   const exerciseStartRef = useRef<number | null>(null);
 
+  const ritualStartedTrackedRef = useRef(false);
+
   const logRitualCompletionOnce = () => {
     if (hasLoggedPracticeRef.current) return;
     hasLoggedPracticeRef.current = true;
+    posthog.capture('daily_ritual_completed', {
+      ritual_id: 'inner_flame',
+      completion_type: 'completed',
+    });
     try {
       registerPracticeActivity('ritual');
     } catch (e) {
@@ -342,6 +351,13 @@ export default function InnerFlameScreen({ navigation }: InnerFlameScreenProps) 
     ]).start();
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (!ritualStartedTrackedRef.current) {
+      posthog.capture('daily_ritual_started', {
+        ritual_id: 'inner_flame',
+        entry_point: 'daily_ritual_screen',
+      });
+      ritualStartedTrackedRef.current = true;
+    }
 
     try {
       // Stop preroll if it is still playing
@@ -390,12 +406,40 @@ export default function InnerFlameScreen({ navigation }: InnerFlameScreenProps) 
 
   const handleReturn = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (!ritualStartedTrackedRef.current) {
+      posthog.capture('daily_ritual_started', {
+        ritual_id: 'inner_flame',
+        entry_point: 'daily_ritual_screen',
+      });
+      ritualStartedTrackedRef.current = true;
+    }
 
     // Early completion credit if user has been in the exercise long enough
     if (exerciseStartRef.current) {
       const elapsed = Date.now() - exerciseStartRef.current;
       if (elapsed >= INNER_FLAME_EARLY_COMPLETE_MS) {
-        logRitualCompletionOnce();
+        if (!hasLoggedPracticeRef.current) {
+          hasLoggedPracticeRef.current = true;
+          posthog.capture('daily_ritual_completed', {
+            ritual_id: 'inner_flame',
+            completion_type: 'early_exit_credit',
+          });
+          try {
+            registerPracticeActivity('ritual');
+          } catch (e) {
+            console.log('[INNER FLAME] streak log error', e);
+          }
+          try {
+            saveThreadSignature({
+              type: 'ritual',
+              id: 'innerFlame',
+              mood: 'activated',
+              timestamp: Date.now(),
+            });
+          } catch (e) {
+            console.log('[INNER FLAME] thread save error', e);
+          }
+        }
       }
     }
 

@@ -6,6 +6,7 @@ import {
   markDailyMicroRitualComplete,
   getLastDailyEmotion,
 } from '../core/DailyRitual';
+import { usePostHog } from 'posthog-react-native';
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
 const isTablet = Math.min(SCREEN_HEIGHT, SCREEN_WIDTH) > 600;
@@ -44,6 +45,8 @@ const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 export default function DailyRitualScreen({ navigation }: any) {
   const [selected, setSelected] = useState<Emotion | null>(null);
   const [lastEmotion, setLastEmotion] = useState<Emotion | null>(null);
+
+  const posthog = usePostHog();
 
   // Breathing orb scale
   const orbScale = useRef(new Animated.Value(0.96)).current;
@@ -183,6 +186,11 @@ export default function DailyRitualScreen({ navigation }: any) {
   };
 
   const handleContinue = async () => {
+    posthog.capture('daily_ritual_started', {
+      emotion_selected: selected ?? 'skipped',
+      previous_emotion: lastEmotion ?? 'unknown',
+    });
+
     // Mark today as complete and remember the selected emotion (if any)
     await markDailyMicroRitualComplete(selected || undefined);
 

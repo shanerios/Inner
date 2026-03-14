@@ -36,6 +36,7 @@ import * as Sentry from '@sentry/react-native';
 import { Button } from 'react-native';
 
 import { useBreath } from '../core/BreathProvider';
+import { usePostHog } from 'posthog-react-native';
 import { Body as _Body, Typography as _Typography, Typography } from '../core/typography';
 import { useLunarWhisper } from '../hooks/useLunarWhisper';
 import { useThreadSuggestion } from '../hooks/useThreadSuggestion';
@@ -608,6 +609,7 @@ export default function HomeScreen({ navigation, route }: any) {
   const portalScale = useRef(new Animated.Value(1)).current;
   // Shared breath (0 → exhale, 1 → inhale)
   const breath = useBreath();
+  const posthog = usePostHog();
 
   // Orb breath scale driven by shared breath
   const orbScale = breath.interpolate({ inputRange: [0, 1], outputRange: [0.98, 1.15] });
@@ -753,6 +755,10 @@ const triggerQuickCalm = React.useCallback(async () => {
   ];
   const choice = lines[Math.floor(Math.random() * lines.length)] || 'One breath.';
   setQuickCalmLine(choice);
+  posthog.capture('quick_calm_started', {
+    line: choice,
+    source: 'home_orb_double_tap',
+  });
 
   quickCalmOverlayOpacity.setValue(0);
   quickCalmTextOpacity.setValue(0);
@@ -855,6 +861,7 @@ try {
   quickCalmTranslateY,
   quickCalmOrbScale,
   setEmberState,
+  posthog,
 ]);
 
 const isFocused = useIsFocused();

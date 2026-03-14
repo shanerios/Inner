@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useCallback, useState } from 'react';
+import { usePostHog } from 'posthog-react-native';
 import Purchases, { CustomerInfo } from 'react-native-purchases';
 import { ImageBackground, StyleSheet, View, Text, Pressable, Animated, Easing, FlatList, Dimensions, Modal, Image, Platform } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
@@ -185,6 +186,7 @@ export default function ChambersScreen() {
   }, []);
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
+  const posthog = usePostHog();
 
   const bgPlayer = useVideoPlayer(require('../assets/images/chambers_screen.mp4'), player => {
     player.loop = true;
@@ -387,6 +389,14 @@ export default function ChambersScreen() {
       openGate(title ?? 'This Chamber');
       return;
     }
+
+    // PostHog analytics: track intentional chamber open
+    posthog.capture('chamber_opened', {
+      chamber_id: trackId,
+      chamber_title: title ?? trackId,
+      is_premium: isPremiumChamber(trackId),
+      has_subscription: hasContinuing,
+    });
 
     // gentle haptic
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});

@@ -18,6 +18,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useIntention } from '../core/IntentionProvider';
 import { registerPracticeActivity } from '../core/DailyRitual';
 import { saveThreadSignature } from '../src/core/threading/ThreadEngine';
+import { usePostHog } from 'posthog-react-native';
 
 type PointZeroScreenProps = {
   navigation: any;
@@ -40,6 +41,7 @@ const DEFAULT_AURA = '#5B4BFF';
 
 export default function PointZeroScreen({ navigation }: PointZeroScreenProps) {
   const { intentions } = useIntention();
+  const posthog = usePostHog();
 
   const accentColor =
     (intentions && intentions.length > 0 && INTENTION_AURA[intentions[0]]) ||
@@ -57,6 +59,7 @@ export default function PointZeroScreen({ navigation }: PointZeroScreenProps) {
 
   const hasLoggedPracticeRef = useRef(false);
   const exerciseStartRef = useRef<number | null>(null);
+  const ritualStartedTrackedRef = useRef(false);
 
   const expoSoundRef = useRef<Audio.Sound | null>(null);
 
@@ -108,13 +111,15 @@ export default function PointZeroScreen({ navigation }: PointZeroScreenProps) {
   const logRitualCompletionOnce = () => {
     if (hasLoggedPracticeRef.current) return;
     hasLoggedPracticeRef.current = true;
-
+    posthog.capture('daily_ritual_completed', {
+      ritual_id: 'point_zero',
+      completion_type: 'completed',
+    });
     try {
       registerPracticeActivity('ritual');
     } catch (e) {
       console.log('[Point 0] streak log error', e);
     }
-
     // Journey Threading v1: record this ritual as the last completed step
     try {
       saveThreadSignature({
@@ -340,11 +345,39 @@ export default function PointZeroScreen({ navigation }: PointZeroScreenProps) {
 
   const handleDone = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (!ritualStartedTrackedRef.current) {
+      posthog.capture('daily_ritual_started', {
+        ritual_id: 'point_zero',
+        entry_point: 'daily_ritual_screen',
+      });
+      ritualStartedTrackedRef.current = true;
+    }
     // If the user has been in the exercise long enough, count it as a completed ritual
     if (exerciseStartRef.current) {
       const elapsed = Date.now() - exerciseStartRef.current;
       if (elapsed >= POINT_ZERO_EARLY_COMPLETE_MS) {
-        logRitualCompletionOnce();
+        if (!hasLoggedPracticeRef.current) {
+          hasLoggedPracticeRef.current = true;
+          posthog.capture('daily_ritual_completed', {
+            ritual_id: 'point_zero',
+            completion_type: 'early_exit_credit',
+          });
+          try {
+            registerPracticeActivity('ritual');
+          } catch (e) {
+            console.log('[Point 0] streak log error', e);
+          }
+          try {
+            saveThreadSignature({
+              type: 'ritual',
+              id: 'pointZero',
+              mood: 'grounded',
+              timestamp: Date.now(),
+            });
+          } catch (e) {
+            console.log('[Point 0] thread save error', e);
+          }
+        }
       }
     }
     try {
@@ -358,6 +391,13 @@ export default function PointZeroScreen({ navigation }: PointZeroScreenProps) {
 
   const handleStartExercise = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (!ritualStartedTrackedRef.current) {
+      posthog.capture('daily_ritual_started', {
+        ritual_id: 'point_zero',
+        entry_point: 'daily_ritual_screen',
+      });
+      ritualStartedTrackedRef.current = true;
+    }
     try {
       console.log('[Point 0] Start exercise pressed');
 

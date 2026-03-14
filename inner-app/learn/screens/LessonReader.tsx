@@ -13,6 +13,7 @@ import { Typography } from '../../core/typography';
 import { registerPracticeActivity } from '../../core/DailyRitual';
 import { saveThreadSignature } from '../../src/core/threading/ThreadEngine';
 import { ThreadTier } from '../../src/core/threading/threadTypes';
+import { usePostHog } from 'posthog-react-native';
 
 function clamp01(n: number) { return Math.max(0, Math.min(1, n)); }
 function debounce<T extends (...args: any[]) => void>(fn: T, ms = 300) {
@@ -58,9 +59,13 @@ export default function LessonReader() {
   const navigation = useNavigation();
   const { trackId, lessonId } = route.params ?? { trackId: 'lucid', lessonId: 'unknown' };
 
+  const posthog = usePostHog();
+
   const [content, setContent] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [headerTitle, setHeaderTitle] = useState<string>(toTitle(lessonId));
+  const lessonOpenedTrackedRef = useRef(false);
+  const lessonCompletedTrackedRef = useRef(false);
 
   useEffect(() => {
     // Ensure progress map is hydrated (e.g., if user deep-links into Reader first)
@@ -132,6 +137,25 @@ export default function LessonReader() {
     };
   }, [trackId, lessonId]);
 
+  // Track lesson open once per lesson view
+  useEffect(() => {
+    if (lessonOpenedTrackedRef.current) return;
+    posthog.capture('lesson_opened', {
+      track_id: trackId,
+      lesson_id: lessonId,
+      lesson_title: headerTitle,
+    });
+    lessonOpenedTrackedRef.current = true;
+  }, [posthog, trackId, lessonId, headerTitle]);
+
+  // Reset tracking refs when lesson changes
+  useEffect(() => {
+    lessonOpenedTrackedRef.current = false;
+    lessonCompletedTrackedRef.current = false;
+    hasLoggedPracticeRef.current = false;
+    hasCelebratedRef.current = false;
+  }, [trackId, lessonId]);
+
   // --- Reading progress tracking ---
   const [scrollH, setScrollH] = useState(1);
   const [offsetY, setOffsetY] = useState(0);
@@ -176,6 +200,16 @@ export default function LessonReader() {
       // ignore persistence errors
     }
     if (!hasLoggedPracticeRef.current && final >= 0.85) {
+      // --- PostHog analytics for lesson completion ---
+      if (!lessonCompletedTrackedRef.current) {
+        posthog.capture('lesson_completed', {
+          track_id: trackId,
+          lesson_id: lessonId,
+          lesson_title: headerTitle,
+          progress: clamp01(final),
+        });
+        lessonCompletedTrackedRef.current = true;
+      }
       hasLoggedPracticeRef.current = true;
       try {
         registerPracticeActivity('lesson');

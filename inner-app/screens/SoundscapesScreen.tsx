@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState, useRef } from 'react';
+import { usePostHog } from 'posthog-react-native';
 import { StyleSheet, View, Text, Pressable, ScrollView, Dimensions, Animated, Easing, TextInput, Alert, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -41,11 +42,13 @@ function SoundscapeRow({
   navigation,
   isLocked,
   onLockedPress,
+  onStart,
 }: {
   item: any;
   navigation: any;
   isLocked?: boolean;
   onLockedPress?: (item: any) => void;
+  onStart?: (item: any) => void;
 }) {
   const { isCached, isWorking, progress, download, remove, canDownload } = useOfflineAsset(item?.id, 'soundscape');
 
@@ -103,6 +106,8 @@ function SoundscapeRow({
             onLockedPress?.(item);
             return;
           }
+
+          onStart?.(item);
 
           try {
             await setLastSession({ type: 'soundscape', id: item.id });
@@ -240,6 +245,7 @@ function SoundscapeRow({
 export default function SoundscapesScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
+  const posthog = usePostHog();
 
   const bgPlayer = useVideoPlayer(require('../assets/images/soundscapes_screen.mp4'), player => {
     player.loop = true;
@@ -312,6 +318,19 @@ export default function SoundscapesScreen() {
       openPaywall();
     },
     [openPaywall]
+  );
+
+  const handleSoundscapeStart = React.useCallback(
+    (item: any) => {
+      posthog.capture('soundscape_started', {
+        soundscape_id: item.id,
+        soundscape_title: item.title ?? item.id,
+        category: item.category ?? 'unknown',
+        is_premium: !!item.isPremium || item.category === 'deeper',
+        has_subscription: hasContinuing,
+      });
+    },
+    [posthog, hasContinuing]
   );
 
   // Persistent gesture hint (left-swipe on title)
@@ -697,6 +716,7 @@ export default function SoundscapesScreen() {
                         navigation={navigation}
                         isLocked={isLocked}
                         onLockedPress={handleLockedPress}
+                        onStart={handleSoundscapeStart}
                       />
                     </View>
                   );

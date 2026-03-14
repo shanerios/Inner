@@ -15,6 +15,7 @@ import * as Haptics from 'expo-haptics';
 import { useIntention } from '../core/IntentionProvider';
 import { registerPracticeActivity } from '../core/DailyRitual';
 import { saveThreadSignature } from '../src/core/threading/ThreadEngine';
+import { usePostHog } from 'posthog-react-native';
 
 const CLEAN_SLATE_PREROLL_DONE = 'inner_clean_slate_preroll_done_v2';
 const CLEAN_SLATE_PREROLL_MS = 28000;  // ~28s micro prelude
@@ -34,6 +35,7 @@ const DEFAULT_AURA = '#6C63FF';
 
 export default function CleanSlateScreen({ navigation }: any) {
   const { intentions } = useIntention();
+  const posthog = usePostHog();
 
   const accentColor =
     (intentions && intentions.length > 0 && INTENTION_AURA[intentions[0]]) ||
@@ -56,10 +58,15 @@ export default function CleanSlateScreen({ navigation }: any) {
 
   const hasLoggedPracticeRef = useRef(false);
   const exerciseStartRef = useRef<number | null>(null);
+  const ritualStartedTrackedRef = useRef(false);
 
   const logRitualCompletionOnce = () => {
     if (hasLoggedPracticeRef.current) return;
     hasLoggedPracticeRef.current = true;
+    posthog.capture('daily_ritual_completed', {
+      ritual_id: 'clean_slate',
+      completion_type: 'completed',
+    });
     try {
       registerPracticeActivity('ritual');
     } catch (e) {
@@ -239,6 +246,13 @@ export default function CleanSlateScreen({ navigation }: any) {
   // -----------------------------
   const handleBegin = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (!ritualStartedTrackedRef.current) {
+      posthog.capture('daily_ritual_started', {
+        ritual_id: 'clean_slate',
+        entry_point: 'daily_ritual_screen',
+      });
+      ritualStartedTrackedRef.current = true;
+    }
 
     // Fade UI
     Animated.timing(uiOpacity, {
@@ -293,12 +307,40 @@ export default function CleanSlateScreen({ navigation }: any) {
 
   const handleDone = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (!ritualStartedTrackedRef.current) {
+      posthog.capture('daily_ritual_started', {
+        ritual_id: 'clean_slate',
+        entry_point: 'daily_ritual_screen',
+      });
+      ritualStartedTrackedRef.current = true;
+    }
 
     // early completion credit
     if (exerciseStartRef.current) {
       const elapsed = Date.now() - exerciseStartRef.current;
       if (elapsed >= CLEAN_SLATE_EARLY_COMPLETE_MS) {
-        logRitualCompletionOnce();
+        if (!hasLoggedPracticeRef.current) {
+          hasLoggedPracticeRef.current = true;
+          posthog.capture('daily_ritual_completed', {
+            ritual_id: 'clean_slate',
+            completion_type: 'early_exit_credit',
+          });
+          try {
+            registerPracticeActivity('ritual');
+          } catch (e) {
+            console.log('[Clean Slate] streak log error', e);
+          }
+          try {
+            saveThreadSignature({
+              type: 'ritual',
+              id: 'cleanSlate',
+              mood: 'reflective',
+              timestamp: Date.now(),
+            });
+          } catch (e) {
+            console.log('[Clean Slate] thread save error', e);
+          }
+        }
       }
     }
 

@@ -60,7 +60,8 @@
           "project": "react-native",
           "organization": "kolor-design-llc"
         }
-      ]
+      ],
+      "expo-localization"
     ],
     "web": {
       "favicon": "./assets/favicon.png"

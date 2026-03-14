@@ -26,6 +26,7 @@ import { isLockedTrack } from '../src/core/subscriptions/accessPolicy';
 import { safePresentPaywall } from '../src/core/subscriptions/safePresentPaywall';
 
 import { useSleepTimer } from '../hooks/useSleepTimer';
+import { usePostHog } from 'posthog-react-native';
 
 type RouteParams = { id?: string; chamber?: string; trackId?: string };
 
@@ -54,6 +55,7 @@ const DEBUG_OVERLAY = false; // set to true only when debugging
 export default function JourneyPlayer() {
   const route = useRoute();
   const navigation = useNavigation();
+  const posthog = usePostHog();
   const { id: legacyId, chamber = 'Chamber 1', trackId } = (route.params || {}) as RouteParams;
   const meta = (legacyId && TRACK_INDEX ? TRACK_INDEX[legacyId] : undefined);
 
@@ -1026,43 +1028,50 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
                   if (!isSoundscape && !tpCompletedRef.current) {
                     const dMs = durationRef.current || Math.floor(dur * 1000);
                     const pMs = Math.floor(pos * 1000);
-                    if (shouldMarkComplete(pMs, dMs)) {
-                      tpCompletedRef.current = true;
-                      try {
-                        await TrackPlayer.pause();
-                        await TrackPlayer.seekTo(0);
-                      } catch {}
-                      setIsPlaying(false);
-                      setPosition(0);
-                      try { await savePosition(0); } catch {}
-                      showCompletionBanner();
-                      const chamberId = selectedTrack?.id || legacyId || 'default';
+                      if (shouldMarkComplete(pMs, dMs)) {
+                        tpCompletedRef.current = true;
+                        try {
+                          await TrackPlayer.pause();
+                          await TrackPlayer.seekTo(0);
+                        } catch {}
+                        setIsPlaying(false);
+                        setPosition(0);
+                        try { await savePosition(0); } catch {}
+                        showCompletionBanner();
+                        const chamberId = selectedTrack?.id || legacyId || 'default';
 
-                      // Mark chamber complete (existing behavior)
-                      try {
-                        markCompleted(chamberId);
-                      } catch {}
-
-                      // ThresholdEngine now handles queuing a structured payload for HomeScreen
-                      try {
-                        await maybeQueueThreshold({ event: { type: 'chamber_complete', chamberId } });
-                      } catch (e) {
-                        console.log('[Threshold] chamber threshold error', e);
-                      }
-
-                      // Journey Threading v1: record this chamber as the last completed step
-                      try {
-                        const mood = inferChamberMood(chamberId);
-                        await saveThreadSignature({
-                          type: 'chamber',
-                          id: chamberId,
-                          mood,
-                          timestamp: Date.now(),
+                        // PostHog: Track chamber completion
+                        posthog.capture('chamber_completed', {
+                          chamber_id: chamberId,
+                          duration_ms: dMs,
+                          listened_ms: pMs,
                         });
-                      } catch (e) {
-                        console.log('[Threading] chamber thread save error', e);
+
+                        // Mark chamber complete (existing behavior)
+                        try {
+                          markCompleted(chamberId);
+                        } catch {}
+
+                        // ThresholdEngine now handles queuing a structured payload for HomeScreen
+                        try {
+                          await maybeQueueThreshold({ event: { type: 'chamber_complete', chamberId } });
+                        } catch (e) {
+                          console.log('[Threshold] chamber threshold error', e);
+                        }
+
+                        // Journey Threading v1: record this chamber as the last completed step
+                        try {
+                          const mood = inferChamberMood(chamberId);
+                          await saveThreadSignature({
+                            type: 'chamber',
+                            id: chamberId,
+                            mood,
+                            timestamp: Date.now(),
+                          });
+                        } catch (e) {
+                          console.log('[Threading] chamber thread save error', e);
+                        }
                       }
-                    }
                   }
                 } catch {}
               } catch (e) {
@@ -1165,6 +1174,23 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
       const pos = await TrackPlayer.getPosition();
       const posMs = Math.floor(pos * 1000);
       await savePosition(posMs);
+
+      // PostHog: Track chamber abandonment only for Chambers, not Soundscapes
+      const chamberId = selectedTrack?.id || legacyId || 'default';
+      if (!isSoundscape) {
+        try {
+          const dur = (await TrackPlayer.getDuration()) || 0;
+          const durMs = Math.floor(dur * 1000);
+          if (durMs > 0 && posMs < durMs * 0.9) {
+            posthog.capture('chamber_abandoned', {
+              chamber_id: chamberId,
+              listened_ms: posMs,
+              duration_ms: durMs,
+            });
+          }
+        } catch {}
+      }
+
       // Save snapshot
       try {
         const dur = (await TrackPlayer.getDuration()) || 0;
