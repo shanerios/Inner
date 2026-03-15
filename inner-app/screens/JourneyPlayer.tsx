@@ -38,6 +38,8 @@ const RING_NORM_OPACITY = 0.7;
 const RING_FLASH_MS = 120;
 const SOUNDSCAPE_DEFAULT_MS = 60 * 60 * 1000; // 60 min default for long-form beds
 
+const CHAMBER_COMPLETION_THRESHOLD = 0.85; // count chamber complete at 85% listened
+
 // Near-gapless loop tuning (Option B)
 const TIGHT_LOOP_MARGIN_MS = 260;   // pre-empt earlier to avoid EOF
 const TIGHT_LOOP_ARM_MS = 3000;     // arm earlier for safety on slower devices
@@ -431,21 +433,21 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
   const [ringStrokeBoost, setRingStrokeBoost] = useState(false);
 
   const [isPrimed, setIsPrimed] = useState(false);
+  const isPrimedRef = useRef(false);
   const startedAtRef = useRef<number>(0); // timestamp when playback actually advances (>0 position)
   const suppressCompleteRef = useRef<boolean>(true); // block early complete until real start
 
   // Guarded completion predicate – avoids false "complete" when no real playback occurred
   const shouldMarkComplete = useCallback((posMs: number, durMs: number) => {
-    // must have known duration, advanced position, primed playback, and not suppressed
-    if (!isPrimed) return false;
-    if (suppressCompleteRef.current) return false;
-    if (!durMs || durMs <= 1500) return false;
-    if (!posMs || posMs <= 0) return false;
-    const startedForMs = startedAtRef.current ? (Date.now() - startedAtRef.current) : 0;
-    if (startedForMs <= 1500) return false;
-    // within last ~0.8s of the track counts as completion
-    return posMs >= (durMs - 800);
-  }, [isPrimed]);
+  // must have known duration, advanced position, primed playback, and not suppressed
+  if (!isPrimedRef.current) return false;
+  if (suppressCompleteRef.current) return false;
+  if (!durMs || durMs <= 1500) return false;
+  if (!posMs || posMs <= 0) return false;
+  const startedForMs = startedAtRef.current ? (Date.now() - startedAtRef.current) : 0;
+  if (startedForMs <= 1500) return false;
+  return (posMs / durMs) >= CHAMBER_COMPLETION_THRESHOLD;
+}, []);
   const veilOpacity = useRef(new Animated.Value(1)).current;
 
   const closeOpacity = useRef(new Animated.Value(0)).current;
@@ -695,6 +697,18 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
     } catch {}
   };
 
+  // Helper: sanitize resume position so reopening a completed Chamber never resumes near the end.
+  const sanitizeResumePosition = useCallback((resumeMs: number, durMs: number, isSoundscapeTrack: boolean) => {
+    if (!resumeMs || resumeMs <= 0) return 0;
+
+    // Soundscapes are ambient and should continue resuming normally.
+    if (isSoundscapeTrack) return resumeMs;
+
+    // Chambers should always reopen from the beginning.
+    // This avoids stale near-end resume states that can leave TrackPlayer stuck in ended/warming.
+    return 0;
+  }, []);
+
   // Configure audio + load track
   useEffect(() => {
     let mounted = true;
@@ -714,6 +728,7 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
       setDuration(0);
       durationRef.current = 0;
       setIsPrimed(false);
+      isPrimedRef.current = false;
       veilOpacity.setValue(1);
       setRingOpacity(RING_NORM_OPACITY);
       setEngineLabel('TP');
@@ -854,13 +869,19 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
             }
 
 
-            // Resume position if present
+            // Resume position if present, but never reopen Chambers at/after the completion threshold.
             try {
-              const resumeAt = await loadResume();
+              const resumeAtRaw = await loadResume();
+              const resumeAt = sanitizeResumePosition(resumeAtRaw, 0, isSoundscape);
+              if (resumeAtRaw > 0 && resumeAt === 0) {
+                try { await savePosition(0); } catch {}
+              }
               if (resumeAt > 0) {
                 console.log('[TP] seekTo()', resumeAt / 1000);
                 await TrackPlayer.seekTo((resumeAt || 0) / 1000);
                 setPosition(resumeAt);
+              } else {
+                setPosition(0);
               }
             } catch (e) {
               console.log('[TP] seekTo error', e);
@@ -922,8 +943,9 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
             }
 
             // Mark UI as primed now that playback started (TrackPlayer path)
-            if (!isPrimed) {
+            if (!isPrimedRef.current) {
               setIsPrimed(true);
+              isPrimedRef.current = true;
               startedAtRef.current = Date.now();
               suppressCompleteRef.current = false;
               try { Animated.timing(veilOpacity, { toValue: 0, duration: 300, useNativeDriver: true }).start(); } catch {}
@@ -1006,14 +1028,30 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
                   }
                 }
 
-                if (!isPrimed && pos > 0) {
+                if (!isPrimedRef.current && pos > 0) {
                   setIsPrimed(true);
+                  isPrimedRef.current = true;
+                  startedAtRef.current = Date.now();
+                  suppressCompleteRef.current = false;
                   try { Animated.timing(veilOpacity, { toValue: 0, duration: 300, useNativeDriver: true }).start(); } catch {}
                   setRingOpacity(RING_NORM_OPACITY);
-                }
+                 }
                 if (dur && dur !== durationRef.current) {
                   durationRef.current = Math.floor(dur * 1000);
                   setDuration(durationRef.current);
+
+                  // If a Chamber reopened with a stale near-end saved position before duration was known,
+                  // snap it back to the start and clear the saved resume state.
+                  if (!isSoundscape) {
+                    const safePos = sanitizeResumePosition(position, durationRef.current, false);
+                    if (position > 0 && safePos === 0) {
+                      try {
+                        await TrackPlayer.seekTo(0);
+                        setPosition(0);
+                        await savePosition(0);
+                      } catch {}
+                    }
+                  }
                 }
                 try {
                   saveNow({
@@ -1045,6 +1083,8 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
                           chamber_id: chamberId,
                           duration_ms: dMs,
                           listened_ms: pMs,
+                          completion_ratio: dMs > 0 ? Number((pMs / dMs).toFixed(3)) : 0,
+                          completion_threshold: CHAMBER_COMPLETION_THRESHOLD,
                         });
 
                         // Mark chamber complete (existing behavior)
@@ -1109,6 +1149,7 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
       // Clear TrackPlayer poller if set
       if ((saveNow as any).__tpInt) { clearInterval((saveNow as any).__tpInt); (saveNow as any).__tpInt = null; }
       setIsPrimed(false);
+      isPrimedRef.current = false;
       veilOpacity.setValue(1);
       setRingOpacity(RING_NORM_OPACITY);
       // No expo-av cleanup needed
@@ -1119,7 +1160,7 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
       try { (saveNow as any).__tpEndSub?.remove?.(); (saveNow as any).__tpEndSub = null; } catch {}
       presentingGateRef.current = false;
     };
-  }, [selectedTrack?.id, legacyId]);
+  }, [selectedTrack?.id, legacyId, isSoundscape]);
 
   // Periodically persist position
   useEffect(() => {
@@ -1135,7 +1176,7 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
     try {
       const durWarm = durationRef.current || (await TrackPlayer.getDuration()) || 0;
       const stWarm = await TrackPlayer.getState();
-      if (durWarm <= 0 || !isPrimed || stWarm === State.Buffering) {
+      if (durWarm <= 0 || !isPrimedRef.current || stWarm === State.Buffering) {
         try { await TrackPlayer.play(); } catch {}
         setIsPlaying(true);
         return;
@@ -1181,11 +1222,12 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
         try {
           const dur = (await TrackPlayer.getDuration()) || 0;
           const durMs = Math.floor(dur * 1000);
-          if (durMs > 0 && posMs < durMs * 0.9) {
+          if (durMs > 0 && posMs < durMs * CHAMBER_COMPLETION_THRESHOLD) {
             posthog.capture('chamber_abandoned', {
               chamber_id: chamberId,
               listened_ms: posMs,
               duration_ms: durMs,
+              completion_threshold: CHAMBER_COMPLETION_THRESHOLD,
             });
           }
         } catch {}
