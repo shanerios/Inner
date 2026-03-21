@@ -129,28 +129,30 @@
       justify-content: center;
       gap: 8px;
       padding: 12px 20px;
-      border: 1px solid rgba(161, 140, 255, 0.35);
+      border: 1px solid rgba(161, 140, 255, 0.26);
       border-radius: 6px;
-      background: rgba(161, 140, 255, 0.18);
+      background: linear-gradient(135deg, rgba(154, 134, 245, 0.42), rgba(122, 109, 224, 0.34));
       color: white;
       font-size: 1rem;
       font-weight: 600;
-      box-shadow: 0 0 14px rgba(161, 140, 255, 0.14);
+      box-shadow: 0 4px 14px rgba(161, 140, 255, 0.22);
       backdrop-filter: blur(8px);
       text-decoration: none;
       cursor: pointer;
-      transition: background-color 0.25s ease, transform 0.25s ease;
+      transition: background 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease;
       min-width: 190px;
       box-sizing: border-box;
     }
     .store-btn img {
       width: 16px;
       height: 16px;
-      opacity: 0.9;
+      opacity: 0.78;
       transform: translateY(-1px);
     }
     .store-btn:hover {
-      background: linear-gradient(135deg, #B7A6FF, #8F82FF);
+      background: linear-gradient(135deg, rgba(168, 150, 249, 0.5), rgba(137, 124, 232, 0.42));
+      border-color: rgba(183, 166, 255, 0.34);
+      box-shadow: 0 6px 18px rgba(161, 140, 255, 0.26);
       transform: translateY(-1px);
     }
     .app-store-row {
