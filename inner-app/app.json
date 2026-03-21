@@ -17,7 +17,7 @@
       "supportsTablet": true,
       "requireFullScreen": true,
       "bundleIdentifier": "com.getinner.app",
-      "buildNumber": "2042",
+      "buildNumber": "2043",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "UIBackgroundModes": [

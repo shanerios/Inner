@@ -120,6 +120,37 @@
       background-color: #c0badd;
     }
 
+    .store-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 12px 20px;
+      border: none;
+      border-radius: 6px;
+      background-color: #908c9f;
+      color: white;
+      font-size: 1rem;
+      text-decoration: none;
+      cursor: pointer;
+      transition: background-color 0.25s ease, transform 0.25s ease;
+      min-width: 190px;
+      box-sizing: border-box;
+    }
+    .store-btn:hover {
+      background-color: #c0badd;
+      transform: translateY(-1px);
+    }
+    .app-store-row {
+      margin-top: 16px;
+    }
+    .secondary-row {
+      margin-top: 10px;
+    }
+    .hero-availability {
+      margin: 10px auto 0 auto;
+      font-size: 0.95rem;
+    }
+
     /* --- Scroll Experience Layout --- */
     .section {
       width: 100%;
@@ -544,7 +575,7 @@
       <a href="#how">How</a>
       <a href="#chambers">Chambers</a>
       <a href="#trust">Trust</a>
-      <a href="#join">Join</a>
+      <a href="#join">Download</a>
     </nav>
   </header>
 
@@ -556,11 +587,15 @@
       </div>
       <img src="wordmark.svg" alt="Inner Wordmark" class="wordmark" />
       <h1>Beneath the veil, <span style="color:#A18CFF;">something awakens.</span></h1>
-      <p class="lead">A guided audio experience for deep rest, lucid awareness, and inner exploration — built like a ritual, not a feed.</p>
+            <p class="lead">A guided audio experience for deep rest, lucid awareness, and inner exploration — built like a ritual, not a feed.</p>
+            <p class="subtle hero-availability">Now available on iOS and Android.</p>
 
-      <div class="cta-row">
+      <div class="cta-row app-store-row">
+        <a class="store-btn" href="https://apps.apple.com/us/app/inner-official/id6755213270" target="_blank" rel="noopener noreferrer" aria-label="Download Inner on the App Store">Download on iOS</a>
+        <a class="store-btn" href="https://play.google.com/store/apps/details?id=com.getinner.app" target="_blank" rel="noopener noreferrer" aria-label="Get Inner on Google Play">Get it on Android</a>
+      </div>
+      <div class="cta-row secondary-row">
         <button type="button" class="ghost" onclick="document.querySelector('#what').scrollIntoView({behavior:'smooth'})">What is Inner?</button>
-        <button type="button" onclick="document.querySelector('#join').scrollIntoView({behavior:'smooth'})">Join the waitlist</button>
       </div>
 
       <div class="veil-line" aria-hidden="true"></div>
@@ -626,7 +661,7 @@
     <div class="container reveal">
       <p class="kicker">Chambers</p>
       <h3 class="center" style="margin-top:0;">A nine‑chamber arc. Each one a different room.</h3>
-      <p class="center" style="max-width:740px;">Start with the first three. Return as often as needed. Deeper chambers unlock on <span style="color:#A18CFF; font-weight:700;">March 3, 2026</span>.</p>
+            <p class="center" style="max-width:740px;">Begin with the first three Chambers. Return as often as needed. New chambers will continue to open over time.</p>
 
       <section class="chambers-preview" aria-label="Chambers Preview">
         <article class="chamber-card" role="article" aria-label="Outer Sanctum">
@@ -691,20 +726,19 @@
   </section>
 
   <!-- JOIN -->
-  <section id="join" class="section" aria-label="Join the waitlist">
+    <section id="join" class="section" aria-label="Download Inner">
     <div class="container center reveal">
-      <p class="kicker">Invitation</p>
+      <p class="kicker">Download</p>
       <div class="panel">
         <h3 style="margin-top:0;">Enter when you’re ready.</h3>
-        <p style="max-width:740px; margin:0 auto 18px auto;">Join the waitlist for updates, new Chamber drops, and early access.</p>
+        <p style="max-width:740px; margin:0 auto 18px auto;">Inner is now available on both platforms.</p>
 
-        <form action="https://formsubmit.co/3dc4842116379509a3ba0bc4ccb46e00" method="POST">
-          <input type="hidden" name="_next" value="https://getinner.app/thankyou.html" />
-          <input type="email" name="email" placeholder="Enter your email" required />
-          <button type="submit">Join the waitlist</button>
-        </form>
+        <div class="cta-row app-store-row">
+          <a class="store-btn" href="https://apps.apple.com/us/app/inner-official/id6755213270" target="_blank" rel="noopener noreferrer" aria-label="Download Inner on the App Store">Download on iOS</a>
+          <a class="store-btn" href="https://play.google.com/store/apps/details?id=com.getinner.app" target="_blank" rel="noopener noreferrer" aria-label="Get Inner on Google Play">Get it on Android</a>
+        </div>
 
-        <p class="subtle" style="margin:0 auto; max-width:740px;">We’ll keep it rare and meaningful. No spam.</p>
+        <p class="subtle" style="margin:18px auto 0 auto; max-width:740px;">Free to enter. Deeper paths available.</p>
       </div>
 
       <div class="veil-line" aria-hidden="true" style="margin-top:34px;"></div>
