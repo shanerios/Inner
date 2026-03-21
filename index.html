@@ -127,9 +127,11 @@
       padding: 12px 20px;
       border: none;
       border-radius: 6px;
-      background-color: #908c9f;
+      background: linear-gradient(135deg, #A18CFF, #7B6CFF);
       color: white;
       font-size: 1rem;
+      font-weight: 600;
+      box-shadow: 0 6px 20px rgba(161, 140, 255, 0.35);
       text-decoration: none;
       cursor: pointer;
       transition: background-color 0.25s ease, transform 0.25s ease;
@@ -137,17 +139,17 @@
       box-sizing: border-box;
     }
     .store-btn:hover {
-      background-color: #c0badd;
+      background: linear-gradient(135deg, #B7A6FF, #8F82FF);
       transform: translateY(-1px);
     }
     .app-store-row {
-      margin-top: 16px;
+      margin-top: 12px;
     }
     .secondary-row {
       margin-top: 10px;
     }
     .hero-availability {
-      margin: 10px auto 0 auto;
+      margin: 6px auto 0 auto;
       font-size: 0.95rem;
     }
 
@@ -571,9 +573,9 @@
       <img src="inner_orb.png" alt="Inner" />
     </div>
     <nav aria-label="Sections">
+      <a href="#chambers">Chambers</a>
       <a href="#what">What</a>
       <a href="#how">How</a>
-      <a href="#chambers">Chambers</a>
       <a href="#trust">Trust</a>
       <a href="#join">Download</a>
     </nav>
@@ -586,16 +588,14 @@
         <img src="inner_orb.png" alt="" />
       </div>
       <img src="wordmark.svg" alt="Inner Wordmark" class="wordmark" />
-      <h1>Beneath the veil, <br></r><span style="color:#A18CFF;">something in you awakens.</span></h1>
+      <h1>Beneath the veil, <br><span style="color:#A18CFF;">something in you awakens.</span></h1>
             <p class="lead">A guided audio experience for deep rest, lucid awareness, and inner exploration — built like a ritual, not a feed.</p>
             <p class="subtle hero-availability">Now available on iOS and Android.</p>
+            <p class="subtle" style="margin-top:6px;">Start with Chamber I — Outer Sanctum.</p>
 
       <div class="cta-row app-store-row">
         <a class="store-btn" href="https://apps.apple.com/us/app/inner-official/id6755213270" target="_blank" rel="noopener noreferrer" aria-label="Download Inner on the App Store">Download on iOS</a>
         <a class="store-btn" href="https://play.google.com/store/apps/details?id=com.getinner.app" target="_blank" rel="noopener noreferrer" aria-label="Get Inner on Google Play">Get it on Android</a>
-      </div>
-      <div class="cta-row secondary-row">
-        <button type="button" class="ghost" onclick="document.querySelector('#what').scrollIntoView({behavior:'smooth'})">What is Inner?</button>
       </div>
 
       <div class="veil-line" aria-hidden="true"></div>
@@ -603,61 +603,8 @@
     </div>
   </section>
 
-  <!-- WHAT -->
-  <section id="what" class="section" aria-label="What is Inner">
-    <div class="container reveal">
-      <p class="kicker">What it is</p>
-      <div class="panel">
-        <h3 style="margin-top:0;">Inner is a guided audio environment for entering deeper states.</h3>
-        <p style="max-width:900px; margin:0 auto;">Inner blends psychoacoustic sound design, breath-guided ritual, and focused listening experiences to help you access calm, clarity, and non-ordinary awareness — safely and intentionally.</p>
-        <p class="subtle" style="max-width:900px; margin:14px auto 0 auto;"><em>Not to escape the world — but to meet yourself more clearly within it.</em></p>
-
-        <div class="grid" aria-label="What you can use it for">
-          <div class="feature">
-            <h4>Deep Rest</h4>
-            <p>Downshift the nervous system, slow the mind, and return to baseline — fast.</p>
-          </div>
-          <div class="feature">
-            <h4>Lucid Awareness</h4>
-            <p>Train stillness and presence in a way that carries into sleep, dreams, and daily life.</p>
-          </div>
-          <div class="feature">
-            <h4>Inner Exploration</h4>
-            <p>Use repetition to move from surface calm into depth — where insight tends to appear.</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- HOW -->
-  <section id="how" class="section" aria-label="How it works">
-    <div class="container reveal">
-      <p class="kicker">How it works</p>
-      <div class="split">
-        <div class="panel">
-          <h3 style="margin-top:0;">Three steps. One doorway.</h3>
-          <div class="stack" style="margin-top:14px;">
-            <div class="badge">1 — Choose a Chamber</div>
-            <p style="margin:0; max-width:none;">Each Chamber is a focused audio environment designed for a specific internal state.</p>
-            <div class="badge">2 — Listen & Breathe</div>
-            <p style="margin:0; max-width:none;">Spatial sound, rhythm, and guidance gently lead the body into coherence.</p>
-            <div class="badge">3 — Return Changed</div>
-            <p style="margin:0; max-width:none;">Calm. Clarity. Insight. Or simply deeper rest — without forcing anything.</p>
-          </div>
-        </div>
-        <div class="panel">
-          <h3 style="margin-top:0;">Designed for repetition.</h3>
-          <p style="margin:0; max-width:none;">Inner isn’t built for novelty. Many users return to the same Chamber until the experience changes.</p>
-          <div class="veil-line" aria-hidden="true" style="margin-top:16px;"></div>
-          <p class="subtle" style="margin:16px 0 0 0; max-width:none;">This is where depth comes from.</p>
-        </div>
-      </div>
-    </div>
-  </section>
-
   <!-- CHAMBERS PREVIEW -->
-  <section id="chambers" class="section" aria-label="Chambers preview">
+    <section id="chambers" class="section" aria-label="Chambers preview" style="padding-top: 48px;">
     <div class="container reveal">
       <p class="kicker">Chambers</p>
       <h3 class="center" style="margin-top:0;">A nine‑chamber arc. Each one a different room.</h3>
@@ -701,13 +648,68 @@
     </div>
   </section>
 
+  <!-- WHAT -->
+  <section id="what" class="section" aria-label="What is Inner">
+    <div class="container reveal">
+      <p class="kicker">What it is</p>
+      <div class="panel">
+        <h3 style="margin-top:0;">Inner is a guided audio environment for entering deeper states.</h3>
+        <p style="max-width:900px; margin:0 auto;">Inner blends psychoacoustic sound design, breath-guided ritual, and focused listening experiences to help you access calm, clarity, and non-ordinary awareness — safely and intentionally.</p>
+        <p class="subtle" style="max-width:900px; margin:14px auto 0 auto;"><em>Not to escape the world — but to meet yourself more clearly within it.</em></p>
+
+        <div class="grid" aria-label="What you can use it for">
+          <div class="feature">
+            <h4>Deep Rest</h4>
+            <p>Downshift the nervous system, slow the mind, and return to baseline — fast.</p>
+          </div>
+          <div class="feature">
+            <h4>Lucid Awareness</h4>
+            <p>Train stillness and presence in a way that carries into sleep, dreams, and daily life.</p>
+          </div>
+          <div class="feature">
+            <h4>Inner Exploration</h4>
+            <p>Use repetition to move from surface calm into depth — where insight tends to appear.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- HOW -->
+  <section id="how" class="section" aria-label="How it works">
+    <div class="container reveal">
+      <p class="kicker">How it works</p>
+      <div class="split">
+        <div class="">
+          <h3 style="margin-top:0;">Three steps. One doorway.</h3>
+          <div class="stack" style="margin-top:14px;">
+            <div class="badge">1 — Choose a Chamber</div>
+            <p style="margin:0; max-width:none;">Each Chamber is a focused audio environment designed for a specific internal state.</p>
+            <div class="badge">2 — Listen & Breathe</div>
+            <p style="margin:0; max-width:none;">Spatial sound, rhythm, and guidance gently lead the body into coherence.</p>
+            <div class="badge">3 — Return Changed</div>
+            <p style="margin:0; max-width:none;">Calm. Clarity. Insight. Or simply deeper rest — without forcing anything.</p>
+          </div>
+        </div>
+        <div class="panel">
+          <h3 style="margin-top:0;">Designed for repetition.</h3>
+          <p style="margin:0; max-width:none;">Inner isn’t built for novelty. Many users return to the same Chamber until the experience changes.</p>
+          <div class="veil-line" aria-hidden="true" style="margin-top:16px;"></div>
+          <p class="subtle" style="margin:16px 0 0 0; max-width:none;">This is where depth comes from.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
   <!-- TRUST -->
   <section id="trust" class="section" aria-label="Trust & principles">
     <div class="container reveal">
       <p class="kicker">Trust</p>
-      <div class="panel">
-        <h3 style="margin-top:0;">Built slowly. Used intentionally.</h3>
-        <div class="grid" aria-label="Principles">
+        <div class="panel">
+          <h3 style="margin-top:0;">Built slowly. Used intentionally.</h3>
+          <p class="subtle" style="margin-top:10px; max-width:740px;">Used daily by early users seeking deeper states.</p>
+          <div class="grid" aria-label="Principles">
           <div class="feature">
             <h4>No dopamine loops</h4>
             <p>No endless feed. No ads. No pressure to consume more.</p>
