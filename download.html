@@ -211,6 +211,14 @@
       }
     }
   </style>
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-FVC3JDRGRM"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);} 
+    gtag('js', new Date());
+    gtag('config', 'G-FVC3JDRGRM');
+  </script>
 </head>
 <body>
   <div class="content">
@@ -241,10 +249,28 @@
     const android = "https://play.google.com/store/apps/details?id=com.getinner.app";
     const ua = navigator.userAgent || navigator.vendor || window.opera || "";
 
+    let platform = "desktop";
+
+    if (/android/i.test(ua)) {
+      platform = "android";
+    } else if (/iPad|iPhone|iPod/.test(ua) && !window.MSStream) {
+      platform = "ios";
+    }
+
+    if (typeof gtag === 'function') {
+      gtag('event', 'download_page_view', { platform });
+    }
+
     setTimeout(() => {
-      if (/android/i.test(ua)) {
+      if (platform === "android") {
+        if (typeof gtag === 'function') {
+          gtag('event', 'redirect_android');
+        }
         window.location.href = android;
-      } else if (/iPad|iPhone|iPod/.test(ua) && !window.MSStream) {
+      } else if (platform === "ios") {
+        if (typeof gtag === 'function') {
+          gtag('event', 'redirect_ios');
+        }
         window.location.href = ios;
       }
     }, 450);
