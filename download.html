@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Entering Inner…</title>
+
+  <style>
+    body {
+      margin: 0;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(180deg, #0D0C1F 0%, #1F233A 100%);
+      color: #fff;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      text-align: center;
+    }
+
+    .wrap {
+      max-width: 420px;
+      padding: 24px;
+    }
+
+    h1 {
+      font-size: 1.4rem;
+      margin-bottom: 8px;
+    }
+
+    p {
+      font-size: 0.9rem;
+      color: rgba(255,255,255,0.7);
+      margin-bottom: 24px;
+    }
+
+    .btn {
+      display: block;
+      margin: 8px 0;
+      padding: 12px;
+      border-radius: 8px;
+      background: rgba(161,140,255,0.2);
+      border: 1px solid rgba(161,140,255,0.4);
+      color: white;
+      text-decoration: none;
+      font-weight: 500;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Entering Inner…</h1>
+    <p>If nothing happens, choose your path below.</p>
+
+    <a id="ios" class="btn" href="https://apps.apple.com/us/app/inner-official/id6755213270">Download on iOS</a>
+    <a id="android" class="btn" href="https://play.google.com/store/apps/details?id=com.getinner.app">Get it on Android</a>
+  </div>
+
+  <script>
+    const ios = "https://apps.apple.com/us/app/inner-official/id6755213270";
+    const android = "https://play.google.com/store/apps/details?id=com.getinner.app";
+
+    const ua = navigator.userAgent || navigator.vendor || window.opera;
+
+    setTimeout(() => {
+      if (/android/i.test(ua)) {
+        window.location.href = android;
+      } else if (/iPad|iPhone|iPod/.test(ua) && !window.MSStream) {
+        window.location.href = ios;
+      }
+    }, 500);
+  </script>
+</body>
+</html>
