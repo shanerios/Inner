@@ -553,6 +553,39 @@
       width: 100%;
       margin: 0;
     }
+    .snippet-toggle {
+      margin-top: 14px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px 14px;
+      border-radius: 999px;
+      border: 1px solid rgba(161, 140, 255, 0.28);
+      background: rgba(18, 16, 40, 0.38);
+      color: rgba(245, 243, 255, 0.9);
+      font-size: 0.86rem;
+      font-weight: 400;
+      cursor: pointer;
+      transition: border-color 0.25s ease, background 0.25s ease, transform 0.25s ease;
+      backdrop-filter: blur(8px);
+    }
+    .snippet-toggle:hover {
+      border-color: rgba(161, 140, 255, 0.48);
+      background: rgba(28, 24, 60, 0.55);
+      transform: translateY(-1px);
+    }
+    .snippet-toggle.is-playing {
+      border-color: rgba(161, 140, 255, 0.58);
+      background: rgba(44, 38, 88, 0.6);
+      color: rgba(255, 255, 255, 0.98);
+    }
+    .snippet-label {
+      pointer-events: none;
+    }
+    .snippet-audio {
+      display: none;
+    }
     .chambers-note {
       font-size: 0.9rem;
       color: #908c9f;
@@ -717,14 +750,26 @@
         <article class="chamber-card" role="article" aria-label="Outer Sanctum">
           <h4 class="chamber-title">I — Outer Sanctum</h4>
           <p class="chamber-desc">The stillpoint. The breath before awakening.</p>
+          <button class="snippet-toggle" type="button" data-audio-id="chamber1-snippet" aria-label="Play Chamber I snippet">
+            <span class="snippet-label">Listen to a preview</span>
+          </button>
+          <audio id="chamber1-snippet" class="snippet-audio" preload="none" src="https://f005.backblazeb2.com/file/inner-audio/Chambers/chamber_1_snippet.mp3"></audio>
         </article>
         <article class="chamber-card" role="article" aria-label="Inner Flame">
           <h4 class="chamber-title">II — Inner Flame</h4>
           <p class="chamber-desc">The spark that burns away illusion.</p>
+          <button class="snippet-toggle" type="button" data-audio-id="chamber2-snippet" aria-label="Play Chamber II snippet">
+            <span class="snippet-label">Listen to a preview</span>
+          </button>
+          <audio id="chamber2-snippet" class="snippet-audio" preload="none" src="https://f005.backblazeb2.com/file/inner-audio/Chambers/chamber_2_snippet.mp3"></audio>
         </article>
         <article class="chamber-card" role="article" aria-label="Horizon Gate">
           <h4 class="chamber-title">III — Horizon Gate</h4>
           <p class="chamber-desc">The crossing beyond self.</p>
+          <button class="snippet-toggle" type="button" data-audio-id="chamber3-snippet" aria-label="Play Chamber III snippet">
+            <span class="snippet-label">Listen to a preview</span>
+          </button>
+          <audio id="chamber3-snippet" class="snippet-audio" preload="none" src="https://f005.backblazeb2.com/file/inner-audio/Chambers/chamber_3_snippet.mp3"></audio>
         </article>
       </section>
 
@@ -885,6 +930,67 @@
     }, { threshold: 0.4 });
 
     sections.forEach(section => navObserver.observe(section));
+
+    // Chamber snippet playback
+    const snippetButtons = document.querySelectorAll('.snippet-toggle');
+    const snippetAudios = document.querySelectorAll('.snippet-audio');
+
+    function resetSnippetButtons() {
+      snippetButtons.forEach((button) => {
+        button.classList.remove('is-playing');
+        button.setAttribute('aria-pressed', 'false');
+        const label = button.querySelector('.snippet-label');
+        if (label) label.textContent = 'Listen to a preview';
+      });
+    }
+
+    function pauseAllSnippets(exceptAudio = null) {
+      snippetAudios.forEach((audio) => {
+        if (audio !== exceptAudio) {
+          audio.pause();
+          audio.currentTime = 0;
+        }
+      });
+      snippetButtons.forEach((button) => {
+        const audioId = button.getAttribute('data-audio-id');
+        if (!exceptAudio || audioId !== exceptAudio.id) {
+          button.classList.remove('is-playing');
+          button.setAttribute('aria-pressed', 'false');
+          const label = button.querySelector('.snippet-label');
+          if (label) label.textContent = 'Listen to a preview';
+        }
+      });
+    }
+
+    snippetButtons.forEach((button) => {
+      button.addEventListener('click', () => {
+        const audioId = button.getAttribute('data-audio-id');
+        const audio = document.getElementById(audioId);
+        const label = button.querySelector('.snippet-label');
+        if (!audio || !label) return;
+
+        if (audio.paused) {
+          pauseAllSnippets(audio);
+          audio.play();
+          button.classList.add('is-playing');
+          button.setAttribute('aria-pressed', 'true');
+          label.textContent = 'Pause preview';
+        } else {
+          audio.pause();
+          audio.currentTime = 0;
+          button.classList.remove('is-playing');
+          button.setAttribute('aria-pressed', 'false');
+          label.textContent = 'Listen to a preview';
+        }
+      });
+    });
+
+    snippetAudios.forEach((audio) => {
+      audio.addEventListener('ended', () => {
+        resetSnippetButtons();
+        audio.currentTime = 0;
+      });
+    });
   </script>
 </body>
 </html>
