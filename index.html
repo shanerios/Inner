@@ -363,28 +363,117 @@
       text-align: left;
     }
 
-    /* Split layout */
-    .split {
+    .how-wrap {
+      max-width: 1180px;
+      margin: 0 auto;
+      border-radius: 28px;
+    }
+    .how-header {
+      text-align: center;
+      margin-bottom: 28px;
+    }
+    .how-header h3 {
+      margin: 0;
+      font-size: 3rem;
+      line-height: 1.05;
+      color: rgba(245, 243, 255, 0.98);
+    }
+    .how-subtitle {
+      margin: 16px auto 0 auto;
+      max-width: 760px;
+      font-size: 1.15rem;
+      line-height: 1.45;
+      color: rgba(161, 140, 255, 0.78);
+      text-align: center;
+    }
+    .how-cards {
       display: grid;
-      grid-template-columns: 1.25fr 0.75fr;
-      gap: 18px;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 28px;
+      margin-top: 10px;
+    }
+    .how-card {
+      min-height: 320px;
+      padding: 34px 38px 36px 38px;
+      border-radius: 22px;
+      border: 1px solid rgba(120, 103, 208, 0.36);
+      background: linear-gradient(180deg, rgba(22, 20, 49, 0.92), rgba(27, 25, 58, 0.82));
+      box-shadow: inset 0 0 0 1px rgba(161, 140, 255, 0.04);
+      box-sizing: border-box;
+    }
+    .how-card-title {
+      margin: 0 0 22px 0;
+      font-family: 'CalSans', sans-serif;
+      font-size: 0.82rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: rgba(161, 140, 255, 0.86);
+    }
+    .how-card-lead {
+      margin: 0 0 22px 0;
+      font-family: 'CalSans', sans-serif;
+      font-size: 1.32rem;
+      line-height: 1.25;
+      color: rgba(245, 243, 255, 0.98);
+      text-align: left;
+      max-width: none;
+    }
+    .how-card-copy {
+      margin: 0;
+      max-width: none;
+      font-size: 0.98rem;
+      line-height: 1.72;
+      color: rgba(210, 205, 240, 0.72);
+      text-align: left;
+    }
+    .how-footer {
+      margin-top: 30px;
+      display: grid;
+      grid-template-columns: 1.65fr 0.65fr;
+      gap: 22px;
       align-items: center;
+      padding: 26px 26px;
+      border-radius: 22px;
+      border: 1px solid rgba(120, 103, 208, 0.30);
+      background: linear-gradient(180deg, rgba(24, 23, 52, 0.84), rgba(30, 28, 60, 0.74));
+      box-sizing: border-box;
     }
-    .stack {
-      display: grid;
-      gap: 12px;
+    .how-footer-copy {
+      margin: 0;
+      max-width: none;
+      text-align: left;
+      font-size: 1rem;
+      line-height: 1.7;
+      color: rgba(220, 215, 245, 0.76);
     }
-    .badge {
+    .how-footer-copy strong {
+      color: rgba(245, 243, 255, 0.98);
+      font-weight: 500;
+    }
+    .how-footer-cta {
+      justify-self: end;
+    }
+    .how-ghost-btn {
       display: inline-flex;
       align-items: center;
-      gap: 8px;
-      padding: 10px 12px;
-      border-radius: 999px;
-      border: 1px solid rgba(144, 140, 159, 0.30);
-      background: rgba(20, 18, 45, 0.35);
-      color: rgba(235, 232, 255, 0.86);
-      font-size: 0.92rem;
-      user-select: none;
+      justify-content: center;
+      min-width: 240px;
+      padding: 16px 24px;
+      border-radius: 16px;
+      border: 1px solid rgba(202, 194, 239, 0.34);
+      background: rgba(12, 11, 28, 0.2);
+      color: rgba(245, 243, 255, 0.96);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 1rem;
+      font-weight: 500;
+      text-decoration: none;
+      transition: border-color 0.25s ease, background 0.25s ease, transform 0.25s ease;
+      box-sizing: border-box;
+    }
+    .how-ghost-btn:hover {
+      border-color: rgba(202, 194, 239, 0.52);
+      background: rgba(25, 22, 55, 0.32);
+      transform: translateY(-1px);
     }
 
     /* Scroll reveal */
@@ -489,8 +578,17 @@
       .grid {
         grid-template-columns: 1fr;
       }
-      .split {
+      .how-cards {
         grid-template-columns: 1fr;
+      }
+      .how-footer {
+        grid-template-columns: 1fr;
+      }
+      .how-footer-cta {
+        justify-self: stretch;
+      }
+      .how-ghost-btn {
+        width: 100%;
       }
     }
 
@@ -691,6 +789,35 @@
       .hero-note-sub {
         font-size: 0.76rem;
       }
+      .how-header h3 {
+        font-size: 2.05rem;
+      }
+      .how-subtitle {
+        font-size: 0.98rem;
+        line-height: 1.4;
+      }
+      .how-card {
+        min-height: auto;
+        padding: 24px 22px 24px 22px;
+      }
+      .how-card-lead {
+        font-size: 1.12rem;
+      }
+      .how-card-copy {
+        font-size: 0.92rem;
+        line-height: 1.6;
+      }
+      .how-footer {
+        padding: 20px;
+      }
+      .how-footer-copy {
+        font-size: 0.92rem;
+        line-height: 1.55;
+      }
+      .how-ghost-btn {
+        min-width: 0;
+        padding: 14px 18px;
+      }
     }
   </style>
 </head>
@@ -829,24 +956,38 @@
   <!-- HOW -->
   <section id="how" class="section" aria-label="How it works">
     <div class="container reveal">
-      <p class="kicker">How it works</p>
-      <div class="split">
-        <div class="">
-          <h3 style="margin-top:0;">Three steps. One doorway.</h3>
-          <div class="stack" style="margin-top:14px;">
-            <div class="badge">1 — Choose a Chamber</div>
-            <p style="margin:0; max-width:none;">Each Chamber is a focused audio environment designed for a specific internal state.</p>
-            <div class="badge">2 — Listen & Breathe</div>
-            <p style="margin:0; max-width:none;">Spatial sound, rhythm, and guidance gently lead the body into coherence.</p>
-            <div class="badge">3 — Return Changed</div>
-            <p style="margin:0; max-width:none;">Calm. Clarity. Insight. Or simply deeper rest — without forcing anything.</p>
-          </div>
+      <div class="how-wrap">
+        <div class="how-header">
+          <p class="kicker">How it works</p>
+          <h3>Three sessions. One doorway.</h3>
+          <p class="how-subtitle">No preparation required. No right way to arrive.</p>
         </div>
-        <div class="panel">
-          <h3 style="margin-top:0;">Designed for repetition.</h3>
-          <p style="margin:0; max-width:none;">Inner isn’t built for novelty. Many users return to the same Chamber until the experience changes.</p>
-          <div class="veil-line" aria-hidden="true" style="margin-top:16px;"></div>
-          <p class="subtle" style="margin:16px 0 0 0; max-width:none;">This is where depth comes from.</p>
+
+        <div class="how-cards" aria-label="How Inner works">
+          <article class="how-card">
+            <p class="how-card-title">The Arrival</p>
+            <p class="how-card-lead">You don't need to prepare.</p>
+            <p class="how-card-copy">The Chamber holds the space. Show up as you are. Something in the sound does the rest.</p>
+          </article>
+
+          <article class="how-card">
+            <p class="how-card-title">The Return</p>
+            <p class="how-card-lead">Something shifts in the repetition.</p>
+            <p class="how-card-copy">The mind stops evaluating. The body follows. This is where the real work begins.</p>
+          </article>
+
+          <article class="how-card">
+            <p class="how-card-title">The Depth</p>
+            <p class="how-card-lead">This is where it gets harder to explain.</p>
+            <p class="how-card-copy">Most people stop trying to — and just come back. That's the point.</p>
+          </article>
+        </div>
+
+        <div class="how-footer">
+          <p class="how-footer-copy">Inner isn't built for novelty. <strong>Return to the same Chamber until the experience changes.</strong> This is where depth comes from.</p>
+          <div class="how-footer-cta">
+            <a class="how-ghost-btn" href="#chambers">Enter Chamber I</a>
+          </div>
         </div>
       </div>
     </div>
