@@ -393,8 +393,8 @@
       margin-top: 10px;
     }
     .how-card {
-      min-height: 320px;
-      padding: 34px 38px 36px 38px;
+      min-height: 250px;
+      padding: 24px 26px 24px 26px;
       border-radius: 22px;
       border: 1px solid rgba(120, 103, 208, 0.36);
       background: linear-gradient(180deg, rgba(22, 20, 49, 0.92), rgba(27, 25, 58, 0.82));
@@ -402,7 +402,7 @@
       box-sizing: border-box;
     }
     .how-card-title {
-      margin: 0 0 22px 0;
+      margin: 0 0 16px 0;
       font-family: 'CalSans', sans-serif;
       font-size: 0.82rem;
       letter-spacing: 0.14em;
@@ -410,10 +410,10 @@
       color: rgba(161, 140, 255, 0.86);
     }
     .how-card-lead {
-      margin: 0 0 22px 0;
+      margin: 0 0 14px 0;
       font-family: 'CalSans', sans-serif;
-      font-size: 1.32rem;
-      line-height: 1.25;
+      font-size: 1.24rem;
+      line-height: 1.22;
       color: rgba(245, 243, 255, 0.98);
       text-align: left;
       max-width: none;
@@ -798,7 +798,7 @@
       }
       .how-card {
         min-height: auto;
-        padding: 24px 22px 24px 22px;
+        padding: 20px 18px 20px 18px;
       }
       .how-card-lead {
         font-size: 1.12rem;
@@ -973,7 +973,7 @@
           <article class="how-card">
             <p class="how-card-title">The Return</p>
             <p class="how-card-lead">Something shifts in the repetition.</p>
-            <p class="how-card-copy">The mind stops evaluating. The body follows. This is where the real work begins.</p>
+            <p class="how-card-copy">The mind stops evaluating. The body follows. This is where the descent begins.</p>
           </article>
 
           <article class="how-card">
@@ -986,7 +986,7 @@
         <div class="how-footer">
           <p class="how-footer-copy">Inner isn't built for novelty. <strong>Return to the same Chamber until the experience changes.</strong> This is where depth comes from.</p>
           <div class="how-footer-cta">
-            <a class="how-ghost-btn" href="#chambers">Enter Chamber I</a>
+            <a class="how-ghost-btn" href="https://getinner.app" data-smart-store="true">Enter Chamber I</a>
           </div>
         </div>
       </div>
@@ -1134,6 +1134,21 @@
         resetSnippetButtons();
         audio.currentTime = 0;
       });
+    });
+    // Smart store link for Chamber I CTA
+    const smartStoreLinks = document.querySelectorAll('[data-smart-store="true"]');
+    const iosStoreUrl = 'https://apps.apple.com/us/app/inner-official/id6755213270';
+    const androidStoreUrl = 'https://play.google.com/store/apps/details?id=com.getinner.app';
+
+    function getSmartStoreUrl() {
+      const ua = navigator.userAgent || navigator.vendor || window.opera || '';
+      if (/android/i.test(ua)) return androidStoreUrl;
+      if (/iPad|iPhone|iPod/.test(ua) && !window.MSStream) return iosStoreUrl;
+      return '#join';
+    }
+
+    smartStoreLinks.forEach((link) => {
+      link.setAttribute('href', getSmartStoreUrl());
     });
   </script>
 </body>
