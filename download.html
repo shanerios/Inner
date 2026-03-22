@@ -77,10 +77,10 @@
 
     @keyframes orb-breathe {
       0%, 100% {
-        transform: scale(0.985);
+        transform: scale(0.95);
       }
       50% {
-        transform: scale(1.03);
+        transform: scale(1.2);
       }
     }
 
@@ -109,6 +109,17 @@
     .content {
       width: min(100%, 620px);
       margin: 0 auto;
+    }
+
+    @media (min-width: 768px) {
+      .wordmark {
+        width: min(160px, 20vw);
+        margin: 0 auto 10px auto;
+      }
+
+      .orb-shell {
+        margin-bottom: 4px;
+      }
     }
 
     .btn-group {
@@ -192,7 +203,7 @@
     </div>
 
     <img class="wordmark" src="https://raw.githubusercontent.com/shanerios/Inner/main/wordmark.svg" alt="Inner" />
-    <p class="subtitle">You’re being guided to the right store for your device. If nothing happens, choose your path below.</p>
+    <p class="subtitle">You’re being guided to the right store for your device.<br>If nothing happens, choose your path below.</p>
     <p class="status">Now available on iOS and Android.</p>
 
     <div class="btn-group">
