@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, Pressable, StyleSheet, Animated, Image, Dimensions, Easing, Platform } from 'react-native';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { View, Text, Pressable, StyleSheet, Animated, Image, Easing, Platform, useWindowDimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import {
@@ -7,9 +7,7 @@ import {
   getLastDailyEmotion,
 } from '../core/DailyRitual';
 import { usePostHog } from 'posthog-react-native';
-
-const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
-const isTablet = Math.min(SCREEN_HEIGHT, SCREEN_WIDTH) > 600;
+import { useScale } from '../utils/scale';
 
 const EMOTIONS = ['clear', 'clouded', 'heavy'] as const;
 type Emotion = (typeof EMOTIONS)[number];
@@ -43,6 +41,184 @@ const EMOTION_THEME: Record<Emotion, {
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 export default function DailyRitualScreen({ navigation }: any) {
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const { scale, verticalScale, matchesCompactLayout } = useScale();
+  const isTabletLayout = Math.min(windowHeight, windowWidth) > 600;
+  // Short long-edge phones (e.g. iPhone SE) — slightly smaller orb; see utils/scale
+  const isCompactPhone = !isTabletLayout && matchesCompactLayout;
+  const phoneOrbDesignPx = isCompactPhone ? 170 : 200;
+
+  const orbSize = isTabletLayout ? scale(300) : scale(phoneOrbDesignPx);
+  const orbRadius = orbSize / 2;
+  const floatAmp = verticalScale(6);
+
+  const styles = useMemo(
+    () =>
+      StyleSheet.create({
+        container: {
+          flex: 1,
+        },
+        content: {
+          flex: 1,
+          paddingHorizontal: scale(24),
+          paddingTop: verticalScale(72),
+          paddingBottom: verticalScale(32),
+          justifyContent: 'center',
+        },
+        topBlock: {
+          marginTop: verticalScale(32),
+          marginBottom: verticalScale(24),
+        },
+        title: {
+          fontFamily: 'CalSans-SemiBold',
+          fontSize: scale(24),
+          color: '#F4F1FF',
+          textAlign: 'center',
+          marginBottom: verticalScale(4),
+        },
+        subtitle: {
+          fontFamily: 'Inter-ExtraLight',
+          fontSize: scale(16),
+          color: '#CFC7F0',
+          textAlign: 'center',
+          maxWidth: scale(260),
+          alignSelf: 'center',
+          marginTop: verticalScale(2),
+          marginBottom: verticalScale(20),
+        },
+        helper: {
+          fontFamily: 'Inter-ExtraLight',
+          fontSize: scale(13),
+          color: '#A8A0CF',
+          textAlign: 'center',
+          maxWidth: scale(260),
+          alignSelf: 'center',
+          marginTop: verticalScale(32),
+          marginBottom: verticalScale(6),
+        },
+        orbWrapper: {
+          marginTop: verticalScale(70),
+          marginBottom: verticalScale(12),
+          alignSelf: 'center',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: orbSize,
+          height: orbSize,
+        },
+        orbInner: {
+          position: 'relative',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: orbSize,
+          height: orbSize,
+          borderRadius: orbRadius,
+          overflow: 'hidden',
+        },
+        orbImage: {
+          width: '100%',
+          height: '100%',
+          opacity: 0.9,
+          transform: [{ scale: 1.15 }],
+        },
+        orbGlint: {
+          position: 'absolute',
+          top: isTabletLayout ? verticalScale(48) : verticalScale(32),
+          left: isTabletLayout ? scale(150) : scale(110),
+          width: isTabletLayout ? scale(60) : scale(40),
+          height: isTabletLayout ? scale(60) : scale(40),
+          borderRadius: isTabletLayout ? scale(120) : scale(80),
+          backgroundColor: 'rgba(255, 255, 255, 0.25)',
+          opacity: 0,
+          transform: [{ rotate: '-18deg' }],
+        },
+        orbRimLight: {
+          position: 'absolute',
+          bottom: isTabletLayout ? verticalScale(18) : verticalScale(10),
+          left: isTabletLayout ? scale(120) : scale(85),
+          width: isTabletLayout ? scale(80) : scale(50),
+          height: isTabletLayout ? verticalScale(16) : verticalScale(10),
+          borderRadius: isTabletLayout ? scale(80) : scale(60),
+          backgroundColor: 'rgba(170, 195, 255, 0.45)',
+          opacity: 0,
+          transform: [
+            { translateX: isTabletLayout ? scale(-18) : scale(-12) },
+            { translateY: isTabletLayout ? verticalScale(10) : verticalScale(8) },
+            { scaleX: 1.2 },
+          ],
+        },
+        emotionGroup: {
+          alignItems: 'center',
+          marginTop: -verticalScale(20),
+          marginBottom: verticalScale(30),
+        },
+        bottomCluster: {
+          marginTop: 'auto',
+        },
+        question: {
+          fontFamily: 'CalSans-SemiBold',
+          fontSize: scale(18),
+          color: '#EFE8FF',
+          marginBottom: verticalScale(16),
+        },
+        emotionRow: {
+          flexDirection: 'row',
+          gap: scale(8),
+        },
+        emotionChip: {
+          paddingHorizontal: scale(14),
+          paddingVertical: verticalScale(8),
+          borderRadius: 999,
+          borderWidth: 1,
+          borderColor: 'rgba(207,195,224,0.5)',
+          backgroundColor: 'rgba(10,10,25,0.6)',
+        },
+        emotionChipSelected: {
+          backgroundColor: '#CFC3E0',
+          borderColor: '#CFC3E0',
+        },
+        emotionLabel: {
+          fontFamily: 'CalSans-SemiBold',
+          fontSize: scale(14),
+          color: '#CFC3E0',
+        },
+        emotionLabelSelected: {
+          color: '#171727',
+        },
+        continueButton: {
+          alignSelf: 'center',
+          minWidth: scale(200),
+          paddingVertical: verticalScale(10),
+          paddingHorizontal: scale(24),
+          borderRadius: 999,
+          backgroundColor: '#CFC3E0',
+          borderWidth: 1,
+          borderColor: 'rgba(24,22,42,0.85)',
+        },
+        continueLabel: {
+          fontFamily: 'CalSans-SemiBold',
+          fontSize: scale(18),
+          color: '#171727',
+          textAlign: 'center',
+        },
+        vignette: {
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          bottom: 0,
+          height: verticalScale(220),
+        },
+        bgImage: {
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          opacity: 0.68,
+        },
+      }),
+    [scale, verticalScale, isTabletLayout, orbSize, orbRadius],
+  );
+
   const [selected, setSelected] = useState<Emotion | null>(null);
   const [lastEmotion, setLastEmotion] = useState<Emotion | null>(null);
 
@@ -53,8 +229,6 @@ export default function DailyRitualScreen({ navigation }: any) {
 
   const orbFloat = useRef(new Animated.Value(0)).current;
 
-  const ORB_SIZE = isTablet ? 300 : 200;
-  const ORB_RADIUS = ORB_SIZE / 2;
   const ORB_SOURCE = require('../assets/splash_ios.png');
 
 
@@ -102,12 +276,12 @@ export default function DailyRitualScreen({ navigation }: any) {
     const floatLoop = Animated.loop(
       Animated.sequence([
         Animated.timing(orbFloat, {
-          toValue: -6,
+          toValue: -floatAmp,
           duration: 4500,
           useNativeDriver: true,
         }),
         Animated.timing(orbFloat, {
-          toValue: 6,
+          toValue: floatAmp,
           duration: 4500,
           useNativeDriver: true,
         }),
@@ -123,7 +297,7 @@ export default function DailyRitualScreen({ navigation }: any) {
     return () => {
       floatLoop.stop();
     };
-  }, [orbFloat]);
+  }, [orbFloat, floatAmp]);
 
   useEffect(() => {
     Animated.sequence([
@@ -356,165 +530,3 @@ export default function DailyRitualScreen({ navigation }: any) {
     </LinearGradient>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  content: {
-    flex: 1,
-    paddingHorizontal: 24,
-    paddingTop: 72,
-    paddingBottom: 32,
-    justifyContent: 'center',
-  },
-  topBlock: {
-    marginTop: 32,
-    marginBottom: 24,
-  },
-  title: {
-    fontFamily: 'CalSans-SemiBold',
-    fontSize: 24,
-    color: '#F4F1FF',
-    textAlign: 'center',
-    marginBottom: 4,
-  },
-  subtitle: {
-    fontFamily: 'Inter-ExtraLight',
-    fontSize: 16,
-    color: '#CFC7F0',
-    textAlign: 'center',
-    maxWidth: 260,
-    alignSelf: 'center',
-    marginTop: 2,
-    marginBottom: 20,
-  },
-  helper: {
-    fontFamily: 'Inter-ExtraLight',
-    fontSize: 13,
-    color: '#A8A0CF',
-    textAlign: 'center',
-    maxWidth: 260,
-    alignSelf: 'center',
-    marginTop: 32,
-    marginBottom: 6,
-  },
-  orbWrapper: {
-    marginTop: 80,
-    marginBottom: 12,
-    alignSelf: 'center',
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: isTablet ? 300 : 200,
-    height: isTablet ? 300 : 200,
-  },
-  orbInner: {
-    position: 'relative',
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: isTablet ? 300 : 200,
-    height: isTablet ? 300 : 200,
-    borderRadius: isTablet ? 150 : 100,
-    overflow: 'hidden',
-  },
-  orbImage: {
-    width: '100%',
-    height: '100%',
-    opacity: 0.9,
-    transform: [{ scale: 1.15 }],
-  },
-  orbGlint: {
-    position: 'absolute',
-    top: isTablet ? 48 : 32,
-    left: isTablet ? 150 : 110,
-    width: isTablet ? 60 : 40,
-    height: isTablet ? 60 : 40,
-    borderRadius: isTablet ? 120 : 80,
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
-    opacity: 0,
-    transform: [{ rotate: '-18deg' }],
-  },
-  orbRimLight: {
-    position: 'absolute',
-    bottom: isTablet ? 18 : 10,
-    left: isTablet ? 120 : 85,
-    width: isTablet ? 80 : 50,
-    height: isTablet ? 16 : 10,
-    borderRadius: isTablet ? 80 : 60,
-    backgroundColor: 'rgba(170, 195, 255, 0.45)',
-    opacity: 0,
-    transform: [
-      { translateX: isTablet ? -18 : -12 },
-      { translateY: isTablet ? 10 : 8 },
-      { scaleX: 1.2 },
-    ],
-  },
-  emotionGroup: {
-    alignItems: 'center',
-    marginBottom: 30,
-  },
-  bottomCluster: {
-    marginTop: 'auto',
-  },
-  question: {
-    fontFamily: 'CalSans-SemiBold',
-    fontSize: 18,
-    color: '#EFE8FF',
-    marginBottom: 16,
-  },
-  emotionRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  emotionChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: 'rgba(207,195,224,0.5)',
-    backgroundColor: 'rgba(10,10,25,0.6)',
-  },
-  emotionChipSelected: {
-    backgroundColor: '#CFC3E0',
-    borderColor: '#CFC3E0',
-  },
-  emotionLabel: {
-    fontFamily: 'CalSans-SemiBold',
-    fontSize: 14,
-    color: '#CFC3E0',
-  },
-  emotionLabelSelected: {
-    color: '#171727',
-  },
-  continueButton: {
-    alignSelf: 'center',
-    minWidth: 200,
-    paddingVertical: 10,
-    paddingHorizontal: 24,
-    borderRadius: 999,
-    backgroundColor: '#CFC3E0',
-    borderWidth: 1,
-    borderColor: 'rgba(24,22,42,0.85)',
-  },
-  continueLabel: {
-    fontFamily: 'CalSans-SemiBold',
-    fontSize: 18,
-    color: '#171727',
-    textAlign: 'center',
-  },
-  vignette: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: 220,
-  },
-  bgImage: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    opacity: 0.68,
-  },
-});

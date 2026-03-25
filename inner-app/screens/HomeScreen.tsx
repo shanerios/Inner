@@ -1,7 +1,8 @@
 import { Asset } from 'expo-asset';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useMemo, useRef } from 'react';
-import { Animated, AppState, Dimensions, Easing, Image, Modal, Platform, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Animated, AppState, Dimensions, Easing, Image, Modal, Platform, Pressable, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { Directions, Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Purchases from 'react-native-purchases';
 import { safePresentPaywall } from '../src/core/subscriptions/safePresentPaywall';
@@ -41,6 +42,7 @@ import { Body as _Body, Typography as _Typography, Typography } from '../core/ty
 import { useLunarWhisper } from '../hooks/useLunarWhisper';
 import { useThreadSuggestion } from '../hooks/useThreadSuggestion';
 import { useWalkthrough } from '../hooks/useWalkthrough';
+import { useScale } from '../utils/scale';
 import LunarWhisperModal from '../src/lunar/LunarWhisperModal';
 import { orbMoonImages } from '../src/ui/orbMoonImages';
 const Body = _Body ?? ({ regular: { ..._Typography.body }, subtle: { ..._Typography.caption } } as const);
@@ -158,6 +160,7 @@ function HomeHelperModalInline({
   onNavPress,
   onLearnPress,
 }: HomeHelperModalProps) {
+  const { scale, verticalScale } = useScale();
 
   // Animated checklist values and effects
   const orbAnim = React.useRef(new Animated.Value(steps.orb ? 1 : 0)).current;
@@ -265,9 +268,9 @@ function HomeHelperModalInline({
         bottom: 0,
         alignItems: 'center',
         justifyContent: 'flex-end',
-        paddingHorizontal: 20,
-        paddingTop: 40,
-        paddingBottom: 32,
+        paddingHorizontal: scale(20),
+        paddingTop: verticalScale(40),
+        paddingBottom: verticalScale(32),
         zIndex: 200,
         elevation: 200,
       }}
@@ -286,15 +289,15 @@ function HomeHelperModalInline({
       {/* Helper card — touches are handled only by explicit tap targets inside */}
       <View
         style={{
-          maxWidth: 420,
+          maxWidth: scale(420),
           width: '92%',
           backgroundColor: 'rgba(14,14,28,0.88)',
-          borderRadius: 16,
-          paddingVertical: 16,
-          paddingHorizontal: 16,
+          borderRadius: scale(16),
+          paddingVertical: verticalScale(16),
+          paddingHorizontal: scale(16),
           borderWidth: 1,
           borderColor: 'rgba(255,255,255,0.08)',
-          marginBottom: 90,
+          marginBottom: verticalScale(90),
         }}
       >
                         <Text
@@ -303,7 +306,7 @@ function HomeHelperModalInline({
                 {
                   color: '#F0EEF8',
                   textAlign: 'center',
-                  marginBottom: 4,
+                  marginBottom: verticalScale(4),
                 },
               ]}
             >
@@ -315,11 +318,11 @@ function HomeHelperModalInline({
               <Text
                 style={{
                   fontFamily: 'Inter-ExtraLight',
-                  fontSize: 11,
-                  letterSpacing: 0.6,
+                  fontSize: scale(11),
+                  letterSpacing: scale(0.6),
                   color: '#B5A9FF',
                   textAlign: 'center',
-                  marginBottom: 2,
+                  marginBottom: verticalScale(2),
                   textTransform: 'uppercase',
                 }}
               >
@@ -333,7 +336,7 @@ function HomeHelperModalInline({
                 {
                   fontFamily: 'Inter-ExtraLight',
                   color: '#DCD5F0',
-                  fontSize: 14,
+                  fontSize: scale(14),
                   textAlign: 'center',
                 },
               ]}
@@ -341,8 +344,8 @@ function HomeHelperModalInline({
               {headerSubtitle}
             </Text>
 
-            <View style={{ height: 10 }} />
-            <View style={{ gap: 8 }}>
+            <View style={{ height: verticalScale(10) }} />
+            <View style={{ gap: scale(8) }}>
               {/* Orb step */}
 <Animated.View
   style={{
@@ -357,7 +360,7 @@ function HomeHelperModalInline({
       onOrbPress?.();
     }}
     style={{
-      borderRadius: 10,
+      borderRadius: scale(10),
       backgroundColor: isOrbActive ? 'rgba(255,255,255,0.05)' : 'transparent',
     }}
   >
@@ -365,9 +368,9 @@ function HomeHelperModalInline({
       style={{
         flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: 4,
-        paddingHorizontal: 6,
-        borderRadius: 10,
+        paddingVertical: verticalScale(4),
+        paddingHorizontal: scale(6),
+        borderRadius: scale(10),
       }}
     >
     <Animated.Text
@@ -375,9 +378,9 @@ function HomeHelperModalInline({
         Body.subtle,
         {
           fontFamily: 'Inter-ExtraLight',
-          fontSize: 13,
+          fontSize: scale(13),
           color: steps.orb ? '#CFC3E0' : (isOrbActive ? '#B5A9FF' : '#9B96B8'),
-          marginRight: 6,
+          marginRight: scale(6),
           transform: [
             {
               scale: orbAnim.interpolate({
@@ -397,7 +400,7 @@ function HomeHelperModalInline({
         {
           fontFamily: 'Inter-ExtraLight',
           color: '#EDEAF6',
-          fontSize: 13,
+          fontSize: scale(13),
           flexShrink: 1,
         },
       ]}
@@ -422,7 +425,7 @@ function HomeHelperModalInline({
                     onNavPress?.();
                   }}
                   style={{
-                    borderRadius: 10,
+                    borderRadius: scale(10),
                     backgroundColor: isNavActive ? 'rgba(255,255,255,0.05)' : 'transparent',
                   }}
                 >
@@ -430,9 +433,9 @@ function HomeHelperModalInline({
                     style={{
                       flexDirection: 'row',
                       alignItems: 'center',
-                      paddingVertical: 4,
-                      paddingHorizontal: 6,
-                      borderRadius: 10,
+                      paddingVertical: verticalScale(4),
+                      paddingHorizontal: scale(6),
+                      borderRadius: scale(10),
                     }}
                   >
                     <Animated.Text
@@ -440,11 +443,11 @@ function HomeHelperModalInline({
                         Body.subtle,
                         {
                           fontFamily: 'Inter-ExtraLight',
-                          fontSize: 13,
+                          fontSize: scale(13),
                           color: (steps.chambers && steps.soundscapes)
                             ? '#CFC3E0'
                             : (isNavActive ? '#B5A9FF' : '#9B96B8'),
-                          marginRight: 6,
+                          marginRight: scale(6),
                           transform: [
                             {
                               scale: navAnim.interpolate({
@@ -464,7 +467,7 @@ function HomeHelperModalInline({
                         {
                           fontFamily: 'Inter-ExtraLight',
                           color: '#EDEAF6',
-                          fontSize: 13,
+                          fontSize: scale(13),
                           flexShrink: 1,
                         },
                       ]}
@@ -489,7 +492,7 @@ function HomeHelperModalInline({
                     onLearnPress?.();
                   }}
                   style={{
-                    borderRadius: 10,
+                    borderRadius: scale(10),
                     backgroundColor: isLearnActive ? 'rgba(255,255,255,0.05)' : 'transparent',
                   }}
                 >
@@ -497,9 +500,9 @@ function HomeHelperModalInline({
                     style={{
                       flexDirection: 'row',
                       alignItems: 'center',
-                      paddingVertical: 4,
-                      paddingHorizontal: 6,
-                      borderRadius: 10,
+                      paddingVertical: verticalScale(4),
+                      paddingHorizontal: scale(6),
+                      borderRadius: scale(10),
                     }}
                   >
                     <Animated.Text
@@ -507,11 +510,11 @@ function HomeHelperModalInline({
                         Body.subtle,
                         {
                           fontFamily: 'Inter-ExtraLight',
-                          fontSize: 13,
+                          fontSize: scale(13),
                           color: steps.learnHub
                             ? '#CFC3E0'
                             : (isLearnActive ? '#B5A9FF' : '#9B96B8'),
-                          marginRight: 6,
+                          marginRight: scale(6),
                           transform: [
                             {
                               scale: learnAnim.interpolate({
@@ -531,7 +534,7 @@ function HomeHelperModalInline({
                         {
                           fontFamily: 'Inter-ExtraLight',
                           color: '#EDEAF6',
-                          fontSize: 13,
+                          fontSize: scale(13),
                           flexShrink: 1,
                         },
                       ]}
@@ -543,15 +546,15 @@ function HomeHelperModalInline({
               </Animated.View>
 
               {/* Static hints (no live tracking yet) */}
-              <Text style={[Body.subtle, { fontFamily: 'Inter-ExtraLight', color: '#EDEAF6', fontSize: 13 }]}>
+              <Text style={[Body.subtle, { fontFamily: 'Inter-ExtraLight', color: '#EDEAF6', fontSize: scale(13) }]}>
                 ○ Long-press the orb to reveal the Lunar Whisper.
               </Text>
-              <Text style={[Body.subtle, { fontFamily: 'Inter-ExtraLight', color: '#EDEAF6', fontSize: 13 }]}>
+              <Text style={[Body.subtle, { fontFamily: 'Inter-ExtraLight', color: '#EDEAF6', fontSize: scale(13) }]}>
                 ○ Use ⚙︎ to set your name, intentions, and audio quality.
               </Text>
             </View>
 
-            <View style={{ marginTop: 10, alignItems: 'center' }}>
+            <View style={{ marginTop: verticalScale(10), alignItems: 'center' }}>
   <TouchableOpacity
     onPress={async () => {
       try { await Haptics.selectionAsync(); } catch {}
@@ -565,7 +568,7 @@ function HomeHelperModalInline({
         Body.subtle,
         {
           fontFamily: 'Inter-ExtraLight',
-          fontSize: 13,
+          fontSize: scale(13),
           color: tutorialMode ? '#CFC3E0' : '#B5A9FF',
           textDecorationLine: 'underline',
         },
@@ -576,13 +579,28 @@ function HomeHelperModalInline({
   </TouchableOpacity>
 </View>
 
-            <View style={{ height: 14 }} />
-            <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 16, marginTop: 6 }}>
+            <View style={{ height: verticalScale(14) }} />
+            <View
+              style={{
+                flexDirection: 'row',
+                justifyContent: 'center',
+                alignItems: 'center',
+                gap: scale(16),
+                marginTop: verticalScale(6),
+              }}
+            >
               <TouchableOpacity
                 onPress={async () => { try { await Haptics.selectionAsync(); } catch {} onClose(); }}
                 accessibilityRole="button"
                 accessibilityLabel="Got it"
-                style={{ backgroundColor: '#CFC3E0', paddingVertical: 8, paddingHorizontal: 20, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.20)' }}
+                style={{
+                  backgroundColor: '#CFC3E0',
+                  paddingVertical: verticalScale(8),
+                  paddingHorizontal: scale(20),
+                  borderRadius: scale(14),
+                  borderWidth: 1,
+                  borderColor: 'rgba(255,255,255,0.20)',
+                }}
               >
                 <Text style={[Typography.subtle, { color: '#1F233A' }]}>Got it</Text>
               </TouchableOpacity>
@@ -590,9 +608,14 @@ function HomeHelperModalInline({
                 onPress={async () => { try { await Haptics.selectionAsync(); } catch {} onDismissForever(); }}
                 accessibilityRole="button"
                 accessibilityLabel="Don't show again"
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                hitSlop={{
+                  top: verticalScale(8),
+                  bottom: verticalScale(8),
+                  left: scale(8),
+                  right: scale(8),
+                }}
               >
-                <Text style={{ color: '#F0EEF8', fontSize: 14, opacity: 0.9 }}>Don’t show again</Text>
+                <Text style={{ color: '#F0EEF8', fontSize: scale(14), opacity: 0.9 }}>Don’t show again</Text>
               </TouchableOpacity>
             </View>
         </View>
@@ -603,13 +626,219 @@ function HomeHelperModalInline({
 export default function HomeScreen({ navigation, route }: any) {
   // --- DEBUG: visualize/tune orb hit area ---
   const DEBUG_ORB_HIT = false; // set to false to hide the debug ring
-  const ORB_HIT_DIAMETER = 150;
-  const ORB_HIT_OFFSET_X = 0; // tweak to nudge hit-area horizontally
-  const ORB_HIT_OFFSET_Y = -30; // tweak to nudge hit-area vertically
   const portalScale = useRef(new Animated.Value(1)).current;
   // Shared breath (0 → exhale, 1 → inhale)
   const breath = useBreath();
   const posthog = usePostHog();
+  const { width: SCREEN_W, height: SCREEN_H } = useWindowDimensions();
+  const DEVICE_SCREEN_H = Dimensions.get('screen').height;
+  const { scale, verticalScale, matchesCompactLayout } = useScale();
+  const ORB_HIT_OFFSET_X = 0; // tweak to nudge hit-area horizontally
+  const ORB_HIT_OFFSET_Y = verticalScale(-30); // tweak to nudge hit-area vertically
+  const scrollDepthFull = verticalScale(240);
+  const scrollParallaxMax = verticalScale(200);
+  const topAffLift = verticalScale(6);
+
+  const styles = useMemo(
+    () =>
+      StyleSheet.create({
+        container: {
+          flex: 1,
+          backgroundColor: '#0d0d1a',
+          justifyContent: 'flex-start',
+          alignItems: 'center',
+          paddingVertical: 0,
+        },
+        portalWrap: {
+          ...StyleSheet.absoluteFillObject,
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 55,
+          elevation: 55,
+        },
+        orbImage: {},
+        orbHit: {
+          position: 'absolute',
+          left: '50%',
+          top: '50%',
+          borderRadius: 9999,
+        },
+        portalCore: {
+          width: scale(147),
+          height: scale(147),
+          borderRadius: scale(90),
+          backgroundColor: 'rgba(203, 179, 240, 0.35)',
+        },
+        portalGlow: {
+          position: 'absolute',
+          left: scale(-30),
+          right: scale(-30),
+          top: verticalScale(-30),
+          bottom: verticalScale(-30),
+          borderRadius: scale(220),
+          backgroundColor: 'rgba(203, 179, 240, 0.18)',
+        },
+        actions: {
+          alignItems: 'center',
+          marginBottom: verticalScale(12),
+          zIndex: 75,
+          elevation: 75,
+        },
+        primaryButton: {
+          backgroundColor: '#CFC3E0',
+          paddingVertical: verticalScale(10),
+          paddingHorizontal: scale(32),
+          borderRadius: scale(20),
+          marginBottom: verticalScale(8),
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: verticalScale(4) },
+          shadowOpacity: 0.25,
+          shadowRadius: scale(4),
+          elevation: 5,
+          borderWidth: 1,
+          borderColor: 'rgba(255,255,255,0.20)',
+        },
+        heroSection: {
+          width: '100%',
+          alignItems: 'center',
+          justifyContent: 'flex-end',
+          paddingBottom: verticalScale(12),
+          zIndex: 70,
+          elevation: 70,
+        },
+        intentionAffirmation: {
+          marginTop: verticalScale(4),
+          color: '#E8E5F3',
+          fontSize: scale(14),
+          opacity: 0.9,
+          textAlign: 'center',
+        },
+        progressTrack: {
+          marginTop: verticalScale(6),
+          width: '86%',
+          height: verticalScale(3),
+          borderRadius: scale(3),
+          backgroundColor: 'rgba(31,35,58,0.25)',
+          alignSelf: 'center',
+          overflow: 'hidden',
+        },
+        progressFill: {
+          height: '100%',
+          backgroundColor: '#6B5AE0',
+        },
+        modalBackdrop: {
+          ...StyleSheet.absoluteFillObject,
+          backgroundColor: 'rgba(0,0,0,0.55)',
+          alignItems: 'center',
+          justifyContent: 'center',
+        },
+        modalCard: {
+          width: '84%',
+          backgroundColor: 'rgba(18,18,32,0.96)',
+          borderRadius: scale(16),
+          padding: scale(20),
+          borderWidth: 1,
+          borderColor: 'rgba(255,255,255,0.06)',
+        },
+        modalBtn: {
+          backgroundColor: 'rgba(207,195,224,0.18)',
+          paddingVertical: verticalScale(12),
+          paddingHorizontal: scale(14),
+          borderRadius: scale(12),
+          marginTop: verticalScale(10),
+        },
+        tileBlur: {
+          flex: 1,
+          borderRadius: scale(16),
+          overflow: 'hidden',
+          borderWidth: 1,
+          borderColor: 'rgba(255,255,255,0.06)',
+        },
+        tileBg: {
+          flex: 1,
+          alignItems: 'center',
+          justifyContent: 'center',
+          borderRadius: scale(16),
+        },
+        tileHighlight: {
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          top: 0,
+          height: verticalScale(28),
+          borderTopLeftRadius: scale(16),
+          borderTopRightRadius: scale(16),
+        },
+        navArrowHint: {
+          position: 'absolute',
+          width: scale(48),
+          height: scale(48),
+          borderRadius: scale(24),
+          borderWidth: scale(2),
+          borderColor: 'rgba(207,195,224,0.85)',
+          backgroundColor: 'transparent',
+          zIndex: 24,
+        },
+        navArrowLeft: {
+          position: 'absolute',
+          left: scale(12),
+          top: verticalScale(375),
+          width: scale(48),
+          height: scale(48),
+          borderRadius: scale(19),
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: 'rgba(0,0,0,0.30)',
+          borderWidth: 1,
+          borderColor: 'rgba(255,255,255,0.12)',
+        },
+        navArrowRight: {
+          position: 'absolute',
+          right: scale(12),
+          top: verticalScale(375),
+          width: scale(48),
+          height: scale(48),
+          borderRadius: scale(19),
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: 'rgba(0,0,0,0.30)',
+          borderWidth: 1,
+          borderColor: 'rgba(255,255,255,0.12)',
+        },
+        navArrowBottom: {
+          position: 'absolute',
+          left: '50%',
+          transform: [{ translateX: -scale(24) }],
+          width: scale(48),
+          height: scale(48),
+          borderRadius: scale(19),
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: 'rgba(0,0,0,0.30)',
+          borderWidth: 1,
+          borderColor: 'rgba(255,255,255,0.12)',
+        },
+        navArrowText: {
+          color: '#EDEAF6',
+          fontSize: scale(22),
+          textAlign: 'center',
+          marginTop: 0,
+          marginBottom: 0,
+          paddingVertical: 0,
+          lineHeight: scale(22),
+        },
+        intentionTopWrap: {
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          alignItems: 'center',
+          zIndex: 200,
+          elevation: 200,
+        },
+      }),
+    [scale, verticalScale],
+  );
 
   // Orb breath scale driven by shared breath
   const orbScale = breath.interpolate({ inputRange: [0, 1], outputRange: [0.98, 1.15] });
@@ -1378,6 +1607,24 @@ const goToLearnHub = useCallback(async () => {
     })();
   }, [suggestion, todayKey]);
 
+  const suggOpacity = useRef(new Animated.Value(0)).current;
+  const suggTranslate = useRef(new Animated.Value(-verticalScale(6))).current;
+  const suggPress = useRef(new Animated.Value(0)).current;
+
+  const suggPressScale = suggPress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 0.992],
+  });
+
+  const suggPressGlow = suggPress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 1],
+  });
+  const suggPressBorder = suggPress.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['rgba(255,255,255,0.08)', 'rgba(255,255,255,0.14)'],
+  });
+
   const handleDismissSuggestion = useCallback(async () => {
     // subtle haptic to acknowledge the choice
     try { await Haptics.selectionAsync(); } catch {}
@@ -1391,7 +1638,7 @@ const goToLearnHub = useCallback(async () => {
           useNativeDriver: true,
         }),
         Animated.timing(suggTranslate, {
-          toValue: -6,
+          toValue: -verticalScale(6),
           duration: 800,
           easing: Easing.out(Easing.cubic),
           useNativeDriver: true,
@@ -1406,24 +1653,7 @@ const goToLearnHub = useCallback(async () => {
       setSuggDismissed(true);
       try { await AsyncStorage.setItem(todayKey, '1'); } catch {}
     }
-  }, [todayKey, suggOpacity, suggTranslate]);
-  const suggOpacity = useRef(new Animated.Value(0)).current;
-  const suggTranslate = useRef(new Animated.Value(-6)).current;
-  const suggPress = useRef(new Animated.Value(0)).current;
-  
-  const suggPressScale = suggPress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [1, 0.992],
-  });
-  
-  const suggPressGlow = suggPress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, 1],
-  });
-  const suggPressBorder = suggPress.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['rgba(255,255,255,0.08)', 'rgba(255,255,255,0.14)'],
-  });
+  }, [todayKey, suggOpacity, suggTranslate, verticalScale]);
   useEffect(() => {
     (async () => {
       try {
@@ -1437,7 +1667,7 @@ const goToLearnHub = useCallback(async () => {
     if (!suggestion) return;
     // reset & fade/slide in
     suggOpacity.setValue(0);
-    suggTranslate.setValue(-6);
+    suggTranslate.setValue(-verticalScale(6));
     Animated.parallel([
       Animated.timing(suggOpacity, {
         toValue: 1,
@@ -1453,7 +1683,7 @@ const goToLearnHub = useCallback(async () => {
         useNativeDriver: true,
       }),
     ]).start();
-  }, [suggestion, suggOpacity, suggTranslate]);
+  }, [suggestion, suggOpacity, suggTranslate, verticalScale]);
 
   const handleStartSuggestion = useCallback(async () => {
     if (!suggestion || startingRef.current) return;
@@ -1648,11 +1878,9 @@ const goToLearnHub = useCallback(async () => {
     };
   }, [innerPulseEnabled, innerPulseUnlocked, isFocused]);
 
-
-  const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
   // --- Swipe navigation gesture (edge-aware) ---
-  const SWIPE_THRESHOLD = Math.max(60, SCREEN_W * 0.12); // ~12% of screen width
-  const EDGE_GUARD = 16; // smaller edge guard so center swipes register
+  const SWIPE_THRESHOLD = Math.max(scale(60), SCREEN_W * 0.12); // ~12% of screen width
+  const EDGE_GUARD = scale(16); // smaller edge guard so center swipes register
   const startXRef = useRef(0);
 
   // Disable swipes while any modal/overlay is visible (including the Home walkthrough)
@@ -1667,9 +1895,9 @@ const pan = useMemo(
     Gesture.Pan()
       .enabled(!gesturesDisabled)
       .runOnJS(true)
-      .activeOffsetX([-10, 10]) // slightly easier to activate horizontal intent
-      .failOffsetY([-16, 16])   // allow a bit more vertical drift before failing
-      .minDistance(10)
+      .activeOffsetX([-scale(10), scale(10)]) // slightly easier to activate horizontal intent
+      .failOffsetY([-verticalScale(16), verticalScale(16)]) // allow a bit more vertical drift before failing
+      .minDistance(scale(10))
       .onStart((e) => {
         // Store where the gesture began so we can edge‑guard vs Android back swipe
         // Pan gesture events include absoluteX directly
@@ -1718,7 +1946,7 @@ const pan = useMemo(
         }
       })
       .onFinalize(() => { panHandledRef.current = false; }),
-  [gesturesDisabled, SCREEN_W, goToChambers, goToSoundscapes]
+  [gesturesDisabled, SCREEN_W, goToChambers, goToSoundscapes, SWIPE_THRESHOLD, EDGE_GUARD]
 );
 
   // Fallback short-gesture detection (fling) in case Pan is being intercepted by RN scroll responders
@@ -1737,7 +1965,7 @@ const pan = useMemo(
           __DEV__ && console.log('[FLING LEFT] navigating → Chambers');
           goToChambers();
         }),
-    [gesturesDisabled, SCREEN_W, goToChambers]
+    [gesturesDisabled, SCREEN_W, goToChambers, EDGE_GUARD]
   );
 
   const flingRight = useMemo(
@@ -1755,7 +1983,7 @@ const pan = useMemo(
           __DEV__ && console.log('[FLING RIGHT] navigating → Soundscapes');
           goToSoundscapes();
         }),
-    [gesturesDisabled, SCREEN_W, goToSoundscapes]
+    [gesturesDisabled, SCREEN_W, goToSoundscapes, EDGE_GUARD]
   );
 
   const flingUp = useMemo(
@@ -1779,7 +2007,6 @@ const pan = useMemo(
 );
   // Some Android devices (gesture nav, certain emulators) report a smaller `window` height than the full
   // device screen. Use `screen` height to compute any extra space below the window and bleed the BG into it.
-  const { height: DEVICE_SCREEN_H } = Dimensions.get('screen');
   const NAV_FUDGE = Math.max(0, DEVICE_SCREEN_H - SCREEN_H);
   // Aspect profile — treat wide (short AR) devices slightly differently for orb sizing/placement
   const AR = SCREEN_H / SCREEN_W;
@@ -1789,14 +2016,26 @@ const pan = useMemo(
   // Treat larger-width devices (e.g., iPads / tablets) differently for hero sizing.
   // This is a simple breakpoint off logical width and AR so it stays platform-agnostic.
   const isTablet = SCREEN_W >= 768 && AR < 1.9;
+  // Short-phone class (e.g. iPhone SE): smaller orb — see utils/scale matchesCompactLayout + !isTablet
+  const isCompactPhone = !isTablet && matchesCompactLayout;
 
   // On wider or large-width devices, the orb tweaks can visually lift the sigils.
   // Add a stronger downward offset so they sit closer to the orb base.
   const isLargeW = SCREEN_W >= 420; // wide dp threshold (e.g., Pixel Pro / Galaxy Ultra class)
-  const SIGIL_Y_PROFILE_TWEAK = (isWide || isLargeW) ? 40 : 0; // move sigils down ~40px on wide/large screens
+  const SIGIL_Y_PROFILE_TWEAK = (isWide || isLargeW) ? verticalScale(40) : 0; // move sigils down on wide/large screens
 
-  // Resolve intrinsic size from the bundled background asset (no hardcoded dims)
-  const BG_ASSET = require('../assets/images/home_arch_bg_v2.webp');
+  // Video background player
+  const bgPlayer = useVideoPlayer(require('../assets/images/home_bg.mp4'), player => {
+    player.loop = true;
+    player.muted = true;
+    player.play();
+  });
+
+  useFocusEffect(useCallback(() => {
+    bgPlayer.play();
+    return () => { bgPlayer.pause(); };
+  }, [bgPlayer]));
+
   const SIGIL_JOURNAL = require('../assets/sigils/journal_button.png');
   const SIGIL_COMMUNITY = require('../assets/sigils/community_button.png');
   const HALO_LAVENDER = require('../assets/sigils/sigil_halo_lavender.png');
@@ -1810,11 +2049,7 @@ const QUICKCALM_BREATH = require('../assets/audio/quickcalm_breath_v1_mastered.m
   const thresholdOpacity = useRef(new Animated.Value(0)).current;
   __DEV__ && console.log('[QuickCalm] asset id =', QUICKCALM_BREATH);
   // Glow padding for halo images
-  const GLOW_PAD = 18;
-  const BG_SRC = Image.resolveAssetSource(BG_ASSET);
-  const BG_W = BG_SRC?.width ?? 2048;
-  const BG_H = BG_SRC?.height ?? 3072;
-
+  const GLOW_PAD = scale(18);
   // Enable/disable Lunar Whisper (later can come from Settings)
   const lunarEnabled = true;
   // Timed sprite swap (preloads default + current phase)
@@ -1856,31 +2091,40 @@ const QUICKCALM_BREATH = require('../assets/audio/quickcalm_breath_v1_mastered.m
   const SAFE_H = SCREEN_H;
 
   // Full-bleed cover inside the entire screen (no top/bottom gaps)
-  const BG_FIT: 'contain' | 'cover' = 'cover';
   const BG_BOX_W = SCREEN_W;
+  const BG_VERTICAL_SHIFT = verticalScale(165);
   // Bleed under status + nav bars and into any extra area not included in `window` height
-  const BG_BOX_H = SCREEN_H + insets.top + insets.bottom + NAV_FUDGE + 12; // +12px cushion to ensure no edge seams
+  const BG_BOX_H =
+    SCREEN_H + insets.top + insets.bottom + NAV_FUDGE + verticalScale(12) + BG_VERTICAL_SHIFT; // cushion to ensure no edge seams
   const BG_BOX_LEFT = 0;
   const BG_BOX_TOP = -insets.top;
 
-  const HERO_MIN = Math.max(300, SCREEN_H - 480); // ensures CTA sits near bottom of first viewport
+  const HERO_MIN = Math.max(verticalScale(300), SCREEN_H - verticalScale(480)); // ensures CTA sits near bottom of first viewport
 
   // Orb anchored inside the background box — baseline tuned for Pixel 7, with gentle AR-based tweaks
   // Orb anchored inside the background box — baseline tuned for phones, with tablet tweaks
-const ORB_SIZE_PCT = isTablet ? 0.18 : (isWide ? 0.315 : 0.300);
+  const phoneOrbPctBase = isWide ? 0.315 : 0.3;
+  const phoneOrbPct = isCompactPhone ? phoneOrbPctBase * 0.88 : phoneOrbPctBase;
+  const ORB_SIZE_PCT = isTablet ? 0.18 : phoneOrbPct;
 
 // ORIGINAL placement for phones (before tablet tweak)
-const ORB_Y_OFFSET_PHONE = -60;
+const ORB_Y_OFFSET_PHONE = verticalScale(-60);
 
 // Updated placement for tablets (the one you said looks great)
-const ORB_Y_OFFSET_TABLET = -90;
+const ORB_Y_OFFSET_TABLET = verticalScale(-90);
 
 // Apply device-appropriate offset
 const ORB_Y_OFFSET = isTablet ? ORB_Y_OFFSET_TABLET : ORB_Y_OFFSET_PHONE;
 
 const ORB_WIDTH = BG_BOX_W * ORB_SIZE_PCT;
 const ORB_LEFT  = BG_BOX_LEFT + BG_BOX_W * 0.499 - ORB_WIDTH / 2;
-const ORB_TOP   = BG_BOX_TOP + BG_BOX_H * 0.461 - ORB_WIDTH / 2 + ORB_Y_OFFSET;
+const ORB_TOP =
+  BG_BOX_TOP + BG_BOX_H * 0.461 - ORB_WIDTH / 2 + ORB_Y_OFFSET - verticalScale(10);
+
+  const ORB_HIT_DIAMETER = Math.min(
+    scale(isCompactPhone ? 135 : 150),
+    ORB_WIDTH * 1.06,
+  );
 
   // Sigils: placed symmetrically below the orb base, sized relative to bg width
   const SIGIL_SIZE_PCT = isTablet ? 0.085 : 0.11; // slightly smaller on tablets
@@ -1894,18 +2138,21 @@ const ORB_TOP   = BG_BOX_TOP + BG_BOX_H * 0.461 - ORB_WIDTH / 2 + ORB_Y_OFFSET;
   const SIGIL_RIGHT_CENTER_X = BG_BOX_LEFT + BG_BOX_W * 0.66;
 
   // Convert centers to top-left for absolute positioning (adjusted positions)
-  const SIGIL_LEFT_LEFT  = SIGIL_LEFT_CENTER_X  - SIGIL_SIZE / 2 - 15;  // moved 15px left
-  const SIGIL_LEFT_TOP   = SIGIL_CENTER_Y       - SIGIL_SIZE / 2 + 50 + SIGIL_Y_PROFILE_TWEAK;   // downshift on wide/large
-  const SIGIL_RIGHT_LEFT = SIGIL_RIGHT_CENTER_X - SIGIL_SIZE / 2 + 15;  // moved 15px right
-  const SIGIL_RIGHT_TOP  = SIGIL_CENTER_Y       - SIGIL_SIZE / 2 + 50 + SIGIL_Y_PROFILE_TWEAK;   // downshift on wide/large
+  const sigilExtraLift = verticalScale(20);
+  const SIGIL_LEFT_LEFT  = SIGIL_LEFT_CENTER_X  - SIGIL_SIZE / 2 - scale(15);
+  const SIGIL_LEFT_TOP =
+    SIGIL_CENTER_Y - SIGIL_SIZE / 2 + verticalScale(50) + SIGIL_Y_PROFILE_TWEAK - sigilExtraLift;
+  const SIGIL_RIGHT_LEFT = SIGIL_RIGHT_CENTER_X - SIGIL_SIZE / 2 + scale(15);
+  const SIGIL_RIGHT_TOP =
+    SIGIL_CENTER_Y - SIGIL_SIZE / 2 + verticalScale(50) + SIGIL_Y_PROFILE_TWEAK - sigilExtraLift;
 
   // Welcome message fade-up
   const msgOpacity = useRef(new Animated.Value(0)).current;
-  const msgTranslate = useRef(new Animated.Value(10)).current; // starts slightly lower
+  const msgTranslate = useRef(new Animated.Value(verticalScale(10))).current; // starts slightly lower
 
   // Top intention header fade/slide (appears after a short delay)
   const topAffOpacity = useRef(new Animated.Value(0)).current;
-  const topAffTranslate = useRef(new Animated.Value(-6)).current;
+  const topAffTranslate = useRef(new Animated.Value(-topAffLift)).current;
 
   // Shimmer for "My Journey" button
   const shimmerX = useRef(new Animated.Value(0)).current;
@@ -1927,11 +2174,23 @@ const ORB_TOP   = BG_BOX_TOP + BG_BOX_H * 0.461 - ORB_WIDTH / 2 + ORB_Y_OFFSET;
 
   // Scroll-driven depth (0 = outer sanctum → 1 = deeper chamber)
   const scrollY = useRef(new Animated.Value(0)).current;
-  const depth = scrollY.interpolate({ inputRange: [0, 240], outputRange: [0, 1], extrapolate: 'clamp' });
+  const depth = scrollY.interpolate({
+    inputRange: [0, scrollDepthFull],
+    outputRange: [0, 1],
+    extrapolate: 'clamp',
+  });
 
   // Parallax/attenuation for orb as you descend
-  const orbParallaxScale = scrollY.interpolate({ inputRange: [0, 200], outputRange: [1, 0.98], extrapolate: 'clamp' });
-  const orbParallaxOpacity = scrollY.interpolate({ inputRange: [0, 200], outputRange: [1, 0.92], extrapolate: 'clamp' });
+  const orbParallaxScale = scrollY.interpolate({
+    inputRange: [0, scrollParallaxMax],
+    outputRange: [1, 0.98],
+    extrapolate: 'clamp',
+  });
+  const orbParallaxOpacity = scrollY.interpolate({
+    inputRange: [0, scrollParallaxMax],
+    outputRange: [1, 0.92],
+    extrapolate: 'clamp',
+  });
 
   // Dust dims slightly with depth
   const dustOpacity = depth.interpolate({ inputRange: [0, 1], outputRange: [0.26, 0.16] });
@@ -1956,17 +2215,16 @@ useEffect(() => {
       return;
     }
 
-    const d = Math.max(0, Math.min(1, value / 240));
+    const d = Math.max(0, Math.min(1, scrollDepthFull > 0 ? value / scrollDepthFull : 0));
     const vol = HUM_BASE_VOL - 0.10 * d;
     TrackPlayer.setVolume(vol).catch(() => {});
   });
 
   return () => scrollY.removeListener(listenerId);
-}, [scrollY, innerPulseEnabled, innerPulseUnlocked, isFocused]);
+}, [scrollY, innerPulseEnabled, innerPulseUnlocked, isFocused, scrollDepthFull]);
 
   // Preload key imagery to avoid first-frame delay
   useEffect(() => {
-    Asset.fromModule(BG_ASSET).downloadAsync();
     Asset.fromModule(SIGIL_JOURNAL).downloadAsync();
     Asset.fromModule(SIGIL_COMMUNITY).downloadAsync();
     Asset.fromModule(HALO_LAVENDER).downloadAsync();
@@ -2191,7 +2449,7 @@ useEffect(() => {
     const hasIntention = !!(intentions && intentions.length > 0);
     if (hasIntention) {
       topAffOpacity.setValue(0);
-      topAffTranslate.setValue(-6);
+      topAffTranslate.setValue(-topAffLift);
       Animated.parallel([
         Animated.timing(topAffOpacity, {
           toValue: 1,
@@ -2210,9 +2468,9 @@ useEffect(() => {
     } else {
       // reset when no intentions
       topAffOpacity.setValue(0);
-      topAffTranslate.setValue(-6);
+      topAffTranslate.setValue(-topAffLift);
     }
-  }, [intentions, topAffOpacity, topAffTranslate]);
+  }, [intentions, topAffOpacity, topAffTranslate, topAffLift]);
 
 
   // Fade the ambient hum before navigating away (only acts when hum is the active track)
@@ -2585,21 +2843,31 @@ const openInnerFlame = useCallback(async () => {
   return (
   <GestureDetector gesture={rootGesture}>
     <View style={styles.container}>
-      {/* Background — rendered in a computed fit box (contain/cover) */}
-      <Image
-        source={BG_ASSET}
-        fadeDuration={0}
-        resizeMode={BG_FIT}  // 'cover'
-        style={[
-          StyleSheet.absoluteFillObject,
-          {
-            left: BG_BOX_LEFT,
-            top: BG_BOX_TOP,
-            width: BG_BOX_W,
-            height: BG_BOX_H,
-          },
-        ]}
-      />
+      {/* Background — looping video rendered in a computed fit box (cover) */}
+      <View
+        style={{
+          position: 'absolute',
+          left: BG_BOX_LEFT,
+          top: BG_BOX_TOP - BG_VERTICAL_SHIFT,
+          width: BG_BOX_W,
+          height: BG_BOX_H,
+          overflow: 'hidden',
+        }}
+      >
+        <VideoView
+          player={bgPlayer}
+          contentFit="cover"
+          style={[
+            StyleSheet.absoluteFill,
+            {
+              transform: [{ scale: 1.2 }],
+            },
+          ]}
+          nativeControls={false}
+          allowsFullscreen={false}
+          allowsPictureInPicture={false}
+        />
+      </View>
       {/* HomeAuraContinuity overlay, below orb & sigils */}
       <HomeAuraContinuity />
       {/* Micro fog pulse — subtle reactivation drift */}
@@ -2623,11 +2891,11 @@ const openInnerFlame = useCallback(async () => {
         accessibilityHint="Shows a short walkthrough of this screen"
         style={{
           position: 'absolute',
-          left: 12,
-          top: insets.top + 8,
-          width: 36,
-          height: 36,
-          borderRadius: 18,
+          left: scale(12),
+          top: insets.top + verticalScale(8),
+          width: scale(36),
+          height: scale(36),
+          borderRadius: scale(18),
           alignItems: 'center',
           justifyContent: 'center',
           backgroundColor: 'rgba(0,0,0,0.30)',
@@ -2637,10 +2905,10 @@ const openInnerFlame = useCallback(async () => {
           elevation: 120,
           opacity: 0.9,
         }}
-        hitSlop={12}
+        hitSlop={scale(12)}
         onPressIn={async () => { try { await Haptics.selectionAsync(); } catch {} }}
       >
-        <Text style={{ color: '#EDEAF6', fontSize: 18, lineHeight: 18 }}>?</Text>
+        <Text style={{ color: '#EDEAF6', fontSize: scale(18), lineHeight: scale(18) }}>?</Text>
       </Pressable>
       {/* Top-right Settings gear */}
       <Pressable
@@ -2650,11 +2918,11 @@ const openInnerFlame = useCallback(async () => {
         accessibilityHint={profileName ? 'Change how Inner refers to you' : 'Edit how Inner addresses you'}
         style={{
           position: 'absolute',
-          right: 12,
-          top: insets.top + 8,
-          width: 36,
-          height: 36,
-          borderRadius: 18,
+          right: scale(12),
+          top: insets.top + verticalScale(8),
+          width: scale(36),
+          height: scale(36),
+          borderRadius: scale(18),
           alignItems: 'center',
           justifyContent: 'center',
           backgroundColor: 'rgba(0,0,0,0.30)',
@@ -2664,10 +2932,10 @@ const openInnerFlame = useCallback(async () => {
           elevation: 120,
           opacity: 0.9,
         }}
-        hitSlop={12}
+        hitSlop={scale(12)}
         onPressIn={async () => { try { await Haptics.selectionAsync(); } catch {} }}
       >
-        <Text style={{ color: '#EDEAF6', fontSize: 18, lineHeight: 18 }}>⚙︎</Text>
+        <Text style={{ color: '#EDEAF6', fontSize: scale(18), lineHeight: scale(18) }}>⚙︎</Text>
       </Pressable>
       
       {/* Threshold Moment overlay */}
@@ -2689,11 +2957,11 @@ const openInnerFlame = useCallback(async () => {
             <Text
             style={{
                 fontFamily: 'Inter-ExtraLight',
-                fontSize: 18,
-                letterSpacing: 0.6,
+                fontSize: scale(18),
+                letterSpacing: scale(0.6),
                 color: 'rgba(240,236,255,0.95)',
                 textAlign: 'center',
-                paddingHorizontal: 28,
+                paddingHorizontal: scale(28),
             }}
             >
                 {thresholdLine}
@@ -2730,8 +2998,8 @@ const openInnerFlame = useCallback(async () => {
             <Animated.Text
               style={{
                 fontFamily: 'Inter-ExtraLight',
-                fontSize: 16,
-                letterSpacing: 0.6,
+                fontSize: scale(16),
+                letterSpacing: scale(0.6),
                 color: 'rgba(240,236,255,0.98)',
                 textAlign: 'center',
                 opacity: quickCalmTextOpacity,
@@ -2750,8 +3018,8 @@ const openInnerFlame = useCallback(async () => {
           pointerEvents="box-none"
           style={{
             position: 'absolute',
-            top: insets.top + 10,
-            right: 56, // just to the left of the settings gear
+            top: insets.top + verticalScale(10),
+            right: scale(56),
             zIndex: 130,
             elevation: 130,
           }}
@@ -2775,8 +3043,8 @@ const openInnerFlame = useCallback(async () => {
               start={{ x: 0, y: 0.5 }}
               end={{ x: 1, y: 0.5 }}
               style={{
-                paddingHorizontal: 14,
-                paddingVertical: 6,
+                paddingHorizontal: scale(14),
+                paddingVertical: verticalScale(6),
                 flexDirection: 'row',
                 alignItems: 'center',
               }}
@@ -2784,15 +3052,15 @@ const openInnerFlame = useCallback(async () => {
               {/* Ember dot */}
               <View
                 style={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: 4,
-                  marginRight: 8,
+                  width: scale(8),
+                  height: scale(8),
+                  borderRadius: scale(4),
+                  marginRight: scale(8),
                   backgroundColor: 'rgba(255,214,170,0.95)',
                   shadowColor: '#FFD6AA',
                   shadowOpacity: 0.9,
                   shadowOffset: { width: 0, height: 0 },
-                  shadowRadius: 8,
+                  shadowRadius: scale(8),
                 }}
               />
 
@@ -2800,9 +3068,9 @@ const openInnerFlame = useCallback(async () => {
               <Text
                 style={{
                   fontFamily: 'CalSans-SemiBold',
-                  fontSize: 12,
+                  fontSize: scale(12),
                   color: '#F9F5FF',
-                  marginRight: 4,
+                  marginRight: scale(4),
                 }}
                 numberOfLines={1}
               >
@@ -2815,7 +3083,7 @@ const openInnerFlame = useCallback(async () => {
               <Text
                 style={{
                   fontFamily: 'Inter-ExtraLight',
-                  fontSize: 11,
+                  fontSize: scale(11),
                   color: 'rgba(244,236,255,0.92)',
                 }}
                 numberOfLines={1}
@@ -2867,7 +3135,7 @@ const openInnerFlame = useCallback(async () => {
           pointerEvents="box-none"
           style={{
             position: 'absolute',
-            top: insets.top + 16,
+            top: insets.top + verticalScale(16),
             left: 0,
             right: 0,
             zIndex: 80,
@@ -2880,8 +3148,8 @@ const openInnerFlame = useCallback(async () => {
             style={{
               alignSelf: 'center',
               width: '78%',
-              maxWidth: 380,
-              paddingHorizontal: 6,
+              maxWidth: scale(380),
+              paddingHorizontal: scale(6),
             }}
           >
             <AnimatedPressable
@@ -2906,9 +3174,9 @@ const openInnerFlame = useCallback(async () => {
                 }).start();
             }}
             style={{
-                paddingVertical: 10,
-                paddingHorizontal: 14,
-                borderRadius: 16,
+                paddingVertical: verticalScale(10),
+                paddingHorizontal: scale(14),
+                borderRadius: scale(16),
                 overflow: 'hidden',
                 transform: [{ scale: suggPressScale }],
             }}
@@ -2940,7 +3208,7 @@ const openInnerFlame = useCallback(async () => {
                   ...StyleSheet.absoluteFillObject,
                   borderWidth: 1,
                   borderColor: suggPressBorder,
-                  borderRadius: 16,
+                  borderRadius: scale(16),
                 }}
               />
               {/* Press glow (subtle) */}
@@ -2950,18 +3218,18 @@ const openInnerFlame = useCallback(async () => {
                   ...StyleSheet.absoluteFillObject,
                   backgroundColor: 'rgba(255,255,255,0.04)',
                   opacity: suggPressGlow,
-                  borderRadius: 16,
+                  borderRadius: scale(16),
                 }}
               />
               {/* Whisper copy */}
               <Text
                 style={{
                   fontFamily: 'Inter-ExtraLight',
-                  fontSize: 12,
+                  fontSize: scale(12),
                   color: 'rgba(191,199,255,0.78)',
-                  letterSpacing: 0.2,
+                  letterSpacing: scale(0.2),
                   textAlign: 'center',
-                  marginBottom: 4,
+                  marginBottom: verticalScale(4),
                 }}
               >
                 Tonight, a door is open.
@@ -2972,11 +3240,11 @@ const openInnerFlame = useCallback(async () => {
                   numberOfLines={1}
                   style={{
                     fontFamily: 'CalSans-SemiBold',
-                    fontSize: 14,
+                    fontSize: scale(14),
                     color: 'rgba(255,255,255,0.94)',
-                    letterSpacing: 0.15,
+                    letterSpacing: scale(0.15),
                     textAlign: 'center',
-                    maxWidth: 280,
+                    maxWidth: scale(280),
                   }}
                 >
                   {suggestion.title}
@@ -2985,9 +3253,9 @@ const openInnerFlame = useCallback(async () => {
                 {suggestion.minutes ? (
                   <Text
                     style={{
-                      marginLeft: 8,
+                      marginLeft: scale(8),
                       fontFamily: 'Inter-ExtraLight',
-                      fontSize: 12,
+                      fontSize: scale(12),
                       color: 'rgba(207,213,255,0.70)',
                     }}
                   >
@@ -3000,9 +3268,9 @@ const openInnerFlame = useCallback(async () => {
               {/* Hairline underline to keep it intentional */}
               <View
                 style={{
-                  marginTop: 8,
+                  marginTop: verticalScale(8),
                   alignSelf: 'center',
-                  width: 190,
+                  width: scale(190),
                   height: 1,
                   backgroundColor: 'rgba(255,255,255,0.06)',
                 }}
@@ -3014,20 +3282,20 @@ const openInnerFlame = useCallback(async () => {
               accessibilityRole="button"
               accessibilityLabel="Dismiss tonight’s practice"
               onPress={handleDismissSuggestion}
-              hitSlop={10}
+              hitSlop={scale(10)}
               style={{
                 alignSelf: 'center',
-                marginTop: 2,
-                paddingVertical: 6,
-                paddingHorizontal: 10,
+                marginTop: verticalScale(2),
+                paddingVertical: verticalScale(6),
+                paddingHorizontal: scale(10),
               }}
             >
               <Text
                 style={{
                   fontFamily: 'Inter-ExtraLight',
-                  fontSize: 12,
+                  fontSize: scale(12),
                   color: 'rgba(207,195,224,0.78)',
-                  letterSpacing: 0.2,
+                  letterSpacing: scale(0.2),
                 }}
               >
                 Later
@@ -3399,7 +3667,12 @@ const openInnerFlame = useCallback(async () => {
 
       <View
         pointerEvents="box-none"
-        style={{ alignSelf: 'stretch', alignItems: 'center', paddingTop: 360, paddingBottom: 40 }}
+        style={{
+          alignSelf: 'stretch',
+          alignItems: 'center',
+          paddingTop: verticalScale(360),
+          paddingBottom: verticalScale(40),
+        }}
       >
         {/* Hero section (keeps welcome + CTA visually centered) */}
         <View
@@ -3409,7 +3682,16 @@ const openInnerFlame = useCallback(async () => {
           <Animated.Text
             style={[
               Body.regular,
-              { fontFamily: 'Inter-ExtraLight', letterSpacing: 0.3, color: '#EDEAF6', opacity: msgOpacity, transform: [{ translateY: msgTranslate }], marginTop: 8, marginBottom: 12, textAlign: 'center' },
+              {
+                fontFamily: 'Inter-ExtraLight',
+                letterSpacing: scale(0.3),
+                color: '#EDEAF6',
+                opacity: msgOpacity,
+                transform: [{ translateY: msgTranslate }],
+                marginTop: verticalScale(8),
+                marginBottom: verticalScale(12),
+                textAlign: 'center',
+              },
             ]}
           >
             {profileName
@@ -3465,15 +3747,15 @@ const openInnerFlame = useCallback(async () => {
                 pointerEvents="none"
                 style={{
                   position: 'absolute',
-                  top: -12,
-                  bottom: -12,
-                  width: 80,
+                  top: verticalScale(-12),
+                  bottom: verticalScale(-12),
+                  width: scale(80),
                   opacity: 0.45,
                   transform: [
                     {
                       translateX: shimmerX.interpolate({
                         inputRange: [0, 1],
-                        outputRange: [-220, 260],
+                        outputRange: [-scale(220), scale(260)],
                       }),
                     },
                     { rotate: '-18deg' },
@@ -3526,7 +3808,7 @@ const openInnerFlame = useCallback(async () => {
     accessibilityRole="button"
     accessibilityLabel="Go to Soundscapes"
     style={[styles.navArrowLeft, { zIndex: 61, elevation: 61 }]}
-    hitSlop={16}
+    hitSlop={scale(16)}
     onLongPress={async () => {
       try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
       runHint(leftHint);
@@ -3564,7 +3846,7 @@ const openInnerFlame = useCallback(async () => {
     accessibilityRole="button"
     accessibilityLabel="Go to Chambers"
     style={[styles.navArrowRight, { zIndex: 61, elevation: 61 }]}
-    hitSlop={16}
+    hitSlop={scale(16)}
     onLongPress={async () => {
       try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
       runHint(rightHint);
@@ -3617,8 +3899,13 @@ const openInnerFlame = useCallback(async () => {
   accessibilityHint="Opens Inner’s Learning Hub with guides and lessons"
   accessible={true}
   importantForAccessibility="yes"
-  style={[styles.navArrowBottom, { bottom: insets.bottom + 24 }]}
-  hitSlop={{ top: 32, bottom: 32, left: 56, right: 56 }} // keep the generous hit area
+  style={[styles.navArrowBottom, { bottom: insets.bottom + verticalScale(24) }]}
+  hitSlop={{
+    top: verticalScale(32),
+    bottom: verticalScale(32),
+    left: scale(56),
+    right: scale(56),
+  }}
 >
   <Text style={styles.navArrowText}>{'\u2304'}</Text>
 </Pressable>
@@ -3630,12 +3917,12 @@ const openInnerFlame = useCallback(async () => {
             {
               fontFamily: 'CalSans-SemiBold',
               textAlign: 'center',
-              fontSize: 16,
+              fontSize: scale(16),
               position: 'absolute',
               left: '50%',
-              bottom: insets.bottom + 4,
-              width: 120,
-              transform: [{ translateX: -60 }],
+              bottom: insets.bottom + verticalScale(4),
+              width: scale(120),
+              transform: [{ translateX: -scale(60) }],
               color: '#EDEAF6',
               backgroundColor: 'transparent',
               zIndex: 61,
@@ -3695,16 +3982,16 @@ const openInnerFlame = useCallback(async () => {
               flex: 1,
               justifyContent: 'center',
               alignItems: 'center',
-              paddingHorizontal: 24,
+              paddingHorizontal: scale(24),
             }}
           >
             <View
               style={{
                 width: '100%',
-                maxWidth: 420,
-                borderRadius: 20,
-                paddingVertical: 18,
-                paddingHorizontal: 18,
+                maxWidth: scale(420),
+                borderRadius: scale(20),
+                paddingVertical: verticalScale(18),
+                paddingHorizontal: scale(18),
                 backgroundColor: 'rgba(8,8,20,0.96)',
                 borderWidth: 1,
                 borderColor: 'rgba(255,255,255,0.12)',
@@ -3713,8 +4000,8 @@ const openInnerFlame = useCallback(async () => {
              {threadSuggestion && (
                 <View
                   style={{
-                    marginBottom: 14,
-                    paddingBottom: 10,
+                    marginBottom: verticalScale(14),
+                    paddingBottom: verticalScale(10),
                     borderBottomWidth: 1,
                     borderBottomColor: 'rgba(255,255,255,0.08)',
                     alignItems: 'center',
@@ -3723,9 +4010,9 @@ const openInnerFlame = useCallback(async () => {
                   <Text
                     style={{
                       fontFamily: 'CalSans-SemiBold',
-                      fontSize: 15,
+                      fontSize: scale(15),
                       color: '#F5F1FF',
-                      marginBottom: 4,
+                      marginBottom: verticalScale(4),
                       textAlign: 'center',
                     }}
                   >
@@ -3736,9 +4023,9 @@ const openInnerFlame = useCallback(async () => {
                     <Text
                       style={{
                         fontFamily: 'CalSans-Semibold',
-                        fontSize: 16,
+                        fontSize: scale(16),
                         color: '#D4CCE9',
-                        marginBottom: 8,
+                        marginBottom: verticalScale(8),
                         textAlign: 'center',
                       }}
                     >
@@ -3752,8 +4039,8 @@ const openInnerFlame = useCallback(async () => {
                     style={{
                       alignSelf: 'center',
                       borderRadius: 999,
-                      paddingVertical: 7,
-                      paddingHorizontal: 14,
+                      paddingVertical: verticalScale(7),
+                      paddingHorizontal: scale(14),
                       backgroundColor: 'rgba(180,140,255,0.20)',
                       borderWidth: 1,
                       borderColor: 'rgba(220,200,255,0.60)',
@@ -3762,8 +4049,8 @@ const openInnerFlame = useCallback(async () => {
                     <Text
                       style={{
                         fontFamily: 'Inter-ExtraLight',
-                        fontSize: 13,
-                        letterSpacing: 0.4,
+                        fontSize: scale(13),
+                        letterSpacing: scale(0.4),
                         color: '#F9F5FF',
                       }}
                     >
@@ -3779,10 +4066,10 @@ const openInnerFlame = useCallback(async () => {
                   {
                     fontFamily: 'CalSans-SemiBold',
                     color: '#F4F1FF',
-                    fontSize: 20,
+                    fontSize: scale(20),
                     textAlign: 'center',
-                    letterSpacing: 0.3,
-                    marginBottom: 4,
+                    letterSpacing: scale(0.3),
+                    marginBottom: verticalScale(4),
                   },
                 ]}
               >
@@ -3794,9 +4081,9 @@ const openInnerFlame = useCallback(async () => {
                   {
                     fontFamily: 'Inter-ExtraLight',
                     color: '#CAC3ED',
-                    fontSize: 13,
+                    fontSize: scale(13),
                     textAlign: 'center',
-                    marginBottom: 16,
+                    marginBottom: verticalScale(16),
                   },
                 ]}
               >
@@ -3804,7 +4091,7 @@ const openInnerFlame = useCallback(async () => {
               </Text>
 
               {/* Ritual options */}
-              <View style={{ gap: 8, marginBottom: 10 }}>
+              <View style={{ gap: scale(8), marginBottom: verticalScale(10) }}>
                 {/* Point 0 */}
                 <Pressable
                   onPress={openPointZero}
@@ -3813,9 +4100,9 @@ const openInnerFlame = useCallback(async () => {
                   accessibilityHint="Opens a one minute grounding ritual to drop beneath the noise"
                   style={[
                     {
-                      borderRadius: 14,
-                      paddingVertical: 10,
-                      paddingHorizontal: 12,
+                      borderRadius: scale(14),
+                      paddingVertical: verticalScale(10),
+                      paddingHorizontal: scale(12),
                       backgroundColor: 'rgba(255,255,255,0.02)',
                       borderWidth: 1,
                       borderColor: 'rgba(181,169,255,0.35)',
@@ -3825,7 +4112,7 @@ const openInnerFlame = useCallback(async () => {
                       backgroundColor: 'rgba(40,24,68,0.55)',
                       shadowColor: '#E6D7FF',
                       shadowOpacity: 0.45,
-                      shadowRadius: 16,
+                      shadowRadius: scale(16),
                       shadowOffset: { width: 0, height: 0 },
                       elevation: 6,
                     },
@@ -3834,11 +4121,11 @@ const openInnerFlame = useCallback(async () => {
                   <Text
                     style={{
                       fontFamily: 'CalSans-SemiBold',
-                      fontSize: 14,
-                      letterSpacing: 0.7,
+                      fontSize: scale(14),
+                      letterSpacing: scale(0.7),
                       textTransform: 'uppercase',
                       color: '#B5A9FF',
-                      marginBottom: 2,
+                      marginBottom: verticalScale(2),
                     }}
                   >
                     Point 0 · Ground
@@ -3846,9 +4133,9 @@ const openInnerFlame = useCallback(async () => {
                   <Text
                     style={{
                       fontFamily: 'Inter-ExtraLight',
-                      fontSize: 15,
+                      fontSize: scale(15),
                       color: '#F0EEF8',
-                      marginBottom: 2,
+                      marginBottom: verticalScale(2),
                     }}
                   >
                     Drop beneath the noise.
@@ -3856,7 +4143,7 @@ const openInnerFlame = useCallback(async () => {
                   <Text
                     style={{
                       fontFamily: 'Inter-ExtraLight',
-                      fontSize: 12,
+                      fontSize: scale(12),
                       color: '#C4BDD8',
                     }}
                   >
@@ -3872,9 +4159,9 @@ const openInnerFlame = useCallback(async () => {
                   accessibilityHint="Opens a one minute clarity ritual to clear mental fog"
                   style={[
                     {
-                      borderRadius: 14,
-                      paddingVertical: 10,
-                      paddingHorizontal: 12,
+                      borderRadius: scale(14),
+                      paddingVertical: verticalScale(10),
+                      paddingHorizontal: scale(12),
                       backgroundColor: 'rgba(255,255,255,0.02)',
                       borderWidth: 1,
                       borderColor: 'rgba(148,231,255,0.32)',
@@ -3884,7 +4171,7 @@ const openInnerFlame = useCallback(async () => {
                       backgroundColor: 'rgba(10,36,54,0.60)',
                       shadowColor: '#D0F4FF',
                       shadowOpacity: 0.45,
-                      shadowRadius: 16,
+                      shadowRadius: scale(16),
                       shadowOffset: { width: 0, height: 0 },
                       elevation: 6,
                     },
@@ -3893,11 +4180,11 @@ const openInnerFlame = useCallback(async () => {
                   <Text
                     style={{
                       fontFamily: 'CalSans-SemiBold',
-                      fontSize: 14,
-                      letterSpacing: 0.7,
+                      fontSize: scale(14),
+                      letterSpacing: scale(0.7),
                       textTransform: 'uppercase',
                       color: '#93E1FF',
-                      marginBottom: 2,
+                      marginBottom: verticalScale(2),
                     }}
                   >
                     Clean Slate · Clarity
@@ -3905,9 +4192,9 @@ const openInnerFlame = useCallback(async () => {
                   <Text
                     style={{
                       fontFamily: 'Inter-ExtraLight',
-                      fontSize: 15,
+                      fontSize: scale(15),
                       color: '#F0EEF8',
-                      marginBottom: 2,
+                      marginBottom: verticalScale(2),
                     }}
                   >
                     Clear the inner screen.
@@ -3915,7 +4202,7 @@ const openInnerFlame = useCallback(async () => {
                   <Text
                     style={{
                       fontFamily: 'Inter-ExtraLight',
-                      fontSize: 12,
+                      fontSize: scale(12),
                       color: '#C4BDD8',
                     }}
                   >
@@ -3931,9 +4218,9 @@ const openInnerFlame = useCallback(async () => {
                   accessibilityHint="Opens a one minute ritual to reconnect with your inner fire"
                   style={[
                     {
-                      borderRadius: 14,
-                      paddingVertical: 10,
-                      paddingHorizontal: 12,
+                      borderRadius: scale(14),
+                      paddingVertical: verticalScale(10),
+                      paddingHorizontal: scale(12),
                       backgroundColor: 'rgba(255,255,255,0.02)',
                       borderWidth: 1,
                       borderColor: 'rgba(255,190,140,0.38)',
@@ -3943,7 +4230,7 @@ const openInnerFlame = useCallback(async () => {
                       backgroundColor: 'rgba(54,30,12,0.60)',
                       shadowColor: '#FFDCC0',
                       shadowOpacity: 0.45,
-                      shadowRadius: 16,
+                      shadowRadius: scale(16),
                       shadowOffset: { width: 0, height: 0 },
                       elevation: 6,
                     },
@@ -3952,11 +4239,11 @@ const openInnerFlame = useCallback(async () => {
                   <Text
                     style={{
                       fontFamily: 'CalSans-SemiBold',
-                      fontSize: 14,
-                      letterSpacing: 0.7,
+                      fontSize: scale(14),
+                      letterSpacing: scale(0.7),
                       textTransform: 'uppercase',
                       color: '#FFC895',
-                      marginBottom: 2,
+                      marginBottom: verticalScale(2),
                     }}
                   >
                     Inner Flame · Renew
@@ -3964,9 +4251,9 @@ const openInnerFlame = useCallback(async () => {
                   <Text
                     style={{
                       fontFamily: 'Inter-ExtraLight',
-                      fontSize: 15,
+                      fontSize: scale(15),
                       color: '#F0EEF8',
-                      marginBottom: 2,
+                      marginBottom: verticalScale(2),
                     }}
                   >
                     Remember your spark.
@@ -3974,7 +4261,7 @@ const openInnerFlame = useCallback(async () => {
                   <Text
                     style={{
                       fontFamily: 'Inter-ExtraLight',
-                      fontSize: 12,
+                      fontSize: scale(12),
                       color: '#C4BDD8',
                     }}
                   >
@@ -3988,9 +4275,9 @@ const openInnerFlame = useCallback(async () => {
                 style={{
                   borderTopWidth: 1,
                   borderTopColor: 'rgba(255,255,255,0.08)',
-                  paddingTop: 10,
-                  marginTop: 4,
-                  gap: 8,
+                  paddingTop: verticalScale(10),
+                  marginTop: verticalScale(4),
+                  gap: scale(8),
                 }}
               >
                 <Pressable
@@ -3999,9 +4286,9 @@ const openInnerFlame = useCallback(async () => {
                   accessibilityLabel="Resume last journey"
                   accessibilityHint="Continue the last Chamber or Soundscape you were in"
                   style={{
-                    borderRadius: 16,
-                    paddingVertical: 10,
-                    paddingHorizontal: 14,
+                    borderRadius: scale(16),
+                    paddingVertical: verticalScale(10),
+                    paddingHorizontal: scale(14),
                     backgroundColor: '#CFC3E0',
                     borderWidth: 1,
                     borderColor: 'rgba(24,22,42,0.85)',
@@ -4010,12 +4297,12 @@ const openInnerFlame = useCallback(async () => {
                   <Text
                     style={{
                       fontFamily: 'CalSans-SemiBold',
-                      fontSize: 15,
+                      fontSize: scale(15),
                       color: '#171727',
-                      letterSpacing: 0.2,
+                      letterSpacing: scale(0.2),
                       textAlign: 'center',
                       width: '100%',
-                      marginBottom: resumeSub ? 2 : 0,
+                      marginBottom: resumeSub ? verticalScale(2) : 0,
                     }}
                   >
                     {resumeLabel || 'Resume journey'}
@@ -4024,7 +4311,7 @@ const openInnerFlame = useCallback(async () => {
                     <Text
                       style={{
                         fontFamily: 'Inter-ExtraLight',
-                        fontSize: 12,
+                        fontSize: scale(12),
                         color: '#25243A',
                       }}
                     >
@@ -4038,12 +4325,16 @@ const openInnerFlame = useCallback(async () => {
                   accessibilityRole="button"
                   accessibilityLabel="Close ritual menu"
                   accessibilityHint="Return to the Home screen without starting a ritual"
-                  style={{ alignSelf: 'center', paddingVertical: 4, paddingHorizontal: 8 }}
+                  style={{
+                    alignSelf: 'center',
+                    paddingVertical: verticalScale(4),
+                    paddingHorizontal: scale(8),
+                  }}
                 >
                   <Text
                     style={{
                       fontFamily: 'Inter-ExtraLight',
-                      fontSize: 13,
+                      fontSize: scale(13),
                       color: '#EDEAF6',
                     }}
                   >
@@ -4074,205 +4365,3 @@ const openInnerFlame = useCallback(async () => {
     </GestureDetector>
     );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#0d0d1a',
-    justifyContent: 'flex-start',
-    alignItems: 'center',
-    paddingVertical: 0,
-  },
-  // NOTE: portalWrap sits *under* heroSection. If CTA becomes untouchable, raise heroSection zIndex/elevation.
-  portalWrap: {
-    ...StyleSheet.absoluteFillObject,
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 55,
-    elevation: 55,
-  },
-  orbImage: {},
-  orbHit: {
-    position: 'absolute',
-    left: '50%',
-    top: '50%',
-    borderRadius: 9999,
-  },
-  portalCore: {
-    width: 147,
-    height: 147,
-    borderRadius: 90,
-    backgroundColor: 'rgba(203, 179, 240, 0.35)', // inner light
-  },
-  portalGlow: {
-    position: 'absolute',
-    left: -30, right: -30, top: -30, bottom: -30,
-    borderRadius: 220,
-    backgroundColor: 'rgba(203, 179, 240, 0.18)', // lavender aura
-  },
-  actions: {
-    alignItems: 'center',
-    marginBottom: 12,
-    zIndex: 75,
-    elevation: 75, // Android elevation
-  },
-  primaryButton: {
-    backgroundColor: '#CFC3E0',
-    paddingVertical: 10,
-    paddingHorizontal: 32,
-    borderRadius: 20,
-    marginBottom: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.20)',
-  },
-  // primaryText: { color: '#1F233A', fontSize: 18, fontWeight: '600', lineHeight: 20 },
-  // secondaryText: { color: '#F0EEF8', fontSize: 14, opacity: 0.85 },
-  // heroSection is intentionally stacked above orb for reliable tap handling on CTA
-  heroSection: {
-    width: '100%',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    paddingBottom: 12,
-    zIndex: 70,
-    elevation: 70, // Android elevation
-  },
-
-
-  intentionAffirmation: {
-    marginTop: 4,
-    color: '#E8E5F3',
-    fontSize: 14,
-    opacity: 0.9,
-    textAlign: 'center',
-},
-progressTrack: {
-  marginTop: 6,
-  width: '86%',
-  height: 3,
-  borderRadius: 3,
-  backgroundColor: 'rgba(31,35,58,0.25)',
-  alignSelf: 'center',
-  overflow: 'hidden',
-},
-progressFill: {
-  height: '100%',
-  backgroundColor: '#6B5AE0', // Deep indigo — subtle, on-brand
-},
-
-  modalBackdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  modalCard: {
-    width: '84%',
-    backgroundColor: 'rgba(18,18,32,0.96)',
-    borderRadius: 16,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)'
-  },
-  modalBtn: {
-    backgroundColor: 'rgba(207,195,224,0.18)',
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: 12,
-    marginTop: 10,
-  },
-  tileBlur: {
-    flex: 1,
-    borderRadius: 16,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)'
-  },
-  tileBg: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 16,
-  },
-  tileHighlight: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 0,
-    height: 28,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-  },
-  navArrowHint: {
-    position: 'absolute',
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    borderWidth: 2,
-    borderColor: 'rgba(207,195,224,0.85)', // lavender ring
-    backgroundColor: 'transparent',
-    zIndex: 24, // just beneath the arrows (which render after)
-  },
-  navArrowLeft: {
-    position: 'absolute',
-    left: 12,
-    top: 375, // centers vertically around the 50% container line (raised by 25px)
-    width: 48,
-    height: 48,
-    borderRadius: 19,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(0,0,0,0.30)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
-  },
-  navArrowRight: {
-    position: 'absolute',
-    right: 12,
-    top: 375,
-    width: 48,
-    height: 48,
-    borderRadius: 19,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(0,0,0,0.30)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
-  },
-  navArrowBottom: {
-    position: 'absolute',
-    left: '50%',
-    transform: [{ translateX: -24 }], // half of 48 width
-    width: 48,
-    height: 48,
-    borderRadius: 19,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(0,0,0,0.30)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
-  },
-
-  navArrowText: {
-    color: '#EDEAF6',
-    fontSize: 22,
-    textAlign: 'center',
-    marginTop: 0,
-    marginBottom: 0,
-    paddingVertical: 0,
-    lineHeight: 22,
-  },
-  intentionTopWrap: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    zIndex: 200,
-    elevation: 200,
-  },
-});

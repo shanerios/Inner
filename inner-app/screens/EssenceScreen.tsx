@@ -15,7 +15,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   ImageBackground,
-  Dimensions,
   Image,
   Animated,
   Easing,
@@ -25,6 +24,7 @@ import {
   Keyboard,
   TouchableWithoutFeedback,
   ImageSourcePropType,
+  useWindowDimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 const AnimatedLinear = Animated.createAnimatedComponent(LinearGradient as any);
@@ -33,15 +33,13 @@ import { useNavigation } from '@react-navigation/native';
 
 import { useBreath } from '../core/BreathProvider';
 import { Typography, Body as _Body } from '../core/typography';
+import { useScale } from '../utils/scale';
 
 // Safe fallback so hot reloads never break Body usage
 const Body = _Body ?? ({
   regular: { ...Typography.body },
   subtle:  { ...Typography.caption },
 } as const);
-
-
-const { width, height } = Dimensions.get('window');
 
 // Unified breath timing so all cues stay in sync
 // Changing INHALE_MS or EXHALE_MS will automatically re-sync scale, glow, and sheen animations
@@ -55,6 +53,189 @@ const ORB_PNG = require('../assets/splash_ios.png');
 
 export default function EssenceScreen() {
   const navigation = useNavigation();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const { scale, verticalScale } = useScale();
+  const namePromptLift = verticalScale(6);
+  const namePromptDismissShift = verticalScale(4);
+  const journeyPromptDrift = verticalScale(10);
+  const namePromptLiftRef = useRef(namePromptLift);
+  namePromptLiftRef.current = namePromptLift;
+
+  const styles = useMemo(
+    () =>
+      StyleSheet.create({
+        container: {
+          flex: 1,
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          paddingVertical: verticalScale(60),
+          paddingHorizontal: scale(20),
+          backgroundColor: '#0d0d1a',
+        },
+        centerContent: {
+          flex: 1,
+          alignItems: 'center',
+          justifyContent: 'center',
+          alignSelf: 'stretch',
+          paddingTop: verticalScale(200),
+        },
+        descriptionWrapper: {
+          marginTop: verticalScale(48),
+          marginBottom: verticalScale(32),
+          alignSelf: 'center',
+        },
+        symbol: {
+          width: '100%',
+          height: '100%',
+          opacity: 0.9,
+        },
+        orbWrapper: {
+          width: scale(180),
+          height: scale(180),
+          opacity: 0.9,
+          borderRadius: scale(90),
+          overflow: 'hidden',
+          marginBottom: verticalScale(16),
+          zIndex: 10,
+          elevation: 0,
+        },
+        buttonContainer: {
+          alignItems: 'center',
+        },
+        primaryButton: {
+          backgroundColor: '#CFC3E0',
+          paddingVertical: verticalScale(14),
+          paddingHorizontal: scale(40),
+          borderRadius: scale(24),
+          marginBottom: verticalScale(12),
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: verticalScale(4) },
+          shadowOpacity: 0.25,
+          shadowRadius: scale(4),
+          elevation: 5,
+        },
+        cardContainer: {
+          flexDirection: 'row',
+          flexWrap: 'wrap',
+          justifyContent: 'center',
+          marginTop: verticalScale(12),
+        },
+        intentionCard: {
+          backgroundColor: 'rgba(240, 238, 248, 0.1)',
+          borderColor: '#F0EEF8',
+          borderWidth: 1,
+          borderRadius: scale(12),
+          paddingVertical: verticalScale(10),
+          paddingHorizontal: scale(16),
+          marginHorizontal: scale(8),
+          marginVertical: verticalScale(8),
+          width: scale(160),
+          shadowColor: '#F0EEF8',
+          shadowOffset: { width: 0, height: 0 },
+          shadowRadius: scale(12),
+        },
+        particleOverlay: {
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: 0,
+        },
+        descriptionSheenHost: {
+          alignSelf: 'center',
+          position: 'relative',
+          overflow: 'hidden',
+        },
+        sheen: {
+          position: 'absolute',
+          top: 0,
+          bottom: 0,
+          width: scale(90),
+          zIndex: 3,
+        },
+        tempOverlay: {
+          position: 'absolute',
+          top: 0,
+          right: 0,
+          bottom: 0,
+          left: 0,
+          pointerEvents: 'none',
+          zIndex: 2,
+        },
+        nameOverlayWrap: {
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          alignItems: 'center',
+          zIndex: 3,
+        },
+        nameOverlay: {
+          width: '86%',
+          backgroundColor: 'transparent',
+          borderRadius: 0,
+          paddingVertical: 0,
+          paddingHorizontal: 0,
+          borderWidth: 0,
+          borderColor: 'transparent',
+          shadowColor: 'transparent',
+          shadowOffset: { width: 0, height: 0 },
+          shadowOpacity: 0,
+          shadowRadius: 0,
+          elevation: 0,
+          alignItems: 'center',
+        },
+        nameBackdrop: {
+          width: '92%',
+          paddingTop: verticalScale(8),
+          paddingBottom: verticalScale(14),
+          paddingHorizontal: scale(14),
+          borderRadius: scale(18),
+          backgroundColor: 'rgba(0,0,0,0.18)',
+          borderWidth: 1,
+          borderColor: 'rgba(255,255,255,0.12)',
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: verticalScale(12) },
+          shadowOpacity: 0.22,
+          shadowRadius: scale(22),
+          elevation: 10,
+        },
+        nameInput: {
+          backgroundColor: 'rgba(255,255,255,0.06)',
+          color: '#F0EEF8',
+          borderRadius: scale(12),
+          paddingVertical: verticalScale(12),
+          paddingHorizontal: scale(12),
+          borderWidth: 1,
+          borderColor: 'rgba(255,255,255,0.10)',
+          alignSelf: 'stretch',
+        },
+        nameActions: {
+          marginTop: verticalScale(10),
+          flexDirection: 'row',
+          justifyContent: 'center',
+          alignItems: 'center',
+          gap: scale(16),
+        },
+        nameSaveBtn: {
+          backgroundColor: '#CFC3E0',
+          paddingVertical: verticalScale(8),
+          paddingHorizontal: scale(20),
+          borderRadius: scale(14),
+          borderWidth: 1,
+          borderColor: 'rgba(255,255,255,0.20)',
+        },
+        nameSkipBtn: {
+          paddingVertical: verticalScale(8),
+          paddingHorizontal: scale(18),
+          borderRadius: scale(14),
+          borderWidth: 1,
+          borderColor: 'rgba(255,255,255,0.14)',
+          backgroundColor: 'rgba(255,255,255,0.06)',
+        },
+      }),
+    [scale, verticalScale],
+  );
 
   // Orb source with safe fallback (Android release builds can be flaky with WebP on some devices)
   const [orbSource, setOrbSource] = useState<ImageSourcePropType>(
@@ -107,7 +288,8 @@ export default function EssenceScreen() {
   const [showNamePrompt, setShowNamePrompt] = useState(false);
   const [nameValue, setNameValue] = useState('');
   const namePromptOpacity = useRef(new Animated.Value(0)).current;
-  const namePromptTranslate = useRef(new Animated.Value(6)).current;
+  const namePromptTranslate = useRef(new Animated.Value(namePromptLift)).current;
+  const namePromptRevealTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -118,21 +300,26 @@ export default function EssenceScreen() {
         ]);
         if (cancelled) return;
         if (!existingName && dismissed !== 'true') {
-          const t = setTimeout(() => {
+          namePromptRevealTimeoutRef.current = setTimeout(() => {
             if (cancelled) return;
             setShowNamePrompt(true);
             namePromptOpacity.setValue(0);
-            namePromptTranslate.setValue(6);
+            namePromptTranslate.setValue(namePromptLiftRef.current);
             Animated.parallel([
               Animated.timing(namePromptOpacity, { toValue: 1, duration: 600, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
               Animated.timing(namePromptTranslate, { toValue: 0, duration: 600, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
             ]).start();
           }, 2000);
-          return () => clearTimeout(t);
         }
       } catch {}
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      if (namePromptRevealTimeoutRef.current) {
+        clearTimeout(namePromptRevealTimeoutRef.current);
+        namePromptRevealTimeoutRef.current = null;
+      }
+    };
   }, []);
   // Card glow animation for intention cards
   const cardGlowAnim = useRef(new Animated.Value(0)).current;
@@ -179,10 +366,14 @@ useEffect(() => {
     outputRange: [0.25, 0.5],
   }), [breath]);
 
-  const journeyPromptTranslateY = useMemo(() => breath.interpolate({
-    inputRange: [0, 1],
-    outputRange: [10, 0],
-  }), [breath]);
+  const journeyPromptTranslateY = useMemo(
+    () =>
+      breath.interpolate({
+        inputRange: [0, 1],
+        outputRange: [journeyPromptDrift, 0],
+      }),
+    [breath, journeyPromptDrift],
+  );
 
   // Navigation guard to prevent double presses re-triggering the fog
   const isNavigatingRef = useRef(false);
@@ -260,7 +451,7 @@ useEffect(() => {
     }
     Animated.parallel([
       Animated.timing(namePromptOpacity, { toValue: 0, duration: 420, easing: Easing.out(Easing.quad), useNativeDriver: true }),
-      Animated.timing(namePromptTranslate, { toValue: -4, duration: 420, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+      Animated.timing(namePromptTranslate, { toValue: -namePromptDismissShift, duration: 420, easing: Easing.out(Easing.quad), useNativeDriver: true }),
     ]).start(() => setShowNamePrompt(false));
   };
 
@@ -268,7 +459,7 @@ useEffect(() => {
     try { await AsyncStorage.setItem('namePromptDismissed', 'true'); } catch {}
     Animated.parallel([
       Animated.timing(namePromptOpacity, { toValue: 0, duration: 320, easing: Easing.out(Easing.quad), useNativeDriver: true }),
-      Animated.timing(namePromptTranslate, { toValue: -4, duration: 320, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+      Animated.timing(namePromptTranslate, { toValue: -namePromptDismissShift, duration: 320, easing: Easing.out(Easing.quad), useNativeDriver: true }),
     ]).start(() => setShowNamePrompt(false));
   };
 
@@ -311,7 +502,13 @@ useEffect(() => {
       <Animated.Text
           style={[
             Typography.display,
-            { color: '#F0EEF8', textAlign: 'center', marginTop: 60, marginBottom: 12, opacity: titleOpacity }
+            {
+              color: '#F0EEF8',
+              textAlign: 'center',
+              marginTop: verticalScale(60),
+              marginBottom: verticalScale(12),
+              opacity: titleOpacity,
+            }
           ]}
           accessibilityLabel="Take a moment to recenter yourself"
           accessible
@@ -326,8 +523,8 @@ useEffect(() => {
             fontStyle: 'italic',
             color: '#F0EEF8',
             textAlign: 'center',
-            marginTop: 4,
-            marginBottom: 8,
+            marginTop: verticalScale(4),
+            marginBottom: verticalScale(8),
             zIndex: 2,
             opacity: Animated.multiply(journeyPromptOpacity, titleOpacity),
             transform: [{ translateY: journeyPromptTranslateY }]
@@ -372,7 +569,17 @@ useEffect(() => {
               onLayout={e => setDescWidth(e.nativeEvent.layout.width)}
             >
               <Text
-                style={[Body.regular, { fontFamily: 'Inter-ExtraLight', letterSpacing: 0.3, color: '#F0EEF8', textAlign: 'center', opacity: 0.85, paddingHorizontal: 10 }]}
+                style={[
+                  Body.regular,
+                  {
+                    fontFamily: 'Inter-ExtraLight',
+                    letterSpacing: scale(0.3),
+                    color: '#F0EEF8',
+                    textAlign: 'center',
+                    opacity: 0.85,
+                    paddingHorizontal: scale(10),
+                  },
+                ]}
                 accessible
                 accessibilityRole="text"
                 accessibilityLabel={`Your affirmations: ${personalizedAffirmation}`}
@@ -404,7 +611,12 @@ useEffect(() => {
       {showNamePrompt && (
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={[styles.nameOverlayWrap, { top: Math.max(148, Math.round(height * 0.22) + 24) }]}
+          style={[
+            styles.nameOverlayWrap,
+            {
+              top: Math.max(verticalScale(148), Math.round(windowHeight * 0.22) + verticalScale(24)),
+            },
+          ]}
           pointerEvents="box-none"
         >
           <Animated.View
@@ -414,13 +626,17 @@ useEffect(() => {
             ]}
           >
             <View style={styles.nameBackdrop}>
-              <Text style={[Typography.subtle, { color: '#D6D3E6', marginBottom: 6, textAlign: 'center' }]}>How should Inner refer to you?</Text>
+              <Text
+                style={[Typography.subtle, { color: '#D6D3E6', marginBottom: verticalScale(6), textAlign: 'center' }]}
+              >
+                How should Inner refer to you?
+              </Text>
               <TextInput
                 value={nameValue}
                 onChangeText={setNameValue}
                 placeholder="Your name (optional)"
                 placeholderTextColor="rgba(240,238,248,0.5)"
-                style={[styles.nameInput, height < 720 && { paddingVertical: 10 }]}
+                style={[styles.nameInput, windowHeight < 720 && { paddingVertical: verticalScale(10) }]}
                 autoCapitalize="words"
                 autoCorrect={false}
                 returnKeyType="done"
@@ -435,7 +651,12 @@ useEffect(() => {
                   accessibilityRole="button"
                   accessibilityLabel="Save your name"
                   accessibilityHint="Inner will greet you using this name"
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  hitSlop={{
+                    top: verticalScale(8),
+                    bottom: verticalScale(8),
+                    left: scale(8),
+                    right: scale(8),
+                  }}
                 >
                   <Text style={[Typography.subtle, { color: '#1F233A' }]}>Save</Text>
                 </TouchableOpacity>
@@ -445,7 +666,12 @@ useEffect(() => {
                   accessibilityRole="button"
                   accessibilityLabel="Skip name"
                   accessibilityHint="You can add a name later in Settings"
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  hitSlop={{
+                    top: verticalScale(8),
+                    bottom: verticalScale(8),
+                    left: scale(8),
+                    right: scale(8),
+                  }}
                 >
                   <Text style={[Typography.subtle, { fontFamily: 'Inter-ExtraLight', color: '#F0EEF8', opacity: 0.85 }]}>Skip</Text>
                 </TouchableOpacity>
@@ -493,7 +719,19 @@ useEffect(() => {
           accessibilityRole="button"
           accessible
         >
-          <Text style={[Body.subtle, { fontFamily: 'Inter-ExtraLight', fontSize: 14, color: '#F0EEF8', opacity: 0.70 }]}>Change Paths</Text>
+          <Text
+            style={[
+              Body.subtle,
+              {
+                fontFamily: 'Inter-ExtraLight',
+                fontSize: scale(14),
+                color: '#F0EEF8',
+                opacity: 0.7,
+              },
+            ]}
+          >
+            Change Paths
+          </Text>
         </TouchableOpacity>
       </View>
       </ImageBackground>
@@ -501,180 +739,3 @@ useEffect(() => {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 60,
-    paddingHorizontal: 20,
-    backgroundColor: '#0d0d1a',
-  },
-  centerContent: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center', // centers orb + breath block vertically
-    alignSelf: 'stretch',
-    paddingTop: 200,           // push a touch lower; adjust 40–100 to taste
-  },
-  descriptionWrapper: {
-    marginTop: 48,
-    marginBottom: 32,
-    alignSelf: 'center',
-  },
-  symbol: {
-    width: '100%',
-    height: '100%',
-    opacity: 0.9,
-  },
-  orbWrapper: {
-    width: 180,
-    height: 180,
-    opacity: 0.9,
-    borderRadius: 90,
-    overflow: 'hidden',
-    marginBottom: 16,
-
-    // Keep above overlays
-    zIndex: 10,
-    elevation: 0,
-  },
-  buttonContainer: {
-    alignItems: 'center',
-  },
-  primaryButton: {
-    backgroundColor: '#CFC3E0',
-    paddingVertical: 14,
-    paddingHorizontal: 40,
-    borderRadius: 24,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  cardContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    marginTop: 12,
-  },
-  intentionCard: {
-    backgroundColor: 'rgba(240, 238, 248, 0.1)',
-    borderColor: '#F0EEF8',
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    margin: 8,
-    width: 160,
-    // Soft glow shadow
-    shadowColor: '#F0EEF8',
-    shadowOffset: { width: 0, height: 0 },
-    shadowRadius: 12,
-    // shadowOpacity is animated
-  },
-  particleOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: 0,
-  },
-  descriptionSheenHost: {
-    alignSelf: 'center',
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  sheen: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    width: 90, // width of the sheen band; adjust 70–120
-    zIndex: 3,
-  },
-  tempOverlay: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    bottom: 0,
-    left: 0,
-    pointerEvents: 'none',
-    zIndex: 2, // orb is forced above with zIndex 10
-  },
-  nameOverlayWrap: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    zIndex: 3,
-  },
-  nameOverlay: {
-    width: '86%',
-    backgroundColor: 'transparent', // remove panel
-    borderRadius: 0,
-    paddingVertical: 0,
-    paddingHorizontal: 0,
-    borderWidth: 0,
-    borderColor: 'transparent',
-    shadowColor: 'transparent',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0,
-    shadowRadius: 0,
-    elevation: 0,
-    alignItems: 'center',
-  },
-  nameBackdrop: {
-    width: '92%',
-    paddingTop: 8,
-    paddingBottom: 14,
-    paddingHorizontal: 14,
-    borderRadius: 18,
-    backgroundColor: 'rgba(0,0,0,0.18)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
-
-    //soft lift
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.22,
-    shadowRadius: 22,
-    elevation: 10,
-  },
-  nameInput: {
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    color: '#F0EEF8',
-    borderRadius: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.10)',
-    alignSelf: 'stretch',
-  },
-  nameActions: {
-    marginTop: 10,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 16,
-  },
-  nameSaveBtn: {
-    backgroundColor: '#CFC3E0',
-    paddingVertical: 8,
-    paddingHorizontal: 20,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.20)',
-  },
-  nameSkipBtn: {
-    paddingVertical: 8,
-    paddingHorizontal: 18,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.14)',
-    backgroundColor: 'rgba(255,255,255,0.06)',
-  },
-});

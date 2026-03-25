@@ -1,14 +1,15 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
-  Dimensions,
+  ScrollView,
   ImageBackground,
   Image,
   Animated,
   Easing,
+  useWindowDimensions,
 } from 'react-native';
 import { useIntention } from '../core/IntentionProvider';
 import { Typography, Body as _Body } from '../core/typography';
@@ -18,14 +19,12 @@ import { useRoute } from '@react-navigation/native';
 import { Asset } from 'expo-asset';
 import { getNudge } from '../src/core/language/nudgeLibrary';
 import { getIntentions, getIntentionSetAt, getLastNudgeShownAt, setLastNudgeShownAt } from '../core/session';
+import { useScale } from '../utils/scale';
 
 const Body = _Body ?? ({
   regular: { ...Typography.body },
   subtle:  { ...Typography.caption },
 } as const);
-
-const { width } = Dimensions.get('window');
-
 
 const intentions = [
   { id: 'calm', title: 'Calm', description: 'Release the weight, return to stillness' },
@@ -58,15 +57,176 @@ const AURA_BORDERS: Record<string, string> = {
 export default function IntentionScreen() {
   const navigation = useNavigation();
   const { setIntentions } = useIntention();
+  const { width: windowWidth } = useWindowDimensions();
+  const { scale, verticalScale } = useScale();
 
   const route = useRoute<any>();
   const fromSettings = route?.params?.fromSettings === true;
 
   const [retuneNudge, setRetuneNudge] = useState<string | null>(null);
 
+  const returnHeaderLift = verticalScale(6);
+
   // Return ritual header (only when arriving via Settings → Change Intentions)
   const returnHeaderOpacity = useRef(new Animated.Value(0)).current;
-  const returnHeaderTranslateY = useRef(new Animated.Value(-6)).current;
+  const returnHeaderTranslateY = useRef(new Animated.Value(-returnHeaderLift)).current;
+
+  const styles = useMemo(
+    () =>
+      StyleSheet.create({
+        container: {
+          flex: 1,
+          backgroundColor: '#0d0d1a',
+        },
+        inner: {
+          flex: 1,
+        },
+        scroll: {
+          flex: 1,
+        },
+        scrollContent: {
+          flexGrow: 1,
+          alignItems: 'center',
+          justifyContent: 'center',
+          paddingHorizontal: scale(20),
+          paddingTop: verticalScale(8),
+          paddingBottom: verticalScale(12),
+        },
+        title: {
+          ...Typography.title,
+          color: 'white',
+          marginBottom: verticalScale(10),
+        },
+        helperText: {
+          ...Body.regular,
+          fontFamily: 'Inter-ExtraLight',
+          color: 'white',
+          fontSize: scale(12),
+          marginBottom: verticalScale(20),
+          opacity: 0.7,
+        },
+        explainText: {
+          ...Body.subtle,
+          fontFamily: 'Inter-ExtraLight',
+          color: 'white',
+          opacity: 0.68,
+          textAlign: 'center',
+          marginBottom: verticalScale(24),
+          maxWidth: scale(320),
+        },
+        grid: {
+          flexDirection: 'row',
+          flexWrap: 'wrap',
+          justifyContent: 'center',
+          marginBottom: verticalScale(24),
+        },
+        card: {
+          width: windowWidth * 0.4,
+          padding: scale(16),
+          backgroundColor: 'rgba(255,255,255,0.1)',
+          borderRadius: scale(12),
+          borderWidth: 1,
+          borderColor: 'rgba(255,255,255,0.6)',
+          alignItems: 'center',
+          justifyContent: 'center',
+          marginHorizontal: scale(6),
+          marginVertical: verticalScale(6),
+          position: 'relative',
+        },
+        cardGlow: {
+          position: 'absolute',
+          left: scale(-4),
+          right: scale(-4),
+          top: verticalScale(-4),
+          bottom: verticalScale(-4),
+          borderRadius: scale(16),
+          backgroundColor: 'rgba(195, 164, 242, 0.22)',
+        },
+        cardSelected: {
+          backgroundColor: 'rgba(255,255,255,0.22)',
+          borderColor: '#CFC3E0',
+          borderWidth: scale(2),
+        },
+        cardDimmed: {
+          opacity: 0.4,
+        },
+        cardText: {
+          ...Typography.body,
+          color: 'white',
+          textAlign: 'center',
+        },
+        cardDescription: {
+          ...Typography.caption,
+          fontFamily: 'Inter-ExtraLight',
+          color: 'white',
+          textAlign: 'center',
+          marginTop: verticalScale(4),
+          opacity: 0.7,
+        },
+        checkmark: {
+          position: 'absolute',
+          top: verticalScale(8),
+          right: scale(8),
+          backgroundColor: 'rgba(0,0,0,0.4)',
+          borderRadius: scale(16),
+          paddingHorizontal: scale(6),
+          paddingVertical: verticalScale(2),
+          zIndex: 1,
+        },
+        checkmarkText: {
+          color: 'white',
+          fontSize: scale(14),
+        },
+        primaryButton: {
+          backgroundColor: '#CFC3E0',
+          paddingVertical: verticalScale(16),
+          paddingHorizontal: scale(32),
+          borderRadius: scale(24),
+          borderWidth: 0,
+          alignItems: 'center',
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: verticalScale(4) },
+          shadowOpacity: 0.3,
+          shadowRadius: scale(6),
+          elevation: 5,
+        },
+        orbStack: {
+          width: scale(200),
+          height: scale(200),
+          marginBottom: 0,
+          alignSelf: 'center',
+          position: 'relative',
+        },
+        orbBaseImage: {
+          width: '100%',
+          height: '100%',
+          resizeMode: 'contain',
+        },
+        orbMandalaImage: {
+          position: 'absolute',
+          left: 0,
+          top: 0,
+          width: '100%',
+          height: '100%',
+          resizeMode: 'contain',
+        },
+        primaryText: {
+          ...Typography.title,
+          color: '#1F233A',
+        },
+        disabledButton: {
+          opacity: 0.3,
+        },
+        ctaFooter: {
+          width: '100%',
+          alignItems: 'center',
+          paddingHorizontal: scale(20),
+          paddingTop: verticalScale(8),
+          paddingBottom: verticalScale(20),
+        },
+      }),
+    [scale, verticalScale, windowWidth],
+  );
 
   const [selectedIntentions, setSelectedIntentions] = useState<string[]>([]);
   const scaleAnimRefs = useRef<{ [key: string]: Animated.Value }>({});
@@ -182,7 +342,7 @@ export default function IntentionScreen() {
     if (!fromSettings) return;
 
     returnHeaderOpacity.setValue(0);
-    returnHeaderTranslateY.setValue(-6);
+    returnHeaderTranslateY.setValue(-returnHeaderLift);
 
     Animated.parallel([
       Animated.timing(returnHeaderOpacity, {
@@ -198,7 +358,7 @@ export default function IntentionScreen() {
         useNativeDriver: true,
       }),
     ]).start();
-  }, [fromSettings, returnHeaderOpacity, returnHeaderTranslateY]);
+  }, [fromSettings, returnHeaderOpacity, returnHeaderTranslateY, returnHeaderLift]);
 
   // Nudge engine: show a single gentle reflection (cooldown controlled)
   useEffect(() => {
@@ -316,296 +476,179 @@ export default function IntentionScreen() {
       renderToHardwareTextureAndroid
       needsOffscreenAlphaCompositing
     >
-      <View
-        accessible={true}
-        accessibilityLabel="Intention selection screen"
-        accessibilityHint="Select up to two intentions to personalize your journey"
-        style={{ alignItems: 'center' }}
-      >
-        <Animated.View style={{ opacity: Animated.multiply(lotusReveal, lotusPulseOpacity), transform: [{ scale: lotusScale }] }}>
-          <View style={styles.orbStack} pointerEvents="none">
-            <Image
-              source={require('../assets/splash.webp')}
-              style={styles.orbBaseImage}
-            />
-            <Animated.Image
-              source={require('../assets/images/orb-player-mandala.webp')}
-              style={[
-                styles.orbMandalaImage,
-                {
-                  opacity: mandalaOpacity.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0, 0.6],
-                  }),
-                  transform: [{ scale: 0.985 }],
-                },
-              ]}
-            />
+      <View style={styles.inner}>
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          accessible={false}
+        >
+          <View
+            accessible={true}
+            accessibilityLabel="Intention selection screen"
+            accessibilityHint="Select up to two intentions to personalize your journey"
+            style={{ alignItems: 'center', width: '100%' }}
+          >
+          <Animated.View style={{ opacity: Animated.multiply(lotusReveal, lotusPulseOpacity), transform: [{ scale: lotusScale }] }}>
+            <View style={styles.orbStack} pointerEvents="none">
+              <Image
+                source={require('../assets/splash.webp')}
+                style={styles.orbBaseImage}
+              />
+              <Animated.Image
+                source={require('../assets/images/orb-player-mandala.webp')}
+                style={[
+                  styles.orbMandalaImage,
+                  {
+                    opacity: mandalaOpacity.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0, 0.6],
+                    }),
+                    transform: [{ scale: 0.985 }],
+                  },
+                ]}
+              />
+            </View>
+          </Animated.View>
+          {fromSettings && (
+            <Animated.View
+              style={{
+                opacity: returnHeaderOpacity,
+                transform: [{ translateY: returnHeaderTranslateY }],
+                marginTop: verticalScale(10),
+                marginBottom: verticalScale(12),
+                paddingVertical: verticalScale(12),
+                paddingHorizontal: scale(14),
+                borderRadius: scale(14),
+                backgroundColor: 'rgba(15, 12, 36, 0.96)',
+                borderWidth: 1,
+                borderColor: 'rgba(207,195,224,0.45)',
+                maxWidth: scale(340),
+                alignSelf: 'center',
+              }}
+            >
+              <Text
+                style={{
+                  fontFamily: 'CalSans-SemiBold',
+                  fontSize: scale(20),
+                  letterSpacing: scale(0.4),
+                  color: '#F4F1FF',
+                  textAlign: 'center',
+                  marginBottom: verticalScale(4),
+                }}
+              >
+                Re-tune Intentions
+              </Text>
+              <Text
+                style={{
+                  fontFamily: 'Inter-ExtraLight',
+                  fontSize: scale(13),
+                  lineHeight: verticalScale(18),
+                  color: '#DCD5F0',
+                  textAlign: 'center',
+                }}
+              >
+                {retuneNudge ?? 'Every intention quietly colors everything inside Inner. Adjust them when your inner tuning shifts.'}
+              </Text>
+            </Animated.View>
+          )}
+          {!fromSettings && <Text style={styles.title}>Set your path.</Text>}
+
+          <Text style={styles.helperText}>
+            {fromSettings
+              ? selectedIntentions.length < 2
+                ? 'Select up to 2 intentions to re-tune your experience.'
+                : 'Your field is set.'
+              : selectedIntentions.length < 2
+                ? 'Select up to 2 intentions to shape your path '
+                : 'Your path is set.'}
+          </Text>
+
+          {!fromSettings && (
+            <Text
+              style={styles.explainText}
+              accessibilityRole="text"
+              accessibilityLabel="Intentions personalize your experience. Colors, sound, and guidance adapt to what you choose."
+            >
+              Your intentions gently tune your Inner experience. Colors, sound, and guidance adapt to support what you choose. You can change your intentions anytime.
+            </Text>
+          )}
+
+          <View style={styles.grid}>
+            {intentions.map((intention) => {
+              const isSelected = selectedIntentions.includes(intention.id);
+              const isMaxSelected =
+                selectedIntentions.length >= 2 && !isSelected;
+
+              return (
+                <TouchableOpacity
+                  key={intention.id}
+                  onPress={() => toggleIntention(intention.id)}
+                  disabled={isMaxSelected}
+                  style={[
+                    styles.card,
+                    isSelected && [
+                      styles.cardSelected,
+                      { borderColor: AURA_BORDERS[intention.id] || '#CFC3E0' },
+                    ],
+                    isMaxSelected && styles.cardDimmed,
+                  ]}
+                  accessibilityLabel={`${intention.title} intention`}
+                  accessibilityHint="Double tap to select or deselect this intention"
+                  accessibilityRole="button"
+                >
+                  {/* selection glow layer (tinted by intention) */}
+                  <Animated.View
+                    style={[
+                      styles.cardGlow,
+                      { backgroundColor: AURA_TINTS[intention.id] || 'rgba(207,195,224,0.22)', opacity: glowAnimRefs.current[intention.id] },
+                    ]}
+                  />
+                  {isSelected && (
+                    <View style={styles.checkmark}>
+                      <Text style={styles.checkmarkText}>✓</Text>
+                    </View>
+                  )}
+                  <Animated.View
+                    style={{
+                      transform: [{ scale: scaleAnimRefs.current[intention.id] }],
+                      alignItems: 'center',
+                    }}
+                  >
+                    <Text style={styles.cardText}>{intention.title}</Text>
+                    <Text style={styles.cardDescription}>{intention.description}</Text>
+                  </Animated.View>
+                </TouchableOpacity>
+              );
+            })}
           </View>
-        </Animated.View>
-        {fromSettings && (
+          </View>
+        </ScrollView>
+
+        <View style={styles.ctaFooter}>
           <Animated.View
             style={{
-              opacity: returnHeaderOpacity,
-              transform: [{ translateY: returnHeaderTranslateY }],
-              marginTop: 10,
-              marginBottom: 12,
-              paddingVertical: 12,
-              paddingHorizontal: 14,
-              borderRadius: 14,
-              backgroundColor: 'rgba(15, 12, 36, 0.96)',
-              borderWidth: 1,
-              borderColor: 'rgba(207,195,224,0.45)',
-              maxWidth: 340,
-              alignSelf: 'center',
+              opacity: ctaEnabledAnim,
+              transform: [{ scale: ctaEnabledAnim.interpolate({ inputRange: [0, 1], outputRange: [0.98, 1] }) }],
             }}
           >
-            <Text
-              style={{
-                fontFamily: 'CalSans-SemiBold',
-                fontSize: 20,
-                letterSpacing: 0.4,
-                color: '#F4F1FF',
-                textAlign: 'center',
-                marginBottom: 4,
-              }}
+            <TouchableOpacity
+              onPress={handleContinue}
+              disabled={selectedIntentions.length === 0}
+              style={[
+                styles.primaryButton,
+                selectedIntentions.length === 0 && styles.disabledButton,
+              ]}
+              accessibilityLabel="Continue"
+              accessibilityHint="Double tap to continue once you've selected your intentions"
+              accessibilityRole="button"
             >
-              Re-tune Intentions
-            </Text>
-            <Text
-              style={{
-                fontFamily: 'Inter-ExtraLight',
-                fontSize: 13,
-                lineHeight: 18,
-                color: '#DCD5F0',
-                textAlign: 'center',
-              }}
-            >
-              {retuneNudge ?? 'Every intention quietly colors everything inside Inner. Adjust them when your inner tuning shifts.'}
-            </Text>
+              <Text style={styles.primaryText}>Move Inward</Text>
+            </TouchableOpacity>
           </Animated.View>
-        )}
-        {!fromSettings && <Text style={styles.title}>Set your path.</Text>}
-
-        <Text style={styles.helperText}>
-          {fromSettings
-            ? selectedIntentions.length < 2
-              ? 'Select up to 2 intentions to re-tune your experience.'
-              : 'Your field is set.'
-            : selectedIntentions.length < 2
-              ? 'Select up to 2 intentions to shape your path '
-              : 'Your path is set.'}
-        </Text>
-
-        {!fromSettings && (
-          <Text
-            style={styles.explainText}
-            accessibilityRole="text"
-            accessibilityLabel="Intentions personalize your experience. Colors, sound, and guidance adapt to what you choose."
-          >
-            Your intentions gently tune your Inner experience. Colors, sound, and guidance adapt to support what you choose. You can change your intentions anytime.
-          </Text>
-        )}
-
-        <View style={styles.grid}>
-          {intentions.map((intention) => {
-            const isSelected = selectedIntentions.includes(intention.id);
-            const isMaxSelected =
-              selectedIntentions.length >= 2 && !isSelected;
-
-            return (
-              <TouchableOpacity
-                key={intention.id}
-                onPress={() => toggleIntention(intention.id)}
-                disabled={isMaxSelected}
-                style={[
-                  styles.card,
-                  isSelected && [
-                    styles.cardSelected,
-                    { borderColor: AURA_BORDERS[intention.id] || '#CFC3E0' },
-                  ],
-                  isMaxSelected && styles.cardDimmed,
-                ]}
-                accessibilityLabel={`${intention.title} intention`}
-                accessibilityHint="Double tap to select or deselect this intention"
-                accessibilityRole="button"
-              >
-                {/* selection glow layer (tinted by intention) */}
-                <Animated.View
-                  style={[
-                    styles.cardGlow,
-                    { backgroundColor: AURA_TINTS[intention.id] || 'rgba(207,195,224,0.22)', opacity: glowAnimRefs.current[intention.id] },
-                  ]}
-                />
-                {isSelected && (
-                  <View style={styles.checkmark}>
-                    <Text style={styles.checkmarkText}>✓</Text>
-                  </View>
-                )}
-                <Animated.View
-                  style={{
-                    transform: [{ scale: scaleAnimRefs.current[intention.id] }],
-                    alignItems: 'center',
-                  }}
-                >
-                  <Text style={styles.cardText}>{intention.title}</Text>
-                  <Text style={styles.cardDescription}>{intention.description}</Text>
-                </Animated.View>
-              </TouchableOpacity>
-            );
-          })}
         </View>
-
-        <Animated.View style={{ opacity: ctaEnabledAnim, transform: [{ scale: ctaEnabledAnim.interpolate({ inputRange: [0, 1], outputRange: [0.98, 1] }) }] }}>
-          <TouchableOpacity
-            onPress={handleContinue}
-            disabled={selectedIntentions.length === 0}
-            style={[
-              styles.primaryButton,
-              selectedIntentions.length === 0 && styles.disabledButton,
-            ]}
-            accessibilityLabel="Continue"
-            accessibilityHint="Double tap to continue once you've selected your intentions"
-            accessibilityRole="button"
-          >
-            <Text style={styles.primaryText}>Move Inward</Text>
-          </TouchableOpacity>
-        </Animated.View>
       </View>
     </ImageBackground>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-    backgroundColor: '#0d0d1a',
-  },
-  title: {
-    ...Typography.title,
-    color: 'white',
-    marginBottom: 10,
-  },
-  helperText: {
-    ...Body.regular,
-    fontFamily: 'Inter-ExtraLight',
-    color: 'white',
-    fontSize: 12,
-    marginBottom: 20,
-    opacity: 0.7,
-  },
-  explainText: {
-    ...Body.subtle,
-    fontFamily: 'Inter-ExtraLight',
-    color: 'white',
-    opacity: 0.68,
-    textAlign: 'center',
-    marginBottom: 24,
-    maxWidth: 320,
-  },
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    marginBottom: 40,
-  },
-  card: {
-    width: width * 0.4,
-    padding: 16,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.6)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    margin: 6,
-    position: 'relative',
-  },
-  cardGlow: {
-    position: 'absolute',
-    left: -4,
-    right: -4,
-    top: -4,
-    bottom: -4,
-    borderRadius: 16,
-    backgroundColor: 'rgba(195, 164, 242, 0.22)', // soft lavender brand glow
-  },
-  cardSelected: {
-    backgroundColor: 'rgba(255,255,255,0.22)',
-    borderColor: '#CFC3E0',
-    borderWidth: 2,
-  },
-  cardDimmed: {
-    opacity: 0.4,
-  },
-  cardText: {
-    ...Typography.body,
-    color: 'white',
-    textAlign: 'center',
-  },
-  cardDescription: {
-    ...Typography.caption,
-    fontFamily: 'Inter-ExtraLight',
-    color: 'white',
-    textAlign: 'center',
-    marginTop: 4,
-    opacity: 0.7,
-  },
-  checkmark: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    borderRadius: 16,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    zIndex: 1,
-  },
-  checkmarkText: {
-    color: 'white',
-    fontSize: 14,
-  },
-  primaryButton: {
-    backgroundColor: '#CFC3E0',
-    paddingVertical: 16,
-    paddingHorizontal: 32,
-    borderRadius: 24,
-    borderWidth: 0,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 5,
-  },
-  orbStack: {
-    width: 200,
-    height: 200,
-    marginBottom: 0,
-    alignSelf: 'center',
-    position: 'relative',
-  },
-  orbBaseImage: {
-    width: '100%',
-    height: '100%',
-    resizeMode: 'contain',
-  },
-  orbMandalaImage: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    width: '100%',
-    height: '100%',
-    resizeMode: 'contain',
-  },
-  primaryText: {
-    ...Typography.title,
-    color: '#1F233A',
-  },
-  disabledButton: {
-    opacity: 0.3,
-  },
-});

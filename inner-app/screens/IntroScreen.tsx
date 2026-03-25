@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -6,10 +6,9 @@ import {
   ImageBackground,
   TouchableOpacity,
   Animated,
-  Dimensions,
   Switch,
-  AccessibilityInfo,
   Easing,
+  useWindowDimensions,
 } from 'react-native';
 import { Audio } from 'expo-av';
 import * as Haptics from 'expo-haptics';
@@ -19,19 +18,14 @@ import { useNavigation } from '@react-navigation/native';
 
 import Wordmark from '../assets/images/wordmark.svg';
 import { Typography, Body as _Body } from '../core/typography';
+import { useScale } from '../utils/scale';
 
 const Body = _Body ?? ({
   regular: { ...Typography.body },
   subtle:  { ...Typography.caption },
 } as const);
 
-const { width } = Dimensions.get('window');
-// Keep captions visually consistent across platforms and inside the portal area
-const CAPTION_FONT_SIZE = Math.round(Math.min(17, width * 0.045));
 const WORDMARK_RATIO = 528 / 96.8; // original width:height ratio
-const WORDMARK_TARGET = 370; // ~30% smaller than 528
-const wordmarkWidth = Math.round(Math.min(WORDMARK_TARGET, width * 0.78));
-const wordmarkHeight = Math.round(wordmarkWidth / WORDMARK_RATIO);
 
 const captions = [
   { time: 0.1, text: 'You\'ve felt it.' },
@@ -46,6 +40,120 @@ const captions = [
 
 export default function IntroScreen() {
   const navigation = useNavigation();
+  const { width: windowWidth } = useWindowDimensions();
+  const { scale, verticalScale } = useScale();
+
+  const captionFontSize = useMemo(
+    () => Math.round(Math.min(scale(17), windowWidth * 0.045)),
+    [scale, windowWidth],
+  );
+
+  const wordmarkWidth = useMemo(
+    () => Math.round(Math.min(scale(370), windowWidth * 0.78)),
+    [scale, windowWidth],
+  );
+  const wordmarkHeight = useMemo(
+    () => Math.round(wordmarkWidth / WORDMARK_RATIO),
+    [wordmarkWidth],
+  );
+
+  const styles = useMemo(
+    () =>
+      StyleSheet.create({
+        container: {
+          flex: 1,
+          backgroundColor: '#0d0d1a',
+        },
+        bgImage: {
+          resizeMode: 'cover',
+        },
+        content: {
+          flex: 1,
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          paddingTop: verticalScale(80),
+          paddingBottom: verticalScale(60),
+        },
+        fill: {
+          position: 'absolute',
+          top: 0,
+          right: 0,
+          bottom: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+        },
+        captionBox: {
+          justifyContent: 'center',
+          alignItems: 'center',
+          height: verticalScale(120),
+          width: windowWidth * 0.8,
+        },
+        buttons: {
+          alignItems: 'center',
+        },
+        primaryButton: {
+          backgroundColor: '#CFC3E0',
+          paddingVertical: verticalScale(14),
+          paddingHorizontal: scale(28),
+          borderRadius: scale(24),
+        },
+        primaryButtonWrap: {
+          position: 'relative',
+          alignItems: 'center',
+          justifyContent: 'center',
+          marginBottom: verticalScale(8),
+        },
+        primaryButtonEmber: {
+          backgroundColor: '#FFB86C',
+        },
+        accessibilityToggleRight: {
+          position: 'absolute',
+          bottom: verticalScale(20),
+          right: scale(20),
+          alignItems: 'center',
+        },
+        accessibilityToggleLeft: {
+          position: 'absolute',
+          bottom: verticalScale(20),
+          left: scale(20),
+          alignItems: 'center',
+        },
+        overlayContainer: {
+          position: 'absolute',
+          top: 0,
+          right: 0,
+          bottom: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          alignItems: 'center',
+          justifyContent: 'center',
+        },
+        overlayImage: {
+          width: '100%',
+          height: '100%',
+        },
+        headerGroup: {
+          alignItems: 'center',
+          justifyContent: 'center',
+          position: 'relative',
+          marginBottom: verticalScale(24),
+        },
+        wordmarkWrap: {
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          alignItems: 'center',
+          zIndex: 0,
+        },
+      }),
+    [scale, verticalScale, windowWidth],
+  );
+
+  const primaryButtonRadius = scale(24);
+
   const soundRef = useRef<Audio.Sound | null>(null);
   const [currentCaption, setCurrentCaption] = useState('');
   const [showCaptions, setShowCaptions] = useState(true);
@@ -287,7 +395,7 @@ export default function IntroScreen() {
         {/* Content wrapper holds padding/centering so overlay isn't cropped */}
         <View style={styles.content}>
           {/* Header group: keeps greeting + wordmark close */}
-          <View style={[styles.headerGroup, { height: wordmarkHeight + 24 }]}>
+          <View style={[styles.headerGroup, { height: wordmarkHeight + verticalScale(24) }]}>
             {/* Wordmark behind the text */}
             <Animated.View
               style={[styles.wordmarkWrap, { opacity: wordmarkFadeAnim }]}
@@ -313,8 +421,8 @@ export default function IntroScreen() {
                     fontStyle: 'italic',
                     color: 'white',
                     textAlign: 'center',
-                    fontSize: CAPTION_FONT_SIZE,
-                    lineHeight: Math.round(CAPTION_FONT_SIZE * 1.35),
+                    fontSize: captionFontSize,
+                    lineHeight: Math.round(captionFontSize * 1.35),
                     opacity: captionAnim,
                   },
                 ]}
@@ -327,7 +435,14 @@ export default function IntroScreen() {
           <View style={styles.buttons}>
             <Animated.View style={{ opacity: ctaFadeAnim }}>
               <View style={styles.primaryButtonWrap}>
-                <Animated.View style={{ transform: [{ scale: ctaScale }], backgroundColor: buttonBg, borderRadius: 24, overflow: 'hidden' }}>
+                <Animated.View
+                  style={{
+                    transform: [{ scale: ctaScale }],
+                    backgroundColor: buttonBg,
+                    borderRadius: primaryButtonRadius,
+                    overflow: 'hidden',
+                  }}
+                >
                   <TouchableOpacity
                     onPress={async () => {
                       setCtaPressed(true);
@@ -353,7 +468,19 @@ export default function IntroScreen() {
               accessibilityRole="button"
               accessibilityLabel="Skip intro and continue to next screen."
             >
-              <Text style={[Body.regular, { fontFamily: 'Inter-ExtraLight', color: 'white', marginTop: 10, opacity: 0.7 }]}>skip</Text>
+              <Text
+                style={[
+                  Body.regular,
+                  {
+                    fontFamily: 'Inter-ExtraLight',
+                    color: 'white',
+                    marginTop: verticalScale(10),
+                    opacity: 0.7,
+                  },
+                ]}
+              >
+                skip
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -395,95 +522,3 @@ export default function IntroScreen() {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#0d0d1a',
-  },
-  bgImage: {
-    resizeMode: 'cover',
-  },
-  content: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingTop: 80, // move header slightly lower (closer to portal)
-    paddingBottom: 60,
-  },
-  fill: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    bottom: 0,
-    left: 0,
-    width: '100%',
-    height: '100%',
-  },
-  captionBox: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    height: 120,
-    width: width * 0.8,
-  },
-  buttons: {
-    alignItems: 'center',
-  },
-  primaryButton: {
-    backgroundColor: '#CFC3E0',
-    paddingVertical: 14,
-    paddingHorizontal: 28,
-    borderRadius: 24,
-  },
-  primaryButtonWrap: {
-    position: 'relative',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 8,
-  },
-  primaryButtonEmber: {
-    backgroundColor: '#FFB86C',
-  },
-  accessibilityToggleRight: {
-    position: 'absolute',
-    bottom: 20,
-    right: 20,
-    alignItems: 'center',
-  },
-  accessibilityToggleLeft: {
-    position: 'absolute',
-    bottom: 20,
-    left: 20,
-    alignItems: 'center',
-  },
-  overlayContainer: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    bottom: 0,
-    left: 0,
-    width: '100%',
-    height: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  overlayImage: {
-    width: '100%',
-    height: '100%',
-  },
-  headerGroup: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-    height: 80, // space for overlapped wordmark
-    marginBottom: 24, // pushes content below (further from portal)
-  },
-  wordmarkWrap: {
-    position: 'absolute',
-    top: 0, // re-center wordmark now that text is gone
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    zIndex: 0,
-  },
-});
