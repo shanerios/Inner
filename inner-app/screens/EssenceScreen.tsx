@@ -54,7 +54,16 @@ const ORB_PNG = require('../assets/splash_ios.png');
 export default function EssenceScreen() {
   const navigation = useNavigation();
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
-  const { scale, verticalScale } = useScale();
+  const { scale, verticalScale, matchesCompactLayout } = useScale();
+  const orbDiameter = useMemo(() => {
+    const base = scale(180);
+    const maxByWidth = windowWidth * 0.5;
+    if (matchesCompactLayout) {
+      // Keep the orb visually contained on short devices (e.g. SE class).
+      return Math.min(base, scale(156), maxByWidth);
+    }
+    return Math.min(base, maxByWidth);
+  }, [scale, windowWidth, matchesCompactLayout]);
   const namePromptLift = verticalScale(6);
   const namePromptDismissShift = verticalScale(4);
   const journeyPromptDrift = verticalScale(10);
@@ -90,10 +99,7 @@ export default function EssenceScreen() {
           opacity: 0.9,
         },
         orbWrapper: {
-          width: scale(180),
-          height: scale(180),
           opacity: 0.9,
-          borderRadius: scale(90),
           overflow: 'hidden',
           marginBottom: verticalScale(16),
           zIndex: 10,
@@ -541,6 +547,9 @@ useEffect(() => {
           style={[
             styles.orbWrapper,
             {
+              width: orbDiameter,
+              height: orbDiameter,
+              borderRadius: orbDiameter / 2,
               transform: [{ scale: orbScale }],
             },
           ]}

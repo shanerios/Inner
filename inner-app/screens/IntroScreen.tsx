@@ -30,12 +30,14 @@ const WORDMARK_RATIO = 528 / 96.8; // original width:height ratio
 const captions = [
   { time: 0.1, text: 'You\'ve felt it.' },
   { time: 2.7, text: 'That quiet pull' },
-  { time: 4.1, text: 'towards something more.' },
+  { time: 4.1, text: 'towards' },
+  { time: 4.7, text: 'something more.' },
   { time: 7, text: 'It doesn\'t shout.' },
   { time: 9.5, text: 'It doesn\'t demand' },
   { time: 11, text: 'attention.' },
   { time: 13, text: 'It just needs space.' },
-  { time: 17, text: 'We\'ll begin with clarity.' },
+  { time: 16.3, text: 'We\'ll' },
+  { time: 17.2, text: 'begin with clarity' },
 ];
 
 export default function IntroScreen() {

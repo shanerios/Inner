@@ -19,6 +19,7 @@ import { useIntention } from '../core/IntentionProvider';
 import { registerPracticeActivity } from '../core/DailyRitual';
 import { saveThreadSignature } from '../src/core/threading/ThreadEngine';
 import { usePostHog } from 'posthog-react-native';
+import { useScale } from '../utils/scale';
 
 type PointZeroScreenProps = {
   navigation: any;
@@ -42,6 +43,14 @@ const DEFAULT_AURA = '#5B4BFF';
 export default function PointZeroScreen({ navigation }: PointZeroScreenProps) {
   const { intentions } = useIntention();
   const posthog = usePostHog();
+
+  const {
+    scale: uiScale,
+    verticalScale,
+    width: windowWidth,
+    height: windowHeight,
+    matchesCompactLayout,
+  } = useScale();
 
   const accentColor =
     (intentions && intentions.length > 0 && INTENTION_AURA[intentions[0]]) ||
@@ -458,6 +467,41 @@ export default function PointZeroScreen({ navigation }: PointZeroScreenProps) {
     }
   };
 
+  const orbSizing = React.useMemo(() => {
+    // Original visual design sizes:
+    // - glow: 220
+    // - core ring: 180
+    // - inner orb image: 220
+    const baseGlow = uiScale(220);
+    const baseCore = uiScale(180);
+    const baseInner = uiScale(220);
+
+    // Clamp for short/SE-class devices so the orb doesn't dominate/clamp text.
+    const widthCap = windowWidth * 0.72;
+    const compactCap = matchesCompactLayout ? uiScale(190) : baseGlow;
+
+    const glowDiameter = Math.min(baseGlow, widthCap, compactCap);
+    const factor = baseGlow > 0 ? glowDiameter / baseGlow : 1;
+
+    // Additional safety clamp by height (very short windows).
+    const maxByHeight = windowHeight * 0.36;
+    const heightClampedGlowDiameter = Math.min(glowDiameter, maxByHeight);
+    const heightFactor = glowDiameter > 0 ? heightClampedGlowDiameter / glowDiameter : 1;
+
+    const finalFactor = factor * heightFactor;
+    const coreDiameter = baseCore * finalFactor;
+    const innerDiameter = baseInner * finalFactor;
+    const glowShadowRadius = uiScale(40) * finalFactor;
+
+    return {
+      glowDiameter: heightClampedGlowDiameter,
+      coreDiameter,
+      innerDiameter,
+      glowShadowRadius,
+      translateX: uiScale(1) * finalFactor, // keep the tiny visual nudge proportional
+    };
+  }, [uiScale, windowWidth, windowHeight, matchesCompactLayout]);
+
   return (
     <LinearGradient
       colors={['#0D0C1F', '#1F233A']}
@@ -484,6 +528,10 @@ export default function PointZeroScreen({ navigation }: PointZeroScreenProps) {
               backgroundColor: accentColor,
               shadowColor: accentColor,
               transform: [{ scale }, { scale: holdPulse }],
+              width: orbSizing.glowDiameter,
+              height: orbSizing.glowDiameter,
+              borderRadius: orbSizing.glowDiameter / 2,
+              shadowRadius: orbSizing.glowShadowRadius,
             },
           ]}
         />
@@ -492,12 +540,23 @@ export default function PointZeroScreen({ navigation }: PointZeroScreenProps) {
             styles.orbCore,
             {
               transform: [{ scale }],
+              width: orbSizing.coreDiameter,
+              height: orbSizing.coreDiameter,
+              borderRadius: orbSizing.coreDiameter / 2,
             },
           ]}
         >
           <Image
             source={require('../assets/splash_ios.png')}
-            style={styles.innerOrbImage}
+            style={[
+              styles.innerOrbImage,
+              {
+                width: orbSizing.innerDiameter,
+                height: orbSizing.innerDiameter,
+                borderRadius: orbSizing.innerDiameter / 2,
+                transform: [{ translateX: orbSizing.translateX }],
+              },
+            ]}
             resizeMode="contain"
           />
         </Animated.View>

@@ -8,7 +8,6 @@ import {
   Image,
   ImageBackground,
   Pressable,
-  useWindowDimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
@@ -18,6 +17,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useIntention } from '../core/IntentionProvider';
 import { registerPracticeActivity } from '../core/DailyRitual';
 import { saveThreadSignature } from '../src/core/threading/ThreadEngine';
+import { useScale } from '../utils/scale';
 
 const AnimatedLottieView = Animated.createAnimatedComponent(LottieView);
 
@@ -106,11 +106,86 @@ export default function InnerFlameScreen({ navigation }: InnerFlameScreenProps) 
   // CTA scale bounce
   const beginScale = useRef(new Animated.Value(1)).current;
 
-  const { height, width } = useWindowDimensions();
+  const {
+    scale: uiScale,
+    width,
+    height,
+    matchesCompactLayout,
+  } = useScale();
+
   // Treat true tablets (e.g., iPad sizes) as large screens, but exclude big phones
   const isLargeScreen = Math.min(width, height) >= 768;
-  // Negative value to nudge the orb upward; ~9% of screen height
-  const orbOffset = -height * 0.09;
+
+  const orbSizing = React.useMemo(() => {
+    // Preserve the original look on non-compact screens (e.g., Pro Max).
+    // We only constrain/scale down on short/compact devices.
+    if (!matchesCompactLayout) {
+      const emberParticlesDiameter = isLargeScreen ? 720 : 420;
+      const shimmerRingDiameter = isLargeScreen ? 610 : 390;
+      const innerOrbDiameter = isLargeScreen ? 580 : 350;
+      const innerOrbGlowDiameter = isLargeScreen ? 580 : 350;
+
+      return {
+        emberParticlesDiameter,
+        shimmerRingDiameter,
+        innerOrbDiameter,
+        innerOrbGlowDiameter,
+        orbStackSize: 240,
+        orbOffset: -(height * 0.09),
+        tabletExtraNudge: 80,
+      };
+    }
+
+    // Base design sizes in this screen:
+    // - inner orb: 350
+    // - glow: 350
+    // - heat ring: 390
+    // - ember particles: 420
+    const baseInner = uiScale(350);
+
+    // Compact/SE: keep the orb from dominating.
+    const compactCapInner = matchesCompactLayout ? uiScale(310) : baseInner;
+
+    // Cap by available screen so the orb doesn't get clipped by header/footer.
+    const widthCap = isLargeScreen ? width * 0.78 : width * 0.62;
+    const heightCap = isLargeScreen ? height * 0.46 : height * 0.34;
+    const innerDiameter = Math.min(compactCapInner, widthCap, heightCap);
+    const factor = baseInner > 0 ? innerDiameter / baseInner : 1;
+
+    const emberParticlesDiameter = uiScale(420) * factor;
+    const shimmerRingDiameter = uiScale(390) * factor;
+    const innerOrbDiameter = uiScale(350) * factor;
+    const innerOrbGlowDiameter = uiScale(350) * factor;
+
+    // Orb container size: keeps the visual center stable relative to absolute layers.
+    const orbStackSize = uiScale(240) * factor;
+
+    // Negative value to nudge the orb upward; scale with factor so it moves less on small screens.
+    const orbOffset = -(height * 0.09) * factor;
+
+    // Slight extra upward nudge for tablets (preserves existing behavior).
+    const tabletExtraNudge = uiScale(80) * factor;
+
+    return {
+      emberParticlesDiameter,
+      shimmerRingDiameter,
+      innerOrbDiameter,
+      innerOrbGlowDiameter,
+      orbStackSize,
+      orbOffset,
+      tabletExtraNudge,
+    };
+  }, [uiScale, width, height, matchesCompactLayout, isLargeScreen]);
+
+  const {
+    orbOffset,
+    tabletExtraNudge,
+    emberParticlesDiameter,
+    shimmerRingDiameter,
+    innerOrbDiameter,
+    innerOrbGlowDiameter,
+    orbStackSize,
+  } = orbSizing;
 
   // Glow / pulse for the ember orb
   useEffect(() => {
@@ -492,7 +567,9 @@ export default function InnerFlameScreen({ navigation }: InnerFlameScreenProps) 
             style={[
               styles.orbStack,
               {
-                marginTop: isLargeScreen ? orbOffset - 80 : orbOffset,
+                width: orbStackSize,
+                height: orbStackSize,
+                marginTop: isLargeScreen ? orbOffset - tabletExtraNudge : orbOffset,
               },
             ]}
           >
@@ -503,7 +580,11 @@ export default function InnerFlameScreen({ navigation }: InnerFlameScreenProps) 
               loop
               style={[
                 styles.emberParticles,
-                isLargeScreen && { width: 720, height: 720, opacity: 0.75 },
+                {
+                  width: emberParticlesDiameter,
+                  height: emberParticlesDiameter,
+                  opacity: isLargeScreen ? 0.75 : 0.6,
+                },
                 {
                   transform: [
                     { translateY: emberDriftOffset },
@@ -518,7 +599,7 @@ export default function InnerFlameScreen({ navigation }: InnerFlameScreenProps) 
               source={require('../assets/images/inner_flame_heat_ring.png')}
               style={[
                 styles.shimmerRing,
-                isLargeScreen && { width: 610, height: 610 },
+                { width: shimmerRingDiameter, height: shimmerRingDiameter },
                 {
                   opacity: shimmerOpacity,
                   transform: [{ scale: shimmerScale }],
@@ -533,7 +614,7 @@ export default function InnerFlameScreen({ navigation }: InnerFlameScreenProps) 
               source={require('../assets/images/orb_inner_flame.png')}
               style={[
                 styles.innerOrbGlow,
-                isLargeScreen && { width: 580, height: 580 },
+                { width: innerOrbGlowDiameter, height: innerOrbGlowDiameter },
                 {
                   opacity: glowOpacity,
                   transform: [{ scale: glowScale }],
@@ -548,7 +629,7 @@ export default function InnerFlameScreen({ navigation }: InnerFlameScreenProps) 
               source={require('../assets/images/orb_inner_flame.png')}
               style={[
                 styles.innerOrb,
-                isLargeScreen && { width: 580, height: 580 },
+                { width: innerOrbDiameter, height: innerOrbDiameter },
               ]}
               resizeMode="contain"
             />

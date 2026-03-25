@@ -16,6 +16,7 @@ import { useIntention } from '../core/IntentionProvider';
 import { registerPracticeActivity } from '../core/DailyRitual';
 import { saveThreadSignature } from '../src/core/threading/ThreadEngine';
 import { usePostHog } from 'posthog-react-native';
+import { useScale } from '../utils/scale';
 
 const CLEAN_SLATE_PREROLL_DONE = 'inner_clean_slate_preroll_done_v2';
 const CLEAN_SLATE_PREROLL_MS = 28000;  // ~28s micro prelude
@@ -36,6 +37,13 @@ const DEFAULT_AURA = '#6C63FF';
 export default function CleanSlateScreen({ navigation }: any) {
   const { intentions } = useIntention();
   const posthog = usePostHog();
+  const {
+    scale: uiScale,
+    verticalScale,
+    width: windowWidth,
+    height: windowHeight,
+    matchesCompactLayout,
+  } = useScale();
 
   const accentColor =
     (intentions && intentions.length > 0 && INTENTION_AURA[intentions[0]]) ||
@@ -366,6 +374,42 @@ export default function CleanSlateScreen({ navigation }: any) {
   // -----------------------------
   // RENDER
   // -----------------------------
+  const orbSizing = React.useMemo(() => {
+    // Keep the orb visually contained on short/SE-class devices.
+    // We clamp by (1) scaled design size, (2) a width-based max, and (3) a compact cap.
+    const baseGlow = uiScale(210);
+    const baseFactorCap = matchesCompactLayout ? uiScale(185) : baseGlow;
+    const maxByWidth = windowWidth * 0.7;
+
+    const glowDiameter = Math.min(baseGlow, maxByWidth, baseFactorCap);
+    const factor = glowDiameter / baseGlow;
+
+    const sweepDiameter = uiScale(200) * factor;
+    const coreDiameter = uiScale(170) * factor;
+    const innerDiameter = uiScale(175) * factor;
+
+    // Shadow radius tracks the orb to avoid “oversized glow” on small screens.
+    const glowShadowRadius = uiScale(36) * factor;
+
+    // Safety clamp: if the phone is extremely short, ensure orb is still proportionate.
+    const maxByHeight = windowHeight * 0.36;
+    const clampedGlowDiameter = Math.min(glowDiameter, maxByHeight);
+    const heightFactor = clampedGlowDiameter / glowDiameter;
+
+    return {
+      glowDiameter: clampedGlowDiameter,
+      sweepDiameter: sweepDiameter * heightFactor,
+      coreDiameter: coreDiameter * heightFactor,
+      innerDiameter: innerDiameter * heightFactor,
+      glowShadowRadius: glowShadowRadius * heightFactor,
+      factor: factor * heightFactor,
+      translateX: uiScale(1),
+      // A subtle “breathing” exaggeration that still respects the cap.
+      initialOrbScale: matchesCompactLayout ? 1.0 : 1.0,
+      verticalNudge: verticalScale(0),
+    };
+  }, [uiScale, verticalScale, windowWidth, windowHeight, matchesCompactLayout]);
+
   return (
     <LinearGradient colors={['#0D0C1F', '#1F233A']} style={styles.container}>
 
@@ -402,6 +446,10 @@ export default function CleanSlateScreen({ navigation }: any) {
                 backgroundColor: accentColor,
                 shadowColor: accentColor,
                 transform: [{ translateX: sweepTranslate }],
+                width: orbSizing.glowDiameter,
+                height: orbSizing.glowDiameter,
+                borderRadius: orbSizing.glowDiameter / 2,
+                shadowRadius: orbSizing.glowShadowRadius,
               },
             ]}
           />
@@ -414,6 +462,9 @@ export default function CleanSlateScreen({ navigation }: any) {
                 opacity: 0.25,
                 transform: [{ translateX: sweepTranslate }],
                 backgroundColor: accentColor,
+                width: orbSizing.sweepDiameter,
+                height: orbSizing.sweepDiameter,
+                borderRadius: orbSizing.sweepDiameter / 2,
               },
             ]}
           />
@@ -423,11 +474,24 @@ export default function CleanSlateScreen({ navigation }: any) {
             style={[
               styles.orbCore,
               { transform: [{ translateX: sweepTranslate }] },
+              {
+                width: orbSizing.coreDiameter,
+                height: orbSizing.coreDiameter,
+                borderRadius: orbSizing.coreDiameter / 2,
+              },
             ]}
           >
             <Image
               source={require('../assets/splash_ios.png')}
-              style={styles.innerOrb}
+              style={[
+                styles.innerOrb,
+                {
+                  width: orbSizing.innerDiameter,
+                  height: orbSizing.innerDiameter,
+                  borderRadius: orbSizing.innerDiameter / 2,
+                  transform: [{ translateX: orbSizing.translateX }],
+                },
+              ]}
             />
           </Animated.View>
         </View>

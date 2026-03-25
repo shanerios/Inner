@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useCallback, useState } from 'react';
 import { usePostHog } from 'posthog-react-native';
 import Purchases, { CustomerInfo } from 'react-native-purchases';
-import { ImageBackground, StyleSheet, View, Text, Pressable, Animated, Easing, FlatList, Dimensions, Modal, Image, Platform } from 'react-native';
+import { ImageBackground, StyleSheet, View, Text, Pressable, Animated, Easing, FlatList, Dimensions, Modal, Image, Platform, ScrollView } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -20,6 +20,7 @@ import { isLockedTrack } from '../src/core/subscriptions/accessPolicy';
 import { chamberReleaseManifest } from '../src/content/chamberReleaseManifest';
 import { getReleaseCountdownLabel } from '../src/content/releaseUtils';
 import { safePresentPaywall } from '../src/core/subscriptions/safePresentPaywall';
+import { useScale } from '../utils/scale';
 
 import { Gesture, GestureDetector, Directions, GestureHandlerRootView } from 'react-native-gesture-handler';
 
@@ -111,19 +112,35 @@ function ChamberRow({
   item,
   onEnter,
   isLocked,
+  rowMarginBottom,
+  tileLayout,
 }: {
   item: { id: string; label: string; subtitle?: string; colors: string[]; comingSoon?: boolean };
   onEnter: (trackId: string, title?: string) => void;
   isLocked: boolean;
+  rowMarginBottom: number;
+  tileLayout: {
+    tileHeight: number;
+    tileBorderRadius: number;
+    tileLeft: number;
+    tileRight: number;
+    subtitleBottom: number;
+    titleBottom: number;
+  };
 }) {
-  const navigation = useNavigation();
   const chamberId = toTrackId(item.id);
   const env = chamberEnvironments[chamberId];
   const { isCached, isWorking, progress, download, remove } = useOfflineAsset(chamberId, 'chamber');
 
   return (
-    <View style={{ marginBottom: 10 }}>
+    <View style={{ marginBottom: rowMarginBottom }}>
       <Tile
+        tileHeight={tileLayout.tileHeight}
+        tileBorderRadius={tileLayout.tileBorderRadius}
+        tileLeft={tileLayout.tileLeft}
+        tileRight={tileLayout.tileRight}
+        subtitleBottom={tileLayout.subtitleBottom}
+        titleBottom={tileLayout.titleBottom}
         label={item.label}
         subtitle={item.subtitle}
         onPress={async () => {
@@ -185,8 +202,30 @@ export default function ChambersScreen() {
     });
   }, []);
   const insets = useSafeAreaInsets();
+  const { verticalScale, scale, matchesCompactLayout } = useScale();
   const navigation = useNavigation();
   const posthog = usePostHog();
+  const tileHeight = matchesCompactLayout ? verticalScale(76) : 86;
+  const tileBorderRadius = matchesCompactLayout ? scale(12) : 14;
+  const rowMarginBottom = matchesCompactLayout ? verticalScale(8) : 10;
+  const tileLeft = matchesCompactLayout ? scale(12) : 14;
+  const tileRight = matchesCompactLayout ? scale(76) : 84;
+  const subtitleBottom = matchesCompactLayout ? verticalScale(1) : 2;
+  const titleBottom = matchesCompactLayout ? verticalScale(9) : 12;
+  const tileLayout = {
+    tileHeight,
+    tileBorderRadius,
+    tileLeft,
+    tileRight,
+    subtitleBottom,
+    titleBottom,
+  };
+
+  // Ensure we still show exactly 3 tiles on compact/SE-class screens.
+  // The ChamberRow wrapper adds `rowMarginBottom`, and FlatList applies `gap`, so we include both
+  // when computing the visible viewport height.
+  const compactListGap = verticalScale(10);
+  const compactListHeight = tileHeight * 3 + 2 * (rowMarginBottom + compactListGap);
 
   const bgPlayer = useVideoPlayer(require('../assets/images/chambers_screen.mp4'), player => {
     player.loop = true;
@@ -308,7 +347,7 @@ export default function ChambersScreen() {
     return () => { mounted = false; if (interval) clearInterval(interval); };
   }, [hintOpacity, hintShift]);
 
-  const { width: SCREEN_W } = Dimensions.get('window');
+  const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
   const SWIPE_THRESHOLD = Math.max(36, SCREEN_W * 0.08); // ~8% width
   const EDGE_GUARD = 10; // slightly smaller edge guard
   const startXRef = React.useRef(0);
@@ -734,15 +773,26 @@ export default function ChambersScreen() {
             const chamberId = toTrackId(item.id);
             const pseudoTrack = { id: chamberId, isPremium: isPremiumChamber(chamberId) };
             const locked = isLockedTrack(pseudoTrack as any, hasContinuing) || item.comingSoon;
-            return <ChamberRow item={item} onEnter={enterChamber} isLocked={locked} />;
+            return (
+              <ChamberRow
+                item={item}
+                onEnter={enterChamber}
+                isLocked={locked}
+                rowMarginBottom={rowMarginBottom}
+                tileLayout={tileLayout}
+              />
+            );
           }}
           showsVerticalScrollIndicator={false}
           accessibilityRole="list"
           accessibilityLabel="Chambers list"
           accessibilityHint="Swipe to browse Chambers. Double tap a Chamber to open it."
           // Viewport shows ~3 tiles; user can scroll for more
-          style={styles.list}
-          contentContainerStyle={{ paddingBottom: Math.max(insets.bottom + 12, 20), gap: 12 }}
+          style={[styles.list, matchesCompactLayout ? { height: compactListHeight } : null]}
+          contentContainerStyle={{
+            paddingBottom: Math.max(insets.bottom + (matchesCompactLayout ? verticalScale(10) : 12), matchesCompactLayout ? verticalScale(18) : 20),
+            gap: matchesCompactLayout ? verticalScale(10) : 12,
+          }}
         />
 
         {/* Portal crossfade veil (pre-navigation) */}
@@ -857,150 +907,162 @@ export default function ChambersScreen() {
 
         {/* Chambers Info Modal */}
         <Modal
-        visible={showInfo}
-        transparent
-        animationType="fade"
-        onRequestClose={closeInfo}
-        presentationStyle="overFullScreen"
-        statusBarTranslucent
-        accessibilityViewIsModal
+          visible={showInfo}
+          transparent
+          animationType="fade"
+          onRequestClose={closeInfo}
+          presentationStyle="overFullScreen"
+          statusBarTranslucent
+          accessibilityViewIsModal
         >
-          <Pressable
-            style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.62)', justifyContent: 'flex-end' }}
-            onPress={closeInfo}
-          >
+          <View style={{ flex: 1 }}>
+            {/* Backdrop dismiss layer: sits behind the sheet so the ScrollView receives pan gestures. */}
             <Pressable
-            onPress={() => {}}
-            accessible={true}
-            accessibilityRole="summary"
-            accessibilityLabel={infoStep === 0 ? 'Chambers information. Step 1 of 2.' : 'Chambers information. Step 2 of 2.'}
-            style={{
-                paddingBottom: Math.max(insets.bottom + 18, 24),
-                paddingTop: 18,
-                paddingHorizontal: 18,
-                borderTopLeftRadius: 22,
-                borderTopRightRadius: 22,
-                backgroundColor: 'rgba(12,10,18,0.96)',
-                borderTopWidth: 1,
-                borderColor: 'rgba(255,255,255,0.10)',
-              }}
+              style={StyleSheet.absoluteFill}
+              onPress={closeInfo}
             >
-              <Text style={[Typography.title, { color: '#F3EDE7', letterSpacing: 0.2, textAlign: 'left' }]}
-              >
-                {infoStep === 0 ? CHAMBERS_INFO.howToTitle : CHAMBERS_INFO.whatAreTitle}
-              </Text>
+              <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.62)' }} />
+            </Pressable>
 
-              <Text
-                style={{
-                  fontFamily: 'Inter-ExtraLight',
-                  fontSize: 11,
-                  lineHeight: 14,
-                  color: 'rgba(237,232,250,0.5)',
-                  letterSpacing: 0.6,
-                  textTransform: 'uppercase',
-                  marginTop: 6,
-                }}
-              >
-                {infoStep === 0 ? 'Step 1 of 2' : 'Step 2 of 2'}
-              </Text>
-
-              <Text
-                style={{
-                  fontFamily: 'Inter-ExtraLight',
-                  fontSize: 14,
-                  lineHeight: 20,
-                  color: 'rgba(237,232,250,0.88)',
-                  marginTop: 12,
-                }}
-              >
-                {infoStep === 0 ? CHAMBERS_INFO.howToBody : CHAMBERS_INFO.whatAreBody}
-              </Text>
-
+            <View style={{ flex: 1, justifyContent: 'flex-end' }}>
               <View
+                accessible={true}
+                accessibilityRole="summary"
+                accessibilityLabel={infoStep === 0 ? 'Chambers information. Step 1 of 2.' : 'Chambers information. Step 2 of 2.'}
                 style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  justifyContent: infoStep === 0 ? 'space-between' : 'flex-end',
-                  marginTop: 16,
+                  paddingBottom: Math.max(insets.bottom + (matchesCompactLayout ? 10 : 18), matchesCompactLayout ? 16 : 24),
+                  paddingTop: matchesCompactLayout ? 12 : 18,
+                  paddingHorizontal: matchesCompactLayout ? 12 : 18,
+                  borderTopLeftRadius: 22,
+                  borderTopRightRadius: 22,
+                  backgroundColor: 'rgba(12,10,18,0.96)',
+                  borderTopWidth: 1,
+                  borderColor: 'rgba(255,255,255,0.10)',
                 }}
               >
-                {infoStep === 0 && (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={CHAMBERS_INFO.closeLabel}
-                    accessibilityHint="Closes this information sheet"
-                    onPress={closeInfo}
-                    hitSlop={10}
+                <ScrollView
+                  style={{ maxHeight: matchesCompactLayout ? SCREEN_H * 0.55 : SCREEN_H * 0.58 }}
+                  contentContainerStyle={{ paddingBottom: verticalScale(6), flexGrow: 1 }}
+                  showsVerticalScrollIndicator={false}
+                  keyboardShouldPersistTaps="handled"
+                >
+                  <Text style={[Typography.title, { color: '#F3EDE7', letterSpacing: 0.2, textAlign: 'left' }]}>
+                    {infoStep === 0 ? CHAMBERS_INFO.howToTitle : CHAMBERS_INFO.whatAreTitle}
+                  </Text>
+
+                  <Text
                     style={{
-                      paddingVertical: 10,
-                      paddingHorizontal: 12,
-                      borderRadius: 12,
-                      borderWidth: 1,
-                      borderColor: 'rgba(255,255,255,0.10)',
-                      backgroundColor: 'rgba(207,195,224,0.06)',
+                      fontFamily: 'Inter-ExtraLight',
+                      fontSize: matchesCompactLayout ? scale(10) : 11,
+                      lineHeight: matchesCompactLayout ? verticalScale(13) : 14,
+                      color: 'rgba(237,232,250,0.5)',
+                      letterSpacing: matchesCompactLayout ? scale(0.55) : 0.6,
+                      textTransform: 'uppercase',
+                      marginTop: matchesCompactLayout ? verticalScale(4) : 6,
                     }}
                   >
-                    <Text style={{ fontFamily: 'Inter-ExtraLight', color: 'rgba(237,232,250,0.92)', letterSpacing: 0.2 }}>
-                      {CHAMBERS_INFO.closeLabel}
-                    </Text>
-                  </Pressable>
-                )}
+                    {infoStep === 0 ? 'Step 1 of 2' : 'Step 2 of 2'}
+                  </Text>
 
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                  {infoStep === 1 && (
+                  <Text
+                    style={{
+                      fontFamily: 'Inter-ExtraLight',
+                      fontSize: matchesCompactLayout ? scale(13) : 14,
+                      lineHeight: matchesCompactLayout ? verticalScale(19) : 20,
+                      color: 'rgba(237,232,250,0.88)',
+                      marginTop: matchesCompactLayout ? verticalScale(10) : 12,
+                    }}
+                  >
+                    {infoStep === 0 ? CHAMBERS_INFO.howToBody : CHAMBERS_INFO.whatAreBody}
+                  </Text>
+                </ScrollView>
+
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: infoStep === 0 ? 'space-between' : 'flex-end',
+                    marginTop: matchesCompactLayout ? verticalScale(8) : 16,
+                  }}
+                >
+                  {infoStep === 0 && (
                     <Pressable
                       accessibilityRole="button"
-                      accessibilityLabel={CHAMBERS_INFO.backLabel}
-                      accessibilityHint="Returns to the previous step"
-                      onPress={() => setInfoStep(0)}
+                      accessibilityLabel={CHAMBERS_INFO.closeLabel}
+                      accessibilityHint="Closes this information sheet"
+                      onPress={closeInfo}
                       hitSlop={10}
                       style={{
-                        paddingVertical: 10,
-                        paddingHorizontal: 12,
-                        borderRadius: 12,
+                        paddingVertical: matchesCompactLayout ? verticalScale(8) : 10,
+                        paddingHorizontal: matchesCompactLayout ? scale(10) : 12,
+                        borderRadius: matchesCompactLayout ? scale(10) : 12,
                         borderWidth: 1,
                         borderColor: 'rgba(255,255,255,0.10)',
                         backgroundColor: 'rgba(207,195,224,0.06)',
                       }}
                     >
                       <Text style={{ fontFamily: 'Inter-ExtraLight', color: 'rgba(237,232,250,0.92)', letterSpacing: 0.2 }}>
-                        {CHAMBERS_INFO.backLabel}
+                        {CHAMBERS_INFO.closeLabel}
                       </Text>
                     </Pressable>
                   )}
 
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={infoStep === 0 ? CHAMBERS_INFO.nextLabel : CHAMBERS_INFO.okLabel}
-                    accessibilityHint={infoStep === 0 ? 'Moves to step 2 of 2' : 'Closes this information sheet'}
-                    onPress={() => {
-                      if (infoStep === 0) {
-                        setInfoStep(1);
-                        Haptics.selectionAsync().catch(() => {});
-                      } else {
-                        closeInfo();
-                      }
-                    }}
-                    hitSlop={10}
-                    style={{
-                      paddingVertical: 10,
-                      paddingHorizontal: 14,
-                      borderRadius: 12,
-                      backgroundColor: 'rgba(207,195,224,0.16)',
-                      borderWidth: 1,
-                      borderColor: 'rgba(255,255,255,0.12)',
-                      minWidth: 92,
-                      alignItems: 'center',
-                    }}
-                  >
-                    <Text style={{ fontFamily: 'CalSans-SemiBold', color: '#F3EDE7', letterSpacing: 0.2 }}>
-                      {infoStep === 0 ? CHAMBERS_INFO.nextLabel : CHAMBERS_INFO.okLabel}
-                    </Text>
-                  </Pressable>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: matchesCompactLayout ? scale(8) : 10 }}>
+                    {infoStep === 1 && (
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={CHAMBERS_INFO.backLabel}
+                        accessibilityHint="Returns to the previous step"
+                        onPress={() => setInfoStep(0)}
+                        hitSlop={10}
+                        style={{
+                          paddingVertical: matchesCompactLayout ? verticalScale(8) : 10,
+                          paddingHorizontal: matchesCompactLayout ? scale(10) : 12,
+                          borderRadius: matchesCompactLayout ? scale(10) : 12,
+                          borderWidth: 1,
+                          borderColor: 'rgba(255,255,255,0.10)',
+                          backgroundColor: 'rgba(207,195,224,0.06)',
+                        }}
+                      >
+                        <Text style={{ fontFamily: 'Inter-ExtraLight', color: 'rgba(237,232,250,0.92)', letterSpacing: 0.2 }}>
+                          {CHAMBERS_INFO.backLabel}
+                        </Text>
+                      </Pressable>
+                    )}
+
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={infoStep === 0 ? CHAMBERS_INFO.nextLabel : CHAMBERS_INFO.okLabel}
+                      accessibilityHint={infoStep === 0 ? 'Moves to step 2 of 2' : 'Closes this information sheet'}
+                      onPress={() => {
+                        if (infoStep === 0) {
+                          setInfoStep(1);
+                          Haptics.selectionAsync().catch(() => {});
+                        } else {
+                          closeInfo();
+                        }
+                      }}
+                      hitSlop={10}
+                      style={{
+                        paddingVertical: matchesCompactLayout ? verticalScale(8) : 10,
+                        paddingHorizontal: matchesCompactLayout ? scale(12) : 14,
+                        borderRadius: matchesCompactLayout ? scale(10) : 12,
+                        backgroundColor: 'rgba(207,195,224,0.16)',
+                        borderWidth: 1,
+                        borderColor: 'rgba(255,255,255,0.12)',
+                        minWidth: matchesCompactLayout ? scale(82) : 92,
+                        alignItems: 'center',
+                      }}
+                    >
+                      <Text style={{ fontFamily: 'CalSans-SemiBold', color: '#F3EDE7', letterSpacing: 0.2 }}>
+                        {infoStep === 0 ? CHAMBERS_INFO.nextLabel : CHAMBERS_INFO.okLabel}
+                      </Text>
+                    </Pressable>
+                  </View>
                 </View>
               </View>
-            </Pressable>
-          </Pressable>
+            </View>
+          </View>
         </Modal>
         </View>
       </GestureDetector>
@@ -1017,6 +1079,12 @@ function Tile({
   offline,
   locked,
   highlight,
+  tileHeight,
+  tileBorderRadius,
+  tileLeft,
+  tileRight,
+  subtitleBottom,
+  titleBottom,
 }: {
   label: string;
   subtitle?: string;
@@ -1033,6 +1101,12 @@ function Tile({
   };
   locked?: boolean;
   highlight?: boolean;
+  tileHeight: number;
+  tileBorderRadius: number;
+  tileLeft: number;
+  tileRight: number;
+  subtitleBottom: number;
+  titleBottom: number;
 }) {
   // Locked gate icon (PNG) + subtle pulse
   // NOTE: Create this file: `assets/images/locked_gate.png` (transparent background).
@@ -1145,6 +1219,7 @@ function Tile({
       onPress={onPress}
       style={({ pressed }) => [
         styles.tile,
+        { height: tileHeight, borderRadius: tileBorderRadius },
         {
           opacity: pressed ? 0.96 : 1,
           transform: [{ scale: pressed ? 0.992 : 1 }],
@@ -1164,7 +1239,7 @@ function Tile({
         <ImageBackground
           source={backgroundSource}
           style={styles.tileFill}
-          imageStyle={{ borderRadius: 14 }}
+          imageStyle={{ borderRadius: tileBorderRadius }}
           resizeMode="cover"
           fadeDuration={0}
           accessible={false}
@@ -1336,9 +1411,9 @@ function Tile({
             lineHeight: 14,
             color: 'rgba(237,232,250,0.86)',
             position: 'absolute',
-            left: 14,
-            bottom: 2,
-            right: 84,
+            left: tileLeft,
+            bottom: subtitleBottom,
+            right: tileRight,
             letterSpacing: 0.25,
             opacity: locked ? 0.62 : 0.78,
           }}
@@ -1353,9 +1428,9 @@ function Tile({
           {
             color: '#F7F0E9',
             position: 'absolute',
-            left: 14,
-            bottom: 12,
-            right: 84,
+            left: tileLeft,
+            bottom: titleBottom,
+            right: tileRight,
             letterSpacing: 0.2,
             opacity: locked ? 0.78 : 1,
           },

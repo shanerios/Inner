@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { usePostHog } from 'posthog-react-native';
-import { StyleSheet, View, Text, Pressable, ScrollView, Dimensions, Animated, Easing, TextInput, Alert, Platform } from 'react-native';
+import { StyleSheet, View, Text, Pressable, ScrollView, Animated, Easing, TextInput, Alert, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import SoundscapeCardList from '../components/SoundscapeCardList';
@@ -14,6 +14,7 @@ import { setLastSession } from '../core/session';
 import { useOfflineAsset } from '../core/useOfflineAsset';
 import { Typography, Body as _Body } from '../core/typography';
 import { usePrecacheTracks } from '../hooks/usePrecacheTracks';
+import { useScale } from '../utils/scale';
 import Purchases from 'react-native-purchases';
 import { isLockedTrack } from '../src/core/subscriptions/accessPolicy';
 import { safePresentPaywall } from '../src/core/subscriptions/safePresentPaywall';
@@ -21,12 +22,6 @@ const Body = _Body ?? ({
   regular: { ...Typography.body },
   subtle:  { ...Typography.caption },
 } as const);
-
-// Tunables for "stack of 3 then scroll" behavior on the category cards
-const CARD_HEIGHT = 96;        // match your SoundscapeCard minHeight
-const CARD_GAP = 18;           // vertical space between cards
-const VISIBLE_COUNT = 3;       // show 3, scroll for the rest
-const LIST_HEIGHT = CARD_HEIGHT * VISIBLE_COUNT + CARD_GAP * (VISIBLE_COUNT - 1);
 
 // RevenueCat entitlement used to gate “deeper” content
 const CONTINUING_ENTITLEMENT_ID = 'continuing_with_inner';
@@ -50,6 +45,8 @@ function SoundscapeRow({
   onLockedPress?: (item: any) => void;
   onStart?: (item: any) => void;
 }) {
+  const { scale, verticalScale, matchesCompactLayout } = useScale();
+  const trackCardMinHeight = matchesCompactLayout ? verticalScale(76) : verticalScale(92);
   const { isCached, isWorking, progress, download, remove, canDownload } = useOfflineAsset(item?.id, 'soundscape');
 
   // Slow “breath” pulse for the lock
@@ -94,6 +91,8 @@ function SoundscapeRow({
         style={({ pressed }) => [
           styles.trackRow,
           {
+            minHeight: trackCardMinHeight,
+            padding: matchesCompactLayout ? scale(10) : scale(12),
             opacity: pressed ? 0.96 : 1,
             transform: [{ scale: pressed ? 0.994 : 1 }],
             borderColor: pressed ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.08)',
@@ -133,11 +132,11 @@ function SoundscapeRow({
             accessibilityState={{ disabled: isWorking }}
             style={({ pressed }) => ({
               position: 'absolute',
-              right: 10,
-              top: 10,
-              paddingVertical: 6,
-              paddingHorizontal: 10,
-              borderRadius: 12,
+              right: scale(10),
+              top: verticalScale(10),
+              paddingVertical: verticalScale(6),
+              paddingHorizontal: scale(10),
+              borderRadius: scale(12),
               borderWidth: 1,
               borderColor: pressed ? 'rgba(255,255,255,0.10)' : 'rgba(255,255,255,0.06)',
               backgroundColor: isCached ? 'rgba(207,195,224,0.14)' : 'rgba(207,195,224,0.10)',
@@ -147,13 +146,13 @@ function SoundscapeRow({
             <Text
               style={{
                 fontFamily: 'Inter-ExtraLight',
-                fontSize: 10,
-                letterSpacing: 0.65,
+                fontSize: scale(10),
+                letterSpacing: scale(0.65),
                 textTransform: 'uppercase',
                 color: 'rgba(245,242,255,0.92)',
                 textShadowColor: 'rgba(0,0,0,0.35)',
-                textShadowOffset: { width: 0, height: 1 },
-                textShadowRadius: 3,
+                textShadowOffset: { width: 0, height: verticalScale(1) },
+                textShadowRadius: scale(3),
               }}
             >
               {isWorking ? `Caching… ${Math.round(progress * 100)}%` : isCached ? 'Offline' : 'Save'}
@@ -188,9 +187,9 @@ function SoundscapeRow({
               {
                 fontFamily: 'Inter-ExtraLight',
                 color: 'rgba(237,232,250,0.85)',
-                marginTop: 4,
-                lineHeight: 20,
-                letterSpacing: 0.2,
+                marginTop: verticalScale(4),
+                lineHeight: verticalScale(20),
+                letterSpacing: scale(0.2),
               },
             ]}
             numberOfLines={2}
@@ -217,9 +216,9 @@ function SoundscapeRow({
             />
             <Animated.View
               style={{
-                width: 46,
-                height: 46,
-                borderRadius: 23,
+                width: scale(46),
+                height: scale(46),
+                borderRadius: scale(23),
                 justifyContent: 'center',
                 alignItems: 'center',
                 backgroundColor: 'rgba(0,0,0,0.28)',
@@ -231,7 +230,7 @@ function SoundscapeRow({
             >
               <Image
                 source={LOCK_ICON}
-                style={{ width: 22, height: 22, opacity: 0.92 }}
+                style={{ width: scale(22), height: scale(22), opacity: 0.92 }}
                 resizeMode="contain"
               />
             </Animated.View>
@@ -244,8 +243,13 @@ function SoundscapeRow({
 
 export default function SoundscapesScreen() {
   const insets = useSafeAreaInsets();
+  const { scale, verticalScale, height: windowHeight, width: SCREEN_W, matchesCompactLayout } = useScale();
   const navigation = useNavigation();
   const posthog = usePostHog();
+  const categoryCardHeight = matchesCompactLayout ? verticalScale(82) : verticalScale(96);
+  const categoryCardGap = matchesCompactLayout ? verticalScale(12) : verticalScale(18);
+  const VISIBLE_COUNT = 3;
+  const listHeight = categoryCardHeight * VISIBLE_COUNT + categoryCardGap * (VISIBLE_COUNT - 1);
 
   const bgPlayer = useVideoPlayer(require('../assets/images/soundscapes_screen.mp4'), player => {
     player.loop = true;
@@ -429,11 +433,13 @@ export default function SoundscapesScreen() {
     });
   }, [normalizedQuery, baseTracks]);
 
-  const winH = Dimensions.get('window').height;
-  // Reserve space for header + category stack + margins; ensure reasonable min height
-  const listMaxHeight = Math.max(180, winH - (Math.max(insets.top + 8, 24) + LIST_HEIGHT + 220));
+  // Reserve space for header + category stack + margins; keep at least one full card visible.
+  const minTrackListHeight = categoryCardHeight + verticalScale(18);
+  const listMaxHeight = Math.max(
+    minTrackListHeight,
+    windowHeight - (Math.max(insets.top + verticalScale(8), verticalScale(24)) + listHeight + verticalScale(220)),
+  );
   // --- Swipe LEFT on header to go Home (race pan + fling) ---
-  const { width: SCREEN_W } = Dimensions.get('window');
   const SWIPE_THRESHOLD = Math.max(36, SCREEN_W * 0.08); // ~8% width
   const EDGE_GUARD = 10; // avoid OS back edge
   const startXRef = React.useRef(0);
@@ -504,7 +510,7 @@ export default function SoundscapesScreen() {
             top: 0,
             left: 0,
             right: 0,
-            height: Math.max(insets.top + 120, 140),
+            height: Math.max(insets.top + verticalScale(120), verticalScale(140)),
             zIndex: 100,
             backgroundColor: 'transparent',
           }}
@@ -534,7 +540,7 @@ export default function SoundscapesScreen() {
       />
 
 
-      <View style={[styles.topDock, { paddingTop: Math.max(insets.top + 8, 24) }]}> 
+      <View style={[styles.topDock, { paddingTop: Math.max(insets.top + verticalScale(8), verticalScale(24)), paddingHorizontal: scale(18) }]}> 
         {/* Header */}
         <View style={styles.header}>
           <Text
@@ -556,9 +562,9 @@ export default function SoundscapesScreen() {
               {
                 fontFamily: 'Inter-ExtraLight', // unify subtitle weight
                 color: '#CBC6D9',
-                marginTop: 4,
+                marginTop: verticalScale(4),
                 letterSpacing: 0.00,
-                fontSize: 14,
+                fontSize: scale(14),
                 opacity: 0.8,
               },
             ]}
@@ -573,21 +579,23 @@ export default function SoundscapesScreen() {
               pointerEvents="none"
               style={{
                 position: 'absolute',
-                right: 24,
+                right: scale(24),
                 top: titleAnchorTop ?? 0,
                 opacity: hintOpacity,
                 transform: [{ translateX: hintShift }],
               }}
             >
-              <Text style={{ color: '#CFC3E0', fontSize: 20, opacity: 0.95 }}>«</Text>
+              <Text style={{ color: '#CFC3E0', fontSize: scale(20), opacity: 0.95 }}>«</Text>
             </Animated.View>
           )}
         </View>
 
         {/* Category cards (stack of 3, then scroll) */}
-        <View style={[styles.catListContainer, { height: LIST_HEIGHT }]}> 
+        <View style={[styles.catListContainer, { height: listHeight, marginTop: verticalScale(10) }]}> 
           <SoundscapeCardList
             hasMembership={hasContinuing}
+            cardHeight={categoryCardHeight}
+            spacing={categoryCardGap}
             onDeeperLockedPress={openPaywall} // legacy fallback; safePresentPaywall is used when hasMembership is provided
             onSelectCategory={(key) => {
               Haptics.selectionAsync();
@@ -597,7 +605,7 @@ export default function SoundscapesScreen() {
           {/* bottom fade to hint the list continues */}
           <LinearGradient
             colors={['transparent', 'rgba(0,0,0,0.35)']}
-            style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 28 }}
+            style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: verticalScale(28) }}
             pointerEvents="none"
           />
         </View>
@@ -605,9 +613,9 @@ export default function SoundscapesScreen() {
         {/* Search row (always visible) */}
         <View
           style={{
-            marginTop: 24,
-            marginBottom: 4,
-            paddingHorizontal: 2,
+            marginTop: verticalScale(24),
+            marginBottom: verticalScale(4),
+            paddingHorizontal: scale(2),
           }}
         >
           <View
@@ -657,7 +665,7 @@ export default function SoundscapesScreen() {
           </View>
         </View>
         {(activeCategory || searchQuery.length > 0) && (
-          <View style={[styles.listWrap, { marginTop: 52 }]}>
+          <View style={[styles.listWrap, { marginTop: verticalScale(52) }]}>
             <View style={styles.listHeaderRow}>
               <Text style={[Typography.title, { color: '#EDE8FA', fontSize: 15, letterSpacing: 0.3, opacity: 0.9 }]}>
                 {!activeCategory
@@ -678,7 +686,7 @@ export default function SoundscapesScreen() {
 
             <ScrollView
               style={{ maxHeight: listMaxHeight }}
-              contentContainerStyle={{ gap: 10, paddingBottom: Math.max(insets.bottom, 16) }}
+              contentContainerStyle={{ gap: verticalScale(10), paddingBottom: Math.max(insets.bottom, verticalScale(16)) }}
               showsVerticalScrollIndicator={false}
             >
               {filteredTracks.length === 0 ? (
@@ -689,7 +697,7 @@ export default function SoundscapesScreen() {
                       {
                         color: 'rgba(237,232,250,0.7)',
                         fontFamily: 'Inter-ExtraLight',
-                        fontSize: 12,
+                        fontSize: scale(12),
                       },
                     ]}
                   >
@@ -729,8 +737,8 @@ export default function SoundscapesScreen() {
                 setActiveCategory(null);
                 setSearchQuery('');
               }}
-              hitSlop={10}
-              style={{ alignSelf: 'flex-end', marginTop: 6 }}
+              hitSlop={scale(10)}
+              style={{ alignSelf: 'flex-end', marginTop: verticalScale(6) }}
             >
               <Text style={[Body.subtle, { color: '#B7B0CA', textDecorationLine: 'underline', opacity: 0.9 }]}>
                 Clear
@@ -751,24 +759,24 @@ export default function SoundscapesScreen() {
         }}
         style={{
           position: 'absolute',
-          right: 16,
+          right: scale(16),
           top: '47%',
-          width: 48,
-          height: 48,
+          width: scale(48),
+          height: scale(48),
           justifyContent: 'center',
           alignItems: 'center',
         }}
-        hitSlop={12}
+        hitSlop={scale(12)}
       >
         {/* If you later swap to an icon asset, replace this Text with an Image like in Chambers */}
         <Text
           style={{
             color: '#EDE8FA',
-            fontSize: 32,
+            fontSize: scale(32),
             opacity: 0.6,
             textShadowColor: 'rgba(0,0,0,0.35)',
-            textShadowOffset: { width: 0, height: 1 },
-            textShadowRadius: 3,
+            textShadowOffset: { width: 0, height: verticalScale(1) },
+            textShadowRadius: scale(3),
           }}
         >
           ›
@@ -787,7 +795,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     paddingTop: 0,
-    paddingHorizontal: 18,
+    paddingHorizontal: 0,
   },
   header: { 
     alignItems: 'center',
@@ -813,7 +821,7 @@ const styles = StyleSheet.create({
   },
   catListContainer: {
     position: 'relative',
-    marginTop: 10,
+    marginTop: 0,
     overflow: 'hidden',
   },
 });

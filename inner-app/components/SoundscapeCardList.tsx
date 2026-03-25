@@ -12,6 +12,7 @@ import NoiseSigil from '../assets/sigils/noise.svg';
 import { Body as _Body } from '../core/typography';
 import { isLockedTrack } from '../src/core/subscriptions/accessPolicy';
 import { safePresentPaywall } from '../src/core/subscriptions/safePresentPaywall';
+import { useScale } from '../utils/scale';
 const Body = _Body ?? ({
   regular: { fontFamily: 'Inter-ExtraLight', fontSize: 14 },
   subtle: { fontFamily: 'Inter-ExtraLight', fontSize: 12 },
@@ -66,11 +67,11 @@ function LockPulse({ size = 22, opacity = 0.38 }: { size?: number; opacity?: num
   );
 }
 
-function DeeperSigilWithLock() {
+function DeeperSigilWithLock({ sigilSize, lockSize }: { sigilSize: number; lockSize: number }) {
   return (
-    <View style={{ width: 48, height: 48 }}>
-      <DeeperSigil width={48} height={48} />
-      <LockPulse size={22} opacity={0.34} />
+    <View style={{ width: sigilSize, height: sigilSize }}>
+      <DeeperSigil width={sigilSize} height={sigilSize} />
+      <LockPulse size={lockSize} opacity={0.34} />
     </View>
   );
 }
@@ -138,6 +139,7 @@ type Props = {
   onDeeperLockedPress?: () => void; // when Deeper is locked, open paywall directly
   isDeeperLocked?: boolean; // controls lock overlay on Deeper card
 
+  cardHeight?: number;
   spacing?: number; // vertical gap between cards
 };
 
@@ -145,25 +147,46 @@ export default function SoundscapeCardList({
   onSelectCategory,
   hasMembership,
   onDeeperLockedPress,
+  cardHeight,
   spacing = 16,
   isDeeperLocked = true,
 }: Props) {
+  const { scale, verticalScale, matchesCompactLayout } = useScale();
   const effectiveHasMembership = hasMembership ?? false;
   const deeperLocked = hasMembership != null ? !effectiveHasMembership : isDeeperLocked;
+  const resolvedCardHeight = cardHeight ?? (matchesCompactLayout ? verticalScale(82) : verticalScale(96));
+  const resolvedGap = spacing ?? (matchesCompactLayout ? verticalScale(12) : verticalScale(16));
+  const sigilSize = matchesCompactLayout ? scale(40) : scale(48);
+  const lockSize = matchesCompactLayout ? scale(20) : scale(22);
 
   return (
     <View style={[styles.list, { height: '100%' }]}>
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ gap: spacing, paddingBottom: 12 }}
+        contentContainerStyle={{ gap: resolvedGap, paddingBottom: verticalScale(12) }}
       >
         {CATEGORIES.map((cat) => (
           <SoundscapeCard
             key={cat.key}
             label={cat.label}
             colors={cat.colors}
+            style={{ height: resolvedCardHeight }}
             subtitle={<Text style={[Body.regular, { color: 'rgba(237,232,250,0.85)' }]}>{cat.subtitle}</Text>}
-            sigil={cat.key === 'deeper' ? (deeperLocked ? <DeeperSigilWithLock /> : <DeeperSigil width={48} height={48} />) : cat.sigil}
+            sigil={
+              cat.key === 'deeper'
+                ? (deeperLocked
+                    ? <DeeperSigilWithLock sigilSize={sigilSize} lockSize={lockSize} />
+                    : <DeeperSigil width={sigilSize} height={sigilSize} />)
+                : cat.key === 'stillness'
+                ? <StillnessSigil width={sigilSize} height={sigilSize} />
+                : cat.key === 'clarity'
+                ? <ClaritySigil width={sigilSize} height={sigilSize} />
+                : cat.key === 'renewal'
+                ? <RenewalSigil width={sigilSize} height={sigilSize} />
+                : cat.key === 'tones'
+                ? <TonesSigil width={sigilSize} height={sigilSize} />
+                : <NoiseSigil width={sigilSize} height={sigilSize} />
+            }
             showArrow={true}
             onPress={async () => {
               // Centralized gating for the Deeper category
