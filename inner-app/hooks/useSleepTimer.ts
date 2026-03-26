@@ -1,11 +1,13 @@
 import { useEffect, useRef } from 'react';
 import { AppState, type AppStateStatus } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import TrackPlayer from 'react-native-track-player';
 
 const FADE_DURATION_MS = 6000;
 const FADE_STEPS = 12;
 /** Past target by this much → assume timers were throttled in background; stop without a long fade. */
 const LATE_SKIP_FADE_MS = 1500;
+export const SLEEP_TIMER_END_KEY = 'inner_sleep_timer_end_ms';
 
 export function useSleepTimer(minutes: number | null) {
   const endTimeRef = useRef<number | null>(null);
@@ -21,11 +23,13 @@ export function useSleepTimer(minutes: number | null) {
     if (!minutes) {
       endTimeRef.current = null;
       firedRef.current = false;
+      void AsyncStorage.removeItem(SLEEP_TIMER_END_KEY);
       return;
     }
 
     firedRef.current = false;
     endTimeRef.current = Date.now() + minutes * 60 * 1000;
+    void AsyncStorage.setItem(SLEEP_TIMER_END_KEY, String(endTimeRef.current));
 
     const clearTimer = () => {
       if (timeoutRef.current) {
@@ -56,6 +60,7 @@ export function useSleepTimer(minutes: number | null) {
       const end = endTimeRef.current;
       endTimeRef.current = null;
       clearTimer();
+      void AsyncStorage.removeItem(SLEEP_TIMER_END_KEY);
 
       const lateMs = end != null ? Date.now() - end : 0;
       const skipFade = lateMs > LATE_SKIP_FADE_MS;
