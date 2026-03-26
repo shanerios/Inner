@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, BackHandler, Pressable, PanResponder, Animated, Easing, InteractionManager, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import SleepIcon from '../assets/images/sleep.svg';
@@ -26,6 +26,7 @@ import { isLockedTrack } from '../src/core/subscriptions/accessPolicy';
 import { safePresentPaywall } from '../src/core/subscriptions/safePresentPaywall';
 
 import { useSleepTimer } from '../hooks/useSleepTimer';
+import { useScale } from '../utils/scale';
 import { usePostHog } from 'posthog-react-native';
 
 type RouteParams = { id?: string; chamber?: string; trackId?: string };
@@ -1272,19 +1273,142 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
     navigation.goBack();
   };
 
-  // Orb / ring geometry
-  const ORB_SIZE = 250;
-  const ORB_VISUAL_SCALE = 1.10;
-  const ORB_VISUAL_SIZE = ORB_SIZE * ORB_VISUAL_SCALE;
+  // Orb / ring geometry — compact phones only; Pro Max / tall phones keep original sizes
+  const { scale: uiScale, width: windowWidth, height: windowHeight, matchesCompactLayout } = useScale();
 
-  // Mandala overlay tuning (keeps breathing, hides outer ember rim)
-  const MANDALA_SCALE = 1.0;          // keep 1.0 unless you want the mandala slightly smaller/larger
-  const MANDALA_EDGE_MASK = 32;       // px thickness that covers the orange rim
+  const orbGeometry = useMemo(() => {
+    const ORB_VISUAL_SCALE = 1.10;
+    const MANDALA_SCALE = 1.0;
+    // Compact only: we previously shrank mandala/mask (~0.92); on small screens nudge artwork slightly larger inside a clip instead.
+    const MANDALA_MATCH_ORB_COMPACT = 1.06;
+
+    if (!matchesCompactLayout) {
+      const ORB_SIZE = 250;
+      const ORB_VISUAL_SIZE = ORB_SIZE * ORB_VISUAL_SCALE;
+      const RING_SIZE = ORB_VISUAL_SIZE;
+      const STROKE = 8;
+      const MANDALA_EDGE_MASK = 32;
+      const pressableTrim = 40;
+      return {
+        ORB_SIZE,
+        ORB_VISUAL_SCALE,
+        ORB_VISUAL_SIZE,
+        RING_SIZE,
+        STROKE,
+        MANDALA_SCALE,
+        MANDALA_EDGE_MASK,
+        mandalaContentDiameter: ORB_VISUAL_SIZE * MANDALA_SCALE,
+        mandalaMaskBorder: MANDALA_EDGE_MASK,
+        useOrbInteriorClip: false,
+        loadingVeilBorderRadius: 16,
+        mandalaBlurExtraScale: 1.002,
+        ORB_PRESSABLE_SIZE: ORB_SIZE - pressableTrim,
+      };
+    }
+
+    const designRing = 275; // 250 * ORB_VISUAL_SCALE
+    const byWidth = windowWidth * 0.58;
+    const byHeight = windowHeight * 0.30;
+    const RING_SIZE = Math.max(
+      Math.round(uiScale(190)),
+      Math.round(Math.min(uiScale(designRing), byWidth, byHeight)),
+    );
+    const ORB_VISUAL_SIZE = RING_SIZE;
+    const ORB_SIZE = ORB_VISUAL_SIZE / ORB_VISUAL_SCALE;
+    const STROKE = Math.max(5, Math.round(uiScale(7)));
+    const MANDALA_EDGE_MASK = Math.round(uiScale(28));
+    const pressableTrim = Math.round(uiScale(34));
+    return {
+      ORB_SIZE,
+      ORB_VISUAL_SCALE,
+      ORB_VISUAL_SIZE,
+      RING_SIZE,
+      STROKE,
+      MANDALA_SCALE,
+      MANDALA_EDGE_MASK,
+      mandalaContentDiameter: ORB_VISUAL_SIZE * MANDALA_MATCH_ORB_COMPACT * MANDALA_SCALE,
+      mandalaMaskBorder: MANDALA_EDGE_MASK,
+      useOrbInteriorClip: true,
+      loadingVeilBorderRadius: RING_SIZE / 2,
+      mandalaBlurExtraScale: 1.0,
+      ORB_PRESSABLE_SIZE: Math.max(72, ORB_SIZE - pressableTrim),
+    };
+  }, [matchesCompactLayout, uiScale, windowWidth, windowHeight]);
+
+  const {
+    ORB_VISUAL_SIZE,
+    RING_SIZE,
+    STROKE,
+    mandalaContentDiameter,
+    mandalaMaskBorder,
+    ORB_PRESSABLE_SIZE,
+    useOrbInteriorClip,
+    loadingVeilBorderRadius,
+    mandalaBlurExtraScale,
+  } = orbGeometry;
+
   const MANDALA_EDGE_MASK_COLOR = 'rgba(8,6,12,0.78)'; // matches the app veil/space tone
 
-  // Ring now exactly matches orb visual diameter
-  const RING_SIZE = ORB_VISUAL_SIZE;
-  const STROKE = 8;
+  const orbGeomRef = useRef(orbGeometry);
+  orbGeomRef.current = orbGeometry;
+
+  const playerChrome = useMemo(() => {
+    if (!matchesCompactLayout) {
+      return {
+        controlBtnSize: 72,
+        playIconSize: 28,
+        sleepBtnSize: 72,
+        sleepIconSize: 60,
+        sleepOuterPadding: 12,
+        sleepShadowRadius: 12,
+        sleepShadowOffsetY: 0,
+        sleepBadgeRight: -8,
+        sleepBadgeTop: -6,
+        sleepBadgePadH: 6,
+        sleepBadgePadV: 2,
+        sleepBadgeFont: 10,
+        sleepMenuMarginTop: 10,
+        sleepOptionPadV: 8,
+        sleepOptionPadH: 14,
+        sleepOptionMarginH: 4,
+        sleepOptionFontSize: 13,
+        sleepOptionBorderRadius: 14,
+        closePadV: 10,
+        closePadH: 18,
+        closeMarginTop: 18,
+        closeBorderRadius: 16,
+        closeBottomInset: 16,
+      };
+    }
+    const controlBtnSize = Math.max(56, Math.round(uiScale(60)));
+    const sleepBtnSize = Math.max(52, Math.round(uiScale(58)));
+    const sleepIconSize = Math.min(Math.round(uiScale(50)), sleepBtnSize - 10);
+    return {
+      controlBtnSize,
+      playIconSize: Math.max(22, Math.round(uiScale(24))),
+      sleepBtnSize,
+      sleepIconSize,
+      sleepOuterPadding: Math.round(uiScale(10)),
+      sleepShadowRadius: Math.round(uiScale(10)),
+      sleepShadowOffsetY: 0,
+      sleepBadgeRight: Math.round(uiScale(-6)),
+      sleepBadgeTop: Math.round(uiScale(-5)),
+      sleepBadgePadH: Math.round(uiScale(5)),
+      sleepBadgePadV: 2,
+      sleepBadgeFont: 9,
+      sleepMenuMarginTop: Math.round(uiScale(8)),
+      sleepOptionPadV: Math.round(uiScale(6)),
+      sleepOptionPadH: Math.round(uiScale(10)),
+      sleepOptionMarginH: Math.round(uiScale(3)),
+      sleepOptionFontSize: Math.max(11, Math.round(uiScale(12))),
+      sleepOptionBorderRadius: Math.round(uiScale(12)),
+      closePadV: Math.round(uiScale(8)),
+      closePadH: Math.round(uiScale(14)),
+      closeMarginTop: Math.round(uiScale(12)),
+      closeBorderRadius: Math.round(uiScale(14)),
+      closeBottomInset: 12,
+    };
+  }, [matchesCompactLayout, uiScale]);
 
   // Playback progress 0..1
   const safeDur = duration && duration > 50 ? duration : 0; // ignore sub-50ms noise
@@ -1295,22 +1419,24 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
   const gap = c - dash;
 
   // Map a touch point on the ring overlay to progress (0..1)
-  const pointToProgress = (x: number, y: number) => {
-    const size = RING_SIZE;
+  const pointToProgress = useCallback((x: number, y: number) => {
+    const { RING_SIZE: ring, STROKE: stroke } = orbGeomRef.current;
+    const rad = (ring - stroke) / 2;
+    const size = ring;
     const cx = size / 2;
     const cy = size / 2;
     const dx = x - cx;
     const dy = y - cy;
     const dist = Math.sqrt(dx * dx + dy * dy);
-    const inner = r - STROKE * 4.5; // hit band (wider)
-    const outer = r + STROKE * 4.5;
+    const inner = rad - stroke * 4.5; // hit band (wider)
+    const outer = rad + stroke * 4.5;
     if (dist < inner || dist > outer) return null; // outside ring band
     // angle: 0 at right, -pi..pi. We want 0 at top → rotate -90deg
     let theta = Math.atan2(dy, dx) + Math.PI / 2; // shift so top=0
     if (theta < 0) theta += Math.PI * 2;
     const p = theta / (Math.PI * 2);
     return Math.max(0, Math.min(1, p));
-  };
+  }, []);
 
   // --- Double-tap seek logic for ring ---
   const lastTapRef = useRef<{ ts: number, x: number, y: number } | null>(null);
@@ -1352,7 +1478,7 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
           // Double-tap detected
           const x = locationX;
           // Left or right half of ring
-          if (x < RING_SIZE / 2) {
+          if (x < orbGeomRef.current.RING_SIZE / 2) {
             // Seek backward 15s
             try {
               await skipBy(-SEEK_AMOUNT);
@@ -1526,7 +1652,7 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
     const now = Date.now();
     const last = lastOrbTapRef.current || 0;
     const x = evt?.nativeEvent?.locationX ?? 0;
-    const pressableW = ORB_SIZE - 40; // matches the Pressable width
+    const pressableW = orbGeomRef.current.ORB_PRESSABLE_SIZE; // matches the Pressable width
     const isLeftHalf = x < pressableW / 2;
 
     if (now - last < ORB_DOUBLE_TAP_MS) {
@@ -1558,6 +1684,88 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
     const int = setInterval(() => { ensurePreferredFromStorage().catch(() => {}); }, 1200);
     return () => clearInterval(int);
   }, [ensurePreferredFromStorage]);
+
+  const soundscapeOrbInterior = (
+    <>
+      <OrbPortal
+        variant="inner"
+        size={ORB_VISUAL_SIZE}
+        imageSource={require('../assets/splash.webp')}
+        enhance
+        overlayScale={0.83}
+        overlayOffsetX={-3}
+        overlayOffsetY={0}
+      />
+      <Animated.Image
+        source={require('../assets/images/orb-player-mandala.webp')}
+        resizeMode="contain"
+        blurRadius={2}
+        style={{
+          position: 'absolute',
+          width: mandalaContentDiameter,
+          height: mandalaContentDiameter,
+          top: '50%',
+          left: '50%',
+          transform: [
+            { translateX: -mandalaContentDiameter / 2 },
+            { translateY: -mandalaContentDiameter / 2 },
+            { scale: mandalaBlurExtraScale },
+          ],
+          opacity: finalMandalaBlurOpacity,
+        }}
+      />
+      <Animated.Image
+        source={require('../assets/images/orb-player-mandala.webp')}
+        resizeMode="contain"
+        style={{
+          position: 'absolute',
+          width: mandalaContentDiameter,
+          height: mandalaContentDiameter,
+          top: '50%',
+          left: '50%',
+          transform: [
+            { translateX: -mandalaContentDiameter / 2 },
+            { translateY: -mandalaContentDiameter / 2 },
+          ],
+          opacity: finalMandalaSharpOpacity,
+        }}
+      />
+      <View
+        pointerEvents="none"
+        style={{
+          position: 'absolute',
+          width: mandalaContentDiameter,
+          height: mandalaContentDiameter,
+          top: '50%',
+          left: '50%',
+          transform: [
+            { translateX: -mandalaContentDiameter / 2 },
+            { translateY: -mandalaContentDiameter / 2 },
+          ],
+          borderRadius: mandalaContentDiameter / 2,
+          borderWidth: mandalaMaskBorder,
+          borderColor: MANDALA_EDGE_MASK_COLOR,
+        }}
+      />
+    </>
+  );
+
+  const soundscapeOrbStack = useOrbInteriorClip ? (
+    <View
+      style={{
+        width: ORB_VISUAL_SIZE,
+        height: ORB_VISUAL_SIZE,
+        borderRadius: ORB_VISUAL_SIZE / 2,
+        overflow: 'hidden',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      {soundscapeOrbInterior}
+    </View>
+  ) : (
+    soundscapeOrbInterior
+  );
 
   return (
     <View style={styles.container}>
@@ -1628,19 +1836,32 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
           colors={[playingForVisuals ? 'rgba(255,173,102,0.78)' : 'rgba(178,139,255,0.75)', 'rgba(125,91,214,0.85)']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          style={styles.controlBtn}
+          style={[
+            styles.controlBtn,
+            {
+              width: playerChrome.controlBtnSize,
+              height: playerChrome.controlBtnSize,
+              borderRadius: playerChrome.controlBtnSize / 2,
+            },
+          ]}
         >
-          <View pointerEvents="none" style={styles.controlBtnInset} />
+          <View
+            pointerEvents="none"
+            style={[
+              styles.controlBtnInset,
+              { borderRadius: playerChrome.controlBtnSize / 2 },
+            ]}
+          />
           <TouchableOpacity
             onPress={toggle}
-            hitSlop={12}
+            hitSlop={matchesCompactLayout ? 10 : 12}
             accessibilityRole="button"
             accessibilityLabel={isPlayingUI ? 'Pause' : 'Play'}
             accessibilityHint={isPlayingUI ? 'Pauses playback' : 'Starts playback'}
             style={{ width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' }}
             activeOpacity={0.85}
           >
-            <Ionicons name={isPlayingUI ? 'pause' : 'play'} size={28} color="rgba(14,10,20,0.9)" />
+            <Ionicons name={isPlayingUI ? 'pause' : 'play'} size={playerChrome.playIconSize} color="rgba(14,10,20,0.9)" />
           </TouchableOpacity>
         </LinearGradient>
       </View>
@@ -1696,7 +1917,7 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
                   backgroundColor: 'rgba(10,8,14,0.35)',
                   zIndex: 3,
                   opacity: veilOpacity,
-                  borderRadius: 16,
+                  borderRadius: loadingVeilBorderRadius,
                 }}
               />
             )}
@@ -1726,81 +1947,17 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
               hitSlop={10}
               style={{
                 position: 'absolute',
-                width: ORB_SIZE - 40,
-                height: ORB_SIZE - 40,
-                borderRadius: (ORB_SIZE - 40) / 2,
+                width: ORB_PRESSABLE_SIZE,
+                height: ORB_PRESSABLE_SIZE,
+                borderRadius: ORB_PRESSABLE_SIZE / 2,
                 alignItems: 'center',
                 justifyContent: 'center',
                 top: '50%',
                 left: '50%',
-                transform: [{ translateX: -(ORB_SIZE - 40) / 2 }, { translateY: -(ORB_SIZE - 40) / 2 }],
+                transform: [{ translateX: -ORB_PRESSABLE_SIZE / 2 }, { translateY: -ORB_PRESSABLE_SIZE / 2 }],
               }}
             >
-              <OrbPortal
-                variant="inner"
-                size={ORB_VISUAL_SIZE}
-                imageSource={require('../assets/splash.webp')}
-                enhance
-                overlayScale={0.83}
-                overlayOffsetX={-3}
-                overlayOffsetY={0}
-              />
-              {/* Mandala (blurred layer when paused) */}
-              <Animated.Image
-                source={require('../assets/images/orb-player-mandala.webp')}
-                resizeMode="contain"
-                blurRadius={2}
-                style={{
-                  position: 'absolute',
-                  width: ORB_VISUAL_SIZE * MANDALA_SCALE,
-                  height: ORB_VISUAL_SIZE * MANDALA_SCALE,
-                  top: '50%',
-                  left: '50%',
-                  transform: [
-                    { translateX: -(ORB_VISUAL_SIZE * MANDALA_SCALE) / 2 },
-                    { translateY: -(ORB_VISUAL_SIZE * MANDALA_SCALE) / 2 },
-                    { scale: 1.002 },
-                  ],
-                  opacity: finalMandalaBlurOpacity,
-                }}
-              />
-
-              {/* Mandala (sharp layer when playing) */}
-              <Animated.Image
-                source={require('../assets/images/orb-player-mandala.webp')}
-                resizeMode="contain"
-                style={{
-                  position: 'absolute',
-                  width: ORB_VISUAL_SIZE * MANDALA_SCALE,
-                  height: ORB_VISUAL_SIZE * MANDALA_SCALE,
-                  top: '50%',
-                  left: '50%',
-                  transform: [
-                    { translateX: -(ORB_VISUAL_SIZE * MANDALA_SCALE) / 2 },
-                    { translateY: -(ORB_VISUAL_SIZE * MANDALA_SCALE) / 2 },
-                  ],
-                  opacity: finalMandalaSharpOpacity,
-                }}
-              />
-
-              {/* Mask the mandala’s outer rim so the orange/ember edge doesn’t show */}
-              <View
-                pointerEvents="none"
-                style={{
-                  position: 'absolute',
-                  width: ORB_VISUAL_SIZE,
-                  height: ORB_VISUAL_SIZE,
-                  top: '50%',
-                  left: '50%',
-                  transform: [
-                    { translateX: -ORB_VISUAL_SIZE / 2 },
-                    { translateY: -ORB_VISUAL_SIZE / 2 },
-                  ],
-                  borderRadius: ORB_VISUAL_SIZE / 2,
-                  borderWidth: MANDALA_EDGE_MASK,
-                  borderColor: MANDALA_EDGE_MASK_COLOR,
-                }}
-              />
+              {soundscapeOrbStack}
             </Pressable>
           </Animated.View>
         </View>
@@ -1897,14 +2054,14 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
             style={{
               alignItems: 'center',
               justifyContent: 'center',
-              padding: 12, // 44x44-ish hit target
+              padding: playerChrome.sleepOuterPadding,
             }}
           >
             <Animated.View
               style={{
-                width: 72,
-                height: 72,
-                borderRadius: 36,
+                width: playerChrome.sleepBtnSize,
+                height: playerChrome.sleepBtnSize,
+                borderRadius: playerChrome.sleepBtnSize / 2,
                 alignItems: 'center',
                 justifyContent: 'center',
                 position: 'relative',
@@ -1912,21 +2069,21 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
                 // Disable glow when selected; keep mild lifted shadow when not selected (iOS-only)
                 shadowColor: sleepMinutes ? 'transparent' : '#CFC3E0',
                 shadowOpacity: sleepMinutes ? 0 : 0.45,
-                shadowRadius: sleepMinutes ? 0 : 12,
-                shadowOffset: sleepMinutes ? { width: 0, height: 0 } : { width: 0, height: -16 },
+                shadowRadius: sleepMinutes ? 0 : playerChrome.sleepShadowRadius,
+                shadowOffset: sleepMinutes ? { width: 0, height: 0 } : { width: 0, height: playerChrome.sleepShadowOffsetY },
                 elevation: 0, // no Android elevation; we want a flat filled circle when selected
                 transform: [{ scale: sleepScale }],
               }}
             >
-              <SleepIcon width={60} height={60} fill={sleepMinutes ? '#1F233A' : '#CFC3E0'} />
+              <SleepIcon width={playerChrome.sleepIconSize} height={playerChrome.sleepIconSize} fill={sleepMinutes ? '#1F233A' : '#CFC3E0'} />
               {sleepMinutes && (
                 <View
                   style={{
                     position: 'absolute',
-                    right: -8,
-                    top: -6,
-                    paddingHorizontal: 6,
-                    paddingVertical: 2,
+                    right: playerChrome.sleepBadgeRight,
+                    top: playerChrome.sleepBadgeTop,
+                    paddingHorizontal: playerChrome.sleepBadgePadH,
+                    paddingVertical: playerChrome.sleepBadgePadV,
                     borderRadius: 10,
                     backgroundColor: '#CFC3E0',
                   }}
@@ -1934,7 +2091,7 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
                   <Text
                     style={{
                       fontFamily: 'Inter-ExtraLight',
-                      fontSize: 10,
+                      fontSize: playerChrome.sleepBadgeFont,
                       color: '#1F233A',
                     }}
                   >
@@ -1956,7 +2113,7 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
               }],
             }}
           >
-            <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 10 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: playerChrome.sleepMenuMarginTop, flexWrap: 'wrap' }}>
               {[15, 30, 45, 60].map(opt => (
                 <TouchableOpacity
                   key={opt}
@@ -1970,20 +2127,20 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
                     setShowTimerMenu(false);
                   }}
                   style={{
-                    paddingVertical: 8,
-                    paddingHorizontal: 14,
-                    borderRadius: 14,
+                    paddingVertical: playerChrome.sleepOptionPadV,
+                    paddingHorizontal: playerChrome.sleepOptionPadH,
+                    borderRadius: playerChrome.sleepOptionBorderRadius,
                     borderWidth: 1,
                     borderColor: sleepMinutes === opt ? '#CFC3E0' : 'rgba(207,195,224,0.4)',
                     backgroundColor: sleepMinutes === opt ? '#CFC3E0' : 'transparent',
-                    marginHorizontal: 4,
+                    marginHorizontal: playerChrome.sleepOptionMarginH,
                     transform: [{ scale: optionScales[opt] }],
                   }}
                 >
                   <Text
                     style={{
                       fontFamily: 'Inter-ExtraLight',
-                      fontSize: 13,
+                      fontSize: playerChrome.sleepOptionFontSize,
                       color: sleepMinutes === opt ? '#1F233A' : '#E8E4F3',
                     }}
                   >
@@ -2001,10 +2158,16 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
         <TouchableOpacity
           style={[
             styles.close,
-            { marginBottom: Math.max(24, insets.bottom + 16) },
+            {
+              marginTop: playerChrome.closeMarginTop,
+              marginBottom: Math.max(matchesCompactLayout ? 20 : 24, insets.bottom + playerChrome.closeBottomInset),
+              paddingVertical: playerChrome.closePadV,
+              paddingHorizontal: playerChrome.closePadH,
+              borderRadius: playerChrome.closeBorderRadius,
+            },
           ]}
           onPress={handleClose}
-          hitSlop={12}
+          hitSlop={matchesCompactLayout ? 10 : 12}
         >
           <Text style={[Typography.body, { color: '#E8E4F3' }]}>Close</Text>
         </TouchableOpacity>

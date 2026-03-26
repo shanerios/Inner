@@ -6,6 +6,7 @@ const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 import { LinearGradient } from 'expo-linear-gradient';
 import { Typography } from '../core/typography';
 import { Body as _Body } from '../core/typography';
+import { useScale } from '../utils/scale';
 const Body = _Body ?? ({
   regular: { fontFamily: 'Inter-ExtraLight', fontSize: 14 },
   subtle: { fontFamily: 'Inter-ExtraLight', fontSize: 12 },
@@ -34,6 +35,7 @@ export default function SoundscapeCard({
   isLocked,
   onLockedPress,
 }: Props) {
+  const { scale, matchesCompactLayout } = useScale();
   const press = React.useRef(new Animated.Value(0)).current;
   const pulse = React.useRef(new Animated.Value(0)).current;
 
@@ -175,7 +177,18 @@ export default function SoundscapeCard({
           })()}
         </Animated.View>
       ) : null}
-      <Text style={[Typography.title, { color: '#F5F2FB', letterSpacing: 0.4 }]}>{label}</Text>
+      <Text
+        style={[
+          Typography.title,
+          { color: '#F5F2FB', letterSpacing: 0.4 },
+          matchesCompactLayout && {
+            fontSize: scale(16),
+            lineHeight: Math.round(scale(23)),
+          },
+        ]}
+      >
+        {label}
+      </Text>
       {subtitle ? (
         <Text
           style={[
@@ -186,6 +199,10 @@ export default function SoundscapeCard({
               opacity: 0.85,
               marginTop: 2,
               lineHeight: 18,
+            },
+            matchesCompactLayout && {
+              marginTop: 1,
+              lineHeight: Math.round(scale(18)),
             },
           ]}
         >

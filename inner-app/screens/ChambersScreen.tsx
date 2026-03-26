@@ -693,7 +693,14 @@ export default function ChambersScreen() {
             accessibilityRole="header"
             accessibilityLabel="Chambers"
             accessibilityHint="Swipe right on the title area to go back to Home"
-            style={[Typography.display, { color: '#F3EDE7', letterSpacing: 0.2 }]}
+            style={[
+              Typography.display,
+              { color: '#F3EDE7', letterSpacing: 0.2 },
+              matchesCompactLayout && {
+                fontSize: scale(20),
+                lineHeight: Math.round(scale(27)),
+              },
+            ]}
             onLayout={(e) => {
               const { y, height } = e.nativeEvent.layout;
               // place chevron ~25% down from the title’s top
@@ -703,10 +710,37 @@ export default function ChambersScreen() {
             Chambers
           </Text>
           <View style={{ alignItems: 'center', marginTop: 4 }}>
-            <Text style={[Body.regular, { color: 'rgba(217,207,198,0.72)', fontSize: 12, letterSpacing: 0.25 }]}>
+            <Text
+              style={[
+                Body.regular,
+                {
+                  color: 'rgba(217,207,198,0.72)',
+                  fontSize: 12,
+                  letterSpacing: 0.25,
+                },
+                matchesCompactLayout && {
+                  fontSize: scale(12),
+                  lineHeight: Math.round(scale(17)),
+                },
+              ]}
+            >
               Guided journeys • Deeper states
             </Text>
-            <Text style={[Body.regular, { color: 'rgba(217,207,198,0.45)', fontSize: 12, letterSpacing: 0.35, marginTop: 2 }]}>
+            <Text
+              style={[
+                Body.regular,
+                {
+                  color: 'rgba(217,207,198,0.45)',
+                  fontSize: 12,
+                  letterSpacing: 0.35,
+                  marginTop: 2,
+                },
+                matchesCompactLayout && {
+                  fontSize: scale(12),
+                  lineHeight: Math.round(scale(17)),
+                },
+              ]}
+            >
               Return
             </Text>
           </View>
@@ -836,7 +870,18 @@ export default function ChambersScreen() {
                 borderColor: 'rgba(255,255,255,0.10)',
               }}
             >
-              <Text style={[Typography.title, { color: '#F3EDE7', letterSpacing: 0.2 }]}>Continue with Inner</Text>
+              <Text
+                style={[
+                  Typography.title,
+                  { color: '#F3EDE7', letterSpacing: 0.2 },
+                  matchesCompactLayout && {
+                    fontSize: scale(16),
+                    lineHeight: Math.round(scale(23)),
+                  },
+                ]}
+              >
+                Continue with Inner
+              </Text>
 
               <Text
                 style={{
@@ -845,6 +890,13 @@ export default function ChambersScreen() {
                   lineHeight: 20,
                   color: 'rgba(237,232,250,0.88)',
                   marginTop: 12,
+                  ...(matchesCompactLayout
+                    ? {
+                        fontSize: scale(13),
+                        lineHeight: Math.round(scale(18)),
+                        marginTop: verticalScale(10),
+                      }
+                    : {}),
                 }}
               >
                 {gateLabel ? `${gateLabel} is part of the deeper Chambers.` : 'This Chamber is part of the deeper Chambers.'}
@@ -946,7 +998,20 @@ export default function ChambersScreen() {
                   showsVerticalScrollIndicator={false}
                   keyboardShouldPersistTaps="handled"
                 >
-                  <Text style={[Typography.title, { color: '#F3EDE7', letterSpacing: 0.2, textAlign: 'left' }]}>
+                  <Text
+                    style={[
+                      Typography.title,
+                      {
+                        color: '#F3EDE7',
+                        letterSpacing: 0.2,
+                        textAlign: 'left',
+                      },
+                      matchesCompactLayout && {
+                        fontSize: scale(16),
+                        lineHeight: Math.round(scale(23)),
+                      },
+                    ]}
+                  >
                     {infoStep === 0 ? CHAMBERS_INFO.howToTitle : CHAMBERS_INFO.whatAreTitle}
                   </Text>
 
@@ -968,7 +1033,7 @@ export default function ChambersScreen() {
                     style={{
                       fontFamily: 'Inter-ExtraLight',
                       fontSize: matchesCompactLayout ? scale(13) : 14,
-                      lineHeight: matchesCompactLayout ? verticalScale(19) : 20,
+                      lineHeight: matchesCompactLayout ? Math.round(scale(18)) : 20,
                       color: 'rgba(237,232,250,0.88)',
                       marginTop: matchesCompactLayout ? verticalScale(10) : 12,
                     }}
@@ -1108,6 +1173,8 @@ function Tile({
   subtitleBottom: number;
   titleBottom: number;
 }) {
+  const { scale, matchesCompactLayout } = useScale();
+
   // Locked gate icon (PNG) + subtle pulse
   // NOTE: Create this file: `assets/images/locked_gate.png` (transparent background).
   const lockPng = React.useMemo(() => {
@@ -1416,6 +1483,12 @@ function Tile({
             right: tileRight,
             letterSpacing: 0.25,
             opacity: locked ? 0.62 : 0.78,
+            ...(matchesCompactLayout
+              ? {
+                  fontSize: scale(10),
+                  lineHeight: Math.round(scale(13)),
+                }
+              : {}),
           }}
           numberOfLines={1}
         >
@@ -1433,6 +1506,10 @@ function Tile({
             right: tileRight,
             letterSpacing: 0.2,
             opacity: locked ? 0.78 : 1,
+          },
+          matchesCompactLayout && {
+            fontSize: scale(16),
+            lineHeight: Math.round(scale(23)),
           },
         ]}
         numberOfLines={1}

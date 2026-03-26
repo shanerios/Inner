@@ -179,7 +179,18 @@ function SoundscapeRow({
           style={StyleSheet.absoluteFill}
         />
 
-        <Text style={[Typography.title, { color: '#EDE8FA' }]}>{item.title}</Text>
+        <Text
+          style={[
+            Typography.title,
+            { color: '#EDE8FA' },
+            matchesCompactLayout && {
+              fontSize: scale(16),
+              lineHeight: Math.round(scale(23)),
+            },
+          ]}
+        >
+          {item.title}
+        </Text>
         {'description' in item && !!item.description && (
           <Text
             style={[
@@ -190,6 +201,10 @@ function SoundscapeRow({
                 marginTop: verticalScale(4),
                 lineHeight: verticalScale(20),
                 letterSpacing: scale(0.2),
+              },
+              matchesCompactLayout && {
+                fontSize: scale(13),
+                lineHeight: Math.round(scale(18)),
               },
             ]}
             numberOfLines={2}
@@ -547,7 +562,14 @@ export default function SoundscapesScreen() {
             accessibilityRole="header"
             accessibilityLabel="Soundscapes"
             accessibilityHint="Swipe left on the title area to go back to Home"
-            style={[Typography.display, { color: '#EFEAF9', letterSpacing: 0.3 }]}
+            style={[
+              Typography.display,
+              { color: '#EFEAF9', letterSpacing: 0.3 },
+              matchesCompactLayout && {
+                fontSize: scale(20),
+                lineHeight: Math.round(scale(27)),
+              },
+            ]}
             onLayout={(e) => {
               const { y, height } = e.nativeEvent.layout;
               // Place chevron ~25% down from the title’s top
@@ -566,6 +588,10 @@ export default function SoundscapesScreen() {
                 letterSpacing: 0.00,
                 fontSize: scale(14),
                 opacity: 0.8,
+              },
+              matchesCompactLayout && {
+                fontSize: scale(12),
+                lineHeight: Math.round(scale(17)),
               },
             ]}
           >
@@ -663,9 +689,46 @@ export default function SoundscapesScreen() {
               onBlur={() => setSearchFocused(false)}
             />
           </View>
+          {(activeCategory || searchQuery.length > 0) && (
+            <Pressable
+              onPress={() => {
+                Haptics.selectionAsync();
+                setActiveCategory(null);
+                setSearchQuery('');
+              }}
+              hitSlop={scale(10)}
+              style={{
+                alignSelf: 'flex-start',
+                marginTop: verticalScale(8),
+                marginLeft: scale(18),
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Clear category and search"
+            >
+              <Text
+                style={[
+                  Body.subtle,
+                  {
+                    color: '#B7B0CA',
+                    textDecorationLine: 'underline',
+                    opacity: 0.9,
+                    ...(matchesCompactLayout
+                      ? {
+                          fontSize: scale(11),
+                          lineHeight: Math.round(scale(15)),
+                          letterSpacing: 0.2,
+                        }
+                      : {}),
+                  },
+                ]}
+              >
+                Clear
+              </Text>
+            </Pressable>
+          )}
         </View>
         {(activeCategory || searchQuery.length > 0) && (
-          <View style={[styles.listWrap, { marginTop: verticalScale(52) }]}>
+          <View style={[styles.listWrap, { marginTop: verticalScale(12) }]}>
             <View style={styles.listHeaderRow}>
               <Text style={[Typography.title, { color: '#EDE8FA', fontSize: 15, letterSpacing: 0.3, opacity: 0.9 }]}>
                 {!activeCategory
@@ -731,19 +794,6 @@ export default function SoundscapesScreen() {
                 })
               )}
             </ScrollView>
-            <Pressable
-              onPress={() => {
-                Haptics.selectionAsync();
-                setActiveCategory(null);
-                setSearchQuery('');
-              }}
-              hitSlop={scale(10)}
-              style={{ alignSelf: 'flex-end', marginTop: verticalScale(6) }}
-            >
-              <Text style={[Body.subtle, { color: '#B7B0CA', textDecorationLine: 'underline', opacity: 0.9 }]}>
-                Clear
-              </Text>
-            </Pressable>
           </View>
         )}
       </View>

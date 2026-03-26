@@ -171,7 +171,20 @@ export default function SoundscapeCardList({
             label={cat.label}
             colors={cat.colors}
             style={{ height: resolvedCardHeight }}
-            subtitle={<Text style={[Body.regular, { color: 'rgba(237,232,250,0.85)' }]}>{cat.subtitle}</Text>}
+            subtitle={
+              <Text
+                style={[
+                  Body.regular,
+                  { color: 'rgba(237,232,250,0.85)' },
+                  matchesCompactLayout && {
+                    fontSize: scale(13),
+                    lineHeight: Math.round(scale(18)),
+                  },
+                ]}
+              >
+                {cat.subtitle}
+              </Text>
+            }
             sigil={
               cat.key === 'deeper'
                 ? (deeperLocked

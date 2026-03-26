@@ -686,9 +686,9 @@ export default function HomeScreen({ navigation, route }: any) {
         },
         primaryButton: {
           backgroundColor: '#CFC3E0',
-          paddingVertical: verticalScale(10),
-          paddingHorizontal: scale(32),
-          borderRadius: scale(20),
+          paddingVertical: matchesCompactLayout ? verticalScale(8) : verticalScale(10),
+          paddingHorizontal: matchesCompactLayout ? scale(26) : scale(32),
+          borderRadius: matchesCompactLayout ? scale(16) : scale(20),
           marginBottom: verticalScale(8),
           shadowColor: '#000',
           shadowOffset: { width: 0, height: verticalScale(4) },
@@ -837,7 +837,7 @@ export default function HomeScreen({ navigation, route }: any) {
           elevation: 200,
         },
       }),
-    [scale, verticalScale],
+    [scale, verticalScale, matchesCompactLayout],
   );
 
   // Orb breath scale driven by shared breath
@@ -3692,6 +3692,10 @@ const openInnerFlame = useCallback(async () => {
                 marginBottom: verticalScale(12),
                 textAlign: 'center',
               },
+              matchesCompactLayout && {
+                fontSize: scale(15),
+                lineHeight: Math.round(scale(22)),
+              },
             ]}
           >
             {profileName
@@ -3770,7 +3774,22 @@ const openInnerFlame = useCallback(async () => {
                 />
               </Animated.View>
 
-              <Text style={[Typography.title, { color: '#1F233A', lineHeight: 20 }]}> {resumeLabel} </Text>
+              <Text
+                style={[
+                  Typography.title,
+                  {
+                    color: '#1F233A',
+                    lineHeight: 20,
+                  },
+                  matchesCompactLayout && {
+                    fontSize: scale(16),
+                    lineHeight: Math.round(scale(23)),
+                  },
+                ]}
+              >
+                {' '}
+                {resumeLabel}{' '}
+              </Text>
               {false && !!resumeSub && <Text style={[Typography.caption, { color: '#2B2F46', textAlign: 'center', marginTop: 2, opacity: 0.8 }]}>{resumeSub}</Text>}
               {false && (
                 <View style={styles.progressTrack}>
@@ -4287,8 +4306,8 @@ const openInnerFlame = useCallback(async () => {
                   accessibilityHint="Continue the last Chamber or Soundscape you were in"
                   style={{
                     borderRadius: scale(16),
-                    paddingVertical: verticalScale(10),
-                    paddingHorizontal: scale(14),
+                    paddingVertical: matchesCompactLayout ? verticalScale(8) : verticalScale(10),
+                    paddingHorizontal: matchesCompactLayout ? scale(12) : scale(14),
                     backgroundColor: '#CFC3E0',
                     borderWidth: 1,
                     borderColor: 'rgba(24,22,42,0.85)',
@@ -4297,7 +4316,7 @@ const openInnerFlame = useCallback(async () => {
                   <Text
                     style={{
                       fontFamily: 'CalSans-SemiBold',
-                      fontSize: scale(15),
+                      fontSize: matchesCompactLayout ? scale(14) : scale(15),
                       color: '#171727',
                       letterSpacing: scale(0.2),
                       textAlign: 'center',
@@ -4311,7 +4330,7 @@ const openInnerFlame = useCallback(async () => {
                     <Text
                       style={{
                         fontFamily: 'Inter-ExtraLight',
-                        fontSize: scale(12),
+                        fontSize: matchesCompactLayout ? scale(11) : scale(12),
                         color: '#25243A',
                       }}
                     >
