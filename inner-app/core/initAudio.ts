@@ -25,6 +25,7 @@ export async function initAudioOnce() {
     await TrackPlayer.updateOptions({
       stopWithApp: false,
       capabilities: [Capability.Play, Capability.Pause, Capability.SeekTo],
+      progressUpdateEventInterval: 1,
     });
   } catch {}
 

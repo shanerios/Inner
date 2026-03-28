@@ -479,10 +479,46 @@
       transition: border-color 0.25s ease, background 0.25s ease, transform 0.25s ease;
       box-sizing: border-box;
     }
+
     .how-ghost-btn:hover {
       border-color: rgba(202, 194, 239, 0.52);
       background: rgba(25, 22, 55, 0.32);
       transform: translateY(-1px);
+    }
+
+    .testimonial-wrap {
+      max-width: 920px;
+      margin: 0 auto;
+    }
+    .testimonial-card {
+      padding: 28px 26px 30px 26px;
+      border-radius: 22px;
+      border: 1px solid rgba(120, 103, 208, 0.30);
+      background: linear-gradient(180deg, rgba(24, 23, 52, 0.78), rgba(30, 28, 60, 0.62));
+      box-shadow: inset 0 0 0 1px rgba(161, 140, 255, 0.03);
+      backdrop-filter: blur(10px);
+      box-sizing: border-box;
+      text-align: center;
+    }
+    .testimonial-quote {
+      margin: 0 auto;
+      max-width: 760px;
+      font-size: 1.12rem;
+      line-height: 1.72;
+      color: rgba(245, 243, 255, 0.94);
+      text-align: center;
+    }
+    .testimonial-quote strong {
+      color: rgba(255, 255, 255, 0.98);
+      font-weight: 500;
+    }
+    .testimonial-meta {
+      margin: 18px auto 0 auto;
+      font-size: 0.86rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: rgba(161, 140, 255, 0.82);
+      text-align: center;
     }
 
     /* Scroll reveal */
@@ -827,6 +863,16 @@
         min-width: 0;
         padding: 14px 18px;
       }
+      .testimonial-card {
+        padding: 22px 18px 24px 18px;
+      }
+      .testimonial-quote {
+        font-size: 0.98rem;
+        line-height: 1.62;
+      }
+      .testimonial-meta {
+        font-size: 0.78rem;
+      }
     }
   </style>
 </head>
@@ -1002,6 +1048,18 @@
     </div>
   </section>
 
+  <!-- TESTIMONIAL -->
+  <section class="section" aria-label="Early user reflection">
+    <div class="container reveal">
+      <div class="testimonial-wrap">
+        <p class="kicker">What people are noticing</p>
+        <div class="testimonial-card">
+          <p class="testimonial-quote">“I had <strong>completely stopped dreaming</strong>, or at least remembering any, and it was honestly concerning. Found Inner while searching for ways to reconnect with my dream life, and it’s actually working. The cinematic sound journeys help me get into a deeper, more restful sleep state… I’m <strong>starting to remember dreams again</strong> after months of nothing.”</p>
+          <p class="testimonial-meta">Early Inner user</p>
+        </div>
+      </div>
+    </div>
+  </section>
 
   <!-- TRUST -->
   <section id="trust" class="section" aria-label="Trust & principles">
