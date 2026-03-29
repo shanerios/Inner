@@ -26,6 +26,7 @@ import { isLockedTrack } from '../src/core/subscriptions/accessPolicy';
 import { safePresentPaywall } from '../src/core/subscriptions/safePresentPaywall';
 
 import { useSleepTimer } from '../hooks/useSleepTimer';
+import { useSleepTimerCountdown } from '../hooks/useSleepTimerCountdown';
 import { useScale } from '../utils/scale';
 import { usePostHog } from 'posthog-react-native';
 
@@ -237,6 +238,7 @@ const playingForVisuals = isPlayingUI;
   const lowToastShownRef = useRef(false);
   // Integrate sleep timer hook
   useSleepTimer(sleepMinutes);
+  const { countdownLabel, isActive: sleepTimerActive } = useSleepTimerCountdown();
 
   const durationRef = useRef<number>(0);
   const tpCompletedRef = useRef(false);
@@ -390,11 +392,6 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
         }
       }
 
-      await TrackPlayer.updateOptions({
-        stopWithApp: false,
-        capabilities: [Capability.Play, Capability.Pause, Capability.SeekTo],
-        icon: require('../assets/images/inner_orb_icon.png'),
-      });
     } catch (e) {
       console.log('[AUDIO][TP] setup error', e);
     }
@@ -1887,6 +1884,23 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
               ? `${mmss(position)} / −${mmss(Math.max(0, duration - position))}`
               : 'warming…')}
       </Text>
+      {sleepTimerActive && countdownLabel ? (
+        <Text
+          style={[
+            Typography.caption,
+            {
+              color: '#9F98B8',
+              textAlign: 'center',
+              marginTop: 2,
+              marginBottom: 6,
+              letterSpacing: 0.5,
+              opacity: 0.92,
+            },
+          ]}
+        >
+          Sleep in {countdownLabel}
+        </Text>
+      ) : null}
 
       {/* Quality indicator */}
       <View style={styles.qualityWrap}>

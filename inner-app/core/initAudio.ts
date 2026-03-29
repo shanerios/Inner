@@ -24,8 +24,21 @@ export async function initAudioOnce() {
     }
     await TrackPlayer.updateOptions({
       stopWithApp: false,
-      capabilities: [Capability.Play, Capability.Pause, Capability.SeekTo],
+      capabilities: [
+        Capability.Play,
+        Capability.Pause,
+        Capability.SeekTo,
+        Capability.Stop,
+      ],
+      compactCapabilities: [Capability.Play, Capability.Pause],
+      notificationCapabilities: [
+        Capability.Play,
+        Capability.Pause,
+        Capability.SeekTo,
+        Capability.Stop,
+      ],
       progressUpdateEventInterval: 1,
+      icon: require('../assets/images/inner_orb_icon.png'),
     });
   } catch {}
 
