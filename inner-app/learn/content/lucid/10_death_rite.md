@@ -60,7 +60,7 @@ This practice is taboo in many teachings because it confronts what most avoid: d
 ---
 
 ## Troubleshooting
-- *Fear overwhelms?* Strengthen your Sanctum Sphere first, then attempt again.  
+- *Fear overwhelms?* That's the material you're working with. Breathe. Remind yourself: *"This is rehearsal, not event."* The fear of dissolution is the practice — not a sign to stop, but a sign you've reached the real edge.  
 - *Collapse into waking?* Accept it—lucid death rites often end in awakening. The practice continues each night.  
 - *Unsettling after-effects?* Ground with physical touch, breath, and comforting ritual.
 

@@ -13,7 +13,7 @@ Explorers across traditions have spoken of encounters in nonphysical realms:
 - Yogic adepts described beings of light and shadow testing their stability.  
 - Modern OBE accounts include benevolent guides, neutral wanderers, and occasionally unsettling presences.
 
-Boundaries ensure safety and clarity. Just as in waking life, discernment and etiquette determine the quality of interaction.
+Sovereignty is not aggression — it is *clarity of self*. In the nonphysical, where the boundaries of identity become fluid and presences may not declare their nature, knowing who you are and holding that knowing is the primary protection. Boundaries drawn from this rootedness determine the quality of every encounter.
 
 ---
 
@@ -80,6 +80,6 @@ Boundaries ensure safety and clarity. Just as in waking life, discernment and et
 ---
 
 ## Reflection Prompt
-- How did entities respond to your boundaries?  
-- Did you feel more confident and sovereign?  
-- How did etiquette affect the quality of the interaction?
+- When you affirmed your sovereignty, what did it feel like in your body — in the dream and in waking recall?
+- What did the presence's response reveal about its nature?
+- Is there anywhere in waking life where the same quality of boundary is needed?

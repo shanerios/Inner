@@ -8,7 +8,7 @@
 ---
 
 ## Why It Matters
-Exploring altered states can leave you feeling drained or vulnerable. Just as divers wear gear underwater, astral explorers need protective “gear.” The Sanctum Sphere is your energetic suit—shielding you, containing your essence, and filtering external influences.
+Exploring the nonphysical leaves the energy body exposed in ways ordinary waking life does not. The Sanctum Sphere is your answer to this: not armor, but *sovereignty made tangible* — a field of coherent intention that shields you, contains your essence, and filters what enters your space. Where the energy body learns to hold itself, exploration becomes possible.
 
 ---
 
@@ -63,6 +63,6 @@ Exploring altered states can leave you feeling drained or vulnerable. Just as di
 ---
 
 ## Reflection Prompt
-- What color or texture did your Sanctum take?  
-- Did you notice changes in your energy when it was active?  
-- How did protection affect your confidence in OBE practice?
+- What color or texture did your Sanctum take, and did it surprise you?
+- What did it feel like from the inside — the quality of the space you were holding?
+- Where in waking life might you carry this same field?

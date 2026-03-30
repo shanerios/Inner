@@ -8,7 +8,7 @@
 ---
 
 ## Why It Matters
-Dream time is elastic. Advanced dreamers report living entire journeys, even lifetimes, within a single REM phase. Training in time expansion not only lengthens lucidity but also dissolves rigid beliefs about time itself. This practice can shift how you experience waking life—less rushed, more spacious.
+Dream time is elastic. Advanced dreamers report living entire journeys, even lifetimes, within a single REM phase. Training in time expansion not only lengthens lucidity but begins to dissolve the assumption that time is a fixed container you move through. Practitioners often find that waking hours carry a different quality afterward — not slower exactly, but *roomier*, as if the rigidity that was never real has simply become less convincing.
 
 ---
 

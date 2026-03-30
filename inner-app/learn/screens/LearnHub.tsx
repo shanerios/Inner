@@ -26,7 +26,9 @@ const TRACKS_SAFE = (learn_tracks ?? {}) as Record<string, { lessons?: Array<{ i
 const BASE_LESSONS = (() => {
   const raw = Object.entries(TRACKS_SAFE).flatMap(([trackKey, track]) =>
     (track?.lessons ?? []).map((lesson) => {
-      const trackId = (trackKey === 'lucid' || trackKey === 'obe' ? trackKey : 'lucid') as 'lucid' | 'obe';
+      const trackId = (trackKey === 'lucid' || trackKey === 'obe' || trackKey === 'shared'
+        ? trackKey
+        : 'lucid') as 'lucid' | 'obe' | 'shared';
       const id = lesson.id;
       return {
         key: `${trackId}:${id}`,
@@ -51,7 +53,7 @@ const BASE_LESSONS = (() => {
 })();
 
 
-type TrackFilter = 'all' | 'lucid' | 'obe';
+type TrackFilter = 'all' | 'lucid' | 'obe' | 'shared';
 
 type Nav = {
   navigate: (screen: string, params?: any) => void;
@@ -77,7 +79,7 @@ type LessonLite = {
   level: string;
   intentions: string[];
   prerequisites: string[];
-  trackId: 'lucid' | 'obe';
+  trackId: 'lucid' | 'obe' | 'shared';
   progress?: number;
 };
 
@@ -284,7 +286,12 @@ const recentIntentions: string[] = Array.isArray(selectedIntentions) ? selectedI
   const filtered = ALL_LESSONS
     .filter(l => (filter === 'all' ? true : l.trackId === filter))
     .filter(l => (l.progress || 0) < COMPLETED_THRESHOLD)
-    .filter(l => !featuredKeys.has(l.key) && !guidanceKeys.has(l.key)) // avoid duplicates below the carousels
+    .filter(l => {
+      // Only hide featured/guidance duplicates on the All tab.
+      // On specific tabs like Foundations, show every lesson in that category.
+      if (filter !== 'all') return true;
+      return !featuredKeys.has(l.key) && !guidanceKeys.has(l.key);
+    })
     .filter(l => {
       if (!debouncedQuery) return true;
       const q = debouncedQuery.toLowerCase();
@@ -307,7 +314,7 @@ const recentIntentions: string[] = Array.isArray(selectedIntentions) ? selectedI
     });
   }, [filtered, debouncedQuery]);
 
-  const goToLesson = (trackId: 'lucid' | 'obe', lessonId: string) => {
+  const goToLesson = (trackId: 'lucid' | 'obe' | 'shared', lessonId: string) => {
     console.log('Navigating to lesson:', trackId, lessonId);
     // A gentle confirm tap
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -448,6 +455,17 @@ const recentIntentions: string[] = Array.isArray(selectedIntentions) ? selectedI
               labelStyle={{ color: '#EDE8FA' }}
             />
             <Chip
+              label="Foundations"
+              active={filter === 'shared'}
+              onPress={() => selectFilter('shared')}
+              containerStyle={{
+                backgroundColor: 'rgba(0,0,0,0.75)',
+                borderWidth: filter === 'shared' ? 2 : 1,
+                borderColor: filter === 'shared' ? '#CFC3E0' : 'rgba(237,232,250,0.20)',
+              }}
+              labelStyle={{ color: '#EDE8FA' }}
+            />
+            <Chip
               label="Glossary"
               active={false}
               onPress={async () => {
@@ -505,7 +523,7 @@ const recentIntentions: string[] = Array.isArray(selectedIntentions) ? selectedI
               <Text style={[Typography.caption, { color: '#9C94E6', marginBottom: 6 }]}>
                 {filter === 'all'
                   ? `Completed Lessons (${completedLessons.length})`
-                  : `${filter === 'lucid' ? 'Lucid Lessons' : 'OBE Lessons'} (${completedLessons.length})`}
+                  : `${filter === 'lucid' ? 'Lucid Lessons' : filter === 'obe' ? 'OBE Lessons' : 'Foundations'} (${completedLessons.length})`}
               </Text>
               <ScrollView
                 horizontal
@@ -578,7 +596,7 @@ const recentIntentions: string[] = Array.isArray(selectedIntentions) ? selectedI
                             : item.id === guidance.nextStep?.id
                             ? `${titleCase(item.level)} · ${item.minutes || 0} min`
                             : `Deepen · ${item.minutes || 0} min`)
-                        : (item.trackId === 'lucid' ? 'Lucid' : 'OBE');
+                        : (item.trackId === 'lucid' ? 'Lucid' : item.trackId === 'obe' ? 'OBE' : 'Foundations');
 
                       return (
                         <FeaturedCard
@@ -605,7 +623,9 @@ const recentIntentions: string[] = Array.isArray(selectedIntentions) ? selectedI
                     ? `All Lessons (${orderedFiltered.length})`
                     : (filter === 'lucid'
                         ? `Lucid Lessons (${orderedFiltered.length})`
-                        : `OBE Lessons (${orderedFiltered.length})`))}
+                        : filter === 'obe'
+                          ? `OBE Lessons (${orderedFiltered.length})`
+                          : `Foundations (${orderedFiltered.length})`))}
             </Text>
             {orderedFiltered.map(item => (
               <Pressable
@@ -621,7 +641,7 @@ const recentIntentions: string[] = Array.isArray(selectedIntentions) ? selectedI
                   {item.summary}
                 </Text>
                 <Text style={[Typography.caption, { color: '#9C94E6', marginTop: 8 }]}>
-                  {item.minutes} min · {item.trackId.toUpperCase()}
+                  {item.minutes} min · {item.trackId === 'shared' ? 'FOUNDATIONS' : item.trackId.toUpperCase()}
                 </Text>
 
                 {/* Completed badge when lesson is effectively done */}

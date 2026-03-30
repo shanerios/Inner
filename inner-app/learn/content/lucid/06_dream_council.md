@@ -56,7 +56,7 @@ Lucid dreaming is often taught as a sandbox for control—flying, shaping, bendi
 
 ## Troubleshooting
 - *Nothing appears?* Wait in stillness, repeat the call, or enter the nearest doorway or portal.  
-- *Fear arises?* Reaffirm your Sanctum Sphere before calling.  
+- *Fear arises?* Ground yourself first — breathe, touch something solid in the dream, and affirm: *"I am the one who calls this council. I am sovereign here."* Then call.  
 - *Chaotic dream figures intrude?* Step back, repeat: *“Only guides of my highest good may appear.”*
 
 ---

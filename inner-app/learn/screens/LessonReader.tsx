@@ -22,7 +22,7 @@ function debounce<T extends (...args: any[]) => void>(fn: T, ms = 300) {
 }
 
 type RootStackParamList = {
-  LessonReader: { trackId: 'lucid' | 'obe' | 'guide'; lessonId: string };
+  LessonReader: { trackId: 'lucid' | 'obe' | 'shared' | 'guide'; lessonId: string };
 };
 type ReaderRoute = RouteProp<RootStackParamList, 'LessonReader'>;
 
@@ -73,7 +73,7 @@ export default function LessonReader() {
       try {
         await loadProgress();
         const map = getProgressMap();
-        const trackMap = map[trackId as 'lucid' | 'obe'];
+        const trackMap = (map as any)[trackId] as Record<string, number> | undefined;
         const existing = trackMap?.[lessonId] ?? 0;
         if (existing > 0) {
           lastSentRef.current = existing;
@@ -372,6 +372,8 @@ export default function LessonReader() {
             ? 'Lucid Dreaming'
             : trackId === 'obe'
             ? 'OBE Foundations'
+            : trackId === 'shared'
+            ? 'Foundations'
             : 'Guides & How‑Tos'}
         </Text>
 

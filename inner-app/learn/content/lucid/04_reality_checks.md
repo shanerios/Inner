@@ -7,7 +7,7 @@
 ---
 
 ## Why It Matters
-Dream recall gave you the map. Reality checks give you the *key*. They work because habits of awareness bleed into dreams. When you genuinely question reality during the day, you eventually do the same in a dream—and the dream answers.
+Dream recall gave you the map. Reality checks give you the *key*. They work because the quality of attention you carry through waking hours doesn't stop at the threshold of sleep — it crosses with you. When you genuinely question reality during the day, you eventually do the same in a dream. And the dream answers.
 
 ---
 

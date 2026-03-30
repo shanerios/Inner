@@ -83,6 +83,6 @@ Protection is the beginning, not the end. The Sanctum Sphere can be shaped like 
 ---
 
 ## Reflection Prompt
-- Which program felt most natural to embed?  
-- Did the Sanctum respond in unexpected ways?  
-- How did programming shift your confidence or depth in OBE practice?
+- Which program felt most natural to embed — and what does that tell you about where you are right now?
+- Did the Sanctum respond in unexpected ways?
+- What would it mean to carry this same intentional field into waking life?

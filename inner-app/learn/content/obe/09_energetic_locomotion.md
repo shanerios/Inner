@@ -13,7 +13,7 @@ One of the most common challenges after a successful exit is the sensation of be
 - Yogic texts reference the *siddhi* of flying through subtle realms.  
 - Modern OBE accounts often describe gliding, magnetic pulls, or thought-based travel.
 
-Movement in the nonphysical is not muscular—it is energetic and intentional. Mastering this skill unlocks exploration beyond the bedroom and into vast domains of experience.
+Movement in the nonphysical is not muscular — it is energetic and intentional. Will, attention, and desire are the only engines here. Once you understand this, the frustration of feeling pinned dissolves: you were trying to move the wrong thing. This lesson teaches you to move the right one.
 
 ---
 

@@ -13,7 +13,7 @@ Throughout esoteric traditions, healers have spoken of performing “operations�
 - Tibetan practices detail visualizing luminous surgery to purify karmic residue.  
 - Modern OBE explorers sometimes report luminous beings working on them with instruments of light.  
 
-The nonphysical state allows for symbolic-yet-powerful interventions—surgery of the soul that can bring real shifts in energy, emotion, and health.
+The nonphysical state allows for interventions that the waking mind cannot reach — not symbolic in the dismissive sense, but *symbolic in the operative sense*: imagery that enacts real change at the level where patterns are held. This is surgery of the soul. The shifts that follow are often measurable: in energy, in emotional weight, in the way the body carries itself afterward.
 
 ---
 

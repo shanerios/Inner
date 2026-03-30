@@ -14,7 +14,7 @@ The term *psychopomp* means “guide of souls.” Across cultures, beings have h
 - Shamans often act as psychopomps during ceremonies, guiding lost or restless spirits.  
 - Modern OBE explorers sometimes encounter luminous guides who help with transitions—personal, ancestral, or collective.
 
-Working with psychopomps is not about fascination with death—it is about learning to hold presence at thresholds, to assist in release, and to deepen your own sovereignty.
+Working with psychopomps is not about fascination with death — it is about learning to hold steady at thresholds. To be a witness. To assist release without flinching from what's being released. This is among the most advanced forms of inner service, and it asks everything of your presence.
 
 ---
 

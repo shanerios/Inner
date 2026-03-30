@@ -7,7 +7,7 @@
 ---
 
 ## Why It Matters
-Lucid dreams are not only spaces of exploration but also of **healing**. Within lucidity, the subconscious accepts suggestion as real. By directing intention toward the body and psyche, dreamers can reduce pain, release trauma, and restore energy. Many hidden traditions view dreams as the original temple of medicine.
+Many hidden traditions view dreams as the original temple of medicine — and for good reason. Within the lucid state, the boundary between *suggestion* and *reality* dissolves. The subconscious does not distinguish between what is dreamed and what is enacted; it responds to imagery and intention with the same biochemical and energetic reality as waking experience. This is not metaphor. The dreaming body heals what the waking mind addresses here.
 
 ---
 
@@ -60,7 +60,7 @@ Lucid dreams are not only spaces of exploration but also of **healing**. Within 
 
 ## Troubleshooting
 - *Nothing happens?* Simplify: focus only on light in the heart.  
-- *Fear arises?* Strengthen your Sanctum Sphere first, then return to healing.  
+- *Fear arises?* This is often the wound itself, presenting as resistance. Name it: *"I feel afraid of this."* Then continue anyway, gently. Healing that requires courage reaches deeper.  
 - *Effects fade quickly?* Repeat practice nightly—healing deepens with consistency.
 
 ---

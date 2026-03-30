@@ -8,7 +8,7 @@
 ---
 
 ## Why It Matters
-Most OBE methods fail because people try to “exit” without first feeling the body they’re trying to move. This lesson teaches you to sense, expand, and strengthen your energy double.
+Many practitioners reach for the exit before they can feel what they’re moving. The energy body — the subtle double that separates during an OBE — is not something you invent in the moment; it’s something you learn to inhabit. This lesson develops the felt sense of that body: its weight, its hum, its distinct presence just beneath the physical surface. Without this, exit techniques remain gestures in the dark.
 
 ---
 

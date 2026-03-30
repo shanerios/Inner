@@ -83,6 +83,6 @@ Unlike lucid dreams, OBEs often feel more direct, more energetic—making them u
 ---
 
 ## Reflection Prompt
-- Did you feel energy move in your nonphysical body?  
-- Did any beings or spaces appear to assist?  
-- How did OBE healing affect your waking health, balance, or emotions?
+- Where did you feel movement — and what did that feeling carry?
+- Did any beings or spaces appear? What was the quality of their presence?
+- What shifted in you, however subtly, that you carried back into waking?

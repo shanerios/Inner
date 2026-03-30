@@ -62,7 +62,7 @@ These **archetypal structures** appear to carry a shared quality—like universa
 
 ## Troubleshooting
 - *Nothing appears?* Begin with a simple door or staircase—often it leads into a larger temple.  
-- *Fear arises?* Reaffirm your Sanctum Sphere, then re-enter the space with calm.  
+- *Fear arises?* Step back to the threshold. Breathe and let the feeling pass — awe and fear often arrive together in sacred spaces. Re-enter when you're present rather than reactive.  
 - *Overwhelmed by detail?* Focus on one feature—a book, a teacher, or a single hall.
 
 ---

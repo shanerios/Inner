@@ -14,7 +14,7 @@ Across wisdom traditions, karma is understood as the residue of past actions, ch
 - Shamans speak of ancestral burdens carried within the bloodline that can be lifted in altered states.  
 - Modern OBE explorers sometimes encounter recurring figures, loops, or chains—signs of karmic entanglement.
 
-The OBE state, with its clarity and energetic immediacy, provides a unique arena for consciously meeting and dissolving karmic bindings.
+The OBE state — with its clarity, energetic immediacy, and felt-sense of operating beyond the personal story — provides a unique arena for consciously meeting and dissolving karmic bindings. Here, the pattern isn't just remembered. It's *encountered*. And what can be encountered can be released.
 
 ---
 

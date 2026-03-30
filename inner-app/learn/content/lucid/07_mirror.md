@@ -8,7 +8,7 @@
 ---
 
 ## Why It Matters
-Most lucid dreamers fly, conjure, or explore—but few step into the mirror. Mirrors are thresholds: they reflect not only the dreamer’s image but hidden selves, archetypes, and truths. Facing them can be unsettling, but it is also profoundly healing. Integration of shadow leads to greater clarity, empowerment, and inner balance.
+Most lucid dreamers fly, conjure, or explore — but few step into the mirror. Mirrors in the dream state are not decorative. They are thresholds: surfaces where the dreamer’s own hidden faces look back. What you find there may unsettle. It may also be the most honest encounter the dream ever offers you. The Jungian traditions called this work — the confrontation with what we haven’t yet owned. The dreaming state makes it visible, tangible, and possible to meet directly rather than in projection.
 
 ---
 
@@ -28,9 +28,9 @@ Most lucid dreamers fly, conjure, or explore—but few step into the mirror. Mir
 - Expect one to manifest—lucid space responds to intention.
 
 ### 2. Meeting the Reflection
-- Approach slowly. Notice details: face, body, aura.  
-- The reflection may distort—more eyes, different age, another gender.  
-- Stay calm. The goal is not control but encounter.
+- Approach slowly. Let the details come to you rather than scanning for them.
+- The reflection may distort — more eyes, different age, another gender, something entirely other.
+- Stay with the discomfort. The instinct will be to look away or blink it into something more familiar. Resist that. The goal is not control but *encounter* — which requires you to remain.
 
 ### 3. Dialogue with the Shadow
 - Ask simple questions: *“What do you carry for me?”* or *“What lesson do you hold?”*  
@@ -75,6 +75,6 @@ Most lucid dreamers fly, conjure, or explore—but few step into the mirror. Mir
 ---
 
 ## Reflection Prompt
-- What did your reflection show you that was unexpected?  
-- How did the encounter make you feel in waking life?  
-- Did you sense healing or integration from the exchange?
+- What did your reflection look like — and what was it carrying that you recognized as your own?
+- What did you feel in your body when you looked at it?
+- Did the encounter change anything in you — even subtly — that carried back into waking?

@@ -1,4 +1,35 @@
 export const LEARN_TRACKS = {
+  shared: {
+    id: 'shared',
+    title: 'Foundations',
+    lessons: [
+      {
+        id: 'cosmology',
+        title: 'What We Believe About These States',
+        level: 'intro',
+        intentions: ['clarity','reawakening'],
+        durationMin: 10,
+        mdPath: require('../learn/content/shared/01_cosmology.md')
+      },
+      {
+        id: 'dream-body',
+        title: 'The Dream Body & Physical Body',
+        level: 'intro',
+        intentions: ['grounding','clarity'],
+        durationMin: 10,
+        mdPath: require('../learn/content/shared/02_dream_body.md')
+      },
+      {
+        id: 'symbols',
+        title: 'Symbols That Keep Coming Back',
+        level: 'core',
+        intentions: ['clarity','expansion'],
+        prerequisites: ['cosmology','dream-body'],
+        durationMin: 15,
+        mdPath: require('../learn/content/shared/03_symbols.md')
+      }
+    ]
+  },
   lucid: {
     id: 'lucid',
     title: 'Lucid Dreaming',
@@ -20,6 +51,15 @@ export const LEARN_TRACKS = {
         mdPath: require('../learn/content/lucid/01_priming_the_mind.md')
       },
       {
+        id: 'wbtb-wild',
+        title: 'The Threshold Night: WBTB and the WILD Entry',
+        level: 'core',
+        intentions: ['clarity','expansion'],
+        prerequisites: ['priming'],
+        durationMin: 20,
+        mdPath: require('../learn/content/lucid/wbtb_wild.md')
+      },
+      {
         id: 'dream-recall-coding',
         title: 'Dream Recall & Dream Coding',
         level: 'core',
@@ -36,6 +76,15 @@ export const LEARN_TRACKS = {
         prerequisites: ['priming'],
         durationMin: 15,
         mdPath: require('../learn/content/lucid/04_reality_checks.md')
+      },
+      {
+        id: 'dream-incubation',
+        title: 'Dream Incubation: Sleeping with a Question',
+        level: 'core',
+        intentions: ['clarity','expansion'],
+        prerequisites: ['dream-recall-coding','reality-checks'],
+        durationMin: 20,
+        mdPath: require('../learn/content/lucid/dream_incubation.md')
       },
       {
         id: 'stabilization',
@@ -65,6 +114,15 @@ export const LEARN_TRACKS = {
         mdPath: require('../learn/content/lucid/07_mirror.md')
       },
       {
+        id: 'nightmare-initiator',
+        title: 'Advanced: The Nightmare as Initiator',
+        level: 'advanced',
+        intentions: ['healing','reawakening'],
+        prerequisites: ['stabilization'],
+        durationMin: 20,
+        mdPath: require('../learn/content/lucid/nightmare_initiator.md')
+      },
+      {
         id: 'time-expansion',
         title: 'Advanced: Time Expansion and Dream Duration Mastery',
         level: 'advanced',
@@ -83,6 +141,15 @@ export const LEARN_TRACKS = {
         mdPath: require('../learn/content/lucid/09_healing.md')
       },
       {
+        id: 'integration',
+        title: 'Advanced: Integration — Carrying the Dream Back',
+        level: 'advanced',
+        intentions: ['healing','clarity'],
+        prerequisites: ['healing','mirror-technique'],
+        durationMin: 20,
+        mdPath: require('../learn/content/lucid/integration.md')
+      },
+      {
         id: 'death-rite',
         title: 'Mastery: The Lucid Death Rite and Conscious Transitioning',
         level: 'mastery',
@@ -90,6 +157,15 @@ export const LEARN_TRACKS = {
         prerequisites: ['time-expansion','healing'],
         durationMin: 20,
         mdPath: require('../learn/content/lucid/10_death_rite.md')
+      },
+      {
+        id: 'witness-state',
+        title: 'Mastery: The Witness State — Pure Awareness Before Form',
+        level: 'mastery',
+        intentions: ['expansion','reawakening'],
+        prerequisites: ['death-rite'],
+        durationMin: 25,
+        mdPath: require('../learn/content/lucid/witness_state.md')
       },
       {
         id: 'lucid-creation',
@@ -111,7 +187,7 @@ export const LEARN_TRACKS = {
       },
       {
         id: 'temples',
-        title: 'Mastery: Archetypcal Temples and Dream Libraries',
+        title: 'Mastery: Archetypal Temples and Dream Libraries',
         level: 'mastery',
         intentions: ['clarity','expansion'],
         prerequisites: ['lucid-creation'],
@@ -205,6 +281,15 @@ export const LEARN_TRACKS = {
         mdPath: require('../learn/content/obe/07_hypnagogic_navigation.md')
       },
       {
+        id: 'vibrational-state',
+        title: 'The Vibrational State: Reading the Body\'s Departure Signal',
+        level: 'core',
+        intentions: ['clarity','expansion'],
+        prerequisites: ['hypnagogic-navigation'],
+        durationMin: 20,
+        mdPath: require('../learn/content/obe/vibrational_state.md')
+      },
+      {
         id: 'exit-mastery',
         title: 'Exit Mastery: Separation Techniques',
         level: 'core',
@@ -214,6 +299,15 @@ export const LEARN_TRACKS = {
         mdPath: require('../learn/content/obe/08_exit_mastery.md')
       },
       {
+        id: 'sleep-paralysis',
+        title: 'Sleep Paralysis as Gateway',
+        level: 'core',
+        intentions: ['grounding','expansion'],
+        prerequisites: ['exit-mastery'],
+        durationMin: 20,
+        mdPath: require('../learn/content/obe/sleep_paralysis_gateway.md')
+      },
+      {
         id: 'energetic-locomotion',
         title: 'Advanced: Energetic Locomotion and Moving in the Non-Physical',
         level: 'advanced',
@@ -221,6 +315,15 @@ export const LEARN_TRACKS = {
         prerequisites: ['exit-mastery'],
         durationMin: 20,
         mdPath: require('../learn/content/obe/09_energetic_locomotion.md')
+      },
+      {
+        id: 'tether',
+        title: 'Advanced: The Tether — Understanding Your Connection to the Physical',
+        level: 'advanced',
+        intentions: ['grounding','clarity'],
+        prerequisites: ['exit-mastery'],
+        durationMin: 20,
+        mdPath: require('../learn/content/obe/tether.md')
       },
       {
         id: 'perception-tuning',
@@ -286,6 +389,15 @@ export const LEARN_TRACKS = {
         mdPath: require('../learn/content/obe/16_nonphysical_mapping.md')
       },
       {
+        id: 'dimensionality',
+        title: 'Mastery: Dimensionality — Understanding the Layers You Travel Through',
+        level: 'mastery',
+        intentions: ['clarity','expansion'],
+        prerequisites: ['nonphysical-mapping'],
+        durationMin: 25,
+        mdPath: require('../learn/content/obe/dimensionality.md')
+      },
+      {
         id: 'astral-sanctuary',
         title: 'Mastery: Building Your Astral Sanctuary',
         level: 'mastery',
@@ -343,7 +455,7 @@ export const LEARN_TRACKS = {
     return 'deep'; // advanced / mastery
   };
 
-  (['lucid', 'obe', 'guide'] as const).forEach((trackKey) => {
+  (['shared', 'lucid', 'obe', 'guide'] as const).forEach((trackKey) => {
     const track = (LEARN_TRACKS as any)[trackKey];
     if (!track?.lessons) return;
     for (let i = 0; i < track.lessons.length; i++) {

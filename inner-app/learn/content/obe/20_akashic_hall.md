@@ -15,6 +15,8 @@ The Akashic Records are described as a timeless archive where the essence of all
 
 Whether symbolic or literal, the Akashic Hall offers profound insights into purpose, patterns, and possibilities. Accessing it in OBE requires respect, sovereignty, and discernment.
 
+**How this differs from lucid dream temples:** The archetypal temples and libraries encountered in lucid dreaming often feel like internal architecture — spaces generated from the dreamer's own symbolic reservoir, mythic and deeply personal. The Akashic Hall, encountered in OBE states, tends to feel impersonal in a profound way: not about *you* specifically, but about something larger of which you are one thread. The records here don't feel like your dream. They feel like something you've been granted access to.
+
 ---
 
 ## Tonight’s Quick Start

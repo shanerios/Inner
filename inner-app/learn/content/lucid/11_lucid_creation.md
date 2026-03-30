@@ -62,7 +62,7 @@ Lucid Creation is taboo in some circles because it blurs the line between dream 
 ## Troubleshooting
 - *World collapses?* Focus first on stability (see Lesson 5). Build only once lucidity feels strong.  
 - *Too random?* Reinforce your marker object before expanding.  
-- *Fear intrudes?* Rebuild the Sanctum Sphere around your world to ensure sovereignty.
+- *Fear intrudes?* State clearly: *"This is my world. I am its architect."* Unwanted presences in a space you've built are evicted by ownership, not force — the declaration is usually enough.
 
 ---
 

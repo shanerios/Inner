@@ -9,7 +9,7 @@ const Body = _Body ?? ({
   subtle: { fontFamily: 'Inter-ExtraLight', fontSize: 14 },
 } as const);
 
-type RouteParams = { trackId: 'lucid' | 'obe' };
+type RouteParams = { trackId: 'lucid' | 'obe' | 'shared' };
 
 export default function LessonList() {
   const navigation = useNavigation<any>();
@@ -24,7 +24,11 @@ export default function LessonList() {
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.inner}>
         <Text style={[Typography.caption, { color: '#B9B0EB', letterSpacing: 1 }]}>
-          {trackId === 'lucid' ? 'Lucid Dreaming' : 'OBE Foundations'}
+          {trackId === 'lucid'
+            ? 'Lucid Dreaming'
+            : trackId === 'obe'
+            ? 'OBE Foundations'
+            : 'Foundations'}
         </Text>
         <Text style={[Typography.display, { color: '#EDE8FA' }]}>{track.title}</Text>
         <View style={{ height: 12 }} />
@@ -84,7 +88,7 @@ export default function LessonList() {
 
         {lessons.length === 0 && (
           <Text style={{ fontFamily: 'Inter-ExtraLight', fontSize: 14, color: '#CFC8EE', opacity: 0.8, marginTop: 24 }}>
-            No lessons found. Add entries in learn/learn.ts under {trackId}.
+            No lessons found for {trackId}.
           </Text>
         )}
       </ScrollView>

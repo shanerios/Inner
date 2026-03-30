@@ -13,7 +13,7 @@ Many OBE explorers report the same challenge after separation: dim or foggy perc
 - Yogic and tantric texts describe expanding subtle senses to perceive realms beyond the physical.  
 - Modern explorers often use commands like *“Clarity now!”* or tactile anchors to stabilize their vision.
 
-Perception tuning transforms an unstable, ghostly OBE into a vivid, navigable experience. Without it, travelers risk fading quickly back to the body.
+Perception tuning transforms an unstable, ghostly OBE into a vivid, navigable experience. Without it, the traveler fades — not because the state wasn't reached, but because awareness couldn't hold what it found. Sharpening perception is how you make the territory real enough to stay in.
 
 ---
 

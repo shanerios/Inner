@@ -11,7 +11,7 @@
 ---
 
 ## Why It Matters
-Most people treat recall as luck. It’s a *skill*. Your brain saves what it believes is **valuable**. We exploit this by:
+Most people treat recall as luck. It’s a *skill*. Your brain preserves what it believes is **valuable**. We work with this by:
 - **Value-Priming**: telling the brain dreams matter.
 - **Micro-Awakening Capture**: catching details when recall is sharpest.
 - **Dream Coding**: tagging entries so patterns become clear and reusable.
