@@ -791,6 +791,8 @@ export default function HomeScreen({ navigation, route }: any) {
           backgroundColor: 'rgba(0,0,0,0.30)',
           borderWidth: 1,
           borderColor: 'rgba(255,255,255,0.12)',
+          zIndex: 300,
+          elevation: 300,
         },
         navArrowRight: {
           position: 'absolute',
@@ -804,6 +806,8 @@ export default function HomeScreen({ navigation, route }: any) {
           backgroundColor: 'rgba(0,0,0,0.30)',
           borderWidth: 1,
           borderColor: 'rgba(255,255,255,0.12)',
+          zIndex: 300,
+          elevation: 300,
         },
         navArrowBottom: {
           position: 'absolute',
@@ -817,6 +821,8 @@ export default function HomeScreen({ navigation, route }: any) {
           backgroundColor: 'rgba(0,0,0,0.30)',
           borderWidth: 1,
           borderColor: 'rgba(255,255,255,0.12)',
+          zIndex: 300,
+          elevation: 300,
         },
         navArrowText: {
           color: '#EDEAF6',
@@ -3827,13 +3833,13 @@ const openInnerFlame = useCallback(async () => {
     accessibilityRole="button"
     accessibilityLabel="Go to Soundscapes"
     style={[styles.navArrowLeft, { zIndex: 61, elevation: 61 }]}
-    hitSlop={scale(16)}
+    hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
     onLongPress={async () => {
       try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
       runHint(leftHint);
     }}
     delayLongPress={450}
-  >
+    >
     <Animated.Text
       style={[
         styles.navArrowText,
@@ -3865,7 +3871,7 @@ const openInnerFlame = useCallback(async () => {
     accessibilityRole="button"
     accessibilityLabel="Go to Chambers"
     style={[styles.navArrowRight, { zIndex: 61, elevation: 61 }]}
-    hitSlop={scale(16)}
+    hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
     onLongPress={async () => {
       try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
       runHint(rightHint);
