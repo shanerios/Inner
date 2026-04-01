@@ -80,3 +80,6 @@ inner-clean/
 inner-playapi.json
 
 .env.local
+
+# IDE
+.idea/

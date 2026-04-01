@@ -3823,8 +3823,10 @@ const openInnerFlame = useCallback(async () => {
       >
         {/* Left: Soundscapes */}
 <Animated.View
+  pointerEvents="box-none"
   style={{
-    // only fade the whole container, no scaling here
+    position: 'absolute',
+    top: 0, left: 0, right: 0, bottom: 0,
     opacity: leftHintOpacity,
   }}
 >
@@ -3861,8 +3863,10 @@ const openInnerFlame = useCallback(async () => {
 
         {/* Right: Chambers */}
 <Animated.View
+  pointerEvents="box-none"
   style={{
-    // only opacity here as well
+    position: 'absolute',
+    top: 0, left: 0, right: 0, bottom: 0,
     opacity: rightHintOpacity,
   }}
 >
