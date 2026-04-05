@@ -12,6 +12,11 @@ type Props = {
   onDismissForever: () => void;
 };
 
+// INTENDED: Multi-step walkthrough that spotlights each element
+// BUG: Pressing orb during step 1 triggers ritual modal and dismisses tour
+// REPLACING WITH: react-native-spotlight-tour
+// Elements to spotlight: orb, left arrow (soundscapes), right arrow (chambers), bottom arrow (learning hub)
+
 export default function HomeHelperModal({ visible, onClose, onDismissForever }: Props) {
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>

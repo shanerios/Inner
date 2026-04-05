@@ -495,11 +495,11 @@ export default function PaywallModal({
                 </Text>
               </TouchableOpacity>
 
-              <TouchableOpacity onPress={() => Linking.openURL(TERMS_URL)} activeOpacity={0.7}>
+              <TouchableOpacity onPress={() => Linking.openURL(TERMS_URL).catch(() => {})} activeOpacity={0.7}>
                 <Text style={styles.footerLink}>Terms</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity onPress={() => Linking.openURL(PRIVACY_URL)} activeOpacity={0.7}>
+              <TouchableOpacity onPress={() => Linking.openURL(PRIVACY_URL).catch(() => {})} activeOpacity={0.7}>
                 <Text style={styles.footerLink}>Privacy</Text>
               </TouchableOpacity>
             </View>

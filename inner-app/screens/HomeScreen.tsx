@@ -46,6 +46,7 @@ import { useScale } from '../utils/scale';
 import LunarWhisperModal from '../src/lunar/LunarWhisperModal';
 import { orbMoonImages } from '../src/ui/orbMoonImages';
 const Body = _Body ?? ({ regular: { ..._Typography.body }, subtle: { ..._Typography.caption } } as const);
+import { SpotlightTourProvider, AttachStep, TourStep, SpotlightTour, offset, shift, flip } from 'react-native-spotlight-tour';
 
 // --- Intention Aura helpers ---
 function hexToRgb(hex: string): { r: number; g: number; b: number } {
@@ -114,514 +115,154 @@ const HUM_TRACK = {
 };
 const HUM_BASE_VOL = 0.35;
 
-// --- Inline Home Helper Modal (first version; can be extracted later) ---
-type HomeWalkSteps = {
-  chambers: boolean;
-  soundscapes: boolean;
-  orb: boolean;
-  learnHub: boolean;
-};
+// ─── Spotlight Tour ──────────────────────────────────────────────────────────
 
-type HomeWalkStepId = 'orb' | 'chambers' | 'soundscapes' | 'learnHub';
-
-const getFirstIncompleteStep = (steps: HomeWalkSteps): HomeWalkStepId | null => {
-  if (!steps.orb) return 'orb';
-  if (!steps.chambers) return 'chambers';
-  if (!steps.soundscapes) return 'soundscapes';
-  if (!steps.learnHub) return 'learnHub';
-  return null;
-};
-
-const HOME_WALK_STEPS_KEY = 'walk:home:steps_v1';
-type HomeHelperModalProps = {
-  visible: boolean;
-  onClose: () => void;
-  onDismissForever: () => void;
-  steps: HomeWalkSteps;
-  activeStep?: HomeWalkStepId | null;
-  tutorialMode: boolean;
-  onStartTutorial: () => void;
-
-  // NEW: allow tapping checklist items to complete steps
-  onOrbPress: () => void;
-  onNavPress: () => void;
-  onLearnPress: () => void;
-};
-
-function HomeHelperModalInline({
-  visible,
-  onClose,
-  onDismissForever,
-  steps,
-  activeStep,
-  tutorialMode,
-  onStartTutorial,
-  onOrbPress,
-  onNavPress,
-  onLearnPress,
-}: HomeHelperModalProps) {
-  const { scale, verticalScale } = useScale();
-
-  // Animated checklist values and effects
-  const orbAnim = React.useRef(new Animated.Value(steps.orb ? 1 : 0)).current;
-  const navAnim = React.useRef(new Animated.Value((steps.chambers && steps.soundscapes) ? 1 : 0)).current;
-  const learnAnim = React.useRef(new Animated.Value(steps.learnHub ? 1 : 0)).current;
-
-  React.useEffect(() => {
-    if (steps.orb) {
-      Animated.spring(orbAnim, {
-        toValue: 1,
-        friction: 6,
-        tension: 80,
-        useNativeDriver: true,
-      }).start();
-    }
-  }, [steps.orb, orbAnim]);
-
-  React.useEffect(() => {
-    if (steps.chambers && steps.soundscapes) {
-      Animated.spring(navAnim, {
-        toValue: 1,
-        friction: 6,
-        tension: 80,
-        useNativeDriver: true,
-      }).start();
-    }
-  }, [steps.chambers, steps.soundscapes, navAnim]);
-
-  React.useEffect(() => {
-    if (steps.learnHub) {
-      Animated.spring(learnAnim, {
-        toValue: 1,
-        friction: 6,
-        tension: 80,
-        useNativeDriver: true,
-      }).start();
-    }
-  }, [steps.learnHub, learnAnim]);
-
-  // Step highlight flags
-  const isOrbActive = activeStep === 'orb';
-  const isNavActive = activeStep === 'chambers' || activeStep === 'soundscapes';
-  const isLearnActive = activeStep === 'learnHub';
-
-  // Clickable flags for checklist items (tutorial gating)
-  const canClickOrb = !tutorialMode || activeStep === 'orb';
-  const canClickNav = !tutorialMode || activeStep === 'chambers' || activeStep === 'soundscapes';
-  const canClickLearn = !tutorialMode || activeStep === 'learnHub';
-
-    // Derived header text + step index
-  const allDone = steps.orb && steps.chambers && steps.soundscapes && steps.learnHub;
-
-  // We treat nav (chambers + soundscapes) as a single "step"
-  const stepTotal = 3;
-  let stepIndex: number | null = null;
-
-  if (!steps.orb) {
-    stepIndex = 1;
-  } else if (!steps.chambers || !steps.soundscapes) {
-    stepIndex = 2;
-  } else if (!steps.learnHub) {
-    stepIndex = 3;
-  }
-
-  let headerTitle = 'Welcome to Inner';
-  let headerSubtitle = 'A quick tour of your Home.';
-
-  if (tutorialMode) {
-    if (allDone) {
-      headerTitle = 'Tutorial complete';
-      headerSubtitle = 'You can revisit this guide anytime from the ? icon.';
-    } else if (activeStep === 'orb') {
-      headerTitle = 'Step 1 · The Orb';
-      headerSubtitle = 'This is your entry point. Tap it to begin a short centering ritual or resume your last journey.';
-    } else if (activeStep === 'chambers' || activeStep === 'soundscapes') {
-      headerTitle = 'Step 2 · Explore paths';
-      headerSubtitle = 'Use the chevrons or swipes: left chevron or swipe right for Soundscapes, right chevron or swipe left for Chambers.';
-    } else if (activeStep === 'learnHub') {
-      headerTitle = 'Step 3 · Learning Hub';
-      headerSubtitle = 'Swipe up or tap the bottom chevron to reveal guides, practices, and deeper teachings.';
-    }
-  } else if (activeStep) {
-    // Non-tutorial mode but still guiding the next action
-    if (activeStep === 'orb') {
-      headerTitle = 'Start with the orb';
-      headerSubtitle = 'Tap the orb to begin a short reflection or centering exercise, or to resume where you left off.';
-    } else if (activeStep === 'chambers' || activeStep === 'soundscapes') {
-      headerTitle = 'Try exploring the side paths';
-      headerSubtitle = 'Tap the left chevron or swipe right for Soundscapes; tap the right chevron or swipe left for Chambers.';
-    } else if (activeStep === 'learnHub') {
-      headerTitle = 'Visit the Learning Hub';
-      headerSubtitle = 'Tap the bottom chevron or swipe up to open your library of guides and practices.';
-    }
-  }
-  if (!visible) return null;
-
+function TourTooltip({
+  title,
+  body,
+  stepNum,
+  total,
+  onNext,
+  onStop,
+}: {
+  title: string;
+  body: string;
+  stepNum: number;
+  total: number;
+  onNext: () => void;
+  onStop: () => void;
+}) {
   return (
-    <View
-      pointerEvents="box-none"
-      style={{
-        position: 'absolute',
-        left: 0,
-        right: 0,
-        top: 0,
-        bottom: 0,
-        alignItems: 'center',
-        justifyContent: 'flex-end',
-        paddingHorizontal: scale(20),
-        paddingTop: verticalScale(40),
-        paddingBottom: verticalScale(32),
-        zIndex: 200,
-        elevation: 200,
-      }}
-    >
-      {/* Dimmed background layer; non-interactive so touches pass through */}
-      <View
-        pointerEvents="none"
-        style={[
-          StyleSheet.absoluteFillObject,
-          {
-            backgroundColor: 'rgba(8,8,16,0.55)',
-          },
-        ]}
-      />
-
-      {/* Helper card — touches are handled only by explicit tap targets inside */}
-      <View
-        style={{
-          maxWidth: scale(420),
-          width: '92%',
-          backgroundColor: 'rgba(14,14,28,0.88)',
-          borderRadius: scale(16),
-          paddingVertical: verticalScale(16),
-          paddingHorizontal: scale(16),
-          borderWidth: 1,
-          borderColor: 'rgba(255,255,255,0.08)',
-          marginBottom: verticalScale(90),
-        }}
-      >
-                        <Text
-              style={[
-                Typography.title,
-                {
-                  color: '#F0EEF8',
-                  textAlign: 'center',
-                  marginBottom: verticalScale(4),
-                },
-              ]}
-            >
-              {headerTitle}
-            </Text>
-
-            {/* Optional "Step X of 3" chip when not finished */}
-            {stepIndex !== null && !allDone && (
-              <Text
-                style={{
-                  fontFamily: 'Inter-ExtraLight',
-                  fontSize: scale(11),
-                  letterSpacing: scale(0.6),
-                  color: '#B5A9FF',
-                  textAlign: 'center',
-                  marginBottom: verticalScale(2),
-                  textTransform: 'uppercase',
-                }}
-              >
-                Step {stepIndex} of {stepTotal}
-              </Text>
-            )}
-
-            <Text
-              style={[
-                Body.subtle,
-                {
-                  fontFamily: 'Inter-ExtraLight',
-                  color: '#DCD5F0',
-                  fontSize: scale(14),
-                  textAlign: 'center',
-                },
-              ]}
-            >
-              {headerSubtitle}
-            </Text>
-
-            <View style={{ height: verticalScale(10) }} />
-            <View style={{ gap: scale(8) }}>
-              {/* Orb step */}
-<Animated.View
-  style={{
-    transform: [{ scale: isOrbActive ? 1.03 : 1 }],
-  }}
->
-  <TouchableOpacity
-    activeOpacity={0.85}
-    onPress={async () => {
-      if (!canClickOrb) return;
-      try { await Haptics.selectionAsync(); } catch {}
-      onOrbPress?.();
-    }}
-    style={{
-      borderRadius: scale(10),
-      backgroundColor: isOrbActive ? 'rgba(255,255,255,0.05)' : 'transparent',
-    }}
-  >
-    <View
-      style={{
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: verticalScale(4),
-        paddingHorizontal: scale(6),
-        borderRadius: scale(10),
-      }}
-    >
-    <Animated.Text
-      style={[
-        Body.subtle,
-        {
-          fontFamily: 'Inter-ExtraLight',
-          fontSize: scale(13),
-          color: steps.orb ? '#CFC3E0' : (isOrbActive ? '#B5A9FF' : '#9B96B8'),
-          marginRight: scale(6),
-          transform: [
-            {
-              scale: orbAnim.interpolate({
-                inputRange: [0, 1],
-                outputRange: [0.9, 1.3],
-              }),
-            },
-          ],
-        },
-      ]}
-    >
-      {steps.orb ? '✓' : '○'}
-    </Animated.Text>
-    <Text
-      style={[
-        Body.subtle,
-        {
-          fontFamily: 'Inter-ExtraLight',
-          color: '#EDEAF6',
-          fontSize: scale(13),
-          flexShrink: 1,
-        },
-      ]}
-    >
-        Tap the orb to start a short centering ritual or resume your journey.
-    </Text>
-  </View>
-</TouchableOpacity>
-</Animated.View>
-
-              {/* Chambers + Soundscapes swipe step */}
-              <Animated.View
-                style={{
-                  transform: [{ scale: isNavActive ? 1.03 : 1 }],
-                }}
-              >
-                <TouchableOpacity
-                  activeOpacity={0.85}
-                  onPress={async () => {
-                    if (!canClickNav) return;
-                    try { await Haptics.selectionAsync(); } catch {}
-                    onNavPress?.();
-                  }}
-                  style={{
-                    borderRadius: scale(10),
-                    backgroundColor: isNavActive ? 'rgba(255,255,255,0.05)' : 'transparent',
-                  }}
-                >
-                  <View
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      paddingVertical: verticalScale(4),
-                      paddingHorizontal: scale(6),
-                      borderRadius: scale(10),
-                    }}
-                  >
-                    <Animated.Text
-                      style={[
-                        Body.subtle,
-                        {
-                          fontFamily: 'Inter-ExtraLight',
-                          fontSize: scale(13),
-                          color: (steps.chambers && steps.soundscapes)
-                            ? '#CFC3E0'
-                            : (isNavActive ? '#B5A9FF' : '#9B96B8'),
-                          marginRight: scale(6),
-                          transform: [
-                            {
-                              scale: navAnim.interpolate({
-                                inputRange: [0, 1],
-                                outputRange: [0.9, 1.3],
-                              }),
-                            },
-                          ],
-                        },
-                      ]}
-                    >
-                      {steps.chambers && steps.soundscapes ? '✓' : '○'}
-                    </Animated.Text>
-                    <Text
-                      style={[
-                        Body.subtle,
-                        {
-                          fontFamily: 'Inter-ExtraLight',
-                          color: '#EDEAF6',
-                          fontSize: scale(13),
-                          flexShrink: 1,
-                        },
-                      ]}
-                    >
-                      Swipe right or tap the left chevron for Soundscapes. Swipe left or tap the right chevron for Chambers.
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              </Animated.View>
-
-              {/* Learning Hub step */}
-              <Animated.View
-                style={{
-                  transform: [{ scale: isLearnActive ? 1.03 : 1 }],
-                }}
-              >
-                <TouchableOpacity
-                  activeOpacity={0.85}
-                  onPress={async () => {
-                    if (!canClickLearn) return;
-                    try { await Haptics.selectionAsync(); } catch {}
-                    onLearnPress?.();
-                  }}
-                  style={{
-                    borderRadius: scale(10),
-                    backgroundColor: isLearnActive ? 'rgba(255,255,255,0.05)' : 'transparent',
-                  }}
-                >
-                  <View
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      paddingVertical: verticalScale(4),
-                      paddingHorizontal: scale(6),
-                      borderRadius: scale(10),
-                    }}
-                  >
-                    <Animated.Text
-                      style={[
-                        Body.subtle,
-                        {
-                          fontFamily: 'Inter-ExtraLight',
-                          fontSize: scale(13),
-                          color: steps.learnHub
-                            ? '#CFC3E0'
-                            : (isLearnActive ? '#B5A9FF' : '#9B96B8'),
-                          marginRight: scale(6),
-                          transform: [
-                            {
-                              scale: learnAnim.interpolate({
-                                inputRange: [0, 1],
-                                outputRange: [0.9, 1.3],
-                              }),
-                            },
-                          ],
-                        },
-                      ]}
-                    >
-                      {steps.learnHub ? '✓' : '○'}
-                    </Animated.Text>
-                    <Text
-                      style={[
-                        Body.subtle,
-                        {
-                          fontFamily: 'Inter-ExtraLight',
-                          color: '#EDEAF6',
-                          fontSize: scale(13),
-                          flexShrink: 1,
-                        },
-                      ]}
-                    >
-                        Tap the ⌄ at the bottom or swipe up to open the Learning Hub.
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              </Animated.View>
-
-              {/* Static hints (no live tracking yet) */}
-              <Text style={[Body.subtle, { fontFamily: 'Inter-ExtraLight', color: '#EDEAF6', fontSize: scale(13) }]}>
-                ○ Long-press the orb to reveal the Lunar Whisper.
-              </Text>
-              <Text style={[Body.subtle, { fontFamily: 'Inter-ExtraLight', color: '#EDEAF6', fontSize: scale(13) }]}>
-                ○ Use ⚙︎ to set your name, intentions, and audio quality.
-              </Text>
-            </View>
-
-            <View style={{ marginTop: verticalScale(10), alignItems: 'center' }}>
-  <TouchableOpacity
-    onPress={async () => {
-      try { await Haptics.selectionAsync(); } catch {}
-      onStartTutorial();
-    }}
-    accessibilityRole="button"
-    accessibilityLabel={tutorialMode ? 'Guided tour is active' : 'Start guided tour'}
-  >
-    <Text
-      style={[
-        Body.subtle,
-        {
-          fontFamily: 'Inter-ExtraLight',
-          fontSize: scale(13),
-          color: tutorialMode ? '#CFC3E0' : '#B5A9FF',
-          textDecorationLine: 'underline',
-        },
-      ]}
-    >
-      {tutorialMode ? 'Guided tour is on' : 'Start guided tour'}
-    </Text>
-  </TouchableOpacity>
-</View>
-
-            <View style={{ height: verticalScale(14) }} />
-            <View
-              style={{
-                flexDirection: 'row',
-                justifyContent: 'center',
-                alignItems: 'center',
-                gap: scale(16),
-                marginTop: verticalScale(6),
-              }}
-            >
-              <TouchableOpacity
-                onPress={async () => { try { await Haptics.selectionAsync(); } catch {} onClose(); }}
-                accessibilityRole="button"
-                accessibilityLabel="Got it"
-                style={{
-                  backgroundColor: '#CFC3E0',
-                  paddingVertical: verticalScale(8),
-                  paddingHorizontal: scale(20),
-                  borderRadius: scale(14),
-                  borderWidth: 1,
-                  borderColor: 'rgba(255,255,255,0.20)',
-                }}
-              >
-                <Text style={[Typography.subtle, { color: '#1F233A' }]}>Got it</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={async () => { try { await Haptics.selectionAsync(); } catch {} onDismissForever(); }}
-                accessibilityRole="button"
-                accessibilityLabel="Don't show again"
-                hitSlop={{
-                  top: verticalScale(8),
-                  bottom: verticalScale(8),
-                  left: scale(8),
-                  right: scale(8),
-                }}
-              >
-                <Text style={{ color: '#F0EEF8', fontSize: scale(14), opacity: 0.9 }}>Don’t show again</Text>
-              </TouchableOpacity>
-            </View>
-        </View>
+    <View style={tourStyles.card}>
+      <Text style={tourStyles.label}>{stepNum} of {total}</Text>
+      <Text style={tourStyles.title}>{title}</Text>
+      <Text style={tourStyles.body}>{body}</Text>
+      <View style={tourStyles.actions}>
+        <TouchableOpacity onPress={onStop} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <Text style={tourStyles.skip}>Skip</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={onNext} style={tourStyles.nextBtn}>
+          <Text style={tourStyles.nextText}>{stepNum === total ? 'Done' : 'Next'}</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
+
+const tourStyles = StyleSheet.create({
+  card: {
+    backgroundColor: 'rgba(14,14,28,0.95)',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.10)',
+    maxWidth: 260,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 10,
+  },
+  label: {
+    fontFamily: 'Inter-ExtraLight',
+    fontSize: 11,
+    color: '#B5A9FF',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    marginBottom: 4,
+  },
+  title: {
+    fontFamily: 'CalSans-SemiBold',
+    fontSize: 16,
+    color: '#F0EEF8',
+    marginBottom: 6,
+  },
+  body: {
+    fontFamily: 'Inter-ExtraLight',
+    fontSize: 13,
+    color: '#DCD5F0',
+    lineHeight: 18,
+    marginBottom: 12,
+  },
+  actions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  skip: {
+    color: '#9B96B8',
+    fontSize: 13,
+    fontFamily: 'Inter-ExtraLight',
+  },
+  nextBtn: {
+    backgroundColor: '#CFC3E0',
+    paddingVertical: 7,
+    paddingHorizontal: 18,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.20)',
+  },
+  nextText: {
+    color: '#1F233A',
+    fontSize: 13,
+    fontFamily: 'Inter-Regular',
+  },
+});
+
+const HOME_TOUR_STEPS: TourStep[] = [
+  {
+    floatingProps: { middleware: [offset(12), shift(), flip()], placement: 'bottom' },
+    render: ({ next, stop }) => (
+      <TourTooltip
+        title="The Orb"
+        body="Your entry point. Press to begin a session or resume where you left off."
+        stepNum={1}
+        total={4}
+        onNext={next}
+        onStop={stop}
+      />
+    ),
+  },
+  {
+    floatingProps: { middleware: [offset(12), shift(), flip()], placement: 'right' },
+    render: ({ next, stop }) => (
+      <TourTooltip
+        title="Soundscapes"
+        body="Press or swipe right for looping psychoacoustic environments — crafted for deep rest and induction."
+        stepNum={2}
+        total={4}
+        onNext={next}
+        onStop={stop}
+      />
+    ),
+  },
+  {
+    floatingProps: { middleware: [offset(12), shift(), flip()], placement: 'left' },
+    render: ({ next, stop }) => (
+      <TourTooltip
+        title="Chambers"
+        body="Press or swipe left for guided journeys — structured experiences from beginning to end."
+        stepNum={3}
+        total={4}
+        onNext={next}
+        onStop={stop}
+      />
+    ),
+  },
+  {
+    floatingProps: { middleware: [offset(12), shift(), flip()], placement: 'top' },
+    render: ({ next, stop }) => (
+      <TourTooltip
+        title="Learning Hub"
+        body="Press below for the science and practice behind Inner — lessons, techniques, and deeper context."
+        stepNum={4}
+        total={4}
+        onNext={next}
+        onStop={stop}
+      />
+    ),
+  },
+];
 
 export default function HomeScreen({ navigation, route }: any) {
   // --- DEBUG: visualize/tune orb hit area ---
@@ -980,7 +621,7 @@ const triggerQuickCalm = React.useCallback(async () => {
 
   setQuickCalmVisible(true);
 
-  // Soft, minimal lines — we’ll pick one per trigger
+  // Soft, minimal lines — we'll pick one per trigger
   const lines = [
     "You're here.",
     "The noise quiets.",
@@ -1276,242 +917,54 @@ React.useEffect(() => {
   const dailySnapshot = useDailyPracticeSnapshot();
 
 
-  // --- Home Helper walkthrough (first‑time guide) ---
+  // --- Home Helper walkthrough (first-time spotlight tour) ---
 
   const {
     loading: homeWalkthroughLoading,
     shouldShow: shouldShowHomeHelper,
     markSeen: markHomeHelperSeen,
   } = useWalkthrough('home_helper_v1');
-  const [showHomeHelp, setShowHomeHelp] = React.useState(false);
-  const [homeSteps, setHomeSteps] = React.useState<HomeWalkSteps>({
-    chambers: false,
-    soundscapes: false,
-    orb: false,
-    learnHub: false,
-  });
-  const [activeStep, setActiveStep] = React.useState<HomeWalkStepId | null>(null);
-  const [tutorialMode, setTutorialMode] = React.useState(false);
 
-  // Walkthrough: only pulse chevrons when we're on the navigation step
-  const isNavWalkStep = activeStep === 'chambers' || activeStep === 'soundscapes';
+  const tourRef = React.useRef<SpotlightTour>(null);
+  const [tourRunning, setTourRunning] = React.useState(false);
+  // True once the daily-ritual check has resolved without navigating away
+  const [dailyChecked, setDailyChecked] = React.useState(false);
 
-  // Walkthrough-driven hint pulses for side navigation (Phase 2A)
-  useEffect(() => {
-    // Only pulse while:
-    // - Home is focused
-    // - The helper modal is visible
-    // - We’re on the navigation step of the walkthrough
-    if (!isFocused || !showHomeHelp || !isNavWalkStep) {
-      // Reset to a neutral state when not in nav step
-      leftHint.stopAnimation();
-      rightHint.stopAnimation();
-      leftHint.setValue(0);
-      rightHint.setValue(0);
-      return;
-    }
-
-    // Kick off an initial pulse on both sides
-    runHint(leftHint);
-    runHint(rightHint);
-
-    // Repeat every ~2 seconds while conditions stay true
-    const interval = setInterval(() => {
-      runHint(leftHint);
-      runHint(rightHint);
-    }, 1000);
-
-    return () => {
-      clearInterval(interval);
-      leftHint.stopAnimation();
-      rightHint.stopAnimation();
-    };
-  }, [isFocused, showHomeHelp, isNavWalkStep, runHint, leftHint, rightHint]);
-
-  // Orb spotlight for walkthrough step
-  const orbSpotlight = React.useRef(new Animated.Value(0)).current;
-
-  React.useEffect(() => {
-    // Only run the spotlight when the helper is visible and we are on the orb step
-    if (!showHomeHelp || activeStep !== 'orb') {
-      orbSpotlight.stopAnimation();
-      orbSpotlight.setValue(0);
-      return;
-    }
-
-    const runPulse = () => {
-      orbSpotlight.setValue(0);
-      Animated.sequence([
-        Animated.timing(orbSpotlight, {
-          toValue: 1,
-          duration: 600,
-          easing: Easing.out(Easing.cubic),
-          useNativeDriver: true,
-        }),
-        Animated.timing(orbSpotlight, {
-          toValue: 0,
-          duration: 600,
-          easing: Easing.in(Easing.cubic),
-          useNativeDriver: true,
-        }),
-      ]).start(({ finished }) => {
-        if (finished && showHomeHelp && activeStep === 'orb') {
-          // small pause between pulses
-          setTimeout(runPulse, 400);
-        }
-      });
-    };
-
-    runPulse();
-
-    return () => {
-      orbSpotlight.stopAnimation();
-      orbSpotlight.setValue(0);
-    };
-  }, [showHomeHelp, activeStep, orbSpotlight]);
-  React.useEffect(() => {
-    (async () => {
-      try {
-        const raw = await AsyncStorage.getItem(HOME_WALK_STEPS_KEY);
-        if (!raw) return;
-        const parsed = JSON.parse(raw) as Partial<HomeWalkSteps>;
-        setHomeSteps(prev => ({
-          chambers: parsed.chambers ?? prev.chambers,
-          soundscapes: parsed.soundscapes ?? prev.soundscapes,
-          orb: parsed.orb ?? prev.orb,
-          learnHub: parsed.learnHub ?? prev.learnHub,
-        }));
-      } catch {
-        // ignore restore errors, keep defaults
-      }
-    })();
+  const startTour = React.useCallback(() => {
+    tourRef.current?.start();
+    setTourRunning(true);
   }, []);
-  React.useEffect(() => {
-    if (!showHomeHelp) return;
-    const next = getFirstIncompleteStep(homeSteps);
-    setActiveStep(next);
-  }, [showHomeHelp, homeSteps]);
-  // Helper: update step completion, persist progress, and auto-complete walkthrough when all are done
-   const updateHomeStep = React.useCallback(
-  (step: keyof HomeWalkSteps) => {
-    setHomeSteps(prev => {
-      const next: HomeWalkSteps = { ...prev, [step]: true };
-      // persist progress so checkmarks survive navigation / remounts
-      AsyncStorage.setItem(HOME_WALK_STEPS_KEY, JSON.stringify(next)).catch(() => {});
-      const allDone = next.chambers && next.soundscapes && next.orb && next.learnHub;
 
-      // Only auto-complete + hide when NOT in tutorial mode
-      if (allDone && !tutorialMode) {
-        try {
-          markHomeHelperSeen();
-        } catch {}
-        setTimeout(() => {
-          setShowHomeHelp(false);
-        }, 900);
-      }
-
-      return next;
-    });
-  },
-  [markHomeHelperSeen, tutorialMode]
-);
-
-  const handleOrbStepPress = React.useCallback(() => {
-    updateHomeStep('orb');
-  }, [updateHomeStep]);
-
-  const handleNavStepPress = React.useCallback(() => {
-    // Mark both nav-related steps as complete when the checklist row is tapped
-    updateHomeStep('chambers');
-    updateHomeStep('soundscapes');
-  }, [updateHomeStep]);
-
-  const handleLearnStepPress = React.useCallback(() => {
-    updateHomeStep('learnHub');
-  }, [updateHomeStep]);
-
-  // --- Navigation helpers for walkthrough and swipes ---
-  const completeHomeWalkthroughIfNeeded = useCallback(() => {
-    if (showHomeHelp) {
-      setShowHomeHelp(false);
+  // Show tour on first launch, but only after the daily check-in has cleared
+  useEffect(() => {
+    if (homeWalkthroughLoading || !dailyChecked) return;
+    if (shouldShowHomeHelper) {
+      const t = setTimeout(startTour, 900);
+      return () => clearTimeout(t);
     }
-  }, [showHomeHelp]);
+  }, [homeWalkthroughLoading, shouldShowHomeHelper, dailyChecked, startTour]);
 
+  // --- Navigation helpers ---
   const goToChambers = useCallback(async () => {
-  // If the Home Helper is visible and the Chambers step isn't complete yet,
-  // treat this interaction as fulfilling that walkthrough step instead of navigating away.
-  if (showHomeHelp && !homeSteps.chambers) {
-    updateHomeStep('chambers');
+    if (tourRunning) return;
     try { await Haptics.selectionAsync(); } catch {}
-    return;
-  }
-
-  completeHomeWalkthroughIfNeeded();
-  updateHomeStep('chambers');
-  try { await Haptics.selectionAsync(); } catch {}
-  try { await fadeOutHum(); } catch {}
-  navigation.navigate('Chambers');
-}, [
-  showHomeHelp,
-  homeSteps.chambers,
-  homeSteps.soundscapes,
-  completeHomeWalkthroughIfNeeded,
-  updateHomeStep,
-  navigation,
-  fadeOutHum,
-]);
+    try { await fadeOutHum(); } catch {}
+    navigation.navigate('Chambers');
+  }, [tourRunning, navigation, fadeOutHum]);
 
   const goToSoundscapes = useCallback(async () => {
-  // If the Home Helper is visible and the Soundscapes step isn't complete yet,
-  // treat this interaction as fulfilling that walkthrough step instead of navigating away.
-  if (showHomeHelp && !homeSteps.soundscapes) {
-    updateHomeStep('soundscapes');
+    if (tourRunning) return;
     try { await Haptics.selectionAsync(); } catch {}
-    return;
-  }
+    try { await fadeOutHum(); } catch {}
+    navigation.navigate('Soundscapes');
+  }, [tourRunning, navigation, fadeOutHum]);
 
-  completeHomeWalkthroughIfNeeded();
-  updateHomeStep('soundscapes');
-  try { await Haptics.selectionAsync(); } catch {}
-  try { await fadeOutHum(); } catch {}
-  navigation.navigate('Soundscapes');
-}, [
-  showHomeHelp,
-  homeSteps.chambers,
-  homeSteps.soundscapes,
-  completeHomeWalkthroughIfNeeded,
-  updateHomeStep,
-  navigation,
-  fadeOutHum,
-]);
-
-const goToLearnHub = useCallback(async () => {
-  __DEV__ && console.log(
-    '[HOME] goToLearnHub called. showHomeHelp=',
-    showHomeHelp,
-    'learnHub step=',
-    homeSteps.learnHub
-  );
-
-  // When the Home Helper is guiding the Learning Hub step, mark it complete but don't leave Home yet.
-  if (showHomeHelp && !homeSteps.learnHub) {
-    __DEV__ && console.log('[HOME] Completing LearnHub walkthrough step from goToLearnHub');
+  const goToLearnHub = useCallback(async () => {
+    if (tourRunning) return;
     try { await Haptics.selectionAsync(); } catch {}
-    updateHomeStep('learnHub');
-    return;
-  }
-
-  __DEV__ && console.log('[HOME] Navigating to LearnHub normally');
-  try { await Haptics.selectionAsync(); } catch {}
-  try { await fadeOutHum(); } catch {}
-  navigation.navigate('LearnHub'); // if your route is named differently, keep the original name
-}, [
-  showHomeHelp,
-  homeSteps.learnHub,
-  updateHomeStep,
-  navigation,
-  fadeOutHum,
-]);
+    try { await fadeOutHum(); } catch {}
+    navigation.navigate('LearnHub');
+  }, [tourRunning, navigation, fadeOutHum]);
 
   // Lunar Whisper modal (long‑press orb)
   const [showLunarModal, setShowLunarModal] = React.useState(false);
@@ -1540,14 +993,6 @@ const goToLearnHub = useCallback(async () => {
       }
     })();
   }, []);
-  // Show the Home helper on first launch via walkthrough hook
-  useEffect(() => {
-    if (homeWalkthroughLoading) return;
-    if (shouldShowHomeHelper) {
-      const t = setTimeout(() => setShowHomeHelp(true), 900); // let the screen settle
-      return () => clearTimeout(t);
-    }
-  }, [homeWalkthroughLoading, shouldShowHomeHelper]);
   // Gate early orb render to avoid any brief ghosting during the screen swap
   const [veilGate, setVeilGate] = React.useState(!!route?.params?.fogStart);
   useEffect(() => {
@@ -1891,7 +1336,7 @@ const goToLearnHub = useCallback(async () => {
 
   // Disable swipes while any modal/overlay is visible (including the Home walkthrough)
   const gesturesDisabled =
-    showSettings || showPicker || showLunarModal || showHomeHelp;
+    showSettings || showPicker || showLunarModal || tourRunning;
 
     // Prevent double-firing when we trigger during update
     const panHandledRef = useRef(false);
@@ -2256,7 +1701,7 @@ useEffect(() => {
               const words = text.length ? text.split(/\s+/).filter(Boolean).length : 0;
 
               // Readability-driven dwell: base + per-word + per-char
-              // (intentionally generous because this is a rare, “you notice it” moment)
+              // (intentionally generous because this is a rare, "you notice it" moment)
               const base = 1600;
               const perWord = 85;
               const perChar = 10;
@@ -2285,7 +1730,7 @@ useEffect(() => {
             };
 
             // ThresholdEngine handshake: on arriving Home, allow a deferred moment to be queued.
-            // // (This will no-op most of the time, and it will respect your “sometimes don’t fire” rules.)
+            // // (This will no-op most of the time, and it will respect your "sometimes don't fire" rules.)
             try {
                 await ThresholdEngine.maybeQueueThreshold({ event: { type: 'app_open' } });
             } catch {}
@@ -2328,7 +1773,7 @@ useEffect(() => {
             // lineToShow = 'The veil softens.';
 
             // Fallback: if nothing is queued, allow TimeEngine to surface a time-based threshold
-            // Handshake: capture `res.id` so Home can “linger” on big moments.
+            // Handshake: capture `res.id` so Home can "linger" on big moments.
             let timeId: string | null = null;
             if (!lineToShow) {
               try {
@@ -2401,6 +1846,7 @@ useEffect(() => {
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
+      setDailyChecked(false);
 
       const checkDaily = async () => {
         try {
@@ -2409,9 +1855,12 @@ useEffect(() => {
             // fade out Home hum before jumping into the ritual
             try { await fadeOutHum(); } catch {}
             navigation.navigate('DailyRitual');
+          } else if (!cancelled) {
+            setDailyChecked(true);
           }
         } catch (e) {
           __DEV__ && console.log('[HOME] daily micro check error', e);
+          if (!cancelled) setDailyChecked(true);
         }
       };
 
@@ -2529,23 +1978,7 @@ useEffect(() => {
 
 const handleOrbTap = async () => {
   __DEV__ && console.log('[HOME] Orb tapped');
-  // Walkthrough handling: if we're on the orb step, mark it complete
-  const inOrbWalkthroughStep = showHomeHelp && activeStep === 'orb';
-  if (inOrbWalkthroughStep) {
-    try {
-      updateHomeStep('orb');
-    } catch (e) {
-      __DEV__ && console.log('[HOME] Error updating orb walkthrough step:', e);
-    }
-    // Note: we still let the ritual menu open below
-  } else {
-    // Normal mode: still mark the orb as seen
-    try {
-      updateHomeStep('orb');
-    } catch (e) {
-      __DEV__ && console.log('[HOME] Error updating orb walkthrough step (normal):', e);
-    }
-  }
+  if (tourRunning) return;
 
   // Haptic feedback
   try {
@@ -2603,15 +2036,6 @@ const handleOrbLongPress = async () => {
   await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
   setShowLunarModal(true);
 };
-const closeHomeHelp = React.useCallback(() => {
-  setShowHomeHelp(false);
-}, []);
-
-const neverShowHomeHelp = React.useCallback(async () => {
-    try { await Haptics.selectionAsync(); } catch {}
-    await markHomeHelperSeen();
-    setShowHomeHelp(false);
-  }, [markHomeHelperSeen]);
 
   const loadResumeInfo = useCallback(async () => {
     try {
@@ -2847,6 +2271,18 @@ const openInnerFlame = useCallback(async () => {
   const isInnerFlameRecommended = ritualTargetId === 'innerFlame';
 
   return (
+  <SpotlightTourProvider
+    ref={tourRef}
+    steps={HOME_TOUR_STEPS}
+    overlayColor="rgba(8,8,16,1)"
+    overlayOpacity={0.7}
+    onBackdropPress="continue"
+    onStop={() => {
+      setTourRunning(false);
+      markHomeHelperSeen();
+    }}
+    nativeDriver={false}
+  >
   <GestureDetector gesture={rootGesture}>
     <View style={styles.container}>
       {/* Background — looping video rendered in a computed fit box (cover) */}
@@ -2891,7 +2327,7 @@ const openInnerFlame = useCallback(async () => {
 
       {/* Top-left Home Help ("?") */}
       <Pressable
-        onPress={() => setShowHomeHelp(true)}
+        onPress={startTour}
         accessibilityRole="button"
         accessibilityLabel="Open Home guide"
         accessibilityHint="Shows a short walkthrough of this screen"
@@ -3160,7 +2596,7 @@ const openInnerFlame = useCallback(async () => {
           >
             <AnimatedPressable
               accessibilityRole="button"
-              accessibilityLabel={`Tonight’s practice: ${suggestion.title}. Double tap to begin.`}
+              accessibilityLabel={`Tonight's practice: ${suggestion.title}. Double tap to begin.`}
               accessibilityHint="Starts the suggested practice"
               onPress={handleStartSuggestion}
              onPressIn={() => {
@@ -3286,7 +2722,7 @@ const openInnerFlame = useCallback(async () => {
             {/* Dismiss (kept subtle, separate tap target) */}
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Dismiss tonight’s practice"
+              accessibilityLabel="Dismiss tonight's practice"
               onPress={handleDismissSuggestion}
               hitSlop={scale(10)}
               style={{
@@ -3347,34 +2783,6 @@ const openInnerFlame = useCallback(async () => {
           ]}
         />
 
-        {/* Orb spotlight overlay (walkthrough) */}
-        {showHomeHelp && (
-          <Animated.View
-            pointerEvents="none"
-            style={{
-              position: 'absolute',
-              left: ORB_LEFT - ORB_WIDTH * 0.08,
-              top: ORB_TOP - ORB_WIDTH * 0.08,
-              width: ORB_WIDTH * 1.16,
-              height: ORB_WIDTH * 1.16,
-              borderRadius: (ORB_WIDTH * 1.16) / 2,
-              borderWidth: 1,
-              borderColor: 'rgba(255,255,255,0.65)',
-              opacity: orbSpotlight.interpolate({
-                inputRange: [0, 1],
-                outputRange: [0, 1],
-              }),
-              transform: [
-                {
-                  scale: orbSpotlight.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [1, 1.08],
-                  }),
-                },
-              ],
-            }}
-          />
-        )}
 
         {/* Moon overlay — fades in/out above the base orb */}
         <Animated.Image
@@ -3407,6 +2815,14 @@ const openInnerFlame = useCallback(async () => {
             },
           ]}
         />
+        {/* Orb spotlight beacon — sized to visual orb bounds, not the hit area */}
+        <AttachStep
+          index={0}
+          style={{ position: 'absolute', left: ORB_LEFT, top: ORB_TOP, width: ORB_WIDTH, height: ORB_WIDTH }}
+        >
+          <View pointerEvents="none" style={{ width: ORB_WIDTH, height: ORB_WIDTH }} />
+        </AttachStep>
+
         {/* Tap target limited to orb center so list below remains touchable */}
         <AnimatedPressable
           pointerEvents="box-only"
@@ -3496,7 +2912,7 @@ const openInnerFlame = useCallback(async () => {
           ) : null}
         </AnimatedPressable>
 
-        
+
 
         {/* Left Sigil Halo — Lavender (soft PNG radial) */}
         <Animated.Image
@@ -3830,6 +3246,12 @@ const openInnerFlame = useCallback(async () => {
     opacity: leftHintOpacity,
   }}
 >
+  <AttachStep
+    index={1}
+    style={{ position: 'absolute', left: scale(12), top: verticalScale(375), width: scale(48), height: scale(48) }}
+  >
+    <View pointerEvents="none" style={{ width: scale(48), height: scale(48) }} />
+  </AttachStep>
   <Pressable
     onPress={goToSoundscapes}
     accessibilityRole="button"
@@ -3870,6 +3292,12 @@ const openInnerFlame = useCallback(async () => {
     opacity: rightHintOpacity,
   }}
 >
+  <AttachStep
+    index={2}
+    style={{ position: 'absolute', right: scale(12), top: verticalScale(375), width: scale(48), height: scale(48) }}
+  >
+    <View pointerEvents="none" style={{ width: scale(48), height: scale(48) }} />
+  </AttachStep>
   <Pressable
     onPress={goToChambers}
     accessibilityRole="button"
@@ -3901,31 +3329,17 @@ const openInnerFlame = useCallback(async () => {
 </Animated.View>
 
         {/* Bottom: Learning Hub */}
+        <AttachStep
+          index={3}
+          style={{ position: 'absolute', left: '50%', bottom: insets.bottom + verticalScale(24), width: scale(48), height: scale(48), transform: [{ translateX: -scale(24) }] }}
+        >
+          <View pointerEvents="none" style={{ width: scale(48), height: scale(48) }} />
+        </AttachStep>
         <Pressable
-  onPress={async () => {
-    __DEV__ && console.log(
-      '[HOME] Bottom chevron pressed. showHomeHelp=',
-      showHomeHelp,
-      'learnHub step=',
-      homeSteps.learnHub
-    );
-
-    // During the Home walkthrough, treat a tap on this chevron as explicitly fulfilling
-    // the Learning Hub step before we navigate anywhere.
-    if (showHomeHelp && !homeSteps.learnHub) {
-      __DEV__ && console.log('[HOME] Completing LearnHub walkthrough step from bottom chevron tap');
-      updateHomeStep('learnHub');
-      try {
-        await Haptics.selectionAsync();
-      } catch {}
-      return;
-    }
-
-    await goToLearnHub();
-  }}
+  onPress={goToLearnHub}
   accessibilityRole="button"
   accessibilityLabel="Open Learning Hub"
-  accessibilityHint="Opens Inner’s Learning Hub with guides and lessons"
+  accessibilityHint="Opens Inner's Learning Hub with guides and lessons"
   accessible={true}
   importantForAccessibility="yes"
   style={[styles.navArrowBottom, { bottom: insets.bottom + verticalScale(24) }]}
@@ -3973,18 +3387,6 @@ const openInnerFlame = useCallback(async () => {
           navigation.navigate('Journal');
         }}
       />
-      <HomeHelperModalInline
-        visible={showHomeHelp}
-        onClose={closeHomeHelp}
-        onDismissForever={neverShowHomeHelp}
-        steps={homeSteps}
-        activeStep={activeStep}
-        tutorialMode={tutorialMode}
-        onStartTutorial={() => setTutorialMode(true)}
-        onOrbPress={handleOrbStepPress}
-        onNavPress={handleNavStepPress}
-        onLearnPress={handleLearnStepPress}
-    />
                   {/* Orb Menu – Orb Rituals + Resume */}
            <Modal
         visible={showPicker}
@@ -4392,5 +3794,6 @@ const openInnerFlame = useCallback(async () => {
       />
     </View>
     </GestureDetector>
+  </SpotlightTourProvider>
     );
 }
