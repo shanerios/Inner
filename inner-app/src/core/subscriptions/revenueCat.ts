@@ -6,7 +6,7 @@ export async function hasInnerAccess(): Promise<boolean> {
     const info = await Purchases.getCustomerInfo();
     return Boolean(info.entitlements.active[ENTITLEMENT_ID]);
   } catch (e) {
-    console.log('[RevenueCat] entitlement check failed', e);
+    if (__DEV__) console.log('[RevenueCat] entitlement check failed', e);
     return false;
   }
 }

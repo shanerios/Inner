@@ -24,6 +24,7 @@ import { ThreadMood } from '../src/core/threading/threadTypes';
 import { maybeQueueThreshold } from '../src/core/thresholds/ThresholdEngine';
 import { isLockedTrack } from '../src/core/subscriptions/accessPolicy';
 import { safePresentPaywall } from '../src/core/subscriptions/safePresentPaywall';
+import { ENTITLEMENT_ID } from '../src/core/subscriptions/constants';
 
 import { useSleepTimer } from '../hooks/useSleepTimer';
 import { useSleepTimerCountdown } from '../hooks/useSleepTimerCountdown';
@@ -107,7 +108,7 @@ export default function JourneyPlayer() {
       const cached = entitlementCacheRef.current;
       if (cached && (Date.now() - cached.ts) < 10_000) return cached.has;
       const info = await Purchases.getCustomerInfo();
-      const has = !!info && !!info.entitlements && Object.keys(info.entitlements.active || {}).length > 0;
+      const has = Boolean(info?.entitlements?.active?.[ENTITLEMENT_ID]);
       entitlementCacheRef.current = { ts: Date.now(), has };
       return has;
     } catch (e) {

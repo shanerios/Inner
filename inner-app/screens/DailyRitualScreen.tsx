@@ -360,10 +360,7 @@ export default function DailyRitualScreen({ navigation }: any) {
   };
 
   const handleContinue = async () => {
-    posthog.capture('daily_ritual_started', {
-      emotion_selected: selected ?? 'skipped',
-      previous_emotion: lastEmotion ?? 'unknown',
-    });
+    posthog.capture('daily_ritual_started');
 
     // Mark today as complete and remember the selected emotion (if any)
     await markDailyMicroRitualComplete(selected || undefined);

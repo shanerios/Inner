@@ -14,6 +14,6 @@ export async function safePresentPaywall(onSuccess?: () => void): Promise<void> 
     );
   } catch (e) {
     presenting = false;
-    console.log('[Paywall] openPaywall failed', e);
+    if (__DEV__) console.log('[Paywall] openPaywall failed', e);
   }
 }

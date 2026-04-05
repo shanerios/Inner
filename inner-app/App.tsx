@@ -84,6 +84,17 @@ Sentry.init({
 
   // uncomment the line below to enable Spotlight (https://spotlightjs.com)
   // spotlight: __DEV__,
+
+  beforeSend(event) {
+    if (event.breadcrumbs?.values) {
+      event.breadcrumbs.values = event.breadcrumbs.values.map((b) => ({
+        ...b,
+        data: undefined,
+        message: b.message?.replace(/journal|entry|dream|intention/gi, '[redacted]'),
+      }));
+    }
+    return event;
+  },
 });
 
 type RootStackParamList = {
