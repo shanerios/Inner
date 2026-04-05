@@ -122,7 +122,12 @@
   "sarcophagus": {
     "term": "Sarcophagus",
     "definition": "The sacred vessel of release. Before crossing into the Outer Sanctum, the practitioner places everything they carry — anxiety, unresolved thought, the residue of the day — into the Sarcophagus. Not suppressed, not ignored, but consciously set aside. Sealed. What enters the Sarcophagus is held there until you return. This act of deliberate release is not incidental to the practice — it is the first practice. The Sarcophagus does not destroy what it holds. It transforms it. What you retrieve upon return is rarely what you placed inside.",
-    "related": ["alignment_phase", "energy_body", "projection"]
+    "related": ["release", "energy_body", "projection"]
+  },
+  "reveiling": {
+    "term": "Reveiling",
+    "definition": "The conscious act of return. The moment a Resonant crosses back through the veil from the liminal field into waking awareness. Reveiling is not merely waking — it is an intentional threshold crossing, the completion of the journey begun at the Outer Sanctum. What was revealed in the chambers is carried back through the veil and integrated into waking life. The Sarcophagus is reopened. The Resonance Field settles. The Resonant returns — changed by what was seen on the other side.",
+    "related": ["lucid exploration", "resonance field", "return"]
   },
   "the_return": {
     "term": "The Return",
