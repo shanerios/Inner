@@ -60,6 +60,15 @@ export const LEARN_TRACKS = {
         mdPath: require('../learn/content/lucid/wbtb_wild.md')
       },
       {
+        id: 'resonance-bridge',
+        title: 'The Resonance Bridge',
+        level: 'core',
+        intentions: ['calm','clarity','expansion'],
+        prerequisites: ['priming'],
+        durationMin: 20,
+        mdPath: require('../learn/content/lucid/resonance_bridge.md')
+      },
+      {
         id: 'dream-recall-coding',
         title: 'Dream Recall & Dream Coding',
         level: 'core',
