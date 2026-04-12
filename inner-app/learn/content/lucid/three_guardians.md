@@ -77,15 +77,22 @@ Continue planting the Recognition Guardian but add the Stability Guardian cultiv
 **Phase Three — Depth Guardian (weeks 9–12+):**
 All three Guardians are planted sequentially. The cultivation practice now takes 8–10 minutes. The Recognition Guardian is first, closest to the boundary. The Stability Guardian is middle, oriented toward the interior of the dream. The Depth Guardian is deepest, oriented toward what lies beyond the stable lucid space.
 
+**Phase Four and Five — Protector and Retroactive Guardians:**
+Once the first three Guardians are reliable as a felt system, the Protector and Retroactive Guardians become available. These are covered in their own dedicated lessons. The Protector extends the ecology into difficult and charged dream territory. The Retroactive extends it across time — across multiple sessions, multiple nights, the full arc of the practice. At Phase Five, the five Guardians together form a complete ecology: a living system that a practitioner returns to rather than rebuilds, that adapts to wherever they are in the inner journey, and that deepens automatically through continued engagement.
+
 ---
 
 ## Felt Signatures Summary
 
-| Guardian | Activates When | Felt Signature | Response |
+| Guardian | Activates | Felt Signature | Response |
 |---|---|---|---|
 | Recognition | Dream logic begins | Gentle interior *now* | Let recognition land |
-| Stability | Dream starts to fragment | Felt settling, deep rootedness | Receive; don't grab |
-| Depth | Dream fully stable | Opening downward and inward | Deliberate choice to go further |
+| Stability | Dream fragments | Felt settling, deep rootedness | Receive; don't grab |
+| Depth | Full stability reached | Opening inward and down | Deliberate choice to go further |
+| Protector | Charged/difficult content | Warm, vast accompaniment | Safety during vulnerable encounters |
+| Retroactive | Across multiple sessions | Through-line, temporal extension | Continuity across the practice |
+
+*The Protector and Retroactive Guardians are covered in their own lessons and built on the foundation established here.*
 
 ---
 

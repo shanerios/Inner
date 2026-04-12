@@ -3,6 +3,8 @@
 
 **Goal:** Plant a felt sense of benevolent witnessing presence before sleep — a recognition mechanism that activates automatically when dream logic begins, without relying on memory or effort.
 
+*This is the first lesson in the Guardian Ecology — a five-part system that develops Recognition, Stability, Depth, Protection, and Continuity as successive aspects of the practitioner's inner field. Begin here. Each subsequent Guardian builds on what this one establishes.*
+
 ---
 
 ## Lore & Context

@@ -150,6 +150,15 @@ export const LEARN_TRACKS = {
         mdPath: require('../learn/content/lucid/protector_guardian.md')
       },
       {
+        id: 'retroactive-guardian',
+        title: 'Mastery: The Retroactive Guardian',
+        level: 'mastery',
+        intentions: ['clarity','reawakening','expansion'],
+        prerequisites: ['three-guardians','protector-guardian'],
+        durationMin: 25,
+        mdPath: require('../learn/content/lucid/retroactive_guardian.md')
+      },
+      {
         id: 'dream-council',
         title: 'Advanced: The Dream Council & Contacting Guides in Lucid Space',
         level: 'advanced',
