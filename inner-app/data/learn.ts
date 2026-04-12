@@ -60,6 +60,24 @@ export const LEARN_TRACKS = {
         mdPath: require('../learn/content/lucid/wbtb_wild.md')
       },
       {
+        id: 'descent-protocol',
+        title: 'The Descent Protocol',
+        level: 'core',
+        intentions: ['calm','clarity','expansion'],
+        prerequisites: ['priming'],
+        durationMin: 20,
+        mdPath: require('../learn/content/lucid/descent_protocol.md')
+      },
+      {
+        id: 'threshold-guardian',
+        title: 'The Threshold Guardian',
+        level: 'core',
+        intentions: ['clarity','reawakening'],
+        prerequisites: ['priming'],
+        durationMin: 20,
+        mdPath: require('../learn/content/lucid/threshold_guardian.md')
+      },
+      {
         id: 'resonance-bridge',
         title: 'The Resonance Bridge',
         level: 'core',
@@ -103,6 +121,33 @@ export const LEARN_TRACKS = {
         prerequisites: ['reality-checks','dream-recall-coding'],
         durationMin: 15,
         mdPath: require('../learn/content/lucid/05_stability.md')
+      },
+      {
+        id: 'shadow-guardian',
+        title: 'Advanced: The Shadow Guardian',
+        level: 'advanced',
+        intentions: ['clarity','reawakening'],
+        prerequisites: ['stabilization'],
+        durationMin: 20,
+        mdPath: require('../learn/content/lucid/shadow_guardian.md')
+      },
+      {
+        id: 'three-guardians',
+        title: 'Advanced: The Three Guardians',
+        level: 'advanced',
+        intentions: ['calm','clarity','expansion'],
+        prerequisites: ['threshold-guardian','stabilization'],
+        durationMin: 25,
+        mdPath: require('../learn/content/lucid/three_guardians.md')
+      },
+      {
+        id: 'protector-guardian',
+        title: 'Advanced: The Protector Guardian',
+        level: 'advanced',
+        intentions: ['healing','grounding'],
+        prerequisites: ['threshold-guardian','stabilization'],
+        durationMin: 20,
+        mdPath: require('../learn/content/lucid/protector_guardian.md')
       },
       {
         id: 'dream-council',
