@@ -12,12 +12,55 @@ export const LEARN_TRACKS = {
         mdPath: require('../learn/content/shared/01_cosmology.md')
       },
       {
+        id: 'sarcophagus-practice',
+        title: 'The Sarcophagus Practice',
+        level: 'intro',
+        intentions: ['calm','grounding'],
+        durationMin: 8,
+        mdPath: require('../learn/content/shared/sarcophagus_practice.md')
+      },
+      {
+        id: 'cultivating-inner-resonance',
+        title: 'Cultivating Inner Resonance',
+        level: 'intro',
+        intentions: ['calm','clarity'],
+        durationMin: 10,
+        mdPath: require('../learn/content/shared/cultivating_inner_resonance.md')
+      },
+      {
+        id: 'reading-the-threshold',
+        title: 'Reading the Threshold',
+        level: 'intro',
+        intentions: ['clarity','expansion'],
+        prerequisites: ['sarcophagus-practice','cultivating-inner-resonance'],
+        durationMin: 12,
+        mdPath: require('../learn/content/shared/reading_the_threshold.md')
+      },
+      {
+        id: 'working-with-resistance',
+        title: 'Working with Resistance',
+        level: 'intro',
+        intentions: ['calm','grounding','healing'],
+        prerequisites: ['reading-the-threshold'],
+        durationMin: 12,
+        mdPath: require('../learn/content/shared/working_with_resistance.md')
+      },
+      {
         id: 'dream-body',
         title: 'The Dream Body & Physical Body',
         level: 'intro',
         intentions: ['grounding','clarity'],
         durationMin: 10,
         mdPath: require('../learn/content/shared/02_dream_body.md')
+      },
+      {
+        id: 'your-first-guardian',
+        title: 'Your First Guardian',
+        level: 'core',
+        intentions: ['clarity','reawakening'],
+        prerequisites: ['reading-the-threshold','working-with-resistance'],
+        durationMin: 15,
+        mdPath: require('../learn/content/shared/your_first_guardian.md')
       },
       {
         id: 'symbols',
