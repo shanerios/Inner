@@ -5,6 +5,7 @@ import * as FileSystem from 'expo-file-system';
 import MarkdownDisplay from 'react-native-markdown-display';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import Chip from '../../components/Chip';
 import FeaturedCard from '../../components/FeaturedCard';
 import * as Haptics from 'expo-haptics';
@@ -162,6 +163,12 @@ export default function LearnHub() {
 
   const bgTranslateYCombined = Animated.add(bgTranslateY, bgIdleY);
 
+  const bgPlayer = useVideoPlayer(require('../../assets/images/learning_hub.mp4'), player => {
+    player.loop = true;
+    player.muted = true;
+    player.play();
+  });
+
   const shadowOpacity = scrollY.interpolate({
     inputRange: [0, 24, 80],
     outputRange: [0, 0.35, 0.6],
@@ -239,6 +246,13 @@ const recentIntentions: string[] = Array.isArray(selectedIntentions) ? selectedI
         } catch {}
       })();
     }, [])
+  );
+
+  useFocusEffect(
+    React.useCallback(() => {
+      bgPlayer.play();
+      return () => { bgPlayer.pause(); };
+    }, [bgPlayer])
   );
 
   const selectFilter = (next: TrackFilter) => {
@@ -348,9 +362,7 @@ const recentIntentions: string[] = Array.isArray(selectedIntentions) ? selectedI
 
   return (
     <View style={{ flex: 1, backgroundColor: 'transparent' }}>
-      <Animated.Image
-        source={require('../../assets/images/learning_hub.png')}
-        resizeMode="cover"
+      <Animated.View
         pointerEvents="none"
         // IMPORTANT: use array style (not object spread) so RN keeps layout correct with transforms
         // Also force full sizing so cover doesn't appear pinned to top-left when animated.
@@ -359,10 +371,20 @@ const recentIntentions: string[] = Array.isArray(selectedIntentions) ? selectedI
           {
             width: '100%',
             height: '100%',
+            overflow: 'hidden',
             transform: [{ translateY: bgTranslateYCombined }],
           },
         ]}
-      />
+      >
+        <VideoView
+          player={bgPlayer}
+          contentFit="cover"
+          style={StyleSheet.absoluteFill}
+          nativeControls={false}
+          allowsFullscreen={false}
+          allowsPictureInPicture={false}
+        />
+      </Animated.View>
       <SafeAreaView style={styles.container} edges={['top','left','right']}>
         {/* Pinned mini-header: caption, title, and filter chips */}
         <View

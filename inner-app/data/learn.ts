@@ -414,6 +414,33 @@ export const LEARN_TRACKS = {
         mdPath: require('../learn/content/obe/sleep_paralysis_gateway.md')
       },
       {
+        id: 'anchor-witness',
+        title: 'The Anchor Witness',
+        level: 'advanced',
+        intentions: ['grounding','calm'],
+        prerequisites: ['vibrational-state','exit-mastery'],
+        durationMin: 20,
+        mdPath: require('../learn/content/obe/anchor_witness.md')
+      },
+      {
+        id: 'clarity-witness',
+        title: 'The Clarity Witness',
+        level: 'advanced',
+        intentions: ['clarity','calm'],
+        prerequisites: ['anchor-witness'],
+        durationMin: 20,
+        mdPath: require('../learn/content/obe/clarity_witness.md')
+      },
+      {
+        id: 'navigation-witness',
+        title: 'The Navigation Witness',
+        level: 'advanced',
+        intentions: ['clarity','expansion'],
+        prerequisites: ['clarity-witness'],
+        durationMin: 20,
+        mdPath: require('../learn/content/obe/navigation_witness.md')
+      },
+      {
         id: 'energetic-locomotion',
         title: 'Advanced: Energetic Locomotion and Moving in the Non-Physical',
         level: 'advanced',
