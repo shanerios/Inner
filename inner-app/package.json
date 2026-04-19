@@ -34,6 +34,7 @@
     "expo-haptics": "^14.1.4",
     "expo-linear-gradient": "~14.1.5",
     "expo-localization": "~16.1.6",
+    "expo-notifications": "~0.31.5",
     "expo-speech": "~13.1.7",
     "expo-status-bar": "~2.2.3",
     "expo-updates": "~0.28.17",

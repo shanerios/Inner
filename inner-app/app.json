@@ -50,6 +50,13 @@
           "icon": "./assets/images/inner_orb_icon.png"
         }
       ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/inner_orb_icon.png"
+        }
+      ],
+
       "expo-font",
       "expo-asset",
       "expo-video",

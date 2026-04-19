@@ -329,6 +329,30 @@ export const TRACKS: TrackMeta[] = [
      isPremium: true,
      paywallKey: CONTINUING_PAYWALL_KEY,
   },
+  {
+    id: 'chamber_eight',
+    title: 'Chamber Eight: Free Flow Corridor',
+    kind: 'chamber',
+    loop: false,
+    durationHintMs: 32 * 60 * 1000,
+    remote: 'https://f005.backblazeb2.com/file/inner-audio/Chambers/chamber_8_hq_ios.m4a',
+    remoteLow: 'https://f005.backblazeb2.com/file/inner-audio/Chambers/chamber_8_64k_ios.m4a',
+    meta: { envId: 'chamber_eight' },
+     isPremium: true,
+     paywallKey: CONTINUING_PAYWALL_KEY,
+  },
+  {
+    id: 'chamber_nine',
+    title: 'Chamber Nine: Inquiry Gate',
+    kind: 'chamber',
+    loop: false,
+    durationHintMs: 38 * 60 * 1000,
+    remote: 'https://f005.backblazeb2.com/file/inner-audio/Chambers/chamber_9_hq_ios.m4a',
+    remoteLow: 'https://f005.backblazeb2.com/file/inner-audio/Chambers/chamber_9_64k_ios.m4a',
+    meta: { envId: 'chamber_nine' },
+     isPremium: true,
+     paywallKey: CONTINUING_PAYWALL_KEY,
+  },
 
   // --- Tone frequency tracks ---
   {

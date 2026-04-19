@@ -17,6 +17,7 @@ import * as FileSystem from 'expo-file-system';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Typography } from '../core/typography';
 import { Typography as _Typography, Body as _Body } from '../core/typography';
+import { scheduleDailyWakeNotification } from '../utils/notifications';
 
 const Body = _Body ?? ({ regular: { ..._Typography.body }, subtle: { ..._Typography.caption } } as const);
 
@@ -70,6 +71,8 @@ export default function SettingsModal({
   // ── Local state ──────────────────────────────────────────────────────────
 
   const [tempName, setTempName] = useState('');
+  const [tempWakeTime, setTempWakeTime] = useState('');
+  const [savedWakeTime, setSavedWakeTime] = useState<string | null>(null);
   const [audioQuality, setAudioQuality] = useState<'low' | 'high'>('high');
 
   // Cache
@@ -97,6 +100,12 @@ export default function SettingsModal({
     AsyncStorage.getItem('audio:quality')
       .then(v => {
         if (v === 'low' || v === 'high') setAudioQuality(v);
+      })
+      .catch(() => {});
+    AsyncStorage.getItem('wakeTime')
+      .then(v => {
+        setSavedWakeTime(v);
+        setTempWakeTime(v ?? '');
       })
       .catch(() => {});
   }, [visible]);
@@ -188,6 +197,7 @@ export default function SettingsModal({
 
   const saveName = useCallback(async () => {
     const trimmed = tempName.trim();
+    const trimmedWake = tempWakeTime.trim();
     try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
     if (trimmed.length > 0) {
       try { await AsyncStorage.setItem('profileName', trimmed); } catch {}
@@ -196,8 +206,14 @@ export default function SettingsModal({
       try { await AsyncStorage.removeItem('profileName'); } catch {}
       onProfileNameSaved(null);
     }
+    if (trimmedWake.length > 0) {
+      try { await AsyncStorage.setItem('wakeTime', trimmedWake); } catch {}
+      await scheduleDailyWakeNotification(trimmedWake);
+    } else {
+      try { await AsyncStorage.removeItem('wakeTime'); } catch {}
+    }
     onClose();
-  }, [tempName, onProfileNameSaved, onClose]);
+  }, [tempName, tempWakeTime, onProfileNameSaved, onClose]);
 
   const setQuality = useCallback(async (q: 'low' | 'high') => {
     try { await Haptics.selectionAsync(); } catch {}
@@ -331,6 +347,52 @@ export default function SettingsModal({
                     }}
                     returnKeyType="done"
                     onSubmitEditing={saveName}
+                  />
+                </View>
+              </View>
+
+              {/* Wake time */}
+              <View style={{ marginBottom: 18 }}>
+                <Text
+                  style={[
+                    Body.subtle,
+                    {
+                      fontFamily: 'Inter-ExtraLight',
+                      fontSize: 14,
+                      color: '#EDEAF6',
+                      textAlign: 'center',
+                      marginBottom: 10,
+                    },
+                  ]}
+                >
+                  When do you return from sleep?
+                </Text>
+
+                <View
+                  style={{
+                    borderRadius: 14,
+                    borderWidth: 1,
+                    borderColor: 'rgba(255,255,255,0.16)',
+                    backgroundColor: 'rgba(8,8,20,0.92)',
+                    paddingHorizontal: 14,
+                    paddingVertical: 9,
+                  }}
+                >
+                  <TextInput
+                    value={tempWakeTime}
+                    onChangeText={setTempWakeTime}
+                    placeholder={savedWakeTime ? savedWakeTime : 'e.g. 7am'}
+                    placeholderTextColor="rgba(198,192,230,0.6)"
+                    style={{
+                      fontFamily: 'Inter-ExtraLight',
+                      fontSize: 14,
+                      color: '#F4F1FF',
+                    }}
+                    returnKeyType="done"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    accessibilityLabel="Wake time"
+                    accessibilityHint="Enter the time you usually wake from sleep"
                   />
                 </View>
               </View>

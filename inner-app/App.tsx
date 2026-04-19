@@ -32,12 +32,21 @@ import { Asset } from 'expo-asset';
 
 import { Audio } from "expo-av";
 import * as FileSystem from 'expo-file-system';
+import * as Notifications from 'expo-notifications';
 import { InteractionManager, AppState, Easing } from 'react-native';
 // import NetInfo from '@react-native-community/netinfo';
 import { initAudioOnce } from './core/initAudio';
 import { initRevenueCatOnce } from './utils/revenueCat';
 // import { TRACKS, getTrackUrl } from './data/tracks';
 // import { cacheRemoteOnce } from './utils/audioCache';
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+});
 
 // Register background playback service for lock screen / BT controls (guarded)
 if (!(globalThis as any).__tp_service_registered) {

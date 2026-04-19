@@ -15,6 +15,13 @@ export const chamberReleaseManifest = {
     releaseDate: "2026-04-01T22:11:00-04:00",
   },
 
-  chamber_eight: { isPublished: false },
-  chamber_nine: { isPublished: false },
+  chamber_eight: {
+    isPublished: true,
+    releaseDate: "2026-04-20T07:00:00-04:00",
+  },
+
+  chamber_nine: {
+    isPublished: true,
+    releaseDate: "2026-05-12T07:00:00-04:00",
+  },
 };

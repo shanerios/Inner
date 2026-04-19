@@ -239,6 +239,25 @@ export default function EssenceScreen() {
           borderColor: 'rgba(255,255,255,0.14)',
           backgroundColor: 'rgba(255,255,255,0.06)',
         },
+        wakeChipsRow: {
+          flexDirection: 'row',
+          flexWrap: 'nowrap',
+          justifyContent: 'center',
+          gap: scale(6),
+          marginBottom: verticalScale(4),
+        },
+        wakeChip: {
+          paddingVertical: verticalScale(4),
+          paddingHorizontal: scale(9),
+          borderRadius: scale(20),
+          borderWidth: 1,
+          borderColor: 'rgba(255,255,255,0.14)',
+          backgroundColor: 'rgba(255,255,255,0.06)',
+        },
+        wakeChipSelected: {
+          backgroundColor: '#CFC3E0',
+          borderColor: 'rgba(255,255,255,0.20)',
+        },
       }),
     [scale, verticalScale],
   );
@@ -296,16 +315,30 @@ export default function EssenceScreen() {
   const namePromptOpacity = useRef(new Animated.Value(0)).current;
   const namePromptTranslate = useRef(new Animated.Value(namePromptLift)).current;
   const namePromptRevealTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Wake time prompt state
+  const [showWakePrompt, setShowWakePrompt] = useState(false);
+  const [selectedWakeChip, setSelectedWakeChip] = useState<string | null>(null);
+  const [customWakeTime, setCustomWakeTime] = useState('');
+  const [showCustomInput, setShowCustomInput] = useState(false);
+  const wakePromptOpacity = useRef(new Animated.Value(0)).current;
+  const wakePromptTranslate = useRef(new Animated.Value(namePromptLift)).current;
+  const wakePromptRevealTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [existingName, dismissed] = await Promise.all([
+        const [existingName, nameDismissed, existingWake, wakeDismissed] = await Promise.all([
           AsyncStorage.getItem('profileName'),
           AsyncStorage.getItem('namePromptDismissed'),
+          AsyncStorage.getItem('wakeTime'),
+          AsyncStorage.getItem('wakePromptDismissed'),
         ]);
         if (cancelled) return;
-        if (!existingName && dismissed !== 'true') {
+        const willShowName = !existingName && nameDismissed !== 'true';
+        const willShowWake = !existingWake && wakeDismissed !== 'true';
+        if (willShowName) {
           namePromptRevealTimeoutRef.current = setTimeout(() => {
             if (cancelled) return;
             setShowNamePrompt(true);
@@ -316,6 +349,18 @@ export default function EssenceScreen() {
               Animated.timing(namePromptTranslate, { toValue: 0, duration: 600, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
             ]).start();
           }, 2000);
+          // Wake prompt follows after name prompt dismisses via triggerWakePrompt()
+        } else if (willShowWake) {
+          wakePromptRevealTimeoutRef.current = setTimeout(() => {
+            if (cancelled) return;
+            setShowWakePrompt(true);
+            wakePromptOpacity.setValue(0);
+            wakePromptTranslate.setValue(namePromptLiftRef.current);
+            Animated.parallel([
+              Animated.timing(wakePromptOpacity, { toValue: 1, duration: 600, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+              Animated.timing(wakePromptTranslate, { toValue: 0, duration: 600, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+            ]).start();
+          }, 2000);
         }
       } catch {}
     })();
@@ -324,6 +369,10 @@ export default function EssenceScreen() {
       if (namePromptRevealTimeoutRef.current) {
         clearTimeout(namePromptRevealTimeoutRef.current);
         namePromptRevealTimeoutRef.current = null;
+      }
+      if (wakePromptRevealTimeoutRef.current) {
+        clearTimeout(wakePromptRevealTimeoutRef.current);
+        wakePromptRevealTimeoutRef.current = null;
       }
     };
   }, []);
@@ -449,6 +498,25 @@ useEffect(() => {
     loadIntentions();
   }, [ctxIntentions]);
 
+  const triggerWakePrompt = async () => {
+    try {
+      const [existingWake, wakeDismissed] = await Promise.all([
+        AsyncStorage.getItem('wakeTime'),
+        AsyncStorage.getItem('wakePromptDismissed'),
+      ]);
+      if (existingWake || wakeDismissed === 'true') return;
+    } catch {}
+    wakePromptRevealTimeoutRef.current = setTimeout(() => {
+      setShowWakePrompt(true);
+      wakePromptOpacity.setValue(0);
+      wakePromptTranslate.setValue(namePromptLiftRef.current);
+      Animated.parallel([
+        Animated.timing(wakePromptOpacity, { toValue: 1, duration: 600, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+        Animated.timing(wakePromptTranslate, { toValue: 0, duration: 600, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      ]).start();
+    }, 1000);
+  };
+
   const persistName = async () => {
     const trimmed = nameValue.trim();
     if (trimmed.length > 0) {
@@ -458,7 +526,7 @@ useEffect(() => {
     Animated.parallel([
       Animated.timing(namePromptOpacity, { toValue: 0, duration: 420, easing: Easing.out(Easing.quad), useNativeDriver: true }),
       Animated.timing(namePromptTranslate, { toValue: -namePromptDismissShift, duration: 420, easing: Easing.out(Easing.quad), useNativeDriver: true }),
-    ]).start(() => setShowNamePrompt(false));
+    ]).start(() => { setShowNamePrompt(false); triggerWakePrompt(); });
   };
 
   const skipName = async () => {
@@ -466,7 +534,28 @@ useEffect(() => {
     Animated.parallel([
       Animated.timing(namePromptOpacity, { toValue: 0, duration: 320, easing: Easing.out(Easing.quad), useNativeDriver: true }),
       Animated.timing(namePromptTranslate, { toValue: -namePromptDismissShift, duration: 320, easing: Easing.out(Easing.quad), useNativeDriver: true }),
-    ]).start(() => setShowNamePrompt(false));
+    ]).start(() => { setShowNamePrompt(false); triggerWakePrompt(); });
+  };
+
+  const dismissWakePrompt = () => {
+    Animated.parallel([
+      Animated.timing(wakePromptOpacity, { toValue: 0, duration: 420, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+      Animated.timing(wakePromptTranslate, { toValue: -namePromptDismissShift, duration: 420, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+    ]).start(() => setShowWakePrompt(false));
+  };
+
+  const persistWakeTime = async () => {
+    const timeToSave = selectedWakeChip === 'Other' ? customWakeTime.trim() : selectedWakeChip;
+    if (timeToSave && timeToSave.length > 0) {
+      try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+      try { await AsyncStorage.setItem('wakeTime', timeToSave); } catch {}
+    }
+    dismissWakePrompt();
+  };
+
+  const skipWake = async () => {
+    try { await AsyncStorage.setItem('wakePromptDismissed', 'true'); } catch {}
+    dismissWakePrompt();
   };
 
   return (
@@ -572,7 +661,7 @@ useEffect(() => {
 
       {!!personalizedAffirmation && (
         <View style={styles.descriptionWrapper}>
-          <Animated.View style={{ opacity: Animated.multiply(descriptionOpacity, showNamePrompt ? 0.35 : 1) }}>
+          <Animated.View style={{ opacity: Animated.multiply(descriptionOpacity, (showNamePrompt || showWakePrompt) ? 0.35 : 1) }}>
             <View
               style={styles.descriptionSheenHost}
               onLayout={e => setDescWidth(e.nativeEvent.layout.width)}
@@ -681,6 +770,93 @@ useEffect(() => {
                     left: scale(8),
                     right: scale(8),
                   }}
+                >
+                  <Text style={[Typography.subtle, { fontFamily: 'Inter-ExtraLight', color: '#F0EEF8', opacity: 0.85 }]}>Skip</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </Animated.View>
+        </KeyboardAvoidingView>
+      )}
+
+      {showWakePrompt && (
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={[
+            styles.nameOverlayWrap,
+            {
+              top: Math.max(verticalScale(148), Math.round(windowHeight * 0.22) + verticalScale(24)),
+            },
+          ]}
+          pointerEvents="box-none"
+        >
+          <Animated.View
+            style={[
+              styles.nameOverlay,
+              { opacity: wakePromptOpacity, transform: [{ translateY: wakePromptTranslate }] },
+            ]}
+          >
+            <View style={styles.nameBackdrop}>
+              <Text
+                style={[Typography.subtle, { color: '#D6D3E6', marginBottom: verticalScale(4), textAlign: 'center' }]}
+              >
+                When do you return from sleep?
+              </Text>
+              <Text
+                style={[Typography.subtle, { fontFamily: 'Inter-ExtraLight', color: '#D6D3E6', opacity: 0.65, marginBottom: verticalScale(10), textAlign: 'center' }]}
+              >
+                A reminder will meet you at the threshold.
+              </Text>
+              <View style={styles.wakeChipsRow}>
+                {(['6am', '7am', '8am', '9am', 'Other'] as const).map(chip => (
+                  <TouchableOpacity
+                    key={chip}
+                    style={[styles.wakeChip, selectedWakeChip === chip && styles.wakeChipSelected]}
+                    onPress={() => {
+                      setSelectedWakeChip(chip);
+                      setShowCustomInput(chip === 'Other');
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel={chip === 'Other' ? 'Enter custom wake time' : `Select ${chip} wake time`}
+                  >
+                    <Text style={[Typography.subtle, { color: selectedWakeChip === chip ? '#1F233A' : '#F0EEF8', opacity: selectedWakeChip === chip ? 1 : 0.8 }]}>
+                      {chip}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              {showCustomInput && (
+                <TextInput
+                  value={customWakeTime}
+                  onChangeText={setCustomWakeTime}
+                  placeholder="e.g. 10am, 6:30am"
+                  placeholderTextColor="rgba(240,238,248,0.5)"
+                  style={[styles.nameInput, { marginTop: verticalScale(8) }]}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  returnKeyType="done"
+                  onSubmitEditing={persistWakeTime}
+                  accessibilityLabel="Custom wake time"
+                  accessibilityHint="Enter a time in any format, e.g. 10am"
+                />
+              )}
+              <View style={styles.nameActions}>
+                <TouchableOpacity
+                  onPress={persistWakeTime}
+                  style={styles.nameSaveBtn}
+                  accessibilityRole="button"
+                  accessibilityLabel="Save wake time"
+                  hitSlop={{ top: verticalScale(8), bottom: verticalScale(8), left: scale(8), right: scale(8) }}
+                >
+                  <Text style={[Typography.subtle, { color: '#1F233A' }]}>Save</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={skipWake}
+                  style={styles.nameSkipBtn}
+                  accessibilityRole="button"
+                  accessibilityLabel="Skip wake time"
+                  accessibilityHint="You can set a wake time later in Settings"
+                  hitSlop={{ top: verticalScale(8), bottom: verticalScale(8), left: scale(8), right: scale(8) }}
                 >
                   <Text style={[Typography.subtle, { fontFamily: 'Inter-ExtraLight', color: '#F0EEF8', opacity: 0.85 }]}>Skip</Text>
                 </TouchableOpacity>
