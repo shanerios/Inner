@@ -37,8 +37,8 @@ const CHAMBERS = [
   { id: 'chamber_five',  label: 'Chamber 5 • Remembrance Code',      colors: ['#171314', '#5b4a26'] },
   { id: 'chamber_six',   label: 'Chamber 6 • Transcendence Veil',    subtitle: 'Reveals more over time.', colors: ['#171b2a', '#364a6a'] },
   { id: 'chamber_seven', label: 'Chamber 7 • Return to Light',       subtitle: 'The light after the veil.',colors: ['#20161c', '#51352a'] },
-  { id: 'chamber_eight', label: 'Chamber 8 • Free Flow Corridor',    colors: ['#1a1a24', '#3a3a6a'] },
-  { id: 'chamber_nine',  label: 'Chamber 9 • Inquiry Gate (Mirror)', colors: ['#1f1b14', '#5a4d2e'] },
+  { id: 'chamber_eight', label: 'Chamber 8 • Free Flow Corridor',    subtitle: 'No path, only presence.', colors: ['#1a1a24', '#3a3a6a'] },
+  { id: 'chamber_nine',  label: 'Chamber 9 • Inquiry Gate (Mirror)', subtitle: 'What remains is you.', colors: ['#1f1b14', '#5a4d2e'] },
 ];
 
 // --- Chambers Info ---
