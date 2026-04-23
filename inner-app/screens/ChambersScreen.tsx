@@ -352,7 +352,6 @@ export default function ChambersScreen() {
   const EDGE_GUARD = 10; // slightly smaller edge guard
   const startXRef = React.useRef(0);
   const listRef = React.useRef<FlatList<any>>(null);
-  const native = React.useMemo(() => Gesture.Native(), []);
 
   // Pre-cache a few chambers for faster first play
   usePrecacheTracks({ kind: ['chamber'], limit: 3 });
@@ -453,82 +452,6 @@ export default function ChambersScreen() {
     });
   };
 
-  const panToHome = useMemo(
-    () =>
-      Gesture.Pan()
-        .runOnJS(true)
-        .simultaneousWithExternalGesture(native)
-        .activeOffsetX([-10, 10])
-        .minDistance(10)
-        .onStart((e) => {
-          // @ts-ignore
-          startXRef.current = (e as any).absoluteX ?? 0;
-          debugLog('[CHAMBERS PAN] startX =', startXRef.current);
-        })
-        .onBegin(() => { debugLog('[CHAMBERS PAN] begin'); })
-        .onUpdate(async (e) => {
-          // @ts-ignore
-          const dx = (e as any).translationX ?? 0; // + right, - left
-          debugLog('[CHAMBERS PAN] dx =', dx);
-          const startX = startXRef.current;
-          if (startX < EDGE_GUARD || startX > SCREEN_W - EDGE_GUARD) return;
-          if (dx >= SWIPE_THRESHOLD) {
-            debugLog('[CHAMBERS PAN] navigating → Home (update)');
-            try { await Haptics.selectionAsync(); } catch {}
-            navigation.navigate('Home' as never);
-          }
-        })
-        .onEnd(async (e) => {
-          // @ts-ignore
-          const dx = (e as any).translationX ?? 0;
-          debugLog('[CHAMBERS PAN] end dx =', dx);
-          const startX = startXRef.current;
-          if (startX < EDGE_GUARD || startX > SCREEN_W - EDGE_GUARD) return;
-          if (dx >= SWIPE_THRESHOLD) {
-            debugLog('[CHAMBERS PAN] navigating → Home (end)');
-            try { await Haptics.selectionAsync(); } catch {}
-            navigation.navigate('Home' as never);
-          }
-        }),
-    [SCREEN_W, navigation, debugLog]
-  );
-
-  // Fallback quick fling right → Home
-  const flingRight = useMemo(
-    () =>
-      Gesture.Fling()
-        .runOnJS(true)
-        .simultaneousWithExternalGesture(native)
-        .direction(Directions.RIGHT)
-        .numberOfPointers(1)
-        .onStart(async (e) => {
-          // @ts-ignore
-          const absX = (e as any).absoluteX ?? 0;
-          if (absX < EDGE_GUARD || absX > SCREEN_W - EDGE_GUARD) return;
-          debugLog('[CHAMBERS FLING RIGHT] navigating → Home');
-          try { await Haptics.selectionAsync(); } catch {}
-          navigation.navigate('Home' as never);
-        }),
-    [SCREEN_W, navigation, debugLog]
-  );
-
-  // Diagnostic tap: should always fire on touch (for debugging recognition)
-  const tapDiag = useMemo(
-    () =>
-      Gesture.Tap()
-        .runOnJS(true)
-        .maxDuration(9999)
-        .onStart(() => {
-          debugLog('[CHAMBERS TAP] touch detected');
-        }),
-    [debugLog]
-  );
-
-  const gesture = useMemo(
-    () => (DEBUG_GESTURES ? Gesture.Race(tapDiag, panToHome, flingRight) : Gesture.Race(panToHome, flingRight)),
-    [DEBUG_GESTURES, tapDiag, panToHome, flingRight]
-  );
-
   // --- Header-only gesture strip (guaranteed capture in top area) ---
   const headerPan = useMemo(
     () =>
@@ -605,13 +528,12 @@ export default function ChambersScreen() {
           }}
         />
       </GestureDetector>
-      <GestureDetector gesture={gesture}>
-        <View
-          accessible={false}
-          importantForAccessibility={showInfo ? 'no-hide-descendants' : 'auto'}
-          accessibilityElementsHidden={showInfo}
-          style={styles.container}
-        >
+      <View
+        accessible={false}
+        importantForAccessibility={showInfo ? 'no-hide-descendants' : 'auto'}
+        accessibilityElementsHidden={showInfo}
+        style={styles.container}
+      >
           <View
             style={StyleSheet.absoluteFill}
             pointerEvents="none"
@@ -818,6 +740,7 @@ export default function ChambersScreen() {
             );
           }}
           showsVerticalScrollIndicator={false}
+          nestedScrollEnabled
           accessibilityRole="list"
           accessibilityLabel="Chambers list"
           accessibilityHint="Swipe to browse Chambers. Double tap a Chamber to open it."
@@ -1130,7 +1053,6 @@ export default function ChambersScreen() {
           </View>
         </Modal>
         </View>
-      </GestureDetector>
     </GestureHandlerRootView>
   );
 }
