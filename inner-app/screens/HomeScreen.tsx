@@ -508,6 +508,8 @@ export default function HomeScreen({ navigation, route }: any) {
   // Press feedback for orb (multiplies with breathing scale)
 const portalPress = useRef(new Animated.Value(0)).current;
 const portalPressScale = portalPress.interpolate({ inputRange: [0, 1], outputRange: [1, 1.08] });
+  // Lavender glow overlay for orb — pulses on return from Aeris screen
+  const aerisGlow = useRef(new Animated.Value(0)).current;
 
   // --- Embers / Inner Pulse unlock state ---
   const [emberState, setEmberState] = React.useState<EmberState | null>(null);
@@ -1655,6 +1657,8 @@ const ORB_TOP =
   const sigilPressR = useRef(new Animated.Value(0)).current;
   const sigilPressScaleL = sigilPressL.interpolate({ inputRange: [0, 1], outputRange: [1, 1.04] });
   const sigilPressScaleR = sigilPressR.interpolate({ inputRange: [0, 1], outputRange: [1, 1.04] });
+  // Dedicated nav-tap scale for the Aeris sigil (1 → 1.15 → 1 on press)
+  const aerisNavSigilScale = useRef(new Animated.Value(1)).current;
 
   // Smoothly reduce hum volume as user descends (depth 0->1 maps 0.50 -> 0.35),
 // but keep it dropped when Inner Pulse is active so the heartbeat can be heard.
@@ -1879,6 +1883,26 @@ useEffect(() => {
       orbTapTimeoutRef.current = null;
     }
   }, []);
+
+  // Soft lavender orb glow when returning from Aeris
+  useFocusEffect(
+    useCallback(() => {
+      AsyncStorage.getItem('aerisJustClosed')
+        .then((val) => {
+          if (val !== 'true') return;
+          AsyncStorage.removeItem('aerisJustClosed').catch(() => {});
+          aerisGlow.stopAnimation();
+          aerisGlow.setValue(0);
+          Animated.sequence([
+            Animated.timing(aerisGlow, { toValue: 0.15, duration: 800, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+            Animated.timing(aerisGlow, { toValue: 0.07, duration: 600, useNativeDriver: true }),
+            Animated.timing(aerisGlow, { toValue: 0.12, duration: 400, useNativeDriver: true }),
+            Animated.timing(aerisGlow, { toValue: 0,    duration: 700, useNativeDriver: true }),
+          ]).start();
+        })
+        .catch(() => {});
+    }, [aerisGlow])
+  );
 
   // Fade/slide in the welcome message on mount
   useEffect(() => {
@@ -2815,6 +2839,22 @@ const openInnerFlame = useCallback(async () => {
             },
           ]}
         />
+        {/* Aeris continuity glow — lavender pulse over orb on return from Aeris */}
+        <Animated.View
+          pointerEvents="none"
+          style={{
+            position: 'absolute',
+            left: ORB_LEFT,
+            top: ORB_TOP,
+            width: ORB_WIDTH,
+            height: ORB_WIDTH,
+            borderRadius: ORB_WIDTH / 2,
+            backgroundColor: 'rgba(181, 169, 255, 1)',
+            opacity: aerisGlow,
+          }}
+        />
+
+
         {/* Orb spotlight beacon — sized to visual orb bounds, not the hit area */}
         <AttachStep
           index={0}
@@ -3042,7 +3082,7 @@ const openInnerFlame = useCallback(async () => {
             top: SIGIL_RIGHT_TOP,
             width: SIGIL_SIZE,
             height: SIGIL_SIZE,
-            transform: [{ scale: Animated.multiply(sigilScaleR, sigilPressScaleR) }],
+            transform: [{ scale: Animated.multiply(Animated.multiply(sigilScaleR, sigilPressScaleR), aerisNavSigilScale) }],
             opacity: sigilOpacityR,
             zIndex: 56,
             elevation: 56,
@@ -3050,17 +3090,28 @@ const openInnerFlame = useCallback(async () => {
           pointerEvents="box-none"
         >
           <Pressable
-            onPress={async () => {
-              try { await Haptics.selectionAsync(); } catch {}
-              try {
-                navigation.navigate('Community');
-              } catch (e) {
-                __DEV__ && console.log('[Nav] Community route missing, implement screen route:', e);
-              }
+            onPress={() => {
+              try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {}); } catch {}
+              aerisNavSigilScale.stopAnimation();
+              aerisNavSigilScale.setValue(1);
+              portalPress.stopAnimation();
+              portalPress.setValue(0);
+              Animated.parallel([
+                Animated.sequence([
+                  Animated.timing(aerisNavSigilScale, { toValue: 1.15, duration: 300, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+                  Animated.timing(aerisNavSigilScale, { toValue: 1, duration: 420, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+                ]),
+                Animated.sequence([
+                  Animated.timing(portalPress, { toValue: -0.625, duration: 300, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+                  Animated.timing(portalPress, { toValue: 0, duration: 420, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+                ]),
+              ]).start(() => {
+                try { navigation.navigate('Aeris'); } catch {}
+              });
             }}
             hitSlop={12}
             accessibilityRole="button"
-            accessibilityLabel="Open Community"
+            accessibilityLabel="Open Aeris"
             style={{ flex: 1 }}
             onPressIn={async () => {
               try { await Haptics.selectionAsync(); } catch {}

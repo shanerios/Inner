@@ -28,6 +28,7 @@ import PointZeroScreen from './screens/PointZeroScreen';
 import CleanSlateScreen from './screens/CleanSlateScreen';
 import InnerFlameScreen from './screens/InnerFlameScreen';
 import DailyRitualScreen from './screens/DailyRitualScreen';
+import AerisScreen from './screens/AerisScreen';
 import { Asset } from 'expo-asset';
 
 import { Audio } from "expo-av";
@@ -120,6 +121,7 @@ type RootStackParamList = {
   JourneyPicker: undefined;
   JourneyPlayer: { trackId?: string; chamber?: string } | undefined;
   Glossary: { trackId: 'lucid' | 'obe' };
+  Aeris: undefined;
 };
 
 const Stack = createStackNavigator<RootStackParamList>();
@@ -431,6 +433,37 @@ export default Sentry.wrap(function App() {
                 <Stack.Screen name="CleanSlate" component={CleanSlateScreen} options={{ headerShown: false }} />
                 <Stack.Screen name="InnerFlame" component={InnerFlameScreen} options={{ headerShown: false }} />
                 <Stack.Screen name="DailyRitual" component={DailyRitualScreen} options={{ headerShown: false }} />
+                <Stack.Screen
+                  name="Aeris"
+                  component={AerisScreen}
+                  listeners={{
+                    transitionStart: (e) => {
+                      // @ts-ignore
+                      if (e?.data?.closing) return;
+                      try {
+                        (globalThis as any).__fog?.show?.();
+                        (globalThis as any).__fog?.boost?.(0.08, 1200);
+                        setTimeout(() => (globalThis as any).__fog?.hide?.(), 1200);
+                      } catch {}
+                    },
+                    focus: () => {
+                      try {
+                        (globalThis as any).__fog?.show?.();
+                        (globalThis as any).__fog?.boost?.(0.06, 900);
+                        setTimeout(() => (globalThis as any).__fog?.hide?.(), 900);
+                      } catch {}
+                    },
+                  }}
+                  options={{
+                    headerShown: false,
+                    cardOverlayEnabled: true,
+                    cardStyleInterpolator: veilLiftInterpolator,
+                    transitionSpec: {
+                      open:  { animation: 'timing', config: { duration: 900, easing: Easing.out(Easing.cubic) } },
+                      close: { animation: 'timing', config: { duration: 600, easing: Easing.out(Easing.cubic) } },
+                    },
+                  }}
+                />
               </Stack.Navigator>
               <FogTransitionOverlay
                 visible={fogVisible}
