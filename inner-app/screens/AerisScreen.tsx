@@ -49,24 +49,36 @@ const CHAMBER_RE = /Chamber\s+(?:One|Two|Three|Four|Five|Six|Seven|Eight|Nine|[1
 
 // ── Module-level helpers ──────────────────────────────────────────────────────
 
+function stripMarkdown(text: string): string {
+  return text
+    .replace(/\*\*(.*?)\*\*/g, '$1')
+    .replace(/\*(.*?)\*/g, '$1')
+    .replace(/^#{1,6}\s/gm, '')
+    .replace(/^[-•]\s/gm, '')
+    .trim();
+}
+
 function parseSegments(text: string): string[] {
-  const byDouble = text.split(/\n\n+/).map((s) => s.trim()).filter(Boolean);
+  // Strip bullet/list chars before splitting so they don't produce standalone segments
+  const cleaned = text.replace(/^[-•]\s/gm, '');
+  const byDouble = cleaned.split(/\n\n+/).map((s) => s.trim()).filter(Boolean);
   if (byDouble.length >= 2) return byDouble;
-  const bySentence = text.match(/[^.!?]*[.!?]+(?:\s|$)/g);
+  const bySentence = cleaned.match(/[^.!?]*[.!?]+(?:\s|$)/g);
   if (bySentence && bySentence.length >= 2) {
     return bySentence.map((s) => s.trim()).filter(Boolean);
   }
-  return [text];
+  return [cleaned];
 }
 
 function renderInlineSegment(text: string): React.ReactNode[] {
+  const stripped = stripMarkdown(text);
   const parts: React.ReactNode[] = [];
   let lastIndex = 0;
   const re = new RegExp(CHAMBER_RE.source, 'gi');
   let match: RegExpExecArray | null;
   let key = 0;
-  while ((match = re.exec(text)) !== null) {
-    if (match.index > lastIndex) parts.push(text.slice(lastIndex, match.index));
+  while ((match = re.exec(stripped)) !== null) {
+    if (match.index > lastIndex) parts.push(stripped.slice(lastIndex, match.index));
     const name = match[0];
     parts.push(
       <Text
@@ -79,7 +91,7 @@ function renderInlineSegment(text: string): React.ReactNode[] {
     );
     lastIndex = match.index + match[0].length;
   }
-  if (lastIndex < text.length) parts.push(text.slice(lastIndex));
+  if (lastIndex < stripped.length) parts.push(stripped.slice(lastIndex));
   return parts;
 }
 
@@ -337,9 +349,6 @@ export default function AerisScreen() {
       const visible = segments.slice(0, item.visibleSegments);
       return (
         <View style={styles.aerisRow}>
-          <View style={styles.aerisIndicator}>
-            <View style={styles.aerisIndicatorDot} />
-          </View>
           <View style={styles.segmentsColumn}>
             {visible.map((seg, i) => {
               const textNode = (
@@ -468,9 +477,6 @@ export default function AerisScreen() {
             ListFooterComponent={
               loading ? (
                 <View style={styles.aerisRow}>
-                  <View style={styles.aerisIndicator}>
-                    <View style={[styles.aerisIndicatorDot, { opacity: 0.5 }]} />
-                  </View>
                   <LoadingDots />
                 </View>
               ) : null
@@ -594,7 +600,7 @@ const styles = StyleSheet.create({
   },
   aerisText: {
     fontFamily: 'CalSans-Regular',
-    fontSize: 17,
+    fontSize: 15,
     lineHeight: 28,
     color: 'rgba(237,234,246,0.90)',
     fontStyle: 'italic',
