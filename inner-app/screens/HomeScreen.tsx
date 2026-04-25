@@ -44,6 +44,8 @@ import { useThreadSuggestion } from '../hooks/useThreadSuggestion';
 import { useWalkthrough } from '../hooks/useWalkthrough';
 import { useScale } from '../utils/scale';
 import LunarWhisperModal from '../src/lunar/LunarWhisperModal';
+import ReviewPromptModal from '../components/ReviewPromptModal';
+import { useReviewScore } from '../hooks/useReviewScore';
 import { orbMoonImages } from '../src/ui/orbMoonImages';
 const Body = _Body ?? ({ regular: { ..._Typography.body }, subtle: { ..._Typography.caption } } as const);
 import { SpotlightTourProvider, AttachStep, TourStep, SpotlightTour, offset, shift, flip } from 'react-native-spotlight-tour';
@@ -970,6 +972,18 @@ React.useEffect(() => {
 
   // Lunar Whisper modal (long‑press orb)
   const [showLunarModal, setShowLunarModal] = React.useState(false);
+
+  // Review prompt
+  const [showReviewPrompt, setShowReviewPrompt] = React.useState(false);
+  const { checkAndPrompt } = useReviewScore();
+  useEffect(() => {
+    const t = setTimeout(async () => {
+      const should = await checkAndPrompt();
+      if (should) setShowReviewPrompt(true);
+    }, 3000);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   // Simple open — SettingsModal handles its own init via useEffect(visible)
   const openSettings = useCallback(() => {
     setShowSettings(true);
@@ -3842,6 +3856,10 @@ const openInnerFlame = useCallback(async () => {
         onInnerPulseToggle={setInnerPulseEnabled}
         weeklyEmbers={weeklyEmbers}
         totalEmbers={totalEmbers}
+      />
+      <ReviewPromptModal
+        visible={showReviewPrompt}
+        onDismiss={() => setShowReviewPrompt(false)}
       />
     </View>
     </GestureDetector>

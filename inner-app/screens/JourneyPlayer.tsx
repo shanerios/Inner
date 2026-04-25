@@ -29,6 +29,7 @@ import { ENTITLEMENT_ID } from '../src/core/subscriptions/constants';
 
 import { useSleepTimer } from '../hooks/useSleepTimer';
 import { useSleepTimerCountdown } from '../hooks/useSleepTimerCountdown';
+import { addReviewScore } from '../hooks/useReviewScore';
 import { useScale } from '../utils/scale';
 import { usePostHog } from 'posthog-react-native';
 
@@ -1205,8 +1206,18 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
               completion_threshold: CHAMBER_COMPLETION_THRESHOLD,
             });
           }
+          if (shouldMarkComplete(posMs, durMs)) {
+            addReviewScore(3).catch(() => {});
+          }
         } catch {}
       }
+
+      // Session duration > 20 min earns engagement score
+      try {
+        if (posMs > 20 * 60 * 1000) {
+          addReviewScore(2).catch(() => {});
+        }
+      } catch {}
 
       // Save snapshot
       try {

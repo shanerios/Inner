@@ -12,6 +12,7 @@ import { learn_tracks } from '../../data/learn';
 import { Typography } from '../../core/typography';
 import { registerPracticeActivity } from '../../core/DailyRitual';
 import { saveThreadSignature } from '../../src/core/threading/ThreadEngine';
+import { addReviewScore } from '../../hooks/useReviewScore';
 import { ThreadTier } from '../../src/core/threading/threadTypes';
 import { usePostHog } from 'posthog-react-native';
 
@@ -216,6 +217,7 @@ export default function LessonReader() {
       } catch {
         // streak logging is best-effort only
       }
+      addReviewScore(1).catch(() => {});
       // Journey Threading v1: record this lesson as the last completed step
       try {
         const tier = getLessonTier(trackId, lessonId);

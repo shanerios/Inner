@@ -9,6 +9,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { usePostHog } from 'posthog-react-native';
 import { getEntry, saveEntry, deleteEntry, JournalEntry } from '../core/journalRepo';
 import { requestNotificationPermission, scheduleDailyWakeNotification } from '../utils/notifications';
+import { addReviewScore } from '../hooks/useReviewScore';
 import { useBreath } from '../core/BreathProvider';
 import { Typography, Body as _Body } from '../core/typography';
 const Body = _Body ?? ({ regular: { ...Typography.body }, subtle: { ...Typography.caption } } as const);
@@ -128,6 +129,7 @@ export default function JournalEntryScreen({ route, navigation }: Props) {
   const saveTimer = useRef<any>(null);
   const notifAttemptedRef = useRef(false);
   const entryCountedRef = useRef(false);
+  const reviewScoreAwardedRef = useRef(false);
 
   const posthog = usePostHog();
   const breath = useBreath();
@@ -235,6 +237,10 @@ export default function JournalEntryScreen({ route, navigation }: Props) {
       setEntry(updated);
       setSaveState('saved');
       setTimeout(() => setSaveState('idle'), 1200);
+      if (!reviewScoreAwardedRef.current) {
+        reviewScoreAwardedRef.current = true;
+        addReviewScore(3).catch(() => {});
+      }
       if (!notifAttemptedRef.current) {
         try {
           if (!entryCountedRef.current) {

@@ -37,6 +37,7 @@
     "expo-notifications": "~0.31.5",
     "expo-speech": "~13.1.7",
     "expo-status-bar": "~2.2.3",
+    "expo-store-review": "~8.1.5",
     "expo-updates": "~0.28.17",
     "expo-video": "~2.2.2",
     "getenv": "^2.0.0",
