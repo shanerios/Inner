@@ -10,7 +10,7 @@ function uuidv4(): string {
   });
 }
 
-export type JournalKind = 'dream' | 'astral' | 'note';
+export type JournalKind = 'dream' | 'astral' | 'note' | 'chamber';
 
 export type JournalEntry = {
   id: string;
@@ -21,6 +21,8 @@ export type JournalEntry = {
   intentionTags?: string[]; // e.g. ['calm','clarity']
   mood?: number;            // 1..5
   kind?: JournalKind;
+  chamberId?: string;       // set when kind === 'chamber'
+  chamberTitle?: string;    // human-readable title of the chamber session
 };
 
 const INDEX_KEY = 'journal:index';

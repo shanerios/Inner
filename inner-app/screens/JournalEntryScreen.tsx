@@ -1,16 +1,19 @@
 // screens/JournalEntryScreen.tsx
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, Pressable, Alert, KeyboardAvoidingView, Platform, ScrollView, Animated } from 'react-native';
+import { View, Text, TextInput, StyleSheet, TouchableOpacity, Pressable, Alert, KeyboardAvoidingView, Platform, ScrollView, Animated, Easing } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useHeaderHeight } from '@react-navigation/elements';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { usePostHog } from 'posthog-react-native';
 import { getEntry, saveEntry, deleteEntry, JournalEntry } from '../core/journalRepo';
 import { requestNotificationPermission, scheduleDailyWakeNotification } from '../utils/notifications';
 import { useBreath } from '../core/BreathProvider';
 import { Typography, Body as _Body } from '../core/typography';
 const Body = _Body ?? ({ regular: { ...Typography.body }, subtle: { ...Typography.caption } } as const);
+
+type Props = { navigation: any; route: any };
 
 function fmtDate(ts: number) {
   const d = new Date(ts);
@@ -100,7 +103,7 @@ function buildSuggestedTitle(bodyText: string) {
 }
 
 export default function JournalEntryScreen({ route, navigation }: Props) {
-  const { id, isNew } = route.params || {};
+  const { id, isNew, prefillBody, kind: routeKind } = route.params || {};
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
 
@@ -108,6 +111,12 @@ export default function JournalEntryScreen({ route, navigation }: Props) {
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [dreamSigns, setDreamSigns] = useState<string[]>([]);
+  const [chamberId, setChamberId] = useState<string | undefined>(undefined);
+  const [chamberTitle, setChamberTitle] = useState<string | undefined>(undefined);
+
+  // Tracks whether the body currently shows a prefill placeholder
+  const isPrefillActiveRef = useRef(false);
+  const [prefillActive, setPrefillActive] = useState(false);
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle');
   const saveStateOpacity = useRef(new Animated.Value(0)).current;
   const bodyInputRef = useRef<TextInput | null>(null);
@@ -120,6 +129,7 @@ export default function JournalEntryScreen({ route, navigation }: Props) {
   const notifAttemptedRef = useRef(false);
   const entryCountedRef = useRef(false);
 
+  const posthog = usePostHog();
   const breath = useBreath();
   const veilOpacity = breath.interpolate({ inputRange: [0, 1], outputRange: [0.00, 0.06] });
 
@@ -138,7 +148,12 @@ export default function JournalEntryScreen({ route, navigation }: Props) {
   const load = useCallback(async () => {
     const e = await getEntry(id);
     if (e) {
-      let hydrated = e as JournalEntry & { dreamSigns?: string[]; captureMinutesFromWake?: number | null };
+      let hydrated = e as JournalEntry & {
+        dreamSigns?: string[];
+        captureMinutesFromWake?: number | null;
+        chamberId?: string;
+        chamberTitle?: string;
+      };
 
       if (hydrated.captureMinutesFromWake == null) {
         try {
@@ -156,10 +171,20 @@ export default function JournalEntryScreen({ route, navigation }: Props) {
 
       setEntry(hydrated);
       setTitle(hydrated.title || '');
-      setBody(hydrated.body || '');
       setDreamSigns((hydrated as any).dreamSigns || []);
+      setChamberId(hydrated.chamberId);
+      setChamberTitle(hydrated.chamberTitle);
+
+      // Prefill body acts as a dismissable placeholder — clear on first edit
+      if (prefillBody && !hydrated.body) {
+        setBody(prefillBody);
+        isPrefillActiveRef.current = true;
+        setPrefillActive(true);
+      } else {
+        setBody(hydrated.body || '');
+      }
     }
-  }, [id]);
+  }, [id, prefillBody]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -191,7 +216,7 @@ export default function JournalEntryScreen({ route, navigation }: Props) {
     if (saveTimer.current) clearTimeout(saveTimer.current);
     setSaveState('saving');
     saveTimer.current = setTimeout(async () => {
-      const updated: JournalEntry = { ...entry, title, body, dreamSigns };
+      const updated: JournalEntry = { ...entry, title, body, dreamSigns, chamberId, chamberTitle };
       await saveEntry(updated);
       setEntry(updated);
       setSaveState('saved');
@@ -205,7 +230,7 @@ export default function JournalEntryScreen({ route, navigation }: Props) {
     if (saveTimer.current) clearTimeout(saveTimer.current);
     setSaveState('saving');
     saveTimer.current = setTimeout(async () => {
-      const updated: JournalEntry = { ...entry, title, body, dreamSigns };
+      const updated: JournalEntry = { ...entry, title, body, dreamSigns, chamberId, chamberTitle };
       await saveEntry(updated);
       setEntry(updated);
       setSaveState('saved');
@@ -253,6 +278,34 @@ export default function JournalEntryScreen({ route, navigation }: Props) {
     }).start();
   }, [saveState, saveStateOpacity]);
 
+  // RETURN label — own effect so animation fires once and isn't reset by entry saves
+  const returnOpacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.sequence([
+      Animated.timing(returnOpacity, { toValue: 0.85, duration: 700, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.delay(2000),
+      Animated.timing(returnOpacity, { toValue: 1.0, duration: 1500, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(returnOpacity, { toValue: 0.40, duration: 900, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+    ]).start();
+
+    navigation.setOptions({
+      headerLeft: () => (
+        <Animated.View style={{ opacity: returnOpacity, marginLeft: 16 }}>
+          <Pressable
+            onPress={() => {
+              try { Haptics.selectionAsync(); } catch {}
+              navigation.goBack();
+            }}
+            hitSlop={20}
+          >
+            <Text style={{ fontFamily: 'CalSans-Regular', fontSize: 11, letterSpacing: 3.5, color: '#ffffff' }}>RETURN</Text>
+          </Pressable>
+        </Animated.View>
+      ),
+    });
+  }, []);
+
   // Header actions
   useEffect(() => {
     navigation.setOptions({
@@ -264,22 +317,6 @@ export default function JournalEntryScreen({ route, navigation }: Props) {
 
       // Soft veil-like transition on push/pop (in addition to our micro-haze overlay)
       animation: 'fade',
-
-      headerLeft: () => (
-        <Pressable
-          onPress={() => {
-            try { Haptics.selectionAsync(); } catch {}
-            navigation.goBack();
-          }}
-          style={({ pressed }) => [
-            styles.returnPill,
-            pressed && { opacity: 0.85 },
-          ]}
-          hitSlop={10}
-        >
-          <Text style={styles.returnPillText}>Return</Text>
-        </Pressable>
-      ),
 
       headerRight: () => (
         <TouchableOpacity
@@ -380,6 +417,11 @@ export default function JournalEntryScreen({ route, navigation }: Props) {
             {formatCaptureLabel((entry as any).captureMinutesFromWake)}
           </Text>
         )}
+        {(entry?.kind ?? routeKind) === 'chamber' && (
+          <Text style={[Typography.caption, { color: '#7B5EA7', marginBottom: 10, letterSpacing: 0.3 }]}>
+            Chamber Experience
+          </Text>
+        )}
         <TextInput
           value={title}
           onChangeText={(t) => { setTitle(t); scheduleSave(); }}
@@ -397,7 +439,7 @@ export default function JournalEntryScreen({ route, navigation }: Props) {
             setTitle(suggestion);
             setSaveState('saving');
 
-            const updated: JournalEntry = { ...entry, title: suggestion, body, dreamSigns };
+            const updated: JournalEntry = { ...entry, title: suggestion, body, dreamSigns, chamberId, chamberTitle };
             await saveEntry(updated);
             setEntry(updated);
             setSaveState('saved');
@@ -411,13 +453,49 @@ export default function JournalEntryScreen({ route, navigation }: Props) {
         <TextInput
           ref={bodyInputRef}
           value={body}
-          onChangeText={(t) => { setBody(t); scheduleSave(); }}
+          onChangeText={(t) => {
+            if (isPrefillActiveRef.current) {
+              // First edit dismisses the prefill — clear and start fresh
+              isPrefillActiveRef.current = false;
+              setPrefillActive(false);
+              setBody('');
+              return;
+            }
+            setBody(t);
+            scheduleSave();
+          }}
           placeholder="Begin where the feeling lingers…"
           placeholderTextColor="rgba(237,234,246,0.35)"
-          style={styles.body}
+          style={[styles.body, prefillActive && { color: 'rgba(237,234,246,0.38)' }]}
           multiline
           textAlignVertical="top"
         />
+
+        {/* Ask Aeris — only shown when there's body content */}
+        {!!body.trim() && (
+          <TouchableOpacity
+            onPress={async () => {
+              try { await Haptics.selectionAsync(); } catch {}
+              const parts = [`Dream: ${body.trim()}`];
+              if (dreamSigns.length > 0) {
+                parts.push(`Dream Signs: ${dreamSigns.join(', ')}`);
+              }
+              const dreamContext = parts.join('\n\n');
+              posthog.capture('aeris_journal_entry_analyzed', {
+                entry_id: entry?.id ?? id,
+              });
+              navigation.navigate('Aeris', { dreamContext });
+            }}
+            activeOpacity={0.7}
+            style={{ marginBottom: 18, alignSelf: 'flex-start' }}
+          >
+            <Text style={styles.askAerisLabel}>
+              {(entry?.kind ?? routeKind) === 'chamber'
+                ? 'Ask Aeris about this experience.'
+                : 'Ask Aeris about your dream.'}
+            </Text>
+          </TouchableOpacity>
+        )}
 
         {/* Dream Signs */}
         <Text style={[Typography.caption, { color: '#CFC9E8', marginBottom: 6, opacity: 0.8 }]}>
@@ -451,19 +529,6 @@ export default function JournalEntryScreen({ route, navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  returnPill: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.14)',
-    backgroundColor: 'rgba(255,255,255,0.06)',
-  },
-  returnPillText: {
-    ...Typography.caption,
-    color: '#EDEAF6',
-    letterSpacing: 0.2,
-  },
   label: { ...Typography.caption, color: '#CFC9E8', marginBottom: 8, opacity: 0.85 },
   title: {
     ...Typography.title,
@@ -491,4 +556,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   chipLabel: { ...Typography.caption, letterSpacing: 0.2 },
+  askAerisLabel: {
+    ...Typography.caption,
+    color: '#7B5EA7',
+    letterSpacing: 0.3,
+  },
 });

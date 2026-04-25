@@ -17,6 +17,7 @@ import { cacheRemoteOnce } from '../utils/audioCache';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Circle } from 'react-native-svg';
 import { saveNow, markCompleted } from '../data/playbackStore';
+import { createEntry } from '../core/journalRepo';
 import { Typography } from '../core/typography';
 import { chamberEnvForTrack } from '../theme/chamberEnvironments';
 import { saveThreadSignature } from '../src/core/threading/ThreadEngine';
@@ -636,32 +637,7 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
       duration: 1000,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
-    }).start(() => {
-      setTimeout(() => {
-        Animated.timing(completeOpacity, {
-          toValue: 0,
-          duration: 1500,
-          easing: Easing.in(Easing.cubic),
-          useNativeDriver: true,
-        }).start(({ finished }) => {
-          if (finished) setShowComplete(false);
-        });
-      }, 10000);
-    });
-  };
-
-  const handleReplay = async () => {
-    try {
-      setRingOpacity(RING_NORM_OPACITY);
-      if (useTP) {
-        try { await TrackPlayer.seekTo(0); } catch {}
-        try { await TrackPlayer.play(); } catch {}
-      } else {
-        await soundRef.current?.setPositionAsync(0);
-        await soundRef.current?.playAsync();
-      }
-      Haptics.selectionAsync().catch(() => {});
-    } catch {}
+    }).start();
   };
 
   // --- Orb double-tap detection refs ---
@@ -1998,25 +1974,57 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
         >
           <View
             style={{
-              paddingVertical: 12,
-              paddingHorizontal: 16,
+              paddingVertical: 14,
+              paddingHorizontal: 20,
               borderRadius: 12,
               backgroundColor: 'rgba(12, 8, 14, 0.65)',
               borderWidth: 1,
               borderColor: 'rgba(255,255,255,0.08)',
+              alignItems: 'center',
             }}
           >
             <Text
-              style={[Typography.title, { color: '#EDE8FA', textAlign: 'center', letterSpacing: 0.3, marginBottom: 6 }]}
+              style={[Typography.title, { color: '#EDE8FA', textAlign: 'center', letterSpacing: 0.3, marginBottom: 4 }]}
             >
-              {displayTitle}: Journey Complete
+              Carry anything back?
+            </Text>
+            <Text
+              style={[Typography.caption, { color: '#B5A9FF', textAlign: 'center', marginBottom: 14, opacity: 0.85 }]}
+            >
+              Record what remained from this Chamber.
             </Text>
 
-            <View style={{ flexDirection: 'row', columnGap: 16, justifyContent: 'center' }}>
-              <Pressable onPress={handleReplay} accessibilityRole="button" accessibilityLabel="Replay session">
-                <Text style={[Typography.caption, { color: '#C9B6FF' }]}>Replay</Text>
+            <View style={{ flexDirection: 'row', columnGap: 20, justifyContent: 'center' }}>
+              <Pressable
+                onPress={async () => {
+                  setShowComplete(false);
+                  const chamberId = selectedTrack?.id || legacyId || 'default';
+                  try {
+                    const entry = await createEntry({
+                      kind: 'chamber',
+                      chamberId,
+                      chamberTitle: displayTitle,
+                    });
+                    (navigation as any).navigate('JournalEntry', {
+                      id: entry.id,
+                      isNew: true,
+                      prefillBody: 'What remained?',
+                    });
+                  } catch {}
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Log Experience"
+              >
+                <Text style={[Typography.caption, { color: '#C9B6FF' }]}>Log Experience</Text>
               </Pressable>
-              <Pressable onPress={() => navigation.goBack()} accessibilityRole="button" accessibilityLabel="Return Home">
+              <Pressable
+                onPress={() => {
+                  setShowComplete(false);
+                  navigation.goBack();
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Return Home"
+              >
                 <Text style={[Typography.caption, { color: '#FFC7A3' }]}>Return Home</Text>
               </Pressable>
             </View>

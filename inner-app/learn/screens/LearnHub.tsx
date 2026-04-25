@@ -123,6 +123,16 @@ export default function LearnHub() {
     return () => clearTimeout(t);
   }, [query]);
   const scrollY = React.useRef(new Animated.Value(0)).current;
+  const returnOpacity = React.useRef(new Animated.Value(0)).current;
+
+  React.useEffect(() => {
+    Animated.sequence([
+      Animated.timing(returnOpacity, { toValue: 0.85, duration: 700, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.delay(2000),
+      Animated.timing(returnOpacity, { toValue: 1.0, duration: 1500, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(returnOpacity, { toValue: 0.40, duration: 900, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+    ]).start();
+  }, []);
 
   // Idle background drift (runs even when not scrolling) — keeps the “room” alive.
   const bgIdlePhase = React.useRef(new Animated.Value(0)).current; // 0..1 repeating
@@ -405,21 +415,16 @@ const recentIntentions: string[] = Array.isArray(selectedIntentions) ? selectedI
         >
           {/* Top row: Home on left, Help on right */}
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-            <Pressable
-              onPress={() => { Haptics.selectionAsync(); navigation.navigate('Home'); }}
-              accessibilityRole="button"
-              accessibilityLabel="Return"
-              style={{
-                paddingHorizontal: 12,
-                paddingVertical: 8,
-                borderRadius: 999,
-                backgroundColor: 'rgba(0,0,0,0.75)',
-                borderWidth: 1,
-                borderColor: 'rgba(237,232,250,0.12)'
-              }}
-            >
-              <Text style={[Typography.body, { color: '#EDE8FA', letterSpacing: 0.5 }]}>Return</Text>
-            </Pressable>
+            <Animated.View style={{ opacity: returnOpacity }}>
+              <Pressable
+                onPress={() => { Haptics.selectionAsync(); navigation.navigate('Home'); }}
+                accessibilityRole="button"
+                accessibilityLabel="Return"
+                hitSlop={20}
+              >
+                <Text style={{ fontFamily: 'CalSans-Regular', fontSize: 11, letterSpacing: 3.5, color: '#ffffff' }}>RETURN</Text>
+              </Pressable>
+            </Animated.View>
 
             <Pressable
               onPress={async () => { await Haptics.selectionAsync(); openInlineHelp(); }}

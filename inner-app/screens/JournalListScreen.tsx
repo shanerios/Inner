@@ -1,6 +1,6 @@
 // screens/JournalListScreen.tsx
-import React, { useEffect, useState, useCallback, useLayoutEffect } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, Image, Pressable, TextInput } from 'react-native';
+import React, { useEffect, useRef, useState, useCallback, useLayoutEffect } from 'react';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, Image, Pressable, TextInput, Animated, Easing } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useHeaderHeight } from '@react-navigation/elements';
@@ -72,27 +72,36 @@ export default function JournalListScreen({ navigation }: Props) {
       headerStyle: { backgroundColor: 'rgba(18,18,32,1)' },
       animationEnabled: true,
       animation: 'fade',
-      headerLeft: () => (
-        <Pressable
-          onPress={async () => {
-            try { await Haptics.selectionAsync(); } catch {}
-            navigation.goBack();
-          }}
-          style={{
-            marginLeft: 12,
-            paddingHorizontal: 14,
-            paddingVertical: 6,
-            borderRadius: 999,
-            backgroundColor: 'rgba(255,255,255,0.08)',
-            borderWidth: 1,
-            borderColor: 'rgba(255,255,255,0.12)',
-          }}
-        >
-          <Text style={{ color: '#EDEAF6', fontSize: 14 }}>Return</Text>
-        </Pressable>
-      ),
     });
   }, [navigation]);
+
+  // RETURN label — own effect so animation fires once on mount
+  const returnOpacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.sequence([
+      Animated.timing(returnOpacity, { toValue: 0.85, duration: 700, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.delay(2000),
+      Animated.timing(returnOpacity, { toValue: 1.0, duration: 1500, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(returnOpacity, { toValue: 0.40, duration: 900, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+    ]).start();
+
+    navigation.setOptions({
+      headerLeft: () => (
+        <Animated.View style={{ opacity: returnOpacity, marginLeft: 16 }}>
+          <Pressable
+            onPress={async () => {
+              try { await Haptics.selectionAsync(); } catch {}
+              navigation.goBack();
+            }}
+            hitSlop={20}
+          >
+            <Text style={{ fontFamily: 'CalSans-Regular', fontSize: 11, letterSpacing: 3.5, color: '#ffffff' }}>RETURN</Text>
+          </Pressable>
+        </Animated.View>
+      ),
+    });
+  }, []);
 
   const load = useCallback(async () => {
     const all = await listEntries();
