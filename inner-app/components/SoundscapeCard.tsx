@@ -18,6 +18,7 @@ type Props = {
   label: string;
   colors: string[];               // gradient colors
   onPress?: () => void;
+  onLongPress?: () => void;
   style?: ViewStyle;
   subtitle?: string;              // optional small descriptor
   sigil?: ImageSourcePropType | React.ReactNode | string; // image, node, or glyph string
@@ -29,6 +30,7 @@ export default function SoundscapeCard({
   label,
   colors,
   onPress,
+  onLongPress,
   style,
   subtitle,
   sigil,
@@ -98,6 +100,8 @@ export default function SoundscapeCard({
   return (
     <AnimatedPressable
       onPress={isLocked ? handleLockedPress : onPress}
+      onLongPress={onLongPress}
+      delayLongPress={360}
       onPressIn={() => {
         if (!isLocked) {
           Animated.timing(press, { toValue: 1, duration: 120, easing: Easing.out(Easing.quad), useNativeDriver: true }).start();

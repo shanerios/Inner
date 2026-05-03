@@ -896,7 +896,7 @@ export default function ChambersScreen() {
               style={StyleSheet.absoluteFill}
               onPress={closeInfo}
             >
-              <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.62)' }} />
+              <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)' }} />
             </Pressable>
 
             <View style={{ flex: 1, justifyContent: 'flex-end' }}>
@@ -908,13 +908,21 @@ export default function ChambersScreen() {
                   paddingBottom: Math.max(insets.bottom + (matchesCompactLayout ? 10 : 18), matchesCompactLayout ? 16 : 24),
                   paddingTop: matchesCompactLayout ? 12 : 18,
                   paddingHorizontal: matchesCompactLayout ? 12 : 18,
-                  borderTopLeftRadius: 22,
-                  borderTopRightRadius: 22,
-                  backgroundColor: 'rgba(12,10,18,0.96)',
+                  borderTopLeftRadius: 16,
+                  borderTopRightRadius: 16,
+                  backgroundColor: 'rgba(18,18,32,0.96)',
                   borderTopWidth: 1,
-                  borderColor: 'rgba(255,255,255,0.10)',
+                  borderColor: 'rgba(255,255,255,0.06)',
+                  overflow: 'hidden',
                 }}
               >
+                <LinearGradient
+                  colors={['rgba(207,195,224,0.20)', 'rgba(31,35,58,0.0)']}
+                  start={{ x: 0.5, y: 0 }}
+                  end={{ x: 0.5, y: 1 }}
+                  style={StyleSheet.absoluteFill}
+                  pointerEvents="none"
+                />
                 <ScrollView
                   style={{ maxHeight: matchesCompactLayout ? SCREEN_H * 0.55 : SCREEN_H * 0.58 }}
                   contentContainerStyle={{ paddingBottom: verticalScale(6), flexGrow: 1 }}
@@ -925,7 +933,7 @@ export default function ChambersScreen() {
                     style={[
                       Typography.title,
                       {
-                        color: '#F3EDE7',
+                        color: '#F0EEF8',
                         letterSpacing: 0.2,
                         textAlign: 'left',
                       },
@@ -957,7 +965,7 @@ export default function ChambersScreen() {
                       fontFamily: 'Inter-ExtraLight',
                       fontSize: matchesCompactLayout ? scale(13) : 14,
                       lineHeight: matchesCompactLayout ? Math.round(scale(18)) : 20,
-                      color: 'rgba(237,232,250,0.88)',
+                      color: '#EDEAF6',
                       marginTop: matchesCompactLayout ? verticalScale(10) : 12,
                     }}
                   >
@@ -981,15 +989,11 @@ export default function ChambersScreen() {
                       onPress={closeInfo}
                       hitSlop={10}
                       style={{
-                        paddingVertical: matchesCompactLayout ? verticalScale(8) : 10,
-                        paddingHorizontal: matchesCompactLayout ? scale(10) : 12,
-                        borderRadius: matchesCompactLayout ? scale(10) : 12,
-                        borderWidth: 1,
-                        borderColor: 'rgba(255,255,255,0.10)',
-                        backgroundColor: 'rgba(207,195,224,0.06)',
+                        paddingVertical: 4,
+                        paddingHorizontal: 8,
                       }}
                     >
-                      <Text style={{ fontFamily: 'Inter-ExtraLight', color: 'rgba(237,232,250,0.92)', letterSpacing: 0.2 }}>
+                      <Text style={{ fontFamily: 'Inter-ExtraLight', fontSize: 13, color: 'rgba(237,234,246,0.6)' }}>
                         {CHAMBERS_INFO.closeLabel}
                       </Text>
                     </Pressable>
@@ -1004,15 +1008,11 @@ export default function ChambersScreen() {
                         onPress={() => setInfoStep(0)}
                         hitSlop={10}
                         style={{
-                          paddingVertical: matchesCompactLayout ? verticalScale(8) : 10,
-                          paddingHorizontal: matchesCompactLayout ? scale(10) : 12,
-                          borderRadius: matchesCompactLayout ? scale(10) : 12,
-                          borderWidth: 1,
-                          borderColor: 'rgba(255,255,255,0.10)',
-                          backgroundColor: 'rgba(207,195,224,0.06)',
+                          paddingVertical: 4,
+                          paddingHorizontal: 8,
                         }}
                       >
-                        <Text style={{ fontFamily: 'Inter-ExtraLight', color: 'rgba(237,232,250,0.92)', letterSpacing: 0.2 }}>
+                        <Text style={{ fontFamily: 'Inter-ExtraLight', fontSize: 13, color: 'rgba(237,234,246,0.6)' }}>
                           {CHAMBERS_INFO.backLabel}
                         </Text>
                       </Pressable>
@@ -1032,17 +1032,17 @@ export default function ChambersScreen() {
                       }}
                       hitSlop={10}
                       style={{
-                        paddingVertical: matchesCompactLayout ? verticalScale(8) : 10,
-                        paddingHorizontal: matchesCompactLayout ? scale(12) : 14,
-                        borderRadius: matchesCompactLayout ? scale(10) : 12,
-                        backgroundColor: 'rgba(207,195,224,0.16)',
+                        paddingVertical: 10,
+                        paddingHorizontal: 20,
+                        borderRadius: 16,
                         borderWidth: 1,
-                        borderColor: 'rgba(255,255,255,0.12)',
-                        minWidth: matchesCompactLayout ? scale(82) : 92,
+                        borderColor: 'rgba(207,195,224,0.35)',
+                        borderTopColor: 'rgba(207,195,224,0.7)',
                         alignItems: 'center',
+                        overflow: 'hidden',
                       }}
                     >
-                      <Text style={{ fontFamily: 'CalSans-SemiBold', color: '#F3EDE7', letterSpacing: 0.2 }}>
+                      <Text style={{ fontFamily: 'CalSans-SemiBold', fontSize: 16, color: '#F0EEF8' }}>
                         {infoStep === 0 ? CHAMBERS_INFO.nextLabel : CHAMBERS_INFO.okLabel}
                       </Text>
                     </Pressable>

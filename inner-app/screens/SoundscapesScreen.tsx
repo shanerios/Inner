@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { usePostHog } from 'posthog-react-native';
-import { StyleSheet, View, Text, Pressable, ScrollView, Animated, Easing, TextInput, Alert, Platform } from 'react-native';
+import { StyleSheet, View, Text, Pressable, ScrollView, Animated, Easing, TextInput, Alert, Platform, Modal } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import SoundscapeCardList from '../components/SoundscapeCardList';
@@ -26,6 +26,71 @@ const Body = _Body ?? ({
 // RevenueCat entitlement used to gate “deeper” content
 const CONTINUING_ENTITLEMENT_ID = 'continuing_with_inner';
 
+// --- Soundscapes Info ---
+const SOUNDSCAPES_INFO = {
+  // Step 1
+  whatTitle: 'What you\'re listening to',
+  whatBody: `The library is organized by state.
+
+Stillness — quiet meditation, breath, and nervous-system settling. Designed to soften the mind without pulling attention, helping the body return to presence.
+
+Clarity — soundscapes for focus, awareness, and creative flow. For work, study, writing, or mindful attention without becoming a distraction.
+
+Renewal — a restorative space for release, emotional softening, and gentle return. These tracks help clear residue from the day and invite the system back into balance.
+
+Deeper — for threshold states, descent, lucid dreaming, and deeper inner work. Slower, heavier environments for those ready to move beyond surface calm.
+
+Tones — minimal frequency-based audio for intentional listening. Solfeggio, binaural, and high-frequency experiences gathered into a simple space for tuning and resonance.
+
+Noise — simple noise fields for sleep, focus, and nervous-system steadiness. Neutral texture without emotional direction.
+
+
+Binaural Beats
+
+Every track carries binaural beats — two slightly different frequencies played separately in each ear. The brain perceives a third tone equal to their difference, and that tone gently guides brainwave activity toward specific states: theta for dreaming and deep relaxation, delta for slow-wave sleep, alpha for calm focus.
+
+Headphones are required. Without them, the two tones play together and the effect is lost.
+
+
+Looping
+
+Every track is built to loop without seam or interruption. No hard edges. No noticeable return points. Play for as long as the session requires.`,
+
+  // Step 2
+  deeperTitle: 'Going deeper',
+  deeperBody: `Solfeggio Frequencies
+
+Every track is also tuned to specific solfeggio frequencies — ancient tonal frequencies believed to carry distinct qualities.
+
+396 Hz releases fear and guilt. 528 Hz, sometimes called the love frequency, is associated with transformation and repair. 639 Hz carries connection and relationship. 741 Hz awakens intuition. 852 Hz returns the listener toward spiritual order.
+
+These are not binaural beats — they are woven into the tuning of the instruments and tones themselves.
+
+
+Noise
+
+Noise textures serve as environmental anchors.
+
+White noise masks distraction evenly across all frequencies — useful in busy or unpredictable spaces. Brown noise is deeper and more grounding, often preferred for sleep and extended rest. Pink noise sits between the two: gentle, natural-sounding, closer to rain or wind.
+
+The right choice depends on where you are and what you're moving toward.
+
+
+Searching by Frequency
+
+You can search for tracks by frequency number. Type 528, 396, or 741 into the search bar and every track tuned to that frequency will appear. A precise way to choose with intention.
+
+
+Track Descriptions
+
+Long-press any track to read its full description — the specific qualities, frequencies, and intended states for that sound.`,
+
+  closeLabel: 'Not Now',
+  okLabel: 'OK',
+  nextLabel: 'Next',
+  backLabel: 'Back',
+} as const;
+
 // Assets
 const LOCK_ICON = require('../assets/images/locked_gate.png');
 
@@ -38,12 +103,14 @@ function SoundscapeRow({
   isLocked,
   onLockedPress,
   onStart,
+  onLongPress,
 }: {
   item: any;
   navigation: any;
   isLocked?: boolean;
   onLockedPress?: (item: any) => void;
   onStart?: (item: any) => void;
+  onLongPress?: (item: any) => void;
 }) {
   const { scale, verticalScale, matchesCompactLayout } = useScale();
   const trackCardMinHeight = matchesCompactLayout ? verticalScale(76) : verticalScale(92);
@@ -113,6 +180,11 @@ function SoundscapeRow({
           } catch {}
           navigation.navigate('JourneyPlayer', { trackId: item.id });
         }}
+        onLongPress={() => {
+          Haptics.selectionAsync().catch(() => {});
+          onLongPress?.(item);
+        }}
+        delayLongPress={360}
       >
         {allowOffline ? (
           <Pressable
@@ -269,12 +341,27 @@ export default function SoundscapesScreen() {
   const bgPlayer = useVideoPlayer(require('../assets/images/soundscapes_screen.mp4'), player => {
     player.loop = true;
     player.muted = true;
-    player.play();
+    try {
+      player.play();
+    } catch (e) {
+      console.log('[SoundscapesScreen] background video play failed', e);
+    }
   });
 
   useFocusEffect(React.useCallback(() => {
-    bgPlayer.play();
-    return () => { bgPlayer.pause(); };
+    try {
+      bgPlayer.play();
+    } catch (e) {
+      console.log('[SoundscapesScreen] background video play failed on focus', e);
+    }
+
+    return () => {
+      try {
+        bgPlayer.pause();
+      } catch (e) {
+        console.log('[SoundscapesScreen] background video pause ignored', e);
+      }
+    };
   }, [bgPlayer]));
 
   // Background should always fill the screen (prevents iPad letterboxing)
@@ -410,6 +497,21 @@ export default function SoundscapesScreen() {
     return [];
   }, [activeCategory, tracks.length]);
 
+  // Soundscapes Info modal state
+  const [showInfo, setShowInfo] = React.useState(false);
+  const [infoStep, setInfoStep] = React.useState<0 | 1>(0);
+
+  const openInfo = React.useCallback(() => {
+    setInfoStep(0);
+    setShowInfo(true);
+    Haptics.selectionAsync().catch(() => {});
+  }, []);
+
+  const closeInfo = React.useCallback(() => {
+    setShowInfo(false);
+    Haptics.selectionAsync().catch(() => {});
+  }, []);
+
   const [searchQuery, setSearchQuery] = React.useState('');
   const normalizedQuery = searchQuery.trim().toLowerCase();
 
@@ -514,6 +616,7 @@ export default function SoundscapesScreen() {
   const headerGesture = useMemo(() => Gesture.Race(panToHome, flingLeft), [panToHome, flingLeft]);
 
   const [searchFocused, setSearchFocused] = React.useState(false);
+  const [selectedTrack, setSelectedTrack] = React.useState<any | null>(null);
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -523,7 +626,7 @@ export default function SoundscapesScreen() {
           style={{
             position: 'absolute',
             top: 0,
-            left: 0,
+            left: 72,
             right: 0,
             height: Math.max(insets.top + verticalScale(120), verticalScale(140)),
             zIndex: 100,
@@ -531,7 +634,12 @@ export default function SoundscapesScreen() {
           }}
         />
       </GestureDetector>
-    <View style={styles.container}>
+    <View
+      accessible={false}
+      importantForAccessibility={showInfo ? 'no-hide-descendants' : 'auto'}
+      accessibilityElementsHidden={showInfo}
+      style={styles.container}
+    >
       <View
         style={StyleSheet.absoluteFill}
         pointerEvents="none"
@@ -614,6 +722,32 @@ export default function SoundscapesScreen() {
               <Text style={{ color: '#CFC3E0', fontSize: scale(20), opacity: 0.95 }}>«</Text>
             </Animated.View>
           )}
+
+          {/* Info button */}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="About Soundscapes"
+            accessibilityHint="Opens information about soundscape categories, binaural beats, and frequencies"
+            onPress={openInfo}
+            hitSlop={12}
+            style={{
+              position: 'absolute',
+              left: -scale(6),
+              top: 0,
+              width: 36,
+              height: 36,
+              justifyContent: 'center',
+              alignItems: 'center',
+              borderRadius: 18,
+              backgroundColor: 'rgba(0,0,0,0.30)',
+              borderWidth: 1,
+              borderColor: 'rgba(255,255,255,0.12)',
+              zIndex: 300,
+              elevation: 300,
+            }}
+          >
+            <Text style={{ fontFamily: 'Inter-ExtraLight', color: '#EDEAF6', fontSize: 18, lineHeight: 18 }}>?</Text>
+          </Pressable>
         </View>
 
         {/* Category cards (stack of 3, then scroll) */}
@@ -788,6 +922,7 @@ export default function SoundscapesScreen() {
                         isLocked={isLocked}
                         onLockedPress={handleLockedPress}
                         onStart={handleSoundscapeStart}
+                        onLongPress={setSelectedTrack}
                       />
                     </View>
                   );
@@ -833,6 +968,207 @@ export default function SoundscapesScreen() {
         </Text>
       </Pressable>
     </View>
+      {/* Soundscapes Info Modal */}
+      <Modal
+        visible={showInfo}
+        transparent
+        animationType="fade"
+        onRequestClose={closeInfo}
+        presentationStyle="overFullScreen"
+        statusBarTranslucent
+        accessibilityViewIsModal
+      >
+        <View style={{ flex: 1 }}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={closeInfo}
+          >
+            <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)' }} />
+          </Pressable>
+
+          <View style={{ flex: 1, justifyContent: 'flex-end' }}>
+            <View
+              accessible={true}
+              accessibilityRole="summary"
+              accessibilityLabel={infoStep === 0 ? 'Soundscapes information. Step 1 of 2.' : 'Soundscapes information. Step 2 of 2.'}
+              style={{
+                paddingBottom: Math.max(insets.bottom + (matchesCompactLayout ? verticalScale(10) : 18), matchesCompactLayout ? verticalScale(16) : 24),
+                paddingTop: matchesCompactLayout ? 12 : 18,
+                paddingHorizontal: matchesCompactLayout ? 12 : 18,
+                borderTopLeftRadius: 16,
+                borderTopRightRadius: 16,
+                backgroundColor: 'rgba(18,18,32,0.96)',
+                borderTopWidth: 1,
+                borderColor: 'rgba(255,255,255,0.06)',
+                overflow: 'hidden',
+              }}
+            >
+              <LinearGradient
+                colors={['rgba(207,195,224,0.20)', 'rgba(31,35,58,0.0)']}
+                start={{ x: 0.5, y: 0 }}
+                end={{ x: 0.5, y: 1 }}
+                style={StyleSheet.absoluteFill}
+                pointerEvents="none"
+              />
+              <ScrollView
+                style={{ maxHeight: matchesCompactLayout ? windowHeight * 0.55 : windowHeight * 0.58 }}
+                contentContainerStyle={{ paddingBottom: verticalScale(6), flexGrow: 1 }}
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+              >
+                <Text
+                  style={[
+                    Typography.title,
+                    {
+                      color: '#F0EEF8',
+                      letterSpacing: 0.2,
+                      textAlign: 'left',
+                    },
+                    matchesCompactLayout && {
+                      fontSize: scale(16),
+                      lineHeight: Math.round(scale(23)),
+                    },
+                  ]}
+                >
+                  {infoStep === 0 ? SOUNDSCAPES_INFO.whatTitle : SOUNDSCAPES_INFO.deeperTitle}
+                </Text>
+
+                <Text
+                  style={{
+                    fontFamily: 'Inter-ExtraLight',
+                    fontSize: matchesCompactLayout ? scale(10) : 11,
+                    lineHeight: matchesCompactLayout ? verticalScale(13) : 14,
+                    color: 'rgba(237,232,250,0.5)',
+                    letterSpacing: matchesCompactLayout ? scale(0.55) : 0.6,
+                    textTransform: 'uppercase',
+                    marginTop: matchesCompactLayout ? verticalScale(4) : 6,
+                  }}
+                >
+                  {infoStep === 0 ? 'Step 1 of 2' : 'Step 2 of 2'}
+                </Text>
+
+                <Text
+                  style={{
+                    fontFamily: 'Inter-ExtraLight',
+                    fontSize: matchesCompactLayout ? scale(13) : 14,
+                    lineHeight: matchesCompactLayout ? Math.round(scale(18)) : 20,
+                    color: '#EDEAF6',
+                    marginTop: matchesCompactLayout ? verticalScale(10) : 12,
+                  }}
+                >
+                  {infoStep === 0 ? SOUNDSCAPES_INFO.whatBody : SOUNDSCAPES_INFO.deeperBody}
+                </Text>
+              </ScrollView>
+
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: infoStep === 0 ? 'space-between' : 'flex-end',
+                  marginTop: matchesCompactLayout ? verticalScale(8) : 16,
+                }}
+              >
+                {infoStep === 0 && (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={SOUNDSCAPES_INFO.closeLabel}
+                    accessibilityHint="Closes this information sheet"
+                    onPress={closeInfo}
+                    hitSlop={10}
+                    style={{
+                      paddingVertical: 4,
+                      paddingHorizontal: 8,
+                    }}
+                  >
+                    <Text style={{ fontFamily: 'Inter-ExtraLight', fontSize: 13, color: 'rgba(237,234,246,0.6)' }}>
+                      {SOUNDSCAPES_INFO.closeLabel}
+                    </Text>
+                  </Pressable>
+                )}
+
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: matchesCompactLayout ? scale(8) : 10 }}>
+                  {infoStep === 1 && (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={SOUNDSCAPES_INFO.backLabel}
+                      accessibilityHint="Returns to the previous step"
+                      onPress={() => setInfoStep(0)}
+                      hitSlop={10}
+                      style={{
+                        paddingVertical: 4,
+                        paddingHorizontal: 8,
+                      }}
+                    >
+                      <Text style={{ fontFamily: 'Inter-ExtraLight', fontSize: 13, color: 'rgba(237,234,246,0.6)' }}>
+                        {SOUNDSCAPES_INFO.backLabel}
+                      </Text>
+                    </Pressable>
+                  )}
+
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={infoStep === 0 ? SOUNDSCAPES_INFO.nextLabel : SOUNDSCAPES_INFO.okLabel}
+                    accessibilityHint={infoStep === 0 ? 'Moves to step 2 of 2' : 'Closes this information sheet'}
+                    onPress={() => {
+                      if (infoStep === 0) {
+                        setInfoStep(1);
+                        Haptics.selectionAsync().catch(() => {});
+                      } else {
+                        closeInfo();
+                      }
+                    }}
+                    hitSlop={10}
+                    style={{
+                      paddingVertical: 10,
+                      paddingHorizontal: 20,
+                      borderRadius: 16,
+                      borderWidth: 1,
+                      borderColor: 'rgba(207,195,224,0.35)',
+                      borderTopColor: 'rgba(207,195,224,0.7)',
+                      alignItems: 'center',
+                      overflow: 'hidden',
+                    }}
+                  >
+                    <Text style={{ fontFamily: 'CalSans-SemiBold', fontSize: 16, color: '#F0EEF8' }}>
+                      {infoStep === 0 ? SOUNDSCAPES_INFO.nextLabel : SOUNDSCAPES_INFO.okLabel}
+                    </Text>
+                  </Pressable>
+                </View>
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={!!selectedTrack}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSelectedTrack(null)}
+      >
+        <Pressable style={styles.trackModalBackdrop} onPress={() => setSelectedTrack(null)}>
+          <Pressable style={styles.trackModalCard} onPress={() => {}}>
+            <LinearGradient
+              colors={['rgba(207,195,224,0.20)', 'rgba(31,35,58,0.0)']}
+              start={{ x: 0.5, y: 0 }}
+              end={{ x: 0.5, y: 1 }}
+              style={StyleSheet.absoluteFill}
+              pointerEvents="none"
+            />
+            <Text style={styles.trackModalEyebrow}>Soundscape</Text>
+            <Text style={styles.trackModalTitle}>{selectedTrack?.title}</Text>
+            {!!selectedTrack?.frequencyLabel && (
+              <Text style={styles.trackModalFrequency}>{selectedTrack.frequencyLabel}</Text>
+            )}
+            <Text style={styles.trackModalDescription}>
+              {selectedTrack?.description ?? 'No description available yet.'}
+            </Text>
+            <Pressable style={styles.trackModalCloseButton} onPress={() => setSelectedTrack(null)}>
+              <Text style={styles.trackModalCloseText}>Return</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </GestureHandlerRootView>
   );
 }
@@ -873,5 +1209,68 @@ const styles = StyleSheet.create({
     position: 'relative',
     marginTop: 0,
     overflow: 'hidden',
+  },
+  trackModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  trackModalCard: {
+    width: '100%',
+    maxWidth: 420,
+    borderRadius: 16,
+    paddingHorizontal: 24,
+    paddingTop: 24,
+    paddingBottom: 20,
+    backgroundColor: 'rgba(18,18,32,0.95)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+    overflow: 'hidden',
+  },
+  trackModalEyebrow: {
+    fontFamily: 'Inter-ExtraLight',
+    fontSize: 12,
+    letterSpacing: 1.8,
+    textTransform: 'uppercase',
+    color: 'rgba(237,232,250,0.52)',
+    marginBottom: 8,
+  },
+  trackModalTitle: {
+    fontFamily: 'CalSans-SemiBold',
+    fontSize: 28,
+    color: 'rgba(255,255,255,0.96)',
+    marginBottom: 6,
+  },
+  trackModalFrequency: {
+    fontFamily: 'Inter-ExtraLight',
+    fontSize: 13,
+    letterSpacing: 0.6,
+    color: 'rgba(207,195,224,0.78)',
+    marginBottom: 14,
+    textTransform: 'uppercase',
+  },
+  trackModalDescription: {
+    fontFamily: 'Inter-ExtraLight',
+    fontSize: 15,
+    lineHeight: 23,
+    color: 'rgba(237,232,250,0.9)',
+    marginBottom: 22,
+  },
+  trackModalCloseButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(207,195,224,0.35)',
+    borderTopColor: 'rgba(207,195,224,0.7)',
+    alignSelf: 'center',
+    overflow: 'hidden',
+  },
+  trackModalCloseText: {
+    fontFamily: 'CalSans-SemiBold',
+    fontSize: 16,
+    color: '#F0EEF8',
   },
 });

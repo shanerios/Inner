@@ -83,3 +83,6 @@ inner-playapi.json
 
 # IDE
 .idea/
+
+# Research
+learn/content/research/
