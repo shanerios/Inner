@@ -641,6 +641,78 @@
       display: block;
     }
 
+    /* Hamburger */
+    .hamburger {
+      display: none;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      gap: 5px;
+      width: 36px;
+      height: 36px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 4px;
+      border-radius: 6px;
+      transition: background 0.2s ease;
+    }
+    .hamburger:hover { background: rgba(144, 140, 159, 0.14); }
+    .hamburger span {
+      display: block;
+      width: 20px;
+      height: 1.5px;
+      background: rgba(235, 232, 255, 0.82);
+      border-radius: 2px;
+      transition: transform 0.25s ease, opacity 0.25s ease;
+    }
+    .hamburger.is-open span:nth-child(1) { transform: translateY(6.5px) rotate(45deg); }
+    .hamburger.is-open span:nth-child(2) { opacity: 0; }
+    .hamburger.is-open span:nth-child(3) { transform: translateY(-6.5px) rotate(-45deg); }
+
+    .mobile-nav {
+      display: none;
+      position: fixed;
+      top: var(--topbar-height);
+      left: 0;
+      right: 0;
+      z-index: 9;
+      background: rgba(13, 12, 31, 0.97);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid rgba(144, 140, 159, 0.16);
+      padding: 8px 0 12px 0;
+      flex-direction: column;
+      transform: translateY(-8px);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.22s ease, transform 0.22s ease;
+    }
+    .mobile-nav.is-open {
+      opacity: 1;
+      transform: translateY(0);
+      pointer-events: all;
+    }
+    .mobile-nav a {
+      display: block;
+      padding: 13px 22px;
+      color: rgba(235, 232, 255, 0.84);
+      text-decoration: none;
+      font-family: 'CalSans', sans-serif;
+      font-size: 1rem;
+      letter-spacing: 0.03em;
+      border-bottom: 1px solid rgba(144, 140, 159, 0.10);
+      transition: color 0.2s ease, background 0.2s ease;
+    }
+    .mobile-nav a:last-child { border-bottom: none; }
+    .mobile-nav a:hover { color: rgba(161, 140, 255, 0.95); background: rgba(144, 140, 159, 0.06); }
+    .mobile-nav a.active { color: rgba(161, 140, 255, 1); }
+
+    @media (max-width: 680px) {
+      .hamburger { display: flex; }
+      .topbar nav { display: none; }
+      .mobile-nav { display: flex; }
+    }
+
     /* Responsive grids */
     @media (max-width: 900px) {
       .grid {
@@ -799,15 +871,13 @@
     }
     /* Guardians Book Section */
     .guardians-layout {
-      display: grid;
-      grid-template-columns: auto 1fr;
-      gap: 48px;
+      display: flex;
+      flex-direction: column;
       align-items: center;
-      max-width: 860px;
+      max-width: 560px;
       margin: 0 auto;
-    }
-    .guardians-cover-wrap {
-      flex: 0 0 auto;
+      text-align: center;
+      gap: 24px;
     }
     .guardians-book-img {
       width: 200px;
@@ -816,54 +886,24 @@
       display: block;
     }
     .guardians-text h3 {
-      text-align: left;
+      text-align: center;
       margin: 0 0 4px 0;
       font-size: 2rem;
     }
-    .guardians-text .kicker {
-      text-align: left;
-    }
     .guardians-desc {
-      text-align: left !important;
+      text-align: center !important;
       color: rgba(235, 232, 255, 0.82) !important;
       max-width: 460px !important;
       line-height: 1.62 !important;
-      margin: 0 0 24px 0 !important;
+      margin: 0 auto 24px auto !important;
     }
     .guardians-subtitle {
-      text-align: left;
+      text-align: center;
       font-size: 0.9rem;
       color: rgba(161, 140, 255, 0.80);
       margin: 0 0 16px 0;
       max-width: none;
       font-style: italic;
-    }
-    @media (max-width: 640px) {
-      .guardians-layout {
-        grid-template-columns: 1fr;
-        gap: 28px;
-        text-align: center;
-      }
-      .guardians-cover-wrap {
-        display: flex;
-        justify-content: center;
-      }
-      .guardians-book-img {
-        width: 160px;
-      }
-      .guardians-text h3,
-      .guardians-text .kicker,
-      .guardians-subtitle {
-        text-align: center;
-      }
-      .guardians-desc {
-        text-align: center !important;
-        margin-left: auto !important;
-        margin-right: auto !important;
-      }
-      .guardians-text .cta-row {
-        justify-content: center;
-      }
     }
 
     /* Book Modal */
@@ -1102,7 +1142,18 @@
       <a href="#trust">Trust</a>
       <a href="#join">Download</a>
     </nav>
+    <button class="hamburger" id="hamburger" aria-label="Open navigation" aria-expanded="false">
+      <span></span><span></span><span></span>
+    </button>
   </header>
+
+  <nav class="mobile-nav" id="mobile-nav" aria-label="Mobile navigation">
+    <a href="guardians.html">Guardians</a>
+    <a href="#chambers">Chambers</a>
+    <a href="#Experience">Experience</a>
+    <a href="#trust">Trust</a>
+    <a href="#join">Download</a>
+  </nav>
 
   <!-- HERO / THRESHOLD -->
   <section class="section compact" aria-label="Hero">
@@ -1142,15 +1193,13 @@
   <section id="guardians" class="section" aria-label="Guardians book" style="padding-top: 56px; padding-bottom: 56px;">
     <div class="container reveal">
       <div class="guardians-layout">
-        <div class="guardians-cover-wrap">
-          <img src="Guardians_eBook_JPG.jpg" alt="Guardians — The Guardian Ecology book cover" class="guardians-book-img" />
-        </div>
+        <img src="Guardians_eBook_JPG.jpg" alt="Guardians — The Guardian Ecology book cover" class="guardians-book-img" />
         <div class="guardians-text">
           <p class="kicker">The Book</p>
           <h3>Guardians</h3>
           <p class="guardians-subtitle">The Guardian Ecology: A Complete System for Conscious Dreaming</p>
           <p class="guardians-desc">Five presences. One living system. A complete framework for conscious dreaming — synthesized from LaBerge's science, Monroe's cartography, and Tibetan dream yoga into a unified developmental sequence that deepens automatically with every session.</p>
-          <div class="cta-row" style="justify-content:flex-start; margin-top:0;">
+          <div class="cta-row" style="justify-content:center; margin-top:0;">
             <button class="store-btn" onclick="openBookModal()" type="button">Get The Book</button>
           </div>
         </div>
@@ -1471,6 +1520,22 @@
 
     smartStoreLinks.forEach((link) => {
       link.setAttribute('href', getSmartStoreUrl());
+    });
+
+    // Hamburger menu
+    const hamburger = document.getElementById('hamburger');
+    const mobileNav = document.getElementById('mobile-nav');
+    hamburger.addEventListener('click', () => {
+      const isOpen = mobileNav.classList.toggle('is-open');
+      hamburger.classList.toggle('is-open', isOpen);
+      hamburger.setAttribute('aria-expanded', isOpen);
+    });
+    mobileNav.querySelectorAll('a').forEach(link => {
+      link.addEventListener('click', () => {
+        mobileNav.classList.remove('is-open');
+        hamburger.classList.remove('is-open');
+        hamburger.setAttribute('aria-expanded', 'false');
+      });
     });
 
     // Book modal

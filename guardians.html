@@ -146,6 +146,78 @@
       display: block;
     }
 
+    /* Hamburger */
+    .hamburger {
+      display: none;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      gap: 5px;
+      width: 36px;
+      height: 36px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 4px;
+      border-radius: 6px;
+      transition: background 0.2s ease;
+    }
+    .hamburger:hover { background: rgba(144, 140, 159, 0.14); }
+    .hamburger span {
+      display: block;
+      width: 20px;
+      height: 1.5px;
+      background: rgba(235, 232, 255, 0.82);
+      border-radius: 2px;
+      transition: transform 0.25s ease, opacity 0.25s ease;
+    }
+    .hamburger.is-open span:nth-child(1) { transform: translateY(6.5px) rotate(45deg); }
+    .hamburger.is-open span:nth-child(2) { opacity: 0; }
+    .hamburger.is-open span:nth-child(3) { transform: translateY(-6.5px) rotate(-45deg); }
+
+    .mobile-nav {
+      display: none;
+      position: fixed;
+      top: var(--topbar-height);
+      left: 0;
+      right: 0;
+      z-index: 9;
+      background: rgba(13, 12, 31, 0.97);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid rgba(144, 140, 159, 0.16);
+      padding: 8px 0 12px 0;
+      flex-direction: column;
+      transform: translateY(-8px);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.22s ease, transform 0.22s ease;
+    }
+    .mobile-nav.is-open {
+      opacity: 1;
+      transform: translateY(0);
+      pointer-events: all;
+    }
+    .mobile-nav a {
+      display: block;
+      padding: 13px 22px;
+      color: rgba(235, 232, 255, 0.84);
+      text-decoration: none;
+      font-family: 'CalSans', sans-serif;
+      font-size: 1rem;
+      letter-spacing: 0.03em;
+      border-bottom: 1px solid rgba(144, 140, 159, 0.10);
+      transition: color 0.2s ease, background 0.2s ease;
+    }
+    .mobile-nav a:last-child { border-bottom: none; }
+    .mobile-nav a:hover { color: rgba(161, 140, 255, 0.95); background: rgba(144, 140, 159, 0.06); }
+    .mobile-nav a.active { color: rgba(161, 140, 255, 1); }
+
+    @media (max-width: 680px) {
+      .hamburger { display: flex; }
+      .topbar nav { display: none; }
+      .mobile-nav { display: flex; }
+    }
+
     /* Layout */
     .section {
       width: 100%;
@@ -188,32 +260,27 @@
 
     /* Hero layout */
     .hero-layout {
-      display: grid;
-      grid-template-columns: auto 1fr;
-      gap: 56px;
+      display: flex;
+      flex-direction: column;
       align-items: center;
-      max-width: 900px;
+      text-align: center;
+      max-width: 600px;
       margin: 0 auto;
-    }
-    .hero-cover-wrap {
-      flex: 0 0 auto;
+      gap: 24px;
     }
     .hero-book-img {
-      width: 240px;
+      width: 220px;
       border-radius: 10px;
       box-shadow: 0 16px 50px rgba(0, 0, 0, 0.60), 0 0 60px rgba(161, 140, 255, 0.12);
       display: block;
     }
     .hero-text h1 {
-      text-align: left;
+      text-align: center;
       font-size: 3rem;
       margin-bottom: 6px;
     }
-    .hero-text .kicker {
-      text-align: left;
-    }
     .hero-subtitle {
-      text-align: left;
+      text-align: center;
       font-size: 0.92rem;
       color: rgba(161, 140, 255, 0.80);
       margin: 0 0 20px 0;
@@ -221,17 +288,18 @@
       font-style: italic;
     }
     .hero-desc {
-      text-align: left !important;
+      text-align: center !important;
       color: rgba(235, 232, 255, 0.84) !important;
       max-width: 520px !important;
       line-height: 1.66 !important;
-      margin: 0 0 28px 0 !important;
+      margin: 0 auto 28px auto !important;
       font-size: 1.05rem !important;
     }
     .cta-row {
       display: flex;
       gap: 12px;
       flex-wrap: wrap;
+      justify-content: center;
     }
     .store-btn {
       display: inline-flex;
@@ -469,34 +537,10 @@
     }
 
     /* Responsive */
-    @media (max-width: 760px) {
-      .hero-layout {
-        grid-template-columns: 1fr;
-        gap: 30px;
-        text-align: center;
-      }
-      .hero-cover-wrap {
-        display: flex;
-        justify-content: center;
-      }
-      .hero-book-img {
-        width: 180px;
-      }
-      .hero-text h1,
-      .hero-text .kicker,
-      .hero-subtitle {
-        text-align: center;
-      }
-      .hero-desc {
-        text-align: center !important;
-        margin-left: auto !important;
-        margin-right: auto !important;
-      }
-      .cta-row {
-        justify-content: center;
-      }
+    @media (max-width: 560px) {
+      .hero-book-img { width: 170px; }
       h1 { font-size: 2.2rem; }
-      .hero-text h1 { font-size: 2.4rem; }
+      .hero-text h1 { font-size: 2.2rem; }
     }
     @media (max-width: 900px) {
       .grid {
@@ -522,15 +566,22 @@
       <a href="/#chambers">Chambers</a>
       <a href="/#join">Download</a>
     </nav>
+    <button class="hamburger" id="hamburger" aria-label="Open navigation" aria-expanded="false">
+      <span></span><span></span><span></span>
+    </button>
   </header>
+
+  <nav class="mobile-nav" id="mobile-nav" aria-label="Mobile navigation">
+    <a href="guardians.html" class="active">Guardians</a>
+    <a href="/#chambers">Chambers</a>
+    <a href="/#join">Download</a>
+  </nav>
 
   <!-- HERO -->
   <section class="section" style="padding-top: 48px; padding-bottom: 56px;" aria-label="Guardians book hero">
     <div class="container reveal">
       <div class="hero-layout">
-        <div class="hero-cover-wrap">
-          <img src="Guardians_eBook_JPG.jpg" alt="Guardians — The Guardian Ecology book cover" class="hero-book-img" />
-        </div>
+        <img src="Guardians_eBook_JPG.jpg" alt="Guardians — The Guardian Ecology book cover" class="hero-book-img" />
         <div class="hero-text">
           <p class="kicker">Inner Research Foundation</p>
           <h1>Guardians</h1>
@@ -663,6 +714,22 @@
   </div>
 
   <script>
+    // Hamburger menu
+    const hamburger = document.getElementById('hamburger');
+    const mobileNav = document.getElementById('mobile-nav');
+    hamburger.addEventListener('click', () => {
+      const isOpen = mobileNav.classList.toggle('is-open');
+      hamburger.classList.toggle('is-open', isOpen);
+      hamburger.setAttribute('aria-expanded', isOpen);
+    });
+    mobileNav.querySelectorAll('a').forEach(link => {
+      link.addEventListener('click', () => {
+        mobileNav.classList.remove('is-open');
+        hamburger.classList.remove('is-open');
+        hamburger.setAttribute('aria-expanded', 'false');
+      });
+    });
+
     // Scroll reveal
     const revealEls = document.querySelectorAll('.reveal');
     const io = new IntersectionObserver((entries) => {
