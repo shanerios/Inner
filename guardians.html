@@ -704,7 +704,7 @@
       <p class="modal-book-sub">The Guardian Ecology</p>
 
       <div class="modal-retailers">
-        <a class="modal-retailer-btn" href="https://a.co/d/03L0E6pN" id="amazon-link" target="_blank" rel="noopener noreferrer">
+        <a class="modal-retailer-btn" href="https://a.co/d/04zkwJKI" id="amazon-link" target="_blank" rel="noopener noreferrer">
           Buy on Amazon
         </a>
       </div>
@@ -762,29 +762,6 @@
       if (e.key === 'Escape') closeBookModal();
     });
 
-    // Amazon deep link with app fallback on mobile
-    document.getElementById('amazon-link').addEventListener('click', function(e) {
-      const webUrl = 'https://a.co/d/03L0E6pN';
-      const ua = navigator.userAgent || navigator.vendor || window.opera || '';
-      const isMobile = /android|iphone|ipad|ipod/i.test(ua);
-
-      if (isMobile) {
-        e.preventDefault();
-        const deepLink = 'com.amazon.mobile.shopping://www.amazon.com/dp/03L0E6pN';
-        let appOpened = false;
-
-        const fallback = setTimeout(function() {
-          if (!appOpened) window.location.href = webUrl;
-        }, 1500);
-
-        window.addEventListener('blur', function() {
-          appOpened = true;
-          clearTimeout(fallback);
-        }, { once: true });
-
-        window.location.href = deepLink;
-      }
-    });
   </script>
 
 </body>
