@@ -797,6 +797,185 @@
       background: linear-gradient(90deg, transparent, rgba(161, 140, 255, 0.22), transparent);
       opacity: 0.9;
     }
+    /* Guardians Book Section */
+    .guardians-layout {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 48px;
+      align-items: center;
+      max-width: 860px;
+      margin: 0 auto;
+    }
+    .guardians-cover-wrap {
+      flex: 0 0 auto;
+    }
+    .guardians-book-img {
+      width: 200px;
+      border-radius: 10px;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55), 0 0 50px rgba(161, 140, 255, 0.10);
+      display: block;
+    }
+    .guardians-text h3 {
+      text-align: left;
+      margin: 0 0 4px 0;
+      font-size: 2rem;
+    }
+    .guardians-text .kicker {
+      text-align: left;
+    }
+    .guardians-desc {
+      text-align: left !important;
+      color: rgba(235, 232, 255, 0.82) !important;
+      max-width: 460px !important;
+      line-height: 1.62 !important;
+      margin: 0 0 24px 0 !important;
+    }
+    .guardians-subtitle {
+      text-align: left;
+      font-size: 0.9rem;
+      color: rgba(161, 140, 255, 0.80);
+      margin: 0 0 16px 0;
+      max-width: none;
+      font-style: italic;
+    }
+    @media (max-width: 640px) {
+      .guardians-layout {
+        grid-template-columns: 1fr;
+        gap: 28px;
+        text-align: center;
+      }
+      .guardians-cover-wrap {
+        display: flex;
+        justify-content: center;
+      }
+      .guardians-book-img {
+        width: 160px;
+      }
+      .guardians-text h3,
+      .guardians-text .kicker,
+      .guardians-subtitle {
+        text-align: center;
+      }
+      .guardians-desc {
+        text-align: center !important;
+        margin-left: auto !important;
+        margin-right: auto !important;
+      }
+      .guardians-text .cta-row {
+        justify-content: center;
+      }
+    }
+
+    /* Book Modal */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 200;
+      background: rgba(5, 4, 18, 0.80);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      box-sizing: border-box;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.28s ease;
+    }
+    .modal-backdrop.is-open {
+      opacity: 1;
+      pointer-events: all;
+    }
+    .modal-card {
+      position: relative;
+      background: linear-gradient(180deg, rgba(20, 18, 48, 0.99) 0%, rgba(26, 24, 58, 0.97) 100%);
+      border: 1px solid rgba(144, 140, 159, 0.28);
+      border-radius: 22px;
+      padding: 44px 36px 36px 36px;
+      max-width: 400px;
+      width: 100%;
+      box-shadow: 0 28px 70px rgba(0, 0, 0, 0.55), 0 0 60px rgba(161, 140, 255, 0.07);
+      transform: translateY(14px) scale(0.98);
+      transition: transform 0.28s ease;
+    }
+    .modal-backdrop.is-open .modal-card {
+      transform: translateY(0) scale(1);
+    }
+    .modal-close {
+      position: absolute;
+      top: 14px;
+      right: 14px;
+      width: 30px;
+      height: 30px;
+      background: rgba(144, 140, 159, 0.12);
+      border: 1px solid rgba(144, 140, 159, 0.26);
+      border-radius: 50%;
+      color: rgba(210, 205, 240, 0.65);
+      font-size: 0.78rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      padding: 0;
+      transition: background 0.2s ease, color 0.2s ease;
+      font-family: 'Inter', sans-serif;
+      font-weight: 300;
+    }
+    .modal-close:hover {
+      background: rgba(144, 140, 159, 0.22);
+      color: rgba(235, 232, 255, 0.92);
+    }
+    .modal-book-title {
+      text-align: center;
+      margin: 0 0 2px 0;
+      font-size: 1.6rem;
+    }
+    .modal-book-sub {
+      text-align: center;
+      font-size: 0.84rem;
+      color: rgba(161, 140, 255, 0.78);
+      margin: 0 0 28px 0;
+      max-width: none;
+      font-style: italic;
+    }
+    .modal-retailers {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .modal-retailer-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 15px 20px;
+      border-radius: 12px;
+      border: 1px solid rgba(161, 140, 255, 0.28);
+      background: linear-gradient(135deg, rgba(154, 134, 245, 0.24), rgba(122, 109, 224, 0.16));
+      color: rgba(245, 243, 255, 0.96);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      font-size: 1rem;
+      font-weight: 500;
+      text-decoration: none;
+      cursor: pointer;
+      transition: background 0.25s ease, border-color 0.25s ease, transform 0.2s ease, box-shadow 0.25s ease;
+      box-sizing: border-box;
+    }
+    .modal-retailer-btn:hover {
+      background: linear-gradient(135deg, rgba(168, 150, 249, 0.32), rgba(137, 124, 232, 0.24));
+      border-color: rgba(183, 166, 255, 0.42);
+      box-shadow: 0 4px 16px rgba(161, 140, 255, 0.18);
+      transform: translateY(-1px);
+    }
+    .modal-coming-soon {
+      margin: 18px 0 0 0 !important;
+      text-align: center !important;
+      font-size: 0.78rem !important;
+      color: rgba(144, 140, 159, 0.52) !important;
+      max-width: none !important;
+      letter-spacing: 0.03em;
+    }
+
     /* Responsive tweaks */
     @media (max-width: 480px) {
       :root { --topbar-height: 64px; }
@@ -917,6 +1096,7 @@
       <img src="inner_orb.png" alt="Inner" />
     </div>
     <nav aria-label="Sections">
+      <a href="guardians.html">Guardians</a>
       <a href="#chambers">Chambers</a>
       <a href="#Experience">Experience</a>
       <a href="#trust">Trust</a>
@@ -957,6 +1137,28 @@
             </div>
     </div>
   </section>
+
+  <!-- GUARDIANS BOOK -->
+  <section id="guardians" class="section" aria-label="Guardians book" style="padding-top: 56px; padding-bottom: 56px;">
+    <div class="container reveal">
+      <div class="guardians-layout">
+        <div class="guardians-cover-wrap">
+          <img src="Guardians_eBook_JPG.jpg" alt="Guardians — The Guardian Ecology book cover" class="guardians-book-img" />
+        </div>
+        <div class="guardians-text">
+          <p class="kicker">The Book</p>
+          <h3>Guardians</h3>
+          <p class="guardians-subtitle">The Guardian Ecology: A Complete System for Conscious Dreaming</p>
+          <p class="guardians-desc">Five presences. One living system. A complete framework for conscious dreaming — synthesized from LaBerge's science, Monroe's cartography, and Tibetan dream yoga into a unified developmental sequence that deepens automatically with every session.</p>
+          <div class="cta-row" style="justify-content:flex-start; margin-top:0;">
+            <button class="store-btn" onclick="openBookModal()" type="button">Get The Book</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="veil-line" aria-hidden="true" style="max-width:1100px; margin:0 auto;"></div>
 
   <!-- CHAMBERS PREVIEW -->
     <section id="chambers" class="section" aria-label="Chambers preview" style="padding-top: 48px;">
@@ -1150,6 +1352,24 @@
     </div>
   </section>
 
+  <!-- BOOK MODAL -->
+  <div id="book-modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-label="Get the Guardians book" aria-hidden="true">
+    <div class="modal-card">
+      <button class="modal-close" onclick="closeBookModal()" aria-label="Close modal">✕</button>
+      <p class="kicker" style="text-align:center; margin:0 0 8px 0;">The Book</p>
+      <h3 class="modal-book-title">Guardians</h3>
+      <p class="modal-book-sub">The Guardian Ecology</p>
+
+      <div class="modal-retailers">
+        <a class="modal-retailer-btn" href="https://a.co/d/03L0E6pN" id="amazon-link" target="_blank" rel="noopener noreferrer">
+          Buy on Amazon
+        </a>
+      </div>
+
+      <p class="modal-coming-soon">More retailers coming soon.</p>
+    </div>
+  </div>
+
   <script>
     // Scroll reveal
     const revealEls = document.querySelectorAll('.reveal');
@@ -1251,6 +1471,53 @@
 
     smartStoreLinks.forEach((link) => {
       link.setAttribute('href', getSmartStoreUrl());
+    });
+
+    // Book modal
+    function openBookModal() {
+      const modal = document.getElementById('book-modal');
+      modal.setAttribute('aria-hidden', 'false');
+      modal.classList.add('is-open');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeBookModal() {
+      const modal = document.getElementById('book-modal');
+      modal.setAttribute('aria-hidden', 'true');
+      modal.classList.remove('is-open');
+      document.body.style.overflow = '';
+    }
+
+    document.getElementById('book-modal').addEventListener('click', function(e) {
+      if (e.target === this) closeBookModal();
+    });
+
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') closeBookModal();
+    });
+
+    // Amazon deep link with app fallback on mobile
+    document.getElementById('amazon-link').addEventListener('click', function(e) {
+      const webUrl = 'https://a.co/d/03L0E6pN';
+      const ua = navigator.userAgent || navigator.vendor || window.opera || '';
+      const isMobile = /android|iphone|ipad|ipod/i.test(ua);
+
+      if (isMobile) {
+        e.preventDefault();
+        const deepLink = 'com.amazon.mobile.shopping://www.amazon.com/dp/03L0E6pN';
+        let appOpened = false;
+
+        const fallback = setTimeout(function() {
+          if (!appOpened) window.location.href = webUrl;
+        }, 1500);
+
+        window.addEventListener('blur', function() {
+          appOpened = true;
+          clearTimeout(fallback);
+        }, { once: true });
+
+        window.location.href = deepLink;
+      }
     });
   </script>
 </body>
