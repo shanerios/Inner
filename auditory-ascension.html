@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Guardians — Inner</title>
+  <title>Auditory Ascension — Inner</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,200;0,300;0,400;0,500;0,600;1,200;1,300&display=swap" rel="stylesheet">
@@ -64,30 +64,10 @@
       font-weight: 400;
     }
 
-    h1 {
-      font-size: 2.8rem;
-      line-height: 1.06;
-      margin: 0 0 10px 0;
-      text-align: center;
-    }
-    h2 {
-      font-size: 1.9rem;
-      line-height: 1.1;
-      margin: 0 0 12px 0;
-      text-align: center;
-    }
-    h3 {
-      font-size: 1.35rem;
-      line-height: 1.2;
-      margin: 0 0 10px 0;
-      text-align: center;
-    }
-    p {
-      font-size: 1rem;
-      margin: 0 auto 1.4rem auto;
-      text-align: center;
-      max-width: 740px;
-    }
+    h1 { font-size: 2.8rem; line-height: 1.06; margin: 0 0 10px 0; text-align: center; }
+    h2 { font-size: 1.9rem; line-height: 1.1; margin: 0 0 12px 0; text-align: center; }
+    h3 { font-size: 1.35rem; line-height: 1.2; margin: 0 0 10px 0; text-align: center; }
+    p { font-size: 1rem; margin: 0 auto 1.4rem auto; text-align: center; max-width: 740px; }
 
     /* Top nav */
     .topbar {
@@ -108,43 +88,19 @@
       backdrop-filter: blur(10px);
       border-bottom: 1px solid rgba(144, 140, 159, 0.16);
     }
-    .topbar a {
-      color: rgba(235, 232, 255, 0.84);
-      text-decoration: none;
-      font-size: 0.95rem;
-      margin-left: 12px;
-    }
-    .topbar a:hover {
-      color: rgba(161, 140, 255, 0.95);
-    }
-    .topbar a.active {
-      color: rgba(161, 140, 255, 1);
-      position: relative;
-    }
+    .topbar a { color: rgba(235, 232, 255, 0.84); text-decoration: none; font-size: 0.95rem; margin-left: 12px; }
+    .topbar a:hover { color: rgba(161, 140, 255, 0.95); }
+    .topbar a.active { color: rgba(161, 140, 255, 1); position: relative; }
     .topbar a.active::after {
       content: '';
       position: absolute;
-      left: 0;
-      right: 0;
-      bottom: -6px;
+      left: 0; right: 0; bottom: -6px;
       height: 2px;
       background: linear-gradient(90deg, transparent, rgba(161, 140, 255, 0.9), transparent);
       border-radius: 2px;
     }
-    .brand {
-      display: inline-flex;
-      align-items: center;
-      gap: 10px;
-      flex: 0 0 auto;
-      text-decoration: none;
-    }
-    .brand img {
-      width: 28px;
-      height: 28px;
-      border-radius: 50%;
-      object-fit: contain;
-      display: block;
-    }
+    .brand { display: inline-flex; align-items: center; gap: 10px; flex: 0 0 auto; text-decoration: none; }
+    .brand img { width: 28px; height: 28px; border-radius: 50%; object-fit: contain; display: block; }
 
     /* Hamburger */
     .hamburger {
@@ -179,8 +135,7 @@
       display: none;
       position: fixed;
       top: var(--topbar-height);
-      left: 0;
-      right: 0;
+      left: 0; right: 0;
       z-index: 9;
       background: rgba(13, 12, 31, 0.97);
       backdrop-filter: blur(16px);
@@ -192,11 +147,7 @@
       pointer-events: none;
       transition: opacity 0.22s ease, transform 0.22s ease;
     }
-    .mobile-nav.is-open {
-      opacity: 1;
-      transform: translateY(0);
-      pointer-events: all;
-    }
+    .mobile-nav.is-open { opacity: 1; transform: translateY(0); pointer-events: all; }
     .mobile-nav a {
       display: block;
       padding: 13px 22px;
@@ -219,23 +170,9 @@
     }
 
     /* Nav dropdown */
-    .nav-dropdown {
-      position: relative;
-      display: inline-flex;
-      align-items: center;
-    }
-    .nav-dropdown-toggle {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      cursor: pointer;
-    }
-    .dropdown-chevron {
-      font-size: 0.65em;
-      display: inline-block;
-      transition: transform 0.2s ease;
-      margin-top: 1px;
-    }
+    .nav-dropdown { position: relative; display: inline-flex; align-items: center; }
+    .nav-dropdown-toggle { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+    .dropdown-chevron { font-size: 0.65em; display: inline-block; transition: transform 0.2s ease; margin-top: 1px; }
     .nav-dropdown:hover .dropdown-chevron,
     .nav-dropdown.is-open .dropdown-chevron { transform: rotate(180deg); }
     .nav-dropdown-menu {
@@ -260,10 +197,7 @@
     }
     .nav-dropdown:hover .nav-dropdown-menu,
     .nav-dropdown.is-open .nav-dropdown-menu {
-      visibility: visible;
-      opacity: 1;
-      transform: translateY(0);
-      pointer-events: all;
+      visibility: visible; opacity: 1; transform: translateY(0); pointer-events: all;
     }
     .nav-dropdown-menu a {
       display: block;
@@ -276,27 +210,13 @@
       white-space: nowrap;
     }
     .nav-dropdown-menu a:last-child { border-bottom: none; }
-    .nav-dropdown-menu a:hover {
-      color: rgba(161, 140, 255, 0.95);
-      background: rgba(144, 140, 159, 0.08);
-    }
+    .nav-dropdown-menu a:hover { color: rgba(161, 140, 255, 0.95); background: rgba(144, 140, 159, 0.08); }
     .nav-dropdown-menu a.active { color: rgba(161, 140, 255, 1); }
 
     /* Layout */
-    .section {
-      width: 100%;
-      max-width: var(--max);
-      margin: 0 auto;
-      padding: 72px 0;
-      position: relative;
-    }
-    .container {
-      width: 100%;
-      padding: 0 18px;
-      box-sizing: border-box;
-    }
+    .section { width: 100%; max-width: var(--max); margin: 0 auto; padding: 72px 0; position: relative; }
+    .container { width: 100%; padding: 0 18px; box-sizing: border-box; }
     .center { text-align: center; }
-
     .kicker {
       text-align: center;
       letter-spacing: 0.14em;
@@ -307,10 +227,6 @@
       user-select: none;
     }
     .subtle { color: rgba(210, 205, 240, 0.70); }
-    .chamber-highlight {
-      color: #A18CFF;
-      text-shadow: 0 0 8px rgba(161, 140, 255, 0.4);
-    }
 
     /* Panels */
     .panel {
@@ -337,12 +253,11 @@
       border-radius: 10px;
       box-shadow: 0 16px 50px rgba(0, 0, 0, 0.60), 0 0 60px rgba(161, 140, 255, 0.12);
       display: block;
+      background: rgba(31, 30, 56, 0.82);
+      min-height: 300px;
+      object-fit: cover;
     }
-    .hero-text h1 {
-      text-align: center;
-      font-size: 3rem;
-      margin-bottom: 6px;
-    }
+    .hero-text h1 { text-align: center; font-size: 3rem; margin-bottom: 6px; }
     .hero-subtitle {
       text-align: center;
       font-size: 0.92rem;
@@ -359,12 +274,7 @@
       margin: 0 auto 28px auto !important;
       font-size: 1.05rem !important;
     }
-    .cta-row {
-      display: flex;
-      gap: 12px;
-      flex-wrap: wrap;
-      justify-content: center;
-    }
+    .cta-row { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
     .store-btn {
       display: inline-flex;
       align-items: center;
@@ -411,20 +321,8 @@
       border-color: rgba(161, 140, 255, 0.45);
       box-shadow: 0 0 18px 3px rgba(161, 140, 255, 0.16);
     }
-    .feature h4 {
-      margin: 0 0 8px 0;
-      font-size: 1.02rem;
-      color: rgba(235, 232, 255, 0.95);
-      text-align: left;
-    }
-    .feature p {
-      margin: 0;
-      max-width: none;
-      font-size: 0.96rem;
-      color: rgba(210, 205, 240, 0.76);
-      text-align: left;
-      line-height: 1.58;
-    }
+    .feature h4 { margin: 0 0 8px 0; font-size: 1.02rem; color: rgba(235, 232, 255, 0.95); text-align: left; }
+    .feature p { margin: 0; max-width: none; font-size: 0.96rem; color: rgba(210, 205, 240, 0.76); text-align: left; line-height: 1.58; }
     .feature-number {
       font-family: 'CalSans', sans-serif;
       font-size: 0.72rem;
@@ -435,21 +333,9 @@
     }
 
     /* Description block */
-    .desc-block {
-      max-width: 820px;
-      margin: 0 auto;
-      text-align: left;
-    }
-    .desc-block p {
-      text-align: left;
-      max-width: none;
-      color: rgba(235, 232, 255, 0.84);
-      line-height: 1.72;
-      margin-bottom: 1.2rem;
-    }
-    .desc-block p:last-child {
-      margin-bottom: 0;
-    }
+    .desc-block { max-width: 820px; margin: 0 auto; text-align: left; }
+    .desc-block p { text-align: left; max-width: none; color: rgba(235, 232, 255, 0.84); line-height: 1.72; margin-bottom: 1.2rem; }
+    .desc-block p:last-child { margin-bottom: 0; }
 
     /* Divider */
     .veil-line {
@@ -461,36 +347,15 @@
     }
 
     /* Footer links */
-    .footer-links {
-      display: inline-flex;
-      gap: 12px;
-      align-items: center;
-      justify-content: center;
-      flex-wrap: wrap;
-    }
-    .footer-links a {
-      color: rgba(210, 205, 240, 0.78);
-      text-decoration: none;
-      border-bottom: 1px solid rgba(161, 140, 255, 0.22);
-      padding-bottom: 1px;
-    }
-    .footer-links a:hover {
-      color: rgba(161, 140, 255, 0.95);
-      border-bottom-color: rgba(161, 140, 255, 0.55);
-    }
+    .footer-links { display: inline-flex; gap: 12px; align-items: center; justify-content: center; flex-wrap: wrap; }
+    .footer-links a { color: rgba(210, 205, 240, 0.78); text-decoration: none; border-bottom: 1px solid rgba(161, 140, 255, 0.22); padding-bottom: 1px; }
+    .footer-links a:hover { color: rgba(161, 140, 255, 0.95); border-bottom-color: rgba(161, 140, 255, 0.55); }
 
     /* Scroll reveal */
-    .reveal {
-      opacity: 0;
-      transform: translateY(18px);
-      transition: opacity 0.8s ease, transform 0.8s ease;
-    }
-    .reveal.visible {
-      opacity: 1;
-      transform: translateY(0);
-    }
+    .reveal { opacity: 0; transform: translateY(18px); transition: opacity 0.8s ease, transform 0.8s ease; }
+    .reveal.visible { opacity: 1; transform: translateY(0); }
 
-    /* Book Modal */
+    /* Modal */
     .modal-backdrop {
       position: fixed;
       inset: 0;
@@ -507,10 +372,7 @@
       pointer-events: none;
       transition: opacity 0.28s ease;
     }
-    .modal-backdrop.is-open {
-      opacity: 1;
-      pointer-events: all;
-    }
+    .modal-backdrop.is-open { opacity: 1; pointer-events: all; }
     .modal-card {
       position: relative;
       background: linear-gradient(180deg, rgba(20, 18, 48, 0.99) 0%, rgba(26, 24, 58, 0.97) 100%);
@@ -523,15 +385,11 @@
       transform: translateY(14px) scale(0.98);
       transition: transform 0.28s ease;
     }
-    .modal-backdrop.is-open .modal-card {
-      transform: translateY(0) scale(1);
-    }
+    .modal-backdrop.is-open .modal-card { transform: translateY(0) scale(1); }
     .modal-close {
       position: absolute;
-      top: 14px;
-      right: 14px;
-      width: 30px;
-      height: 30px;
+      top: 14px; right: 14px;
+      width: 30px; height: 30px;
       background: rgba(144, 140, 159, 0.12);
       border: 1px solid rgba(144, 140, 159, 0.26);
       border-radius: 50%;
@@ -546,28 +404,10 @@
       font-family: 'Inter', sans-serif;
       font-weight: 300;
     }
-    .modal-close:hover {
-      background: rgba(144, 140, 159, 0.22);
-      color: rgba(235, 232, 255, 0.92);
-    }
-    .modal-book-title {
-      text-align: center;
-      margin: 0 0 2px 0;
-      font-size: 1.6rem;
-    }
-    .modal-book-sub {
-      text-align: center;
-      font-size: 0.84rem;
-      color: rgba(161, 140, 255, 0.78);
-      margin: 0 0 28px 0;
-      max-width: none;
-      font-style: italic;
-    }
-    .modal-retailers {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
+    .modal-close:hover { background: rgba(144, 140, 159, 0.22); color: rgba(235, 232, 255, 0.92); }
+    .modal-book-title { text-align: center; margin: 0 0 2px 0; font-size: 1.6rem; }
+    .modal-book-sub { text-align: center; font-size: 0.84rem; color: rgba(161, 140, 255, 0.78); margin: 0 0 28px 0; max-width: none; font-style: italic; }
+    .modal-retailers { display: flex; flex-direction: column; gap: 10px; }
     .modal-retailer-btn {
       display: flex;
       align-items: center;
@@ -601,21 +441,13 @@
     }
 
     /* Responsive */
+    @media (max-width: 900px) { .grid { grid-template-columns: 1fr 1fr; } }
     @media (max-width: 560px) {
+      .grid { grid-template-columns: 1fr; }
+      :root { --topbar-height: 64px; }
       .hero-book-img { width: 170px; }
       h1 { font-size: 2.2rem; }
       .hero-text h1 { font-size: 2.2rem; }
-    }
-    @media (max-width: 900px) {
-      .grid {
-        grid-template-columns: 1fr 1fr;
-      }
-    }
-    @media (max-width: 560px) {
-      .grid {
-        grid-template-columns: 1fr;
-      }
-      :root { --topbar-height: 64px; }
     }
   </style>
 </head>
@@ -629,8 +461,8 @@
       <div class="nav-dropdown" id="books-dropdown">
         <a href="#" class="nav-dropdown-toggle" onclick="event.preventDefault();">Books <span class="dropdown-chevron">▾</span></a>
         <div class="nav-dropdown-menu" role="menu">
-          <a href="auditory-ascension.html" role="menuitem">Auditory Ascension</a>
-          <a href="guardians.html" class="active" role="menuitem">Guardians</a>
+          <a href="auditory-ascension.html" class="active" role="menuitem">Auditory Ascension</a>
+          <a href="guardians.html" role="menuitem">Guardians</a>
         </div>
       </div>
       <a href="/#chambers">Chambers</a>
@@ -642,24 +474,24 @@
   </header>
 
   <nav class="mobile-nav" id="mobile-nav" aria-label="Mobile navigation">
-    <a href="auditory-ascension.html">Auditory Ascension</a>
-    <a href="guardians.html" class="active">Guardians</a>
+    <a href="auditory-ascension.html" class="active">Auditory Ascension</a>
+    <a href="guardians.html">Guardians</a>
     <a href="/#chambers">Chambers</a>
     <a href="/#join">Download</a>
   </nav>
 
   <!-- HERO -->
-  <section class="section" style="padding-top: 48px; padding-bottom: 56px;" aria-label="Guardians book hero">
+  <section class="section" style="padding-top: 48px; padding-bottom: 56px;" aria-label="Auditory Ascension hero">
     <div class="container reveal">
       <div class="hero-layout">
-        <img src="Guardians_eBook_JPG.jpg" alt="Guardians — The Guardian Ecology book cover" class="hero-book-img" />
+        <img src="Auditory_Ascension_eBook.jpg" alt="Auditory Ascension book cover" class="hero-book-img" />
         <div class="hero-text">
           <p class="kicker">Inner Research Foundation</p>
-          <h1>Guardians</h1>
-          <p class="hero-subtitle">The Guardian Ecology: A Complete System for Conscious Dreaming</p>
-          <p class="hero-desc">Five presences. One living system. A complete framework for conscious dreaming — synthesized from fifty years of research and practice, built to deepen automatically with every session you put into it.</p>
+          <h1>Auditory Ascension</h1>
+          <p class="hero-subtitle">The Inner Guide to Sound-Induced States</p>
+          <p class="hero-desc">The science and practice behind the Chambers — how structured sound shapes consciousness, why repetition deepens access, and how to use auditory environments as a deliberate tool for inner work.</p>
           <div class="cta-row">
-            <a class="store-btn" href="javascript:void(0)" onclick="openModal('guardians-modal')" role="button">Get The Book</a>
+            <a class="store-btn" href="javascript:void(0)" onclick="openModal('aa-modal')" role="button">Get The Book</a>
           </div>
         </div>
       </div>
@@ -672,59 +504,59 @@
   <section class="section" aria-label="About the book">
     <div class="container reveal">
       <p class="kicker">About the Book</p>
-      <h2 style="margin-bottom: 28px;">A different premise for dreaming.</h2>
+      <h2 style="margin-bottom: 28px;">Sound is not decoration.</h2>
 
       <div class="desc-block panel">
-        <p>Most approaches to lucid dreaming are about memory. You remember to check. You remember your intention. You remember that you're dreaming. The techniques are well-designed — but they share a structural vulnerability: the faculty they depend on is precisely the faculty that sleep dismantles. Memory degrades at the threshold. Effort dissolves.</p>
+        <p>Most people treat audio as background. Something to fill silence, to manage mood, to pass time. Auditory Ascension begins from a different premise: that sound is a precise instrument for shaping the state of the nervous system — and that the right sonic environment, used with the right understanding, can reliably induce states that most people only encounter by accident.</p>
 
-        <p>The Guardian Ecology begins from a different premise. Rather than training the mind to remember, it trains felt awareness to recognize. Rather than installing intentions that must survive the crossing intact, it cultivates presences that operate independently of memory — somatic qualities of awareness that are already oriented to the threshold when the threshold arrives.</p>
+        <p>The Inner Chambers are built on this understanding. What makes them work is not mystical — it's architectural. Specific patterns of spatial sound, harmonic tension and release, and rhythmic pulse structures interact with the brain's own oscillatory systems in ways that are measurable, repeatable, and teachable. This book explains the mechanism.</p>
 
-        <p>The five Guardians are not techniques in the conventional sense. They are cultivated aspects of your own awareness, each trained to a specific moment and a specific function in the inner journey. Together, when genuinely established, they form something more than a collection of tools: a living ecology that adapts to whatever territory you encounter, deepens automatically with each session, and eventually becomes less a practice you do than a ground you inhabit.</p>
+        <p>Auditory Ascension covers the psychoacoustic science behind the Chambers, the neurological basis for sound-induced state change, how to work with auditory environments intentionally rather than passively, and why the deepest effects only emerge through repetition. It is both a theoretical foundation and a practical guide — written for the practitioner who wants to understand what they are doing and why it works.</p>
 
-        <p style="margin-bottom:0;">This manuscript draws from Stephen LaBerge's landmark laboratory research, Robert Monroe's phenomenological cartography of threshold consciousness, over a thousand years of Tibetan dream yoga practice, and contemporary neuroscience of metacognitive awareness, interoception, and sleep-dependent memory consolidation. What each tradition arrived at, independently, was a version of the same observation. This book formalizes that convergence into a learnable developmental sequence.</p>
+        <p style="margin-bottom:0;">This is the map behind the territory the Chambers ask you to enter. You don't need it to begin. But understanding it changes how you listen — and how far you can go.</p>
       </div>
     </div>
   </section>
 
   <div class="veil-line" aria-hidden="true" style="max-width:1100px; margin:0 auto;"></div>
 
-  <!-- THE FIVE GUARDIANS -->
-  <section class="section" aria-label="The five Guardians">
+  <!-- KEY PRINCIPLES -->
+  <section class="section" aria-label="Key principles">
     <div class="container reveal">
-      <p class="kicker">The Guardian Ecology</p>
-      <h2>Five presences. One living system.</h2>
-      <p class="subtle center" style="margin-bottom:30px; max-width:640px;">Each Guardian is a cultivated aspect of your own awareness, trained to a specific moment and function in the inner journey. They must be developed in sequence — what fails when practitioners attempt to bypass stages is well-documented in the text.</p>
+      <p class="kicker">What the Book Covers</p>
+      <h2>Five dimensions of auditory practice.</h2>
+      <p class="subtle center" style="margin-bottom:30px; max-width:640px;">Each dimension builds on the last — a complete framework for understanding and working with sound as a tool for inner exploration.</p>
 
       <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-top: 0;">
 
         <div class="feature">
-          <p class="feature-number">Guardian I</p>
-          <h4>Recognition</h4>
-          <p>The metacognitive faculty that recognizes the dreaming state from within it. Not a remembered cue — a trained quality of awareness that signals its own presence. The foundation everything else depends on.</p>
+          <p class="feature-number">Dimension I</p>
+          <h4>The Nervous System as Instrument</h4>
+          <p>Sound doesn't just reach the ears — it plays the body. This section covers how auditory input interacts with the autonomic nervous system, regulates arousal, and creates the conditions for downshifting out of evaluation mode and into deeper states.</p>
         </div>
 
         <div class="feature">
-          <p class="feature-number">Guardian II</p>
-          <h4>Stability</h4>
-          <p>Once recognition occurs, the dream state must be held without destabilizing it. Stability is the somatic quality that maintains lucid presence — grounded, unrushed, continuous across the natural turbulence of dreaming.</p>
+          <p class="feature-number">Dimension II</p>
+          <h4>Entrainment and State Change</h4>
+          <p>The brain is rhythmic by nature. Breath, heart rate, attention, and perception respond to patterns. This section explains how structured sound uses entrainment — the tendency of oscillating systems to synchronize — to guide the listener toward specific neural states.</p>
         </div>
 
         <div class="feature">
-          <p class="feature-number">Guardian III</p>
-          <h4>Depth</h4>
-          <p>The capacity to move from surface lucidity into deeper territory. Depth allows intentional descent — past the dream surface into states associated with insight, encounter, and the less-charted regions of inner experience.</p>
+          <p class="feature-number">Dimension III</p>
+          <h4>Spatial Sound and Presence</h4>
+          <p>Three-dimensional audio isn't a gimmick — it's a perceptual anchor. When sound has depth and placement, the brain treats it as an environment rather than a track. This section covers how spatial audio generates felt presence and keeps attention stable long enough for depth to emerge.</p>
         </div>
 
         <div class="feature">
-          <p class="feature-number">Guardian IV</p>
-          <h4>Protector</h4>
-          <p>A cultivated quality of presence that navigates difficult, destabilizing, or confrontational dream content with equanimity. The ecology's safeguard — allowing the practitioner to go deeper without being undone by what they find there.</p>
+          <p class="feature-number">Dimension IV</p>
+          <h4>Repetition as Conditioning</h4>
+          <p>Most audio is designed to entertain. Chambers are designed to condition. This section explains why returning to the same sonic environment — rather than seeking novelty — is what allows the nervous system to stop analyzing and start entraining, and how that shift is what makes the deeper effects possible.</p>
         </div>
 
         <div class="feature">
-          <p class="feature-number">Guardian V</p>
-          <h4>Retroactive</h4>
-          <p>The ecology's most novel element. The Retroactive Guardian operates across time rather than within a single session — a field of accumulated practice that persists, deepens, and develops its own intelligence between sessions. The ground the other four come to inhabit.</p>
+          <p class="feature-number">Dimension V</p>
+          <h4>The Ascension Arc</h4>
+          <p>What becomes possible when all four dimensions are working together — the progression from surface calm to genuine depth, the appearance of hypnagogic states and lucid-adjacent awareness, and the long-term transformation of how you relate to stillness, sound, and inner experience.</p>
         </div>
 
       </div>
@@ -733,16 +565,16 @@
 
   <div class="veil-line" aria-hidden="true" style="max-width:1100px; margin:0 auto;"></div>
 
-  <!-- WHAT THIS IS FOR -->
+  <!-- WHO THIS IS FOR -->
   <section class="section" aria-label="Who this book is for">
     <div class="container reveal">
       <p class="kicker">Who This Is For</p>
       <div class="panel" style="max-width:820px; margin:0 auto;">
-        <h3 style="text-align:left; margin-top:0; font-size:1.5rem;">A foundation, not a starting point.</h3>
+        <h3 style="text-align:left; margin-top:0; font-size:1.5rem;">The theory behind what you're already experiencing.</h3>
         <div class="desc-block">
-          <p>This manuscript is written for practitioners who have already encountered the Guardian Ecology through Inner's practice sessions and want to understand, at a deeper level, what they are working with and why the system is structured the way it is.</p>
-          <p>You don't need this to work effectively with the Guardians. The practice is complete without the theory. But some practitioners find that understanding deepens engagement — that knowing why the sequence is non-negotiable helps them resist the temptation to compress it, that recognizing the neuroscience behind somatic presence helps them trust what they feel rather than second-guess it, that seeing how multiple independent traditions arrived at the same territory helps them inhabit that territory with more confidence.</p>
-          <p style="margin-bottom:0; color:rgba(161,140,255,0.86);">If that describes you, this is the book.</p>
+          <p>Auditory Ascension is written for Inner practitioners who have already felt something shift during a Chamber session and want to understand what actually happened. The Chambers work without this book. The practice is complete on its own terms.</p>
+          <p>But some practitioners find that understanding deepens the experience — that knowing why the sound is structured the way it is helps them stop trying to analyze it and start trusting it, that understanding the neuroscience behind entrainment helps them relax into repetition rather than looking for novelty, that having a framework for what's happening in the body makes it easier to settle into depth.</p>
+          <p style="margin-bottom:0; color:rgba(161,140,255,0.86);">If you've ever wondered what the Chambers are doing, this is the answer.</p>
         </div>
       </div>
     </div>
@@ -752,10 +584,10 @@
   <section class="section" aria-label="Get the book" style="padding-top:32px;">
     <div class="container center reveal">
       <div class="panel" style="max-width:560px; margin:0 auto; padding:36px 32px;">
-        <h3 style="margin-top:0; font-size:1.6rem;">Guardians</h3>
-        <p style="color:rgba(161,140,255,0.80); font-style:italic; font-size:0.9rem; margin-bottom:22px;">The Guardian Ecology: A Complete System for Conscious Dreaming</p>
+        <h3 style="margin-top:0; font-size:1.6rem;">Auditory Ascension</h3>
+        <p style="color:rgba(161,140,255,0.80); font-style:italic; font-size:0.9rem; margin-bottom:22px;">The Inner Guide to Sound-Induced States</p>
         <div class="cta-row" style="justify-content:center;">
-          <a class="store-btn" href="javascript:void(0)" onclick="openModal('guardians-modal')" role="button">Get The Book</a>
+          <a class="store-btn" href="javascript:void(0)" onclick="openModal('aa-modal')" role="button">Get The Book</a>
         </div>
       </div>
 
@@ -766,15 +598,15 @@
     </div>
   </section>
 
-  <!-- GUARDIANS MODAL -->
-  <div id="guardians-modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-label="Get Guardians" aria-hidden="true">
+  <!-- AUDITORY ASCENSION MODAL -->
+  <div id="aa-modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-label="Get Auditory Ascension" aria-hidden="true">
     <div class="modal-card">
-      <button class="modal-close" onclick="closeModal('guardians-modal')" aria-label="Close modal">✕</button>
+      <button class="modal-close" onclick="closeModal('aa-modal')" aria-label="Close modal">✕</button>
       <p class="kicker" style="text-align:center; margin:0 0 8px 0;">The Book</p>
-      <h3 class="modal-book-title">Guardians</h3>
-      <p class="modal-book-sub">The Guardian Ecology</p>
+      <h3 class="modal-book-title">Auditory Ascension</h3>
+      <p class="modal-book-sub">The Inner Guide to Sound-Induced States</p>
       <div class="modal-retailers">
-        <a class="modal-retailer-btn" href="https://a.co/d/04zkwJKI" target="_blank" rel="noopener noreferrer">Buy on Amazon</a>
+        <a class="modal-retailer-btn" href="https://a.co/d/0b77D1II" target="_blank" rel="noopener noreferrer">Buy on Amazon</a>
       </div>
       <p class="modal-coming-soon">More retailers coming soon.</p>
     </div>
@@ -845,7 +677,6 @@
         if (!booksDropdown.contains(e.target)) booksDropdown.classList.remove('is-open');
       });
     }
-
   </script>
 
 </body>
