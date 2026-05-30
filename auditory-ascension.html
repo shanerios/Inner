@@ -99,8 +99,9 @@
       background: linear-gradient(90deg, transparent, rgba(161, 140, 255, 0.9), transparent);
       border-radius: 2px;
     }
-    .brand { display: inline-flex; align-items: center; gap: 10px; flex: 0 0 auto; text-decoration: none; }
-    .brand img { width: 28px; height: 28px; border-radius: 50%; object-fit: contain; display: block; }
+    .brand { display: inline-flex; align-items: center; flex: 0 0 auto; }
+    .brand-link { font-family: 'CalSans', sans-serif !important; font-weight: 600; font-size: 1.35rem; letter-spacing: 0.04em; color: rgba(235, 232, 255, 0.96) !important; text-decoration: none; line-height: 1; margin-left: 0; }
+    .brand-link:hover { color: rgba(161, 140, 255, 1) !important; }
 
     /* Hamburger */
     .hamburger {
@@ -457,9 +458,9 @@
 <body>
 
   <header class="topbar" aria-label="Inner navigation">
-    <a href="/" class="brand" aria-label="Inner home">
-      <img src="inner_orb.png" alt="Inner" />
-    </a>
+    <div class="brand">
+      <a href="index.html" class="brand-link">inner</a>
+    </div>
     <nav aria-label="Site navigation">
       <div class="nav-dropdown" id="books-dropdown">
         <a href="#" class="nav-dropdown-toggle" onclick="event.preventDefault();">Books <span class="dropdown-chevron">▾</span></a>
