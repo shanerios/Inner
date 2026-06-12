@@ -9,7 +9,8 @@ import Purchases from 'react-native-purchases';
 import { Asset } from 'expo-asset';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useRoute, useNavigation } from '@react-navigation/native';
+import { useRoute, useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import OrbPortal from '../components/OrbPortal';
 import AuraOverlay from '../components/AuraOverlay';
 import { TRACKS, TRACK_INDEX, getTrackUrl, getPreferredQuality, setPreferredQuality } from '../data/tracks';
@@ -59,6 +60,19 @@ const DEBUG_AUDIO = false; // flip on when debugging audio
 
 const DEBUG_OVERLAY = false; // set to true only when debugging
 
+// MP4 backgrounds keyed by ChamberEnvId — used instead of blurred static images
+const CHAMBER_BG_VIDEOS: Record<string, any> = {
+  chamber_one:   require('../assets/videos/chamber_one_bg.mp4'),
+  chamber_two:   require('../assets/videos/chamber_two_bg.mp4'),
+  chamber_three: require('../assets/videos/chamber_three_bg.mp4'),
+  chamber_four:  require('../assets/videos/chamber_four_bg.mp4'),
+  chamber_five:  require('../assets/videos/chamber_five_bg.mp4'),
+  chamber_six:   require('../assets/videos/chamber_six_bg.mp4'),
+  chamber_seven: require('../assets/videos/chamber_seven_bg.mp4'),
+  chamber_eight: require('../assets/videos/chamber_eight_bg.mp4'),
+  chamber_nine:  require('../assets/videos/chamber_nine_bg.mp4'),
+};
+
 export default function JourneyPlayer() {
   const route = useRoute();
   const navigation = useNavigation();
@@ -100,6 +114,22 @@ export default function JourneyPlayer() {
   const env = chamberEnvForTrack((selectedTrack?.id || legacyId || ''), (selectedTrack as any) || (meta as any));
   const accent = env?.accent || '#8E7CFF';
   const insets = useSafeAreaInsets();
+
+  // --- Chamber video background ---
+  const chamberVideoSource = env?.id ? (CHAMBER_BG_VIDEOS[env.id] ?? null) : null;
+  const bgVideoPlayer = useVideoPlayer(chamberVideoSource, player => {
+    player.loop = true;
+    player.muted = true;
+    if (chamberVideoSource) player.play();
+  });
+
+  // Play/pause with screen focus so video doesn't run in the background
+  useFocusEffect(
+    useCallback(() => {
+      if (chamberVideoSource) bgVideoPlayer.play();
+      return () => { bgVideoPlayer.pause(); };
+    }, [bgVideoPlayer, chamberVideoSource])
+  );
 
   const saveTimer = useRef<NodeJS.Timeout | null>(null);
 
@@ -1754,21 +1784,18 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
 
   return (
     <View style={styles.container}>
-      {/* Chamber environment background (blurred image) */}
-      {!!env?.backgroundImage && (
-        <Animated.Image
-          pointerEvents="none"
-          source={env.backgroundImage as any}
-          blurRadius={env?.blur ?? 1}
-          resizeMode="cover"
-          // On some Android devices very large images may not auto-scale; this
-          // forces a proper downscale instead of showing only the top-left corner.
-          resizeMethod="resize"
-          style={[
-            StyleSheet.absoluteFill,
-            { width: '100%', height: '100%', transform: [{ scale: bgScale }, { translateX: bgTx }, { translateY: bgTy }] }
-          ]}
-        />
+      {/* Chamber environment background (MP4 video) */}
+      {!!chamberVideoSource && (
+        <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+          <VideoView
+            player={bgVideoPlayer}
+            contentFit="cover"
+            style={StyleSheet.absoluteFill}
+            nativeControls={false}
+            allowsFullscreen={false}
+            allowsPictureInPicture={false}
+          />
+        </View>
       )}
 
       {/* Aura → Chamber crossfade overlays */}

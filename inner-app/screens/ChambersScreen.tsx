@@ -69,7 +69,7 @@ const CHAMBER_DESCRIPTORS: Record<ChamberEnvId, string> = {
   chamber_two:   'Feed the inner fire. Ignite awareness.',
   chamber_three: 'The boundary dissolves. Step through.',
   chamber_four:  'Feel everything resonate. Let go.',
-  chamber_five:  'Remembrance Code. What you already know.',
+  chamber_five:  'What you already know.',
   chamber_six:   'Reveals more over time.',
   chamber_seven: 'The light after the veil.',
   chamber_eight: 'No path, only presence.',
