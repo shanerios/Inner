@@ -425,7 +425,7 @@ export default function HomeScreen({ navigation, route }: any) {
         navArrowLeft: {
           position: 'absolute',
           left: scale(12),
-          top: verticalScale(375),
+          top: verticalScale(300),
           width: scale(48),
           height: scale(48),
           borderRadius: scale(19),
@@ -440,7 +440,7 @@ export default function HomeScreen({ navigation, route }: any) {
         navArrowRight: {
           position: 'absolute',
           right: scale(12),
-          top: verticalScale(375),
+          top: verticalScale(300),
           width: scale(48),
           height: scale(48),
           borderRadius: scale(19),
@@ -1492,7 +1492,7 @@ const pan = useMemo(
   const SIGIL_Y_PROFILE_TWEAK = (isWide || isLargeW) ? verticalScale(40) : 0; // move sigils down on wide/large screens
 
   // Video background player
-  const bgPlayer = useVideoPlayer(require('../assets/images/home_bg.mp4'), player => {
+  const bgPlayer = useVideoPlayer(require('../assets/images/home_revamp.mp4'), player => {
     player.loop = true;
     player.muted = true;
     player.play();
@@ -1559,10 +1559,10 @@ const QUICKCALM_BREATH = require('../assets/audio/quickcalm_breath_v1_mastered.m
 
   // Full-bleed cover inside the entire screen (no top/bottom gaps)
   const BG_BOX_W = SCREEN_W;
-  const BG_VERTICAL_SHIFT = verticalScale(165);
+  const BG_VERTICAL_SHIFT = 0;
   // Bleed under status + nav bars and into any extra area not included in `window` height
   const BG_BOX_H =
-    SCREEN_H + insets.top + insets.bottom + NAV_FUDGE + verticalScale(12) + BG_VERTICAL_SHIFT; // cushion to ensure no edge seams
+    SCREEN_H + insets.top + insets.bottom + NAV_FUDGE + verticalScale(12); // cushion to ensure no edge seams
   const BG_BOX_LEFT = 0;
   const BG_BOX_TOP = -insets.top;
 
@@ -1575,7 +1575,7 @@ const QUICKCALM_BREATH = require('../assets/audio/quickcalm_breath_v1_mastered.m
   const ORB_SIZE_PCT = isTablet ? 0.18 : phoneOrbPct;
 
 // ORIGINAL placement for phones (before tablet tweak)
-const ORB_Y_OFFSET_PHONE = verticalScale(-60);
+const ORB_Y_OFFSET_PHONE = verticalScale(-75);
 
 // Updated placement for tablets (the one you said looks great)
 const ORB_Y_OFFSET_TABLET = verticalScale(-90);
@@ -2328,7 +2328,7 @@ const openInnerFlame = useCallback(async () => {
         style={{
           position: 'absolute',
           left: BG_BOX_LEFT,
-          top: BG_BOX_TOP - BG_VERTICAL_SHIFT,
+          top: BG_BOX_TOP,
           width: BG_BOX_W,
           height: BG_BOX_H,
           overflow: 'hidden',
@@ -2340,7 +2340,7 @@ const openInnerFlame = useCallback(async () => {
           style={[
             StyleSheet.absoluteFill,
             {
-              transform: [{ scale: 1.2 }],
+              transform: [{ scale: 1 }],
             },
           ]}
           nativeControls={false}
@@ -3313,7 +3313,7 @@ const openInnerFlame = useCallback(async () => {
 >
   <AttachStep
     index={1}
-    style={{ position: 'absolute', left: scale(12), top: verticalScale(375), width: scale(48), height: scale(48) }}
+    style={{ position: 'absolute', left: scale(12), top: verticalScale(300), width: scale(48), height: scale(48) }}
   >
     <View pointerEvents="none" style={{ width: scale(48), height: scale(48) }} />
   </AttachStep>
@@ -3359,7 +3359,7 @@ const openInnerFlame = useCallback(async () => {
 >
   <AttachStep
     index={2}
-    style={{ position: 'absolute', right: scale(12), top: verticalScale(375), width: scale(48), height: scale(48) }}
+    style={{ position: 'absolute', right: scale(12), top: verticalScale(300), width: scale(48), height: scale(48) }}
   >
     <View pointerEvents="none" style={{ width: scale(48), height: scale(48) }} />
   </AttachStep>

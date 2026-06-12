@@ -1,248 +1,583 @@
-import React, { useEffect, useMemo, useCallback, useState } from 'react';
-import { usePostHog } from 'posthog-react-native';
-import Purchases, { CustomerInfo } from 'react-native-purchases';
-import { ImageBackground, StyleSheet, View, Text, Pressable, Animated, Easing, FlatList, Dimensions, Modal, Image, Platform, ScrollView } from 'react-native';
+import React, {
+  useEffect,
+  useMemo,
+  useCallback,
+  useState,
+  useRef,
+} from 'react';
+import {
+  View,
+  Text,
+  Pressable,
+  Animated,
+  Easing,
+  FlatList,
+  Dimensions,
+  Modal,
+  Platform,
+  StyleSheet,
+  ScrollView,
+  ViewToken,
+} from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
+import { usePostHog } from 'posthog-react-native';
+import Purchases, { CustomerInfo } from 'react-native-purchases';
+
 import { setLastSession } from '../core/session';
 import { useOfflineAsset } from '../core/useOfflineAsset';
 import { Typography } from '../core/typography';
-
-
-import { usePrecacheTracks } from '../hooks/usePrecacheTracks';
-
 import { Body as _Body } from '../core/typography';
-import { chamberEnvironments } from '../theme/chamberEnvironments';
+import { usePrecacheTracks } from '../hooks/usePrecacheTracks';
+import { CHAMBER_ENVIRONMENTS, ChamberEnvId } from '../theme/chamberEnvironments';
 import { isLockedTrack } from '../src/core/subscriptions/accessPolicy';
 import { chamberReleaseManifest } from '../src/content/chamberReleaseManifest';
 import { getReleaseCountdownLabel } from '../src/content/releaseUtils';
 import { safePresentPaywall } from '../src/core/subscriptions/safePresentPaywall';
-import { useScale } from '../utils/scale';
-
-import { Gesture, GestureDetector, Directions, GestureHandlerRootView } from 'react-native-gesture-handler';
+import { TRACKS, TrackMeta } from '../data/tracks';
 
 const Body = _Body ?? ({
   regular: { fontFamily: 'Inter-ExtraLight', fontSize: 14 },
   subtle: { fontFamily: 'Inter-ExtraLight', fontSize: 10 },
 } as const);
 
-const CHAMBERS = [
-  { id: 'chamber_one',   label: 'Chamber 1 • Outer Sanctum',         colors: ['#1b1017', '#5a3b2e'] },
-  { id: 'chamber_two',   label: 'Chamber 2 • Inner Flame',           colors: ['#0f1c2d', '#3c4a6e'] },
-  { id: 'chamber_three', label: 'Chamber 3 • Horizon Gate',          colors: ['#24171a', '#6a3a2c'] },
-  { id: 'chamber_four',  label: 'Chamber 4 • Resonance Field',       colors: ['#0e1a1f', '#205055'] },
-  { id: 'chamber_five',  label: 'Chamber 5 • Remembrance Code',      colors: ['#171314', '#5b4a26'] },
-  { id: 'chamber_six',   label: 'Chamber 6 • Transcendence Veil',    subtitle: 'Reveals more over time.', colors: ['#171b2a', '#364a6a'] },
-  { id: 'chamber_seven', label: 'Chamber 7 • Return to Light',       subtitle: 'The light after the veil.',colors: ['#20161c', '#51352a'] },
-  { id: 'chamber_eight', label: 'Chamber 8 • Free Flow Corridor',    subtitle: 'No path, only presence.', colors: ['#1a1a24', '#3a3a6a'] },
-  { id: 'chamber_nine',  label: 'Chamber 9 • Inquiry Gate (Mirror)', subtitle: 'What remains is you.', colors: ['#1f1b14', '#5a4d2e'] },
-];
+const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 
-// --- Chambers Info ---
+const ENTITLEMENT_ID = 'continuing_with_inner';
+
+// Chambers info modal content (restored for ? button on entry page)
 const CHAMBERS_INFO = {
-  // Step 1
   howToTitle: 'What are Chambers?',
-  howToBody: `Chambers are not sessions to complete.
-
-They are places to return to.
-
-
-Each Chamber is designed to be experienced more than once — often many times. The first listens help your body and mind learn the space. Over time, stillness becomes familiar, and the sounds begin to work on deeper layers of attention.
-
-
-There’s no rush to move forward.
-
-Nothing to unlock.
-
-
-Most people stay with a single Chamber until they can remain present through it without effort — until the space feels known. When a Chamber no longer feels like it’s offering something new, that’s usually the signal to go deeper.
-
-
-Some people return to the same Chamber for weeks. Others move sooner. Both are natural.
-
-
-Listen in the way that feels right to you.
-
-The Chambers will meet you where you are.`,
-
-  // Step 2
+  howToBody: `Chambers are not sessions to complete.\n\nThey are places to return to.\n\n\nEach Chamber is designed to be experienced more than once — often many times. The first listens help your body and mind learn the space. Over time, stillness becomes familiar, and the sounds begin to work on deeper layers of attention.\n\n\nThere's no rush to move forward.\n\nNothing to unlock.\n\n\nMost people stay with a single Chamber until they can remain present through it without effort — until the space feels known. When a Chamber no longer feels like it's offering something new, that's usually the signal to go deeper.\n\n\nSome people return to the same Chamber for weeks. Others move sooner. Both are natural.\n\n\nListen in the way that feels right to you.\n\nThe Chambers will meet you where you are.`,
   whatAreTitle: 'What are Chambers For?',
-  whatAreBody: `Over time, the Chambers are designed to help you develop the ability to remain still, aware, and present — even as your inner experience deepens.
-
-
-As familiarity grows, many people notice that their attention becomes steadier, their inner imagery clearer, and their sense of separation softens. For some, this leads to profound states of insight, expanded awareness, or experiences that feel beyond the physical body.
-
-
-There’s no expectation to reach any particular state.
-
-Stillness itself is the foundation.
-
-
-When the body is calm and the mind is quiet, deeper experiences tend to arise naturally — without force.
-
-
-The Chambers don’t create these experiences.
-
-They create the conditions where they can occur.`,
-
+  whatAreBody: `Over time, the Chambers are designed to help you develop the ability to remain still, aware, and present — even as your inner experience deepens.\n\n\nAs familiarity grows, many people notice that their attention becomes steadier, their inner imagery clearer, and their sense of separation softens. For some, this leads to profound states of insight, expanded awareness, or experiences that feel beyond the physical body.\n\n\nThere's no expectation to reach any particular state.\n\nStillness itself is the foundation.\n\n\nWhen the body is calm and the mind is quiet, deeper experiences tend to arise naturally — without force.\n\n\nThe Chambers don't create these experiences.\n\nThey create the conditions where they can occur.`,
   closeLabel: 'Not Now',
   okLabel: 'OK',
   nextLabel: 'Next',
   backLabel: 'Back',
 } as const;
 
+// Ordinal labels for header display
+const ORDINALS = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX'];
 
-function toTrackId(tileId: string) {
-  // accept dashes/underscores/numerals and normalize to our track ids
-  const id = tileId.replace(/-/g, '_').toLowerCase();
-  if (id === 'chamber1' || id === 'chamber_1') return 'chamber_one';
-  if (id === 'chamber2' || id === 'chamber_2') return 'chamber_two';
-  if (id === 'chamber3' || id === 'chamber_3') return 'chamber_three';
-  if (id === 'chamber4' || id === 'chamber_4') return 'chamber_four';
-  if (id === 'chamber5' || id === 'chamber_5') return 'chamber_five';
-  if (id === 'chamber6' || id === 'chamber_6') return 'chamber_six';
-  if (id === 'chamber7' || id === 'chamber_7') return 'chamber_seven';
-  return id; // already normalized
+// One-line descriptors pulled from old CHAMBERS array
+const CHAMBER_DESCRIPTORS: Record<ChamberEnvId, string> = {
+  chamber_one:   'Begin the descent. Your first threshold.',
+  chamber_two:   'Feed the inner fire. Ignite awareness.',
+  chamber_three: 'The boundary dissolves. Step through.',
+  chamber_four:  'Feel everything resonate. Let go.',
+  chamber_five:  'Remembrance Code. What you already know.',
+  chamber_six:   'Reveals more over time.',
+  chamber_seven: 'The light after the veil.',
+  chamber_eight: 'No path, only presence.',
+  chamber_nine:  'What remains is you.',
+};
+
+// Video sources — keyed by ChamberEnvId
+const CHAMBER_VIDEOS: Record<ChamberEnvId, any> = {
+  chamber_one:   require('../assets/videos/chamber_one_bg.mp4'),
+  chamber_two:   require('../assets/videos/chamber_two_bg.mp4'),
+  chamber_three: require('../assets/videos/chamber_three_bg.mp4'),
+  chamber_four:  require('../assets/videos/chamber_four_bg.mp4'),
+  chamber_five:  require('../assets/videos/chamber_five_bg.mp4'),
+  chamber_six:   require('../assets/videos/chamber_six_bg.mp4'),
+  chamber_seven: require('../assets/videos/chamber_seven_bg.mp4'),
+  chamber_eight: require('../assets/videos/chamber_eight_bg.mp4'),
+  chamber_nine:  require('../assets/videos/chamber_nine_bg.mp4'),
+};
+
+// Chamber IDs in descent order
+const CHAMBER_IDS: ChamberEnvId[] = [
+  'chamber_one',
+  'chamber_two',
+  'chamber_three',
+  'chamber_four',
+  'chamber_five',
+  'chamber_six',
+  'chamber_seven',
+  'chamber_eight',
+  'chamber_nine',
+];
+
+// Build chamber page data once
+type ChamberPageData = {
+  id: ChamberEnvId;
+  index: number;       // 0-based
+  ordinal: string;     // 'I' … 'IX'
+  title: string;
+  descriptor: string;
+  track: TrackMeta | undefined;
+  isPremium: boolean;
+  comingSoon: boolean;
+  countdownLabel?: string;
+};
+
+function buildChamberData(): ChamberPageData[] {
+  const now = new Date();
+  return CHAMBER_IDS.map((id, i) => {
+    const env = CHAMBER_ENVIRONMENTS[id];
+    const track = TRACKS.find(t => t.id === id);
+    const meta = chamberReleaseManifest?.[id as any];
+    let comingSoon = false;
+    let countdownLabel: string | undefined;
+
+    if (meta) {
+      const released =
+        meta.isPublished &&
+        (!meta.releaseDate || new Date(meta.releaseDate).getTime() <= now.getTime());
+      if (!released) {
+        comingSoon = true;
+        if (meta.releaseDate) {
+          countdownLabel = getReleaseCountdownLabel(meta.releaseDate, now) ?? undefined;
+        }
+      }
+    }
+
+    return {
+      id,
+      index: i,
+      ordinal: ORDINALS[i],
+      title: env.title,
+      descriptor: CHAMBER_DESCRIPTORS[id],
+      track,
+      isPremium: i >= 4, // chambers 5–9 (index 4–8)
+      comingSoon,
+      countdownLabel,
+    };
+  });
 }
 
-function ChamberRow({
-  item,
-  onEnter,
-  isLocked,
-  rowMarginBottom,
-  tileLayout,
-}: {
-  item: { id: string; label: string; subtitle?: string; colors: string[]; comingSoon?: boolean };
-  onEnter: (trackId: string, title?: string) => void;
-  isLocked: boolean;
-  rowMarginBottom: number;
-  tileLayout: {
-    tileHeight: number;
-    tileBorderRadius: number;
-    tileLeft: number;
-    tileRight: number;
-    subtitleBottom: number;
-    titleBottom: number;
-  };
-}) {
-  const chamberId = toTrackId(item.id);
-  const env = chamberEnvironments[chamberId];
-  const { isCached, isWorking, progress, download, remove } = useOfflineAsset(chamberId, 'chamber');
+const CHAMBER_DATA = buildChamberData();
+
+// Discriminated union for FlatList — entry page + 9 chamber pages
+type PagerItem =
+  | { kind: 'entry'; id: '__entry__' }
+  | { kind: 'chamber'; id: ChamberEnvId; data: ChamberPageData };
+
+const PAGER_DATA: PagerItem[] = [
+  { kind: 'entry', id: '__entry__' },
+  ...CHAMBER_DATA.map((d): PagerItem => ({ kind: 'chamber', id: d.id, data: d })),
+];
+
+// ---------------------------------------------------------------------------
+// EntryPage — atmospheric intro, index 0 in pager
+// ---------------------------------------------------------------------------
+
+type EntryPageProps = {
+  isActive: boolean;
+  onInfo: () => void;
+  insets: { top: number; bottom: number; left: number; right: number };
+};
+
+const EntryPage = React.memo(function EntryPage({ isActive, onInfo, insets }: EntryPageProps) {
+  const videoPlayer = useVideoPlayer(
+    require('../assets/images/chamber_revamp.mp4'),
+    player => {
+      player.loop = true;
+      player.muted = true;
+    }
+  );
+
+  useEffect(() => {
+    if (isActive) {
+      videoPlayer.play();
+    } else {
+      videoPlayer.pause();
+    }
+  }, [isActive]);
 
   return (
-    <View style={{ marginBottom: rowMarginBottom }}>
-      <Tile
-        tileHeight={tileLayout.tileHeight}
-        tileBorderRadius={tileLayout.tileBorderRadius}
-        tileLeft={tileLayout.tileLeft}
-        tileRight={tileLayout.tileRight}
-        subtitleBottom={tileLayout.subtitleBottom}
-        titleBottom={tileLayout.titleBottom}
-        label={item.label}
-        subtitle={item.subtitle}
-        onPress={async () => {
-          Haptics.selectionAsync();
-          const trackId = chamberId;
-          try {
-            await setLastSession({ type: 'journey', id: trackId });
-          } catch {}
-          onEnter(trackId, item.label);
-        }}
-        colors={item.colors}
-        backgroundSource={(env as any)?.backgroundImage ?? (env as any)?.background}
-        locked={isLocked}
-        offline={
-          isLocked
-            ? undefined
-            : {
-                isCached,
-                isWorking,
-                progress,
-                onDownload: download,
-                onRemove: remove,
-                label: item.label,
-              }
-        }
-        highlight={!!item.comingSoon}
+    <View style={{ width: SCREEN_W, height: SCREEN_H }}>
+      {/* Video background */}
+      <VideoView
+        player={videoPlayer}
+        contentFit="cover"
+        style={StyleSheet.absoluteFill}
+        nativeControls={false}
+        allowsFullscreen={false}
+        allowsPictureInPicture={false}
       />
+
+      {/* Gradient overlay */}
+      <LinearGradient
+        colors={['rgba(0,0,0,0.45)', 'rgba(0,0,0,0.0)', 'rgba(0,0,0,0.55)']}
+        locations={[0, 0.45, 1]}
+        style={StyleSheet.absoluteFill}
+        pointerEvents="none"
+      />
+
+      {/* ? button — top right */}
+      <Pressable
+        onPress={onInfo}
+        hitSlop={12}
+        accessibilityRole="button"
+        accessibilityLabel="About Chambers"
+        accessibilityHint="Opens information on what Chambers are and how to use them"
+        style={{
+          position: 'absolute',
+          top: insets.top + 12,
+          right: 16,
+          width: 36,
+          height: 36,
+          borderRadius: 18,
+          backgroundColor: 'rgba(0,0,0,0.30)',
+          borderWidth: 1,
+          borderColor: 'rgba(255,255,255,0.12)',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 10,
+        }}
+      >
+        <Text style={{ fontFamily: 'Inter-ExtraLight', color: '#EDEAF6', fontSize: 18, lineHeight: 18 }}>?</Text>
+      </Pressable>
+
+      {/* Title + subtitle — anchored to bottom negative space */}
+      <View
+        style={{
+          position: 'absolute',
+          bottom: insets.bottom + 52,
+          left: 0,
+          right: 0,
+          alignItems: 'center',
+        }}
+        pointerEvents="none"
+      >
+        <Text
+          style={{
+            fontFamily: 'CalSans-SemiBold',
+            fontSize: 36,
+            color: '#F3EDE7',
+            letterSpacing: 0.4,
+            textShadowColor: 'rgba(0,0,0,0.55)',
+            textShadowOffset: { width: 0, height: 1 },
+            textShadowRadius: 8,
+          }}
+        >
+          The Chambers
+        </Text>
+        <Text
+          style={{
+            fontFamily: 'Inter-ExtraLight',
+            fontSize: 13,
+            letterSpacing: 1.5,
+            color: 'rgba(237,232,250,0.45)',
+            marginTop: 10,
+            textTransform: 'uppercase',
+            textShadowColor: 'rgba(0,0,0,0.4)',
+            textShadowOffset: { width: 0, height: 1 },
+            textShadowRadius: 4,
+          }}
+        >
+          Swipe to descend
+        </Text>
+      </View>
+    </View>
+  );
+});
+
+// ---------------------------------------------------------------------------
+// ChamberPage — owns its own video player
+// ---------------------------------------------------------------------------
+
+type ChamberPageProps = {
+  item: ChamberPageData;
+  isActive: boolean;
+  isLocked: boolean;
+  onEnter: (id: ChamberEnvId, title: string) => void;
+  onPaywall: (label: string) => void;
+  insets: { top: number; bottom: number; left: number; right: number };
+};
+
+const ChamberPage = React.memo(function ChamberPage({ item, isActive, isLocked, onEnter, onPaywall, insets }: ChamberPageProps) {
+  const env = CHAMBER_ENVIRONMENTS[item.id];
+  const { isCached, isWorking, progress, download, remove } = useOfflineAsset(item.id, 'chamber');
+
+  const videoPlayer = useVideoPlayer(CHAMBER_VIDEOS[item.id], player => {
+    player.loop = true;
+    player.muted = true;
+  });
+
+  // Play only when this page is the active visible one
+  useEffect(() => {
+    if (isActive) {
+      videoPlayer.play();
+    } else {
+      videoPlayer.pause();
+    }
+  }, [isActive]);
+
+  const handleEnter = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    onEnter(item.id, item.title);
+  };
+
+  const handlePaywall = () => {
+    Haptics.selectionAsync().catch(() => {});
+    onPaywall(item.title);
+  };
+
+  const locked = isLocked || item.comingSoon;
+
+  return (
+    <View style={{ width: SCREEN_W, height: SCREEN_H }}>
+      {/* Video background */}
+      <VideoView
+        player={videoPlayer}
+        contentFit="cover"
+        style={StyleSheet.absoluteFill}
+        nativeControls={false}
+        allowsFullscreen={false}
+        allowsPictureInPicture={false}
+      />
+
+      {/* Gradient overlay for readability */}
+      <LinearGradient
+        colors={['rgba(0,0,0,0.55)', 'rgba(0,0,0,0.0)', 'rgba(0,0,0,0.65)']}
+        locations={[0, 0.45, 1]}
+        style={StyleSheet.absoluteFill}
+        pointerEvents="none"
+      />
+
+      {/* Top area — chamber number, title, descriptor */}
+      <View
+        style={{
+          position: 'absolute',
+          top: insets.top + 52,
+          left: 28,
+          right: 56, // leave room for download icon
+        }}
+      >
+        <Text
+          style={{
+            fontFamily: 'Inter-ExtraLight',
+            fontSize: 11,
+            letterSpacing: 3,
+            color: env.accent,
+            textTransform: 'uppercase',
+            marginBottom: 10,
+            textShadowColor: 'rgba(0,0,0,0.6)',
+            textShadowOffset: { width: 0, height: 1 },
+            textShadowRadius: 4,
+          }}
+        >
+          Chamber {item.ordinal}
+        </Text>
+        <Text
+          style={{
+            fontFamily: 'CalSans-SemiBold',
+            fontSize: 30,
+            color: '#F3EDE7',
+            letterSpacing: 0.3,
+            lineHeight: 36,
+            textShadowColor: 'rgba(0,0,0,0.55)',
+            textShadowOffset: { width: 0, height: 1 },
+            textShadowRadius: 6,
+          }}
+        >
+          {item.title}
+        </Text>
+        <Text
+          style={{
+            fontFamily: 'Inter-ExtraLight',
+            fontSize: 13,
+            color: 'rgba(237,232,250,0.70)',
+            marginTop: 8,
+            lineHeight: 19,
+            textShadowColor: 'rgba(0,0,0,0.5)',
+            textShadowOffset: { width: 0, height: 1 },
+            textShadowRadius: 4,
+          }}
+          numberOfLines={2}
+        >
+          {item.countdownLabel ?? item.descriptor}
+        </Text>
+      </View>
+
+      {/* Download icon — top right, unlocked only */}
+      {!locked && (
+        <Pressable
+          onPress={isCached ? remove : download}
+          hitSlop={12}
+          accessibilityRole="button"
+          accessibilityLabel={isCached ? 'Remove offline audio' : 'Download for offline'}
+          style={{
+            position: 'absolute',
+            top: insets.top + 52,
+            right: 20,
+            width: 34,
+            height: 34,
+            borderRadius: 17,
+            backgroundColor: 'rgba(0,0,0,0.35)',
+            borderWidth: 1,
+            borderColor: 'rgba(255,255,255,0.12)',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          {isWorking ? (
+            <Text style={{ color: env.accent, fontSize: 11, fontFamily: 'Inter-ExtraLight' }}>
+              {Math.round(progress * 100)}%
+            </Text>
+          ) : (
+            <Text style={{ color: isCached ? env.accent : 'rgba(255,255,255,0.55)', fontSize: 16 }}>
+              {isCached ? '✓' : '↓'}
+            </Text>
+          )}
+        </Pressable>
+      )}
+
+      {/* Bottom area — Enter or locked treatment */}
+      <View
+        style={{
+          position: 'absolute',
+          bottom: insets.bottom + 40,
+          left: 28,
+          right: 28,
+        }}
+      >
+        {locked ? (
+          <View style={{ alignItems: 'center' }}>
+            <Text
+              style={{
+                fontFamily: 'Inter-ExtraLight',
+                fontSize: 12,
+                letterSpacing: 2,
+                color: 'rgba(237,232,250,0.35)',
+                textTransform: 'uppercase',
+                marginBottom: 16,
+                textShadowColor: 'rgba(0,0,0,0.4)',
+                textShadowOffset: { width: 0, height: 1 },
+                textShadowRadius: 4,
+              }}
+            >
+              {item.comingSoon ? (item.countdownLabel ?? 'Coming soon') : 'The descent continues'}
+            </Text>
+            {!item.comingSoon && (
+              <Pressable
+                onPress={handlePaywall}
+                accessibilityRole="button"
+                accessibilityLabel="Continue with Inner"
+                style={({ pressed }) => ({
+                  paddingVertical: 14,
+                  paddingHorizontal: 32,
+                  borderRadius: 999,
+                  backgroundColor: pressed
+                    ? 'rgba(207,195,224,0.22)'
+                    : 'rgba(207,195,224,0.12)',
+                  borderWidth: 1,
+                  borderColor: 'rgba(207,195,224,0.28)',
+                  alignItems: 'center',
+                  minWidth: 200,
+                })}
+              >
+                <Text
+                  style={{
+                    fontFamily: 'CalSans-SemiBold',
+                    fontSize: 15,
+                    color: 'rgba(237,232,250,0.80)',
+                    letterSpacing: 0.3,
+                  }}
+                >
+                  Continue with Inner
+                </Text>
+              </Pressable>
+            )}
+          </View>
+        ) : (
+          <Pressable
+            onPress={handleEnter}
+            accessibilityRole="button"
+            accessibilityLabel={`Enter ${item.title}`}
+            style={({ pressed }) => ({
+              paddingVertical: 16,
+              borderRadius: 999,
+              backgroundColor: pressed
+                ? 'rgba(255,255,255,0.18)'
+                : 'rgba(255,255,255,0.10)',
+              borderWidth: 1,
+              borderColor: 'rgba(255,255,255,0.22)',
+              alignItems: 'center',
+            })}
+          >
+            <Text
+              style={{
+                fontFamily: 'CalSans-SemiBold',
+                fontSize: 16,
+                color: '#F3EDE7',
+                letterSpacing: 0.4,
+              }}
+            >
+              Enter
+            </Text>
+          </Pressable>
+        )}
+      </View>
+    </View>
+  );
+});
+
+// ---------------------------------------------------------------------------
+// PageIndicator — 9 dots, right edge, vertically centered
+// ---------------------------------------------------------------------------
+
+// chamberIndex is 0-based chamber index (0 = Chamber 1, …, 8 = Chamber 9).
+// Pass -1 when the entry page is visible — no dot will be highlighted.
+function PageIndicator({
+  chamberIndex,
+  insets,
+}: {
+  chamberIndex: number;
+  insets: { right: number };
+}) {
+  return (
+    <View
+      pointerEvents="none"
+      style={{
+        position: 'absolute',
+        right: Math.max(insets.right + 8, 12),
+        top: 0,
+        bottom: 0,
+        justifyContent: 'center',
+        alignItems: 'center',
+        gap: 7,
+      }}
+    >
+      {CHAMBER_IDS.map((id, i) => {
+        const env = CHAMBER_ENVIRONMENTS[id];
+        const active = i === chamberIndex;
+        return (
+          <View
+            key={id}
+            style={{
+              width: active ? 6 : 4,
+              height: active ? 6 : 4,
+              borderRadius: 4,
+              backgroundColor: active ? env.accent : 'rgba(255,255,255,0.28)',
+              opacity: active ? 1 : 0.7,
+            }}
+          />
+        );
+      })}
     </View>
   );
 }
 
+// ---------------------------------------------------------------------------
+// ChambersScreen
+// ---------------------------------------------------------------------------
+
 export default function ChambersScreen() {
-  const chambersWithReleaseState = useMemo(() => {
-    const now = new Date();
-
-    return CHAMBERS.map((item) => {
-      const trackId = toTrackId(item.id);
-      const meta = chamberReleaseManifest?.[trackId];
-
-      if (!meta) return { ...item, comingSoon: false };
-
-      const released =
-        meta.isPublished &&
-        (!meta.releaseDate || new Date(meta.releaseDate).getTime() <= now.getTime());
-
-      if (released) {
-        return { ...item, comingSoon: false };
-      }
-
-      if (meta.releaseDate) {
-        return {
-          ...item,
-          comingSoon: true,
-          subtitle: getReleaseCountdownLabel(meta.releaseDate, now) ?? item.subtitle,
-        };
-      }
-
-      return { ...item, comingSoon: true };
-    });
-  }, []);
   const insets = useSafeAreaInsets();
-  const { verticalScale, scale, matchesCompactLayout } = useScale();
   const navigation = useNavigation();
   const posthog = usePostHog();
-  const tileHeight = matchesCompactLayout ? verticalScale(76) : 86;
-  const tileBorderRadius = matchesCompactLayout ? scale(12) : 14;
-  const rowMarginBottom = matchesCompactLayout ? verticalScale(8) : 10;
-  const tileLeft = matchesCompactLayout ? scale(12) : 14;
-  const tileRight = matchesCompactLayout ? scale(76) : 84;
-  const subtitleBottom = matchesCompactLayout ? verticalScale(1) : 2;
-  const titleBottom = matchesCompactLayout ? verticalScale(9) : 12;
-  const tileLayout = {
-    tileHeight,
-    tileBorderRadius,
-    tileLeft,
-    tileRight,
-    subtitleBottom,
-    titleBottom,
-  };
 
-  // Ensure we still show exactly 3 tiles on compact/SE-class screens.
-  // The ChamberRow wrapper adds `rowMarginBottom`, and FlatList applies `gap`, so we include both
-  // when computing the visible viewport height.
-  const compactListGap = verticalScale(10);
-  const compactListHeight = tileHeight * 3 + 2 * (rowMarginBottom + compactListGap);
+  // Pre-cache a few chambers for faster first play
+  usePrecacheTracks({ kind: ['chamber'], limit: 3 });
 
-  const bgPlayer = useVideoPlayer(require('../assets/images/chambers_screen.mp4'), player => {
-    player.loop = true;
-    player.muted = true;
-    player.play();
-  });
-
-  useFocusEffect(React.useCallback(() => {
-    bgPlayer.play();
-    return () => { bgPlayer.pause(); };
-  }, [bgPlayer]));
-
-  // --- Paywall / gating ---
-  // NOTE: Ensure this matches your RevenueCat entitlement identifier.
-  // Common examples: "pro", "premium", "continuing_with_inner".
-  const ENTITLEMENT_ID = 'continuing_with_inner';
-
+  // --- Entitlement ---
   const [hasContinuing, setHasContinuing] = useState(false);
   const [checkingEntitlement, setCheckingEntitlement] = useState(true);
   const [presentingPaywall, setPresentingPaywall] = useState(false);
@@ -253,8 +588,7 @@ export default function ChambersScreen() {
       const info: CustomerInfo = await Purchases.getCustomerInfo();
       const active = Boolean(info?.entitlements?.active?.[ENTITLEMENT_ID]);
       setHasContinuing(active);
-    } catch (e) {
-      // If anything fails, default to locked (safe).
+    } catch {
       setHasContinuing(false);
     } finally {
       setCheckingEntitlement(false);
@@ -265,8 +599,24 @@ export default function ChambersScreen() {
     refreshEntitlement();
   }, [refreshEntitlement]);
 
+  // --- Info modal (? button on entry page) ---
+  const [showInfo, setShowInfo] = useState(false);
+  const [infoStep, setInfoStep] = useState<0 | 1>(0);
+
+  const openInfo = useCallback(() => {
+    setInfoStep(0);
+    setShowInfo(true);
+    Haptics.selectionAsync().catch(() => {});
+  }, []);
+
+  const closeInfo = useCallback(() => {
+    setShowInfo(false);
+    Haptics.selectionAsync().catch(() => {});
+  }, []);
+
+  // --- Gate modal (premium) ---
   const [showGate, setShowGate] = useState(false);
-  const [gateLabel, setGateLabel] = useState<string>('');
+  const [gateLabel, setGateLabel] = useState('');
 
   const openGate = useCallback((label: string) => {
     setGateLabel(label);
@@ -282,94 +632,18 @@ export default function ChambersScreen() {
   const openPaywall = useCallback(() => {
     if (presentingPaywall) return;
     setPresentingPaywall(true);
-    // Dismiss the gate modal first — iOS/Android block a second Modal from
-    // appearing while one is already visible.
     setShowGate(false);
     setTimeout(() => {
       safePresentPaywall(() => {
-        // Runs only on successful purchase/restore inside PaywallModal
         refreshEntitlement();
       }).finally(() => setPresentingPaywall(false));
     }, Platform.OS === 'ios' ? 400 : 200);
   }, [presentingPaywall, refreshEntitlement]);
 
-  const DEBUG_GESTURES = __DEV__;
-  const debugLog = React.useCallback((...args: any[]) => {
-    if (DEBUG_GESTURES) console.log(...args);
-  }, [DEBUG_GESTURES]);
+  // --- Portal fade veil ---
+  const portalFade = useRef(new Animated.Value(0)).current;
 
-  // One-time gesture hint (right-swipe on title)
-  const HINT_KEY = 'inner.hint.chambersSwipeRightSeen';
-  const [showHint, setShowHint] = React.useState(false);
-  const hintOpacity = React.useRef(new Animated.Value(0)).current;
-  const hintShift = React.useRef(new Animated.Value(0)).current; // positive = right
-  const [titleAnchorTop, setTitleAnchorTop] = React.useState<number | null>(null);
-
-  // Chambers Info modal state
-  const [showInfo, setShowInfo] = React.useState(false);
-  const [infoStep, setInfoStep] = React.useState<0 | 1>(0);
-
-  const openInfo = React.useCallback(() => {
-    setInfoStep(0);
-    setShowInfo(true);
-    Haptics.selectionAsync().catch(() => {});
-  }, []);
-
-  const closeInfo = React.useCallback(() => {
-    setShowInfo(false);
-    Haptics.selectionAsync().catch(() => {});
-  }, []);
-
-  React.useEffect(() => {
-    let mounted = true;
-    let interval: any;
-
-    setShowHint(true);
-
-    const runPulse = () => {
-      Animated.sequence([
-        Animated.timing(hintOpacity, { toValue: 1, duration: 280, easing: Easing.out(Easing.quad), useNativeDriver: true }),
-        Animated.loop(
-          Animated.sequence([
-            Animated.timing(hintShift, { toValue: 8, duration: 400, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-            Animated.timing(hintShift, { toValue: 0, duration: 400, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-          ]),
-          { iterations: 3 }
-        ),
-        Animated.timing(hintOpacity, { toValue: 0, duration: 340, easing: Easing.in(Easing.quad), useNativeDriver: true }),
-      ]).start();
-    };
-
-    // First pulse immediately, then every ~12s while on screen
-    runPulse();
-    interval = setInterval(() => { if (mounted) runPulse(); }, 12000);
-
-    return () => { mounted = false; if (interval) clearInterval(interval); };
-  }, [hintOpacity, hintShift]);
-
-  const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
-  const SWIPE_THRESHOLD = Math.max(36, SCREEN_W * 0.08); // ~8% width
-  const EDGE_GUARD = 10; // slightly smaller edge guard
-  const startXRef = React.useRef(0);
-  const listRef = React.useRef<FlatList<any>>(null);
-
-  // Pre-cache a few chambers for faster first play
-  usePrecacheTracks({ kind: ['chamber'], limit: 3 });
-
-  // Portal veil for premium transition into JourneyPlayer
-  const portalFade = React.useRef(new Animated.Value(0)).current;
-  // Ambient fog drift (very subtle)
-  const fogA = React.useRef(new Animated.Value(0)).current;
-  const fogB = React.useRef(new Animated.Value(0)).current;
-  const fogATranslateX = fogA.interpolate({ inputRange: [0, 1], outputRange: [-18, 18] });
-  const fogATranslateY = fogA.interpolate({ inputRange: [0, 1], outputRange: [-6, 6] });
-  const fogAOpacity = fogA.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0.06, 0.15, 0.06] });
-  const fogBTranslateX = fogB.interpolate({ inputRange: [0, 1], outputRange: [22, -22] });
-  const fogBTranslateY = fogB.interpolate({ inputRange: [0, 1], outputRange: [8, -8] });
-  const fogBOpacity = fogB.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0.04, 0.12, 0.04] });
-  // Ensure veil gently unveils whenever this screen regains focus (e.g., after closing JourneyPlayer)
-  useFocusEffect(React.useCallback(() => {
-    // start slightly dim, then fade to clear for a soft return
+  useFocusEffect(useCallback(() => {
     portalFade.setValue(0.52);
     Animated.timing(portalFade, {
       toValue: 0,
@@ -380,65 +654,69 @@ export default function ChambersScreen() {
     return () => {};
   }, [portalFade]));
 
-  React.useEffect(() => {
-    const a = Animated.loop(
-      Animated.sequence([
-        Animated.timing(fogA, { toValue: 1, duration: 14000, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-        Animated.timing(fogA, { toValue: 0, duration: 14000, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-      ])
-    );
-    const b = Animated.loop(
-      Animated.sequence([
-        Animated.timing(fogB, { toValue: 1, duration: 18000, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-        Animated.timing(fogB, { toValue: 0, duration: 18000, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-      ])
-    );
+  // --- Current visible index ---
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const currentIndexRef = useRef(0);
 
-    a.start();
-    b.start();
+  const viewabilityConfig = useRef({
+    itemVisiblePercentThreshold: 50,
+  });
 
-    return () => {
-      a.stop();
-      b.stop();
-    };
-  }, [fogA, fogB]);
-
-  useEffect(() => {
-    if (listRef.current) {
-      debugLog('[CHAMBERS] listRef attached');
+  const onViewableItemsChanged = useRef(
+    ({ viewableItems }: { viewableItems: ViewToken[] }) => {
+      if (viewableItems.length > 0 && viewableItems[0].index != null) {
+        const idx = viewableItems[0].index;
+        setCurrentIndex(idx);
+        currentIndexRef.current = idx;
+      }
     }
-  }, [debugLog]);
+  );
 
-  const isPremiumChamber = useCallback((trackId: string) => {
-    // Chambers 1–4 free; 5–9 gated
-    return (
-      trackId === 'chamber_five' ||
-      trackId === 'chamber_six' ||
-      trackId === 'chamber_seven' ||
-      trackId === 'chamber_eight' ||
-      trackId === 'chamber_nine'
-    );
+  // --- Swipe down on page 0 → Home ---
+  const listRef = useRef<FlatList<PagerItem>>(null);
+  const scrollOffsetRef = useRef(0);
+
+  const handleScrollBeginDrag = useCallback((e: any) => {
+    scrollOffsetRef.current = e.nativeEvent.contentOffset.y;
   }, []);
 
-  const enterChamber = (trackId: string, title?: string) => {
-    // Gate premium Chambers if user is not entitled (centralized policy)
-    const pseudoTrack = { id: trackId, isPremium: isPremiumChamber(trackId) };
+  const handleScroll = useCallback((e: any) => {
+    const offsetY = e.nativeEvent.contentOffset.y;
+    // If we're on page 0 and the list bounces into negative territory → go Home
+    if (currentIndexRef.current === 0 && offsetY < -40) {
+      Haptics.selectionAsync().catch(() => {});
+      // @ts-ignore
+      navigation.navigate('Home');
+    }
+  }, [navigation]);
+
+  // --- Enter chamber ---
+  const isPremiumChamber = useCallback((id: ChamberEnvId) => {
+    return id === 'chamber_five' ||
+      id === 'chamber_six' ||
+      id === 'chamber_seven' ||
+      id === 'chamber_eight' ||
+      id === 'chamber_nine';
+  }, []);
+
+  const enterChamber = useCallback((id: ChamberEnvId, title: string) => {
+    const pseudoTrack = { id, isPremium: isPremiumChamber(id) };
     if (isLockedTrack(pseudoTrack as any, hasContinuing)) {
-      openGate(title ?? 'This Chamber');
+      openGate(title);
       return;
     }
 
-    // PostHog analytics: track intentional chamber open
     posthog.capture('chamber_opened', {
-      chamber_id: trackId,
-      chamber_title: title ?? trackId,
-      is_premium: isPremiumChamber(trackId),
+      chamber_id: id,
+      chamber_title: title,
+      is_premium: isPremiumChamber(id),
       has_subscription: hasContinuing,
     });
 
-    // gentle haptic
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-    // fade up veil, then navigate
+
+    try { setLastSession({ type: 'journey', id }); } catch {}
+
     portalFade.setValue(0);
     Animated.timing(portalFade, {
       toValue: 1,
@@ -447,1035 +725,317 @@ export default function ChambersScreen() {
       useNativeDriver: true,
     }).start(() => {
       // @ts-ignore
-      navigation.navigate('JourneyPlayer', { trackId, chamber: title });
-      // JourneyPlayer handles its own unveil as audio primes
+      navigation.navigate('JourneyPlayer', { trackId: id, chamber: title });
     });
-  };
+  }, [hasContinuing, isPremiumChamber, openGate, posthog, portalFade, navigation]);
 
-  // --- Header-only gesture strip (guaranteed capture in top area) ---
-  const headerPan = useMemo(
-    () =>
-      Gesture.Pan()
-        .runOnJS(true)
-        .activeOffsetX([-6, 6])
-        .minDistance(8)
-        .onStart((e) => {
-          // @ts-ignore
-          startXRef.current = (e as any).absoluteX ?? 0;
-          debugLog('[CHAMBERS HEADER PAN] startX =', startXRef.current);
-        })
-        .onUpdate(async (e) => {
-          // @ts-ignore
-          const dx = (e as any).translationX ?? 0;
-          debugLog('[CHAMBERS HEADER PAN] dx =', dx);
-          const startX = startXRef.current;
-          if (startX < EDGE_GUARD || startX > SCREEN_W - EDGE_GUARD) return;
-          if (dx >= SWIPE_THRESHOLD) {
-            debugLog('[CHAMBERS HEADER PAN] navigating → Home (update)');
-            try { await Haptics.selectionAsync(); } catch {}
-            navigation.navigate('Home' as never);
-          }
-        })
-        .onEnd(async (e) => {
-          // @ts-ignore
-          const dx = (e as any).translationX ?? 0;
-          debugLog('[CHAMBERS HEADER PAN] end dx =', dx);
-          const startX = startXRef.current;
-          if (startX < EDGE_GUARD || startX > SCREEN_W - EDGE_GUARD) return;
-          if (dx >= SWIPE_THRESHOLD) {
-            debugLog('[CHAMBERS HEADER PAN] navigating → Home (end)');
-            try { await Haptics.selectionAsync(); } catch {}
-            navigation.navigate('Home' as never);
-          }
-        }),
-    [SCREEN_W, navigation, debugLog]
-  );
+  // Resolve locked state per chamber
+  const isLockedForIndex = useCallback((item: ChamberPageData): boolean => {
+    const pseudoTrack = { id: item.id, isPremium: item.isPremium };
+    return isLockedTrack(pseudoTrack as any, hasContinuing) || item.comingSoon;
+  }, [hasContinuing]);
 
-  const headerFling = useMemo(
-    () =>
-      Gesture.Fling()
-        .runOnJS(true)
-        .direction(Directions.RIGHT)
-        .numberOfPointers(1)
-        .onStart(async (e) => {
-          // @ts-ignore
-          const absX = (e as any).absoluteX ?? 0;
-          if (absX < EDGE_GUARD || absX > SCREEN_W - EDGE_GUARD) return;
-          debugLog('[CHAMBERS HEADER FLING] navigating → Home');
-          try { await Haptics.selectionAsync(); } catch {}
-          navigation.navigate('Home' as never);
-        }),
-    [SCREEN_W, navigation, debugLog]
-  );
+  const renderItem = useCallback(({ item, index }: { item: PagerItem; index: number }) => {
+    if (item.kind === 'entry') {
+      return (
+        <EntryPage
+          isActive={index === currentIndex}
+          onInfo={openInfo}
+          insets={insets}
+        />
+      );
+    }
+    return (
+      <ChamberPage
+        item={item.data}
+        isActive={index === currentIndex}
+        isLocked={isLockedForIndex(item.data)}
+        onEnter={enterChamber}
+        onPaywall={openGate}
+        insets={insets}
+      />
+    );
+  }, [currentIndex, isLockedForIndex, enterChamber, openGate, openInfo, insets]);
 
-  const headerGesture = useMemo(() => Gesture.Race(headerPan, headerFling), [headerPan, headerFling]);
+  const keyExtractor = useCallback((item: PagerItem) => item.id, []);
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <GestureDetector gesture={headerGesture}>
-        <View
-        accessible={false}
-        importantForAccessibility="no"
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 72,
-            height: Math.max(insets.top + 120, 140),
-            zIndex: 100,
-            // transparent touch-capture strip
-            backgroundColor: 'transparent',
-          }}
-        />
-      </GestureDetector>
-      <View
-        accessible={false}
-        importantForAccessibility={showInfo ? 'no-hide-descendants' : 'auto'}
-        accessibilityElementsHidden={showInfo}
-        style={styles.container}
+    <View style={styles.container}>
+      <FlatList
+        ref={listRef}
+        data={PAGER_DATA}
+        keyExtractor={keyExtractor}
+        renderItem={renderItem}
+        horizontal={false}
+        pagingEnabled
+        showsVerticalScrollIndicator={false}
+        bounces={true}
+        decelerationRate="fast"
+        viewabilityConfig={viewabilityConfig.current}
+        onViewableItemsChanged={onViewableItemsChanged.current}
+        onScrollBeginDrag={handleScrollBeginDrag}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
+        initialNumToRender={2}
+        maxToRenderPerBatch={2}
+        windowSize={3}
+        getItemLayout={(_data, index) => ({
+          length: SCREEN_H,
+          offset: SCREEN_H * index,
+          index,
+        })}
+      />
+
+      {/* Page indicator — right edge (entry page = index 0, so chamberIndex = currentIndex - 1) */}
+      <PageIndicator chamberIndex={currentIndex - 1} insets={insets} />
+
+      {/* Portal crossfade veil */}
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          StyleSheet.absoluteFill,
+          { opacity: portalFade, backgroundColor: 'rgba(10,8,14,0.88)' },
+        ]}
+      />
+
+      {/* Premium Gate Modal */}
+      <Modal
+        visible={showGate}
+        transparent
+        animationType="fade"
+        onRequestClose={closeGate}
+        presentationStyle="overFullScreen"
+        statusBarTranslucent
+        accessibilityViewIsModal
       >
-          <View
-            style={StyleSheet.absoluteFill}
-            pointerEvents="none"
-            accessible={false}
-            importantForAccessibility="no"
-          >
-            <VideoView
-              player={bgPlayer}
-              style={StyleSheet.absoluteFill}
-              contentFit="cover"
-              nativeControls={false}
-              allowsPictureInPicture={false}
-            />
-          </View>
-        <LinearGradient
-        accessible={false}
-        importantForAccessibility="no"
-          colors={['rgba(0,0,0,0.42)', 'rgba(0,0,0,0.0)', 'rgba(0,0,0,0.55)']}
-          style={StyleSheet.absoluteFill}
-          locations={[0, 0.5, 1]}
-        />
-
-        {/* Ambient fog drift (subtle, environment-only) */}
-        <Animated.View
-          pointerEvents="none"
-          accessible={false}
-          importantForAccessibility="no"
-          style={[
-            StyleSheet.absoluteFill,
-            {
-              opacity: fogAOpacity,
-              transform: [{ translateX: fogATranslateX }, { translateY: fogATranslateY }],
-            },
-          ]}
-        >
-          <LinearGradient
-            colors={['rgba(255,255,255,0.00)', 'rgba(255,255,255,0.20)', 'rgba(255,255,255,0.00)']}
-            locations={[0, 0.5, 1]}
-            start={{ x: 0, y: 0.35 }}
-            end={{ x: 1, y: 0.65 }}
-            style={StyleSheet.absoluteFill}
-          />
-        </Animated.View>
-
-        <Animated.View
-          pointerEvents="none"
-          accessible={false}
-          importantForAccessibility="no"
-          style={[
-            StyleSheet.absoluteFill,
-            {
-              opacity: fogBOpacity,
-              transform: [{ translateX: fogBTranslateX }, { translateY: fogBTranslateY }],
-            },
-          ]}
-        >
-          <LinearGradient
-            colors={['rgba(255,255,255,0.00)', 'rgba(255,255,255,0.16)', 'rgba(255,255,255,0.00)']}
-            locations={[0, 0.5, 1]}
-            start={{ x: 1, y: 0.25 }}
-            end={{ x: 0, y: 0.75 }}
-            style={StyleSheet.absoluteFill}
-          />
-        </Animated.View>
-
         <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Back to Home"
-          accessibilityHint="Returns to the Home screen"
-          onPress={() => { Haptics.selectionAsync(); /* @ts-ignore */ navigation.navigate('Home'); }}
-                  style={{ position: 'absolute', left: 16, top: '45%', width: 48, height: 48, justifyContent: 'center', alignItems: 'center' }}
-                  hitSlop={12}
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.70)', justifyContent: 'flex-end' }}
+          onPress={closeGate}
         >
-          <Text style={{ color: '#EDE8FA', fontSize: 32, opacity: 0.6 }}>‹</Text>
-        </Pressable>
-
-        <View style={[styles.header, { paddingTop: Math.max(insets.top + 8, 20) }] }>
-          <Text
-            accessibilityRole="header"
-            accessibilityLabel="Chambers"
-            accessibilityHint="Swipe right on the title area to go back to Home"
-            style={[
-              Typography.display,
-              { color: '#F3EDE7', letterSpacing: 0.2 },
-              matchesCompactLayout && {
-                fontSize: scale(20),
-                lineHeight: Math.round(scale(27)),
-              },
-            ]}
-            onLayout={(e) => {
-              const { y, height } = e.nativeEvent.layout;
-              // place chevron ~25% down from the title’s top
-              setTitleAnchorTop(y + height * 0.25);
-            }}
-          >
-            Chambers
-          </Text>
-          <View style={{ alignItems: 'center', marginTop: 4 }}>
-            <Text
-              style={[
-                Body.regular,
-                {
-                  color: 'rgba(217,207,198,0.72)',
-                  fontSize: 12,
-                  letterSpacing: 0.25,
-                },
-                matchesCompactLayout && {
-                  fontSize: scale(12),
-                  lineHeight: Math.round(scale(17)),
-                },
-              ]}
-            >
-              Guided journeys • Deeper states
-            </Text>
-            <Text
-              style={[
-                Body.regular,
-                {
-                  color: 'rgba(217,207,198,0.45)',
-                  fontSize: 12,
-                  letterSpacing: 0.35,
-                  marginTop: 2,
-                },
-                matchesCompactLayout && {
-                  fontSize: scale(12),
-                  lineHeight: Math.round(scale(17)),
-                },
-              ]}
-            >
-              Return
-            </Text>
-          </View>
-
-          {/* Info button */}
           <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="About Chambers"
-            accessibilityHint="Opens information on what Chambers are and how to use them"
-            onPress={openInfo}
-            hitSlop={12}
+            onPress={() => {}}
             style={{
-              position: 'absolute',
-              right: 12,
-              top: insets.top + 8,
-              width: 36,
-              height: 36,
-              justifyContent: 'center',
-              alignItems: 'center',
-              borderRadius: 18,
-              backgroundColor: 'rgba(0,0,0,0.30)',
-              borderWidth: 1,
-              borderColor: 'rgba(255,255,255,0.12)',
-              zIndex: 300,
-              elevation: 300,
+              paddingBottom: Math.max(insets.bottom + 18, 24),
+              paddingTop: 18,
+              paddingHorizontal: 18,
+              borderTopLeftRadius: 22,
+              borderTopRightRadius: 22,
+              backgroundColor: 'rgba(12,10,18,0.96)',
+              borderTopWidth: 1,
+              borderColor: 'rgba(255,255,255,0.10)',
             }}
           >
-            <Text style={{ fontFamily: 'Inter-ExtraLight', color: '#EDEAF6', fontSize: 18, lineHeight: 18 }}>?</Text>
-          </Pressable>
-
-          {/* One-time gesture hint: subtle right chevron pulse */}
-          {showHint && (
-            <Animated.View
-              pointerEvents="none"
+            <Text style={[Typography.title, { color: '#F3EDE7', letterSpacing: 0.2 }]}>
+              Continue with Inner
+            </Text>
+            <Text
               style={{
-                position: 'absolute',
-                left: 24,
-                top: titleAnchorTop ?? 60,
-                opacity: hintOpacity,
-                transform: [{ translateX: hintShift }],
+                fontFamily: 'Inter-ExtraLight',
+                fontSize: 14,
+                lineHeight: 20,
+                color: 'rgba(237,232,250,0.88)',
+                marginTop: 12,
               }}
             >
-              <Text
+              {gateLabel ? `${gateLabel} is part of the deeper Chambers.` : 'This Chamber is part of the deeper Chambers.'}
+              {'\n\n'}
+              Continue with Inner to enter.
+            </Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 16 }}>
+              <Pressable
+                onPress={closeGate}
+                hitSlop={10}
                 style={{
-                  color: '#CFC3E0',
-                  fontSize: 20,
-                  opacity: 0.6,
-                  textShadowColor: 'rgba(0,0,0,0.35)',
-                  textShadowOffset: { width: 0, height: 1 },
-                  textShadowRadius: 3,
+                  paddingVertical: 10,
+                  paddingHorizontal: 12,
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: 'rgba(255,255,255,0.10)',
+                  backgroundColor: 'rgba(207,195,224,0.06)',
                 }}
               >
-                »
+                <Text style={{ fontFamily: 'Inter-ExtraLight', color: 'rgba(237,232,250,0.92)', letterSpacing: 0.2 }}>
+                  Not now
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={openPaywall}
+                disabled={presentingPaywall}
+                hitSlop={10}
+                style={{
+                  paddingVertical: 10,
+                  paddingHorizontal: 14,
+                  borderRadius: 12,
+                  backgroundColor: 'rgba(207,195,224,0.16)',
+                  borderWidth: 1,
+                  borderColor: 'rgba(255,255,255,0.12)',
+                  minWidth: 160,
+                  alignItems: 'center',
+                }}
+              >
+                <Text style={{ fontFamily: 'CalSans-SemiBold', color: '#F3EDE7', letterSpacing: 0.2 }}>
+                  {presentingPaywall ? 'Opening…' : 'Continue with Inner'}
+                </Text>
+              </Pressable>
+            </View>
+            {checkingEntitlement && (
+              <Text
+                style={{
+                  marginTop: 12,
+                  fontFamily: 'Inter-ExtraLight',
+                  fontSize: 12,
+                  color: 'rgba(237,232,250,0.55)',
+                }}
+              >
+                Checking access…
               </Text>
-            </Animated.View>
-          )}
-        </View>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
 
-        <FlatList
-          ref={listRef}
-          data={chambersWithReleaseState}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => {
-            const chamberId = toTrackId(item.id);
-            const pseudoTrack = { id: chamberId, isPremium: isPremiumChamber(chamberId) };
-            const locked = isLockedTrack(pseudoTrack as any, hasContinuing) || item.comingSoon;
-            return (
-              <ChamberRow
-                item={item}
-                onEnter={enterChamber}
-                isLocked={locked}
-                rowMarginBottom={rowMarginBottom}
-                tileLayout={tileLayout}
-              />
-            );
-          }}
-          showsVerticalScrollIndicator={false}
-          nestedScrollEnabled
-          accessibilityRole="list"
-          accessibilityLabel="Chambers list"
-          accessibilityHint="Swipe to browse Chambers. Double tap a Chamber to open it."
-          // Viewport shows ~3 tiles; user can scroll for more
-          style={[styles.list, matchesCompactLayout ? { height: compactListHeight } : null]}
-          contentContainerStyle={{
-            paddingBottom: Math.max(insets.bottom + (matchesCompactLayout ? verticalScale(10) : 12), matchesCompactLayout ? verticalScale(18) : 20),
-            gap: matchesCompactLayout ? verticalScale(10) : 12,
-          }}
-        />
-
-        {/* Portal crossfade veil (pre-navigation) */}
-        <Animated.View
-        accessible={false}
-        importantForAccessibility="no"
-          pointerEvents="none"
-          style={[
-            StyleSheet.absoluteFill,
-            {
-              opacity: portalFade,
-              backgroundColor: 'rgba(10,8,14,0.88)',
-            },
-          ]}
-        />
-
-        {/* Premium Gate Modal (Chambers 5–9) */}
-        <Modal
-          visible={showGate}
-          transparent
-          animationType="fade"
-          onRequestClose={closeGate}
-          presentationStyle="overFullScreen"
-          statusBarTranslucent
-          accessibilityViewIsModal
-        >
-          <Pressable
-            style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.70)', justifyContent: 'flex-end' }}
-            onPress={closeGate}
-          >
-            <Pressable
-              onPress={() => {}}
+      {/* Chambers Info Modal — triggered by ? button on entry page */}
+      <Modal
+        visible={showInfo}
+        transparent
+        animationType="fade"
+        onRequestClose={closeInfo}
+        presentationStyle="overFullScreen"
+        statusBarTranslucent
+        accessibilityViewIsModal
+      >
+        <View style={{ flex: 1 }}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={closeInfo}>
+            <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)' }} />
+          </Pressable>
+          <View style={{ flex: 1, justifyContent: 'flex-end' }}>
+            <View
               style={{
                 paddingBottom: Math.max(insets.bottom + 18, 24),
                 paddingTop: 18,
                 paddingHorizontal: 18,
-                borderTopLeftRadius: 22,
-                borderTopRightRadius: 22,
-                backgroundColor: 'rgba(12,10,18,0.96)',
+                borderTopLeftRadius: 16,
+                borderTopRightRadius: 16,
+                backgroundColor: 'rgba(18,18,32,0.96)',
                 borderTopWidth: 1,
-                borderColor: 'rgba(255,255,255,0.10)',
+                borderColor: 'rgba(255,255,255,0.06)',
+                overflow: 'hidden',
               }}
             >
-              <Text
-                style={[
-                  Typography.title,
-                  { color: '#F3EDE7', letterSpacing: 0.2 },
-                  matchesCompactLayout && {
-                    fontSize: scale(16),
-                    lineHeight: Math.round(scale(23)),
-                  },
-                ]}
+              <LinearGradient
+                colors={['rgba(207,195,224,0.20)', 'rgba(31,35,58,0.0)']}
+                start={{ x: 0.5, y: 0 }}
+                end={{ x: 0.5, y: 1 }}
+                style={StyleSheet.absoluteFill}
+                pointerEvents="none"
+              />
+              <ScrollView
+                style={{ maxHeight: SCREEN_H * 0.58 }}
+                contentContainerStyle={{ paddingBottom: 6, flexGrow: 1 }}
+                showsVerticalScrollIndicator={false}
               >
-                Continue with Inner
-              </Text>
-
-              <Text
-                style={{
-                  fontFamily: 'Inter-ExtraLight',
-                  fontSize: 14,
-                  lineHeight: 20,
-                  color: 'rgba(237,232,250,0.88)',
-                  marginTop: 12,
-                  ...(matchesCompactLayout
-                    ? {
-                        fontSize: scale(13),
-                        lineHeight: Math.round(scale(18)),
-                        marginTop: verticalScale(10),
-                      }
-                    : {}),
-                }}
-              >
-                {gateLabel ? `${gateLabel} is part of the deeper Chambers.` : 'This Chamber is part of the deeper Chambers.'}
-                {'\n\n'}
-                Continue with Inner to enter.
-              </Text>
-
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 16 }}>
-                <Pressable
-                  onPress={closeGate}
-                  hitSlop={10}
-                  style={{
-                    paddingVertical: 10,
-                    paddingHorizontal: 12,
-                    borderRadius: 12,
-                    borderWidth: 1,
-                    borderColor: 'rgba(255,255,255,0.10)',
-                    backgroundColor: 'rgba(207,195,224,0.06)',
-                  }}
-                >
-                  <Text style={{ fontFamily: 'Inter-ExtraLight', color: 'rgba(237,232,250,0.92)', letterSpacing: 0.2 }}>Not now</Text>
-                </Pressable>
-
-                <Pressable
-                  onPress={openPaywall}
-                  disabled={presentingPaywall}
-                  hitSlop={10}
-                  style={{
-                    paddingVertical: 10,
-                    paddingHorizontal: 14,
-                    borderRadius: 12,
-                    backgroundColor: 'rgba(207,195,224,0.16)',
-                    borderWidth: 1,
-                    borderColor: 'rgba(255,255,255,0.12)',
-                    minWidth: 160,
-                    alignItems: 'center',
-                  }}
-                >
-                  <Text style={{ fontFamily: 'CalSans-SemiBold', color: '#F3EDE7', letterSpacing: 0.2 }}>
-                    {presentingPaywall ? 'Opening…' : 'Continue with Inner'}
-                  </Text>
-                </Pressable>
-              </View>
-
-              {checkingEntitlement ? (
+                <Text style={[Typography.title, { color: '#F0EEF8', letterSpacing: 0.2 }]}>
+                  {infoStep === 0 ? CHAMBERS_INFO.howToTitle : CHAMBERS_INFO.whatAreTitle}
+                </Text>
                 <Text
                   style={{
-                    marginTop: 12,
                     fontFamily: 'Inter-ExtraLight',
-                    fontSize: 12,
-                    color: 'rgba(237,232,250,0.55)',
+                    fontSize: 14,
+                    lineHeight: 22,
+                    color: 'rgba(237,232,250,0.80)',
+                    marginTop: 14,
                   }}
                 >
-                  Checking access…
+                  {infoStep === 0 ? CHAMBERS_INFO.howToBody : CHAMBERS_INFO.whatAreBody}
                 </Text>
-              ) : null}
-            </Pressable>
-          </Pressable>
-        </Modal>
-
-        {/* Chambers Info Modal */}
-        <Modal
-          visible={showInfo}
-          transparent
-          animationType="fade"
-          onRequestClose={closeInfo}
-          presentationStyle="overFullScreen"
-          statusBarTranslucent
-          accessibilityViewIsModal
-        >
-          <View style={{ flex: 1 }}>
-            {/* Backdrop dismiss layer: sits behind the sheet so the ScrollView receives pan gestures. */}
-            <Pressable
-              style={StyleSheet.absoluteFill}
-              onPress={closeInfo}
-            >
-              <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)' }} />
-            </Pressable>
-
-            <View style={{ flex: 1, justifyContent: 'flex-end' }}>
-              <View
-                accessible={true}
-                accessibilityRole="summary"
-                accessibilityLabel={infoStep === 0 ? 'Chambers information. Step 1 of 2.' : 'Chambers information. Step 2 of 2.'}
-                style={{
-                  paddingBottom: Math.max(insets.bottom + (matchesCompactLayout ? 10 : 18), matchesCompactLayout ? 16 : 24),
-                  paddingTop: matchesCompactLayout ? 12 : 18,
-                  paddingHorizontal: matchesCompactLayout ? 12 : 18,
-                  borderTopLeftRadius: 16,
-                  borderTopRightRadius: 16,
-                  backgroundColor: 'rgba(18,18,32,0.96)',
-                  borderTopWidth: 1,
-                  borderColor: 'rgba(255,255,255,0.06)',
-                  overflow: 'hidden',
-                }}
-              >
-                <LinearGradient
-                  colors={['rgba(207,195,224,0.20)', 'rgba(31,35,58,0.0)']}
-                  start={{ x: 0.5, y: 0 }}
-                  end={{ x: 0.5, y: 1 }}
-                  style={StyleSheet.absoluteFill}
-                  pointerEvents="none"
-                />
-                <ScrollView
-                  style={{ maxHeight: matchesCompactLayout ? SCREEN_H * 0.55 : SCREEN_H * 0.58 }}
-                  contentContainerStyle={{ paddingBottom: verticalScale(6), flexGrow: 1 }}
-                  showsVerticalScrollIndicator={false}
-                  keyboardShouldPersistTaps="handled"
-                >
-                  <Text
-                    style={[
-                      Typography.title,
-                      {
-                        color: '#F0EEF8',
-                        letterSpacing: 0.2,
-                        textAlign: 'left',
-                      },
-                      matchesCompactLayout && {
-                        fontSize: scale(16),
-                        lineHeight: Math.round(scale(23)),
-                      },
-                    ]}
-                  >
-                    {infoStep === 0 ? CHAMBERS_INFO.howToTitle : CHAMBERS_INFO.whatAreTitle}
-                  </Text>
-
-                  <Text
+              </ScrollView>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 18 }}>
+                {infoStep === 1 ? (
+                  <Pressable
+                    onPress={() => setInfoStep(0)}
+                    hitSlop={10}
                     style={{
-                      fontFamily: 'Inter-ExtraLight',
-                      fontSize: matchesCompactLayout ? scale(10) : 11,
-                      lineHeight: matchesCompactLayout ? verticalScale(13) : 14,
-                      color: 'rgba(237,232,250,0.5)',
-                      letterSpacing: matchesCompactLayout ? scale(0.55) : 0.6,
-                      textTransform: 'uppercase',
-                      marginTop: matchesCompactLayout ? verticalScale(4) : 6,
+                      paddingVertical: 10,
+                      paddingHorizontal: 12,
+                      borderRadius: 12,
+                      borderWidth: 1,
+                      borderColor: 'rgba(255,255,255,0.10)',
+                      backgroundColor: 'rgba(207,195,224,0.06)',
                     }}
                   >
-                    {infoStep === 0 ? 'Step 1 of 2' : 'Step 2 of 2'}
-                  </Text>
-
-                  <Text
+                    <Text style={{ fontFamily: 'Inter-ExtraLight', color: 'rgba(237,232,250,0.92)', letterSpacing: 0.2 }}>
+                      {CHAMBERS_INFO.backLabel}
+                    </Text>
+                  </Pressable>
+                ) : (
+                  <Pressable
+                    onPress={closeInfo}
+                    hitSlop={10}
                     style={{
-                      fontFamily: 'Inter-ExtraLight',
-                      fontSize: matchesCompactLayout ? scale(13) : 14,
-                      lineHeight: matchesCompactLayout ? Math.round(scale(18)) : 20,
-                      color: '#EDEAF6',
-                      marginTop: matchesCompactLayout ? verticalScale(10) : 12,
+                      paddingVertical: 10,
+                      paddingHorizontal: 12,
+                      borderRadius: 12,
+                      borderWidth: 1,
+                      borderColor: 'rgba(255,255,255,0.10)',
+                      backgroundColor: 'rgba(207,195,224,0.06)',
                     }}
                   >
-                    {infoStep === 0 ? CHAMBERS_INFO.howToBody : CHAMBERS_INFO.whatAreBody}
-                  </Text>
-                </ScrollView>
-
-                <View
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    justifyContent: infoStep === 0 ? 'space-between' : 'flex-end',
-                    marginTop: matchesCompactLayout ? verticalScale(8) : 16,
-                  }}
-                >
-                  {infoStep === 0 && (
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel={CHAMBERS_INFO.closeLabel}
-                      accessibilityHint="Closes this information sheet"
-                      onPress={closeInfo}
-                      hitSlop={10}
-                      style={{
-                        paddingVertical: 4,
-                        paddingHorizontal: 8,
-                      }}
-                    >
-                      <Text style={{ fontFamily: 'Inter-ExtraLight', fontSize: 13, color: 'rgba(237,234,246,0.6)' }}>
-                        {CHAMBERS_INFO.closeLabel}
-                      </Text>
-                    </Pressable>
-                  )}
-
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: matchesCompactLayout ? scale(8) : 10 }}>
-                    {infoStep === 1 && (
-                      <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel={CHAMBERS_INFO.backLabel}
-                        accessibilityHint="Returns to the previous step"
-                        onPress={() => setInfoStep(0)}
-                        hitSlop={10}
-                        style={{
-                          paddingVertical: 4,
-                          paddingHorizontal: 8,
-                        }}
-                      >
-                        <Text style={{ fontFamily: 'Inter-ExtraLight', fontSize: 13, color: 'rgba(237,234,246,0.6)' }}>
-                          {CHAMBERS_INFO.backLabel}
-                        </Text>
-                      </Pressable>
-                    )}
-
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel={infoStep === 0 ? CHAMBERS_INFO.nextLabel : CHAMBERS_INFO.okLabel}
-                      accessibilityHint={infoStep === 0 ? 'Moves to step 2 of 2' : 'Closes this information sheet'}
-                      onPress={() => {
-                        if (infoStep === 0) {
-                          setInfoStep(1);
-                          Haptics.selectionAsync().catch(() => {});
-                        } else {
-                          closeInfo();
-                        }
-                      }}
-                      hitSlop={10}
-                      style={{
-                        paddingVertical: 10,
-                        paddingHorizontal: 20,
-                        borderRadius: 16,
-                        borderWidth: 1,
-                        borderColor: 'rgba(207,195,224,0.35)',
-                        borderTopColor: 'rgba(207,195,224,0.7)',
-                        alignItems: 'center',
-                        overflow: 'hidden',
-                      }}
-                    >
-                      <Text style={{ fontFamily: 'CalSans-SemiBold', fontSize: 16, color: '#F0EEF8' }}>
-                        {infoStep === 0 ? CHAMBERS_INFO.nextLabel : CHAMBERS_INFO.okLabel}
-                      </Text>
-                    </Pressable>
-                  </View>
-                </View>
+                    <Text style={{ fontFamily: 'Inter-ExtraLight', color: 'rgba(237,232,250,0.92)', letterSpacing: 0.2 }}>
+                      {CHAMBERS_INFO.closeLabel}
+                    </Text>
+                  </Pressable>
+                )}
+                {infoStep === 0 ? (
+                  <Pressable
+                    onPress={() => setInfoStep(1)}
+                    hitSlop={10}
+                    style={{
+                      paddingVertical: 10,
+                      paddingHorizontal: 14,
+                      borderRadius: 12,
+                      backgroundColor: 'rgba(207,195,224,0.16)',
+                      borderWidth: 1,
+                      borderColor: 'rgba(255,255,255,0.12)',
+                      minWidth: 80,
+                      alignItems: 'center',
+                    }}
+                  >
+                    <Text style={{ fontFamily: 'CalSans-SemiBold', color: '#F3EDE7', letterSpacing: 0.2 }}>
+                      {CHAMBERS_INFO.nextLabel}
+                    </Text>
+                  </Pressable>
+                ) : (
+                  <Pressable
+                    onPress={closeInfo}
+                    hitSlop={10}
+                    style={{
+                      paddingVertical: 10,
+                      paddingHorizontal: 14,
+                      borderRadius: 12,
+                      backgroundColor: 'rgba(207,195,224,0.16)',
+                      borderWidth: 1,
+                      borderColor: 'rgba(255,255,255,0.12)',
+                      minWidth: 80,
+                      alignItems: 'center',
+                    }}
+                  >
+                    <Text style={{ fontFamily: 'CalSans-SemiBold', color: '#F3EDE7', letterSpacing: 0.2 }}>
+                      {CHAMBERS_INFO.okLabel}
+                    </Text>
+                  </Pressable>
+                )}
               </View>
             </View>
           </View>
-        </Modal>
         </View>
-    </GestureHandlerRootView>
-  );
-}
-
-function Tile({
-  label,
-  subtitle,
-  onPress,
-  colors,
-  backgroundSource,
-  offline,
-  locked,
-  highlight,
-  tileHeight,
-  tileBorderRadius,
-  tileLeft,
-  tileRight,
-  subtitleBottom,
-  titleBottom,
-}: {
-  label: string;
-  subtitle?: string;
-  onPress: () => void;
-  colors: string[];
-  backgroundSource?: any;
-  offline?: {
-    isCached: boolean;
-    isWorking: boolean;
-    progress: number;
-    onDownload: () => void;
-    onRemove: () => void;
-    label: string;
-  };
-  locked?: boolean;
-  highlight?: boolean;
-  tileHeight: number;
-  tileBorderRadius: number;
-  tileLeft: number;
-  tileRight: number;
-  subtitleBottom: number;
-  titleBottom: number;
-}) {
-  const { scale, matchesCompactLayout } = useScale();
-
-  // Locked gate icon (PNG) + subtle pulse
-  // NOTE: Create this file: `assets/images/locked_gate.png` (transparent background).
-  const lockPng = React.useMemo(() => {
-    try {
-      return require('../assets/images/locked_gate.png');
-    } catch {
-      return null;
-    }
-  }, []);
-
-  const lockPulse = React.useRef(new Animated.Value(0)).current;
-  const lockOpacity = lockPulse.interpolate({ inputRange: [0, 1], outputRange: [0.55, 0.82] });
-  const lockScale = lockPulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.07] });
-
-  const glowPulse = React.useRef(new Animated.Value(0)).current;
-  const glowOpacity = glowPulse.interpolate({ inputRange: [0, 1], outputRange: [0.24, 0.62] });
-  const glowScale = glowPulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.025] });
-
-  React.useEffect(() => {
-    if (!locked) {
-      lockPulse.stopAnimation();
-      lockPulse.setValue(0);
-      return;
-    }
-
-    // Very subtle, slow pulse (barely noticeable)
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(lockPulse, {
-          toValue: 1,
-          duration: 3000,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
-        }),
-        Animated.timing(lockPulse, {
-          toValue: 0,
-          duration: 3000,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
-        }),
-      ])
-    );
-
-    // Small desync so multiple locks don't breathe in unison
-    const jitter = 150 + Math.floor(Math.random() * 500);
-    const t = setTimeout(() => loop.start(), jitter);
-
-    return () => {
-      clearTimeout(t);
-      loop.stop();
-    };
-  }, [locked, lockPulse]);
-
-    React.useEffect(() => {
-    if (!highlight) {
-      glowPulse.stopAnimation();
-      glowPulse.setValue(0);
-      return;
-    }
-
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(glowPulse, {
-          toValue: 1,
-          duration: 1200,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
-        }),
-        Animated.timing(glowPulse, {
-          toValue: 0,
-          duration: 1200,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
-        }),
-      ])
-    );
-
-    loop.start();
-    return () => loop.stop();
-  }, [highlight, glowPulse]);
-
-    return (
-    <View
-    style={{ marginHorizontal: 2, marginVertical: 2 }}>
-      {highlight ? (
-        <Animated.View
-          pointerEvents="none"
-          style={{
-            position: 'absolute',
-            top: -3,
-            left: -3,
-            right: -3,
-            bottom: -3,
-            borderRadius: 17,
-            borderWidth: 1,
-            borderColor: 'rgba(207,195,224,0.72)',
-            opacity: glowOpacity,
-            transform: [{ scale: glowScale }],
-            shadowColor: '#CFC3E0',
-            shadowOpacity: 0.55,
-            shadowRadius: 14,
-            shadowOffset: { width: 0, height: 0 },
-            elevation: 10,
-          }}
-        />
-      ) : null}
-
-      <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.tile,
-        { height: tileHeight, borderRadius: tileBorderRadius },
-        {
-          opacity: pressed ? 0.96 : 1,
-          transform: [{ scale: pressed ? 0.992 : 1 }],
-          borderColor: pressed
-            ? 'rgba(255,255,255,0.14)'
-            : highlight
-            ? 'rgba(207,195,224,0.26)'
-            : 'rgba(255,255,255,0.08)',
-        },
-      ]}
-      accessibilityRole="button"
-      accessibilityLabel={subtitle ? `${label}. ${subtitle}` : label}
-      accessibilityHint="Opens this Chamber"
-      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-    >
-      {backgroundSource ? (
-        <ImageBackground
-          source={backgroundSource}
-          style={styles.tileFill}
-          imageStyle={{ borderRadius: tileBorderRadius }}
-          resizeMode="cover"
-          fadeDuration={0}
-          accessible={false}
-          importantForAccessibility="no"
-        >
-          {/* soft veil for legibility */}
-          <View
-            pointerEvents="none"
-            accessible={false}
-            importantForAccessibility="no"
-            style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.30)' }]}
-          />
-          {/* inner vignette (edges darker → center clearer) */}
-          <LinearGradient
-            pointerEvents="none"
-            colors={['rgba(0,0,0,0.34)', 'rgba(0,0,0,0.00)', 'rgba(0,0,0,0.34)']}
-            locations={[0, 0.5, 1]}
-            start={{ x: 0, y: 0.5 }}
-            end={{ x: 1, y: 0.5 }}
-            style={StyleSheet.absoluteFill}
-          />
-          {/* bottom lift for title */}
-          <LinearGradient
-            pointerEvents="none"
-            colors={['rgba(0,0,0,0.00)', 'rgba(0,0,0,0.40)']}
-            start={{ x: 0.5, y: 0 }}
-            end={{ x: 0.5, y: 1 }}
-            style={StyleSheet.absoluteFill}
-          />
-        </ImageBackground>
-      ) : (
-        <>
-          <LinearGradient
-            colors={[colors[0], colors[1], 'transparent']}
-            locations={[0, 0.82, 1]}
-            start={{ x: 0, y: 0.5 }}
-            end={{ x: 1, y: 0.5 }}
-            style={styles.tileFill}
-            accessible={false}
-            importantForAccessibility="no"
-          />
-          <LinearGradient
-            pointerEvents="none"
-            colors={['rgba(0,0,0,0.28)', 'rgba(0,0,0,0.00)', 'rgba(0,0,0,0.28)']}
-            locations={[0, 0.5, 1]}
-            start={{ x: 0, y: 0.5 }}
-            end={{ x: 1, y: 0.5 }}
-            style={StyleSheet.absoluteFill}
-          />
-          <LinearGradient
-            pointerEvents="none"
-            colors={['rgba(0,0,0,0.00)', 'rgba(0,0,0,0.36)']}
-            start={{ x: 0.5, y: 0 }}
-            end={{ x: 0.5, y: 1 }}
-            style={StyleSheet.absoluteFill}
-          />
-        </>
-      )}
-      {/* Locked overlay and lock icon */}
-      {locked ? (
-        <View
-          pointerEvents="none"
-          accessible={false}
-          importantForAccessibility="no"
-          style={[
-            StyleSheet.absoluteFill,
-            {
-              backgroundColor: 'rgba(10, 8, 14, 0.40)',
-              justifyContent: 'center',
-              alignItems: 'center',
-            },
-          ]}
-        >
-          <View
-            style={{
-              width: 34,
-              height: 34,
-              borderRadius: 17,
-              backgroundColor: 'rgba(0,0,0,0.30)',
-              borderWidth: 1,
-              borderColor: 'rgba(245,242,255,0.14)',
-              justifyContent: 'center',
-              alignItems: 'center',
-            }}
-          >
-            <Animated.View style={{ opacity: lockOpacity, transform: [{ scale: lockScale }] }}>
-              {lockPng ? (
-                <Image
-                  source={lockPng}
-                  style={{
-                    width: 16,
-                    height: 16,
-                    opacity: 0.92,
-                    tintColor: 'rgba(245,242,255,0.92)',
-                  }}
-                  resizeMode="contain"
-                />
-              ) : (
-                <Text style={{ fontSize: 16, opacity: 0.82 }}>🔒</Text>
-              )}
-            </Animated.View>
-          </View>
-        </View>
-      ) : null}
-      {offline ? (
-        <Pressable
-          disabled={offline.isWorking}
-          onPress={(e) => {
-            // prevent tile open when tapping offline control
-            // @ts-ignore
-            e?.stopPropagation?.();
-            if (offline.isCached) offline.onRemove();
-            else offline.onDownload();
-            Haptics.selectionAsync().catch(() => {});
-          }}
-          hitSlop={10}
-          accessibilityRole="button"
-          accessibilityLabel={
-            offline.isCached
-              ? `Remove offline cache for ${offline.label}`
-              : `Download ${offline.label} for offline use`
-          }
-          accessibilityHint={
-            offline.isCached
-              ? 'Removes the offline file for this Chamber'
-              : 'Downloads this Chamber for offline use'
-          }
-          accessibilityState={{ disabled: offline.isWorking }}
-          style={({ pressed }) => ({
-            position: 'absolute',
-            right: 12,
-            top: 12,
-            paddingVertical: 6,
-            paddingHorizontal: 10,
-            borderRadius: 12,
-            borderWidth: 1,
-            borderColor: pressed ? 'rgba(255,255,255,0.10)' : 'rgba(255,255,255,0.06)',
-            backgroundColor: offline.isCached
-              ? 'rgba(207,195,224,0.14)'
-              : 'rgba(207,195,224,0.10)',
-            opacity: offline.isWorking ? 0.72 : pressed ? 0.95 : 0.92,
-          })}
-        >
-          <Text
-            style={{
-              fontFamily: 'Inter-ExtraLight',
-              fontSize: 10,
-              letterSpacing: 0.65,
-              textTransform: 'uppercase',
-              color: 'rgba(245,242,255,0.92)',
-              textShadowColor: 'rgba(0,0,0,0.35)',
-              textShadowOffset: { width: 0, height: 1 },
-              textShadowRadius: 3,
-            }}
-          >
-            {offline.isWorking
-              ? `Caching… ${Math.round(offline.progress * 100)}%`
-              : offline.isCached
-              ? 'Offline'
-              : 'Save'}
-          </Text>
-        </Pressable>
-      ) : null}
-      {subtitle ? (
-        <Text
-          style={{
-            fontFamily: 'Inter-ExtraLight',
-            fontSize: 11,
-            lineHeight: 14,
-            color: 'rgba(237,232,250,0.86)',
-            position: 'absolute',
-            left: tileLeft,
-            bottom: subtitleBottom,
-            right: tileRight,
-            letterSpacing: 0.25,
-            opacity: locked ? 0.62 : 0.78,
-            ...(matchesCompactLayout
-              ? {
-                  fontSize: scale(10),
-                  lineHeight: Math.round(scale(13)),
-                }
-              : {}),
-          }}
-          numberOfLines={1}
-        >
-          {subtitle}
-        </Text>
-      ) : null}
-      <Text
-        style={[
-          Typography.title,
-          {
-            color: '#F7F0E9',
-            position: 'absolute',
-            left: tileLeft,
-            bottom: titleBottom,
-            right: tileRight,
-            letterSpacing: 0.2,
-            opacity: locked ? 0.78 : 1,
-          },
-          matchesCompactLayout && {
-            fontSize: scale(16),
-            lineHeight: Math.round(scale(23)),
-          },
-        ]}
-        numberOfLines={1}
-      >
-        {label}
-      </Text>
-          </Pressable>
+      </Modal>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  backButton: {
-    position: 'absolute',
-    left: 18,
-    top: '50%',
-    transform: [{ translateY: -14 }],
-    zIndex: 10,
-  },
-  header: {
-    position: 'absolute',
-    top: 28,
-    left: 18,
-    right: 18,
-    alignItems: 'center',
-    zIndex: 200,
-    elevation: 20,
-  },
-  list: {
-    position: 'absolute',
-    left: 18,
-    right: 18,
-    bottom: 32,
-    height: 300, // ~3 tiles (3*86 + gaps)
-  },
-  tile: {
+  container: {
     flex: 1,
-    height: 86,
-    borderRadius: 14,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    marginBottom: 0,
+    backgroundColor: '#0a080e',
   },
-  tileFill: { ...StyleSheet.absoluteFillObject },
 });
