@@ -1,9 +1,8 @@
 import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { usePostHog } from 'posthog-react-native';
-import { StyleSheet, View, Text, Pressable, ScrollView, Animated, Easing, TextInput, Alert, Platform, Modal } from 'react-native';
+import { StyleSheet, View, Text, Pressable, ScrollView, Animated, Easing, TextInput, Alert, Platform, Modal, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import SoundscapeCardList from '../components/SoundscapeCardList';
 import { Image } from 'react-native';
 import { Gesture, GestureDetector, Directions, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -18,12 +17,13 @@ import { useScale } from '../utils/scale';
 import Purchases from 'react-native-purchases';
 import { isLockedTrack } from '../src/core/subscriptions/accessPolicy';
 import { safePresentPaywall } from '../src/core/subscriptions/safePresentPaywall';
+
 const Body = _Body ?? ({
   regular: { ...Typography.body },
   subtle:  { ...Typography.caption },
 } as const);
 
-// RevenueCat entitlement used to gate “deeper” content
+// RevenueCat entitlement used to gate "deeper" content
 const CONTINUING_ENTITLEMENT_ID = 'continuing_with_inner';
 
 // --- Soundscapes Info ---
@@ -94,16 +94,46 @@ Long-press any track to read its full description — the specific qualities, fr
 // Assets
 const LOCK_ICON = require('../assets/images/locked_gate.png');
 
-// Lock pulse (slow “breath”)
+// Lock pulse (slow "breath")
 const LOCK_PULSE_MS = 2800;
 
-function SoundscapeRow({
+// Category definitions with new Garden names mapping to existing data keys
+const GARDEN_CATEGORIES = [
+  { key: 'stillness' as const, label: 'Still Water' },
+  { key: 'clarity'   as const, label: 'Clear Air'  },
+  { key: 'renewal'   as const, label: 'New Growth'  },
+  { key: 'deeper'    as const, label: 'Root Deep'  },
+  { key: 'tones'     as const, label: 'Resonance'   },
+  { key: 'noise'     as const, label: 'Natural'     },
+] as const;
+
+type CategoryKey = typeof GARDEN_CATEGORIES[number]['key'];
+
+// Map internal category key → Garden display label
+const CATEGORY_LABELS: Record<CategoryKey, string> = {
+  stillness: 'Still Water',
+  clarity:   'Clear Air',
+  renewal:   'New Growth',
+  deeper:    'Root Deep',
+  tones:     'Resonance',
+  noise:     'Natural',
+};
+
+// Dimensions used for track list max height
+const { height: SCREEN_H } = Dimensions.get('window');
+
+// ---------------------------------------------------------------------------
+// GardenTrackRow — simple row: title left, download icon right
+// ---------------------------------------------------------------------------
+
+const GardenTrackRow = React.memo(function GardenTrackRow({
   item,
   navigation,
   isLocked,
   onLockedPress,
   onStart,
   onLongPress,
+  isLast,
 }: {
   item: any;
   navigation: any;
@@ -111,38 +141,10 @@ function SoundscapeRow({
   onLockedPress?: (item: any) => void;
   onStart?: (item: any) => void;
   onLongPress?: (item: any) => void;
+  isLast?: boolean;
 }) {
-  const { scale, verticalScale, matchesCompactLayout } = useScale();
-  const trackCardMinHeight = matchesCompactLayout ? verticalScale(76) : verticalScale(92);
+  const { scale, verticalScale } = useScale();
   const { isCached, isWorking, progress, download, remove, canDownload } = useOfflineAsset(item?.id, 'soundscape');
-
-  // Slow “breath” pulse for the lock
-  const lockPulse = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    if (!isLocked) return;
-    const anim = Animated.loop(
-      Animated.sequence([
-        Animated.timing(lockPulse, {
-          toValue: 1,
-          duration: LOCK_PULSE_MS,
-          easing: Easing.inOut(Easing.quad),
-          useNativeDriver: true,
-        }),
-        Animated.timing(lockPulse, {
-          toValue: 0,
-          duration: LOCK_PULSE_MS,
-          easing: Easing.inOut(Easing.quad),
-          useNativeDriver: true,
-        }),
-      ])
-    );
-    anim.start();
-    return () => anim.stop();
-  }, [isLocked, lockPulse]);
-
-  const pulseScale = lockPulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.06] });
-  const pulseOpacity = lockPulse.interpolate({ inputRange: [0, 1], outputRange: [0.78, 0.95] });
-
   const allowOffline = canDownload && !isLocked;
 
   return (
@@ -150,34 +152,19 @@ function SoundscapeRow({
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={isLocked ? `${item.title} is locked` : `Play ${item.title}`}
-        accessibilityHint={
-          isLocked
-            ? 'Requires Continuing with Inner'
-            : `Plays ${item.title}`
-        }
-        style={({ pressed }) => [
-          styles.trackRow,
-          {
-            minHeight: trackCardMinHeight,
-            padding: matchesCompactLayout ? scale(10) : scale(12),
-            opacity: pressed ? 0.96 : 1,
-            transform: [{ scale: pressed ? 0.994 : 1 }],
-            borderColor: pressed ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.08)',
-          },
-        ]}
+        accessibilityHint={isLocked ? 'Requires Continuing with Inner' : `Plays ${item.title}`}
+        style={({ pressed }) => ({
+          flexDirection: 'row',
+          alignItems: 'center',
+          paddingVertical: verticalScale(13),
+          paddingHorizontal: scale(4),
+          opacity: pressed ? 0.75 : 1,
+        })}
         onPress={async () => {
           Haptics.selectionAsync();
-
-          if (isLocked) {
-            onLockedPress?.(item);
-            return;
-          }
-
+          if (isLocked) { onLockedPress?.(item); return; }
           onStart?.(item);
-
-          try {
-            await setLastSession({ type: 'soundscape', id: item.id });
-          } catch {}
+          try { await setLastSession({ type: 'soundscape', id: item.id }); } catch {}
           navigation.navigate('JourneyPlayer', { trackId: item.id });
         }}
         onLongPress={() => {
@@ -186,231 +173,114 @@ function SoundscapeRow({
         }}
         delayLongPress={360}
       >
-        {allowOffline ? (
+        {/* Small lock indicator */}
+        {isLocked && (
+          <Image
+            source={LOCK_ICON}
+            style={{ width: scale(13), height: scale(13), opacity: 0.5, marginRight: scale(8) }}
+            resizeMode="contain"
+          />
+        )}
+
+        {/* Title */}
+        <Text
+          style={{
+            flex: 1,
+            fontFamily: 'CalSans-SemiBold',
+            fontSize: scale(15),
+            color: isLocked ? 'rgba(237,232,250,0.42)' : '#EDE8FA',
+            letterSpacing: 0.2,
+          }}
+          numberOfLines={1}
+        >
+          {item.title}
+        </Text>
+
+        {/* Download icon (unlocked only) */}
+        {allowOffline && (
           <Pressable
             disabled={isWorking}
             onPress={(e) => {
-              // prevent opening the row when tapping offline
               // @ts-ignore
               e?.stopPropagation?.();
-              if (isCached) remove();
-              else download();
+              if (isCached) remove(); else download();
               Haptics.selectionAsync().catch(() => {});
             }}
             hitSlop={10}
             accessibilityRole="button"
-            accessibilityLabel={isCached ? `Remove offline cache for ${item.title}` : `Download ${item.title} for offline use`}
-            accessibilityHint={isCached ? 'Removes the offline file for this soundscape' : 'Downloads this soundscape for offline use'}
-            accessibilityState={{ disabled: isWorking }}
-            style={({ pressed }) => ({
-              position: 'absolute',
-              right: scale(10),
-              top: verticalScale(10),
-              paddingVertical: verticalScale(6),
-              paddingHorizontal: scale(10),
-              borderRadius: scale(12),
-              borderWidth: 1,
-              borderColor: pressed ? 'rgba(255,255,255,0.10)' : 'rgba(255,255,255,0.06)',
-              backgroundColor: isCached ? 'rgba(207,195,224,0.14)' : 'rgba(207,195,224,0.10)',
-              opacity: isWorking ? 0.74 : pressed ? 0.95 : 0.92,
-            })}
+            accessibilityLabel={isCached ? `Remove offline cache for ${item.title}` : `Download ${item.title} for offline`}
+            style={{ paddingLeft: scale(12) }}
           >
             <Text
               style={{
-                fontFamily: 'Inter-ExtraLight',
-                fontSize: scale(10),
-                letterSpacing: scale(0.65),
-                textTransform: 'uppercase',
-                color: 'rgba(245,242,255,0.92)',
-                textShadowColor: 'rgba(0,0,0,0.35)',
-                textShadowOffset: { width: 0, height: verticalScale(1) },
-                textShadowRadius: scale(3),
+                fontSize: scale(16),
+                color: isWorking
+                  ? 'rgba(207,195,224,0.5)'
+                  : isCached
+                  ? 'rgba(207,195,224,0.9)'
+                  : 'rgba(255,255,255,0.28)',
               }}
             >
-              {isWorking ? `Caching… ${Math.round(progress * 100)}%` : isCached ? 'Offline' : 'Save'}
+              {isWorking ? `${Math.round(progress * 100)}%` : isCached ? '✓' : '↓'}
             </Text>
           </Pressable>
-        ) : null}
-
-        {/* inner vignette (edges darker → center clearer) */}
-        <LinearGradient
-          pointerEvents="none"
-          colors={['rgba(0,0,0,0.22)', 'rgba(0,0,0,0.00)', 'rgba(0,0,0,0.22)']}
-          locations={[0, 0.5, 1]}
-          start={{ x: 0, y: 0.5 }}
-          end={{ x: 1, y: 0.5 }}
-          style={StyleSheet.absoluteFill}
-        />
-
-        {/* bottom lift for text */}
-        <LinearGradient
-          pointerEvents="none"
-          colors={['rgba(0,0,0,0.00)', 'rgba(0,0,0,0.28)']}
-          start={{ x: 0.5, y: 0 }}
-          end={{ x: 0.5, y: 1 }}
-          style={StyleSheet.absoluteFill}
-        />
-
-        <Text
-          style={[
-            Typography.title,
-            { color: '#EDE8FA' },
-            matchesCompactLayout && {
-              fontSize: scale(16),
-              lineHeight: Math.round(scale(23)),
-            },
-          ]}
-        >
-          {item.title}
-        </Text>
-        {'description' in item && !!item.description && (
-          <Text
-            style={[
-              Body.regular,
-              {
-                fontFamily: 'Inter-ExtraLight',
-                color: 'rgba(237,232,250,0.85)',
-                marginTop: verticalScale(4),
-                lineHeight: verticalScale(20),
-                letterSpacing: scale(0.2),
-              },
-              matchesCompactLayout && {
-                fontSize: scale(13),
-                lineHeight: Math.round(scale(18)),
-              },
-            ]}
-            numberOfLines={2}
-          >
-            {(item as any).description}
-          </Text>
         )}
-
-        {/* Lock overlay */}
-        {isLocked ? (
-          <View
-            pointerEvents="none"
-            style={{
-              ...StyleSheet.absoluteFillObject,
-              justifyContent: 'center',
-              alignItems: 'center',
-            }}
-          >
-            <View
-              style={{
-                ...StyleSheet.absoluteFillObject,
-                backgroundColor: 'rgba(0,0,0,0.22)',
-              }}
-            />
-            <Animated.View
-              style={{
-                width: scale(46),
-                height: scale(46),
-                borderRadius: scale(23),
-                justifyContent: 'center',
-                alignItems: 'center',
-                backgroundColor: 'rgba(0,0,0,0.28)',
-                borderWidth: 1,
-                borderColor: 'rgba(255,255,255,0.10)',
-                transform: [{ scale: pulseScale }],
-                opacity: pulseOpacity,
-              }}
-            >
-              <Image
-                source={LOCK_ICON}
-                style={{ width: scale(22), height: scale(22), opacity: 0.92 }}
-                resizeMode="contain"
-              />
-            </Animated.View>
-          </View>
-        ) : null}
       </Pressable>
+
+      {/* Divider — omit on last item */}
+      {!isLast && (
+        <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: 'rgba(255,255,255,0.10)' }} />
+      )}
     </View>
   );
-}
+});
+
+// ---------------------------------------------------------------------------
+// SoundscapesScreen (The Garden)
+// ---------------------------------------------------------------------------
 
 export default function SoundscapesScreen() {
   const insets = useSafeAreaInsets();
   const { scale, verticalScale, height: windowHeight, width: SCREEN_W, matchesCompactLayout } = useScale();
   const navigation = useNavigation();
   const posthog = usePostHog();
-  const categoryCardHeight = matchesCompactLayout ? verticalScale(82) : verticalScale(96);
-  const categoryCardGap = matchesCompactLayout ? verticalScale(12) : verticalScale(18);
-  const VISIBLE_COUNT = 3;
-  const listHeight = categoryCardHeight * VISIBLE_COUNT + categoryCardGap * (VISIBLE_COUNT - 1);
 
-  const bgPlayer = useVideoPlayer(require('../assets/images/soundscapes_screen.mp4'), player => {
+  const bgPlayer = useVideoPlayer(require('../assets/videos/garden_bg.mp4'), player => {
     player.loop = true;
     player.muted = true;
-    try {
-      player.play();
-    } catch (e) {
-      console.log('[SoundscapesScreen] background video play failed', e);
-    }
+    try { player.play(); } catch {}
   });
 
   useFocusEffect(React.useCallback(() => {
-    try {
-      bgPlayer.play();
-    } catch (e) {
-      console.log('[SoundscapesScreen] background video play failed on focus', e);
-    }
-
-    return () => {
-      try {
-        bgPlayer.pause();
-      } catch (e) {
-        console.log('[SoundscapesScreen] background video pause ignored', e);
-      }
-    };
+    try { bgPlayer.play(); } catch {}
+    return () => { try { bgPlayer.pause(); } catch {} };
   }, [bgPlayer]));
-
-  // Background should always fill the screen (prevents iPad letterboxing)
 
   const [hasContinuing, setHasContinuing] = useState(false);
 
   useEffect(() => {
     let unsub: any;
-
     const sync = async () => {
       try {
         const info = await Purchases.getCustomerInfo();
         const active = (info?.entitlements?.active ?? {}) as Record<string, any>;
         setHasContinuing(!!active[CONTINUING_ENTITLEMENT_ID]);
-      } catch {
-        // If RC isn't ready yet, just treat as not entitled
-        setHasContinuing(false);
-      }
+      } catch { setHasContinuing(false); }
     };
-
     sync();
-
-    // Keep in sync after purchases / restores
     // @ts-ignore
     unsub = Purchases.addCustomerInfoUpdateListener?.((info: any) => {
       const active = (info?.entitlements?.active ?? {}) as Record<string, any>;
       setHasContinuing(!!active[CONTINUING_ENTITLEMENT_ID]);
     });
-
-    return () => {
-      try {
-        // @ts-ignore
-        if (typeof unsub === 'function') unsub();
-      } catch {}
-    };
+    return () => { try { if (typeof unsub === 'function') unsub(); } catch {} };
   }, []);
 
   const openPaywall = React.useCallback(async () => {
-    try {
-      await Haptics.selectionAsync();
-    } catch {}
-
-    try {
-      await safePresentPaywall();
-      return;
-    } catch (e) {
+    try { await Haptics.selectionAsync(); } catch {}
+    try { await safePresentPaywall(); return; } catch (e) {
       console.log('[PAYWALL] Failed to present paywall', e);
     }
-
     Alert.alert(
       'Continuing with Inner',
       'Membership is not available to display right now. Please try again in a moment.',
@@ -418,73 +288,28 @@ export default function SoundscapesScreen() {
     );
   }, []);
 
-  const handleLockedPress = React.useCallback(
-    (_item: any) => {
-      // For locked items/categories: go straight to the paywall
-      openPaywall();
-    },
-    [openPaywall]
-  );
+  const handleLockedPress = React.useCallback((_item: any) => { openPaywall(); }, [openPaywall]);
 
-  const handleSoundscapeStart = React.useCallback(
-    (item: any) => {
-      posthog.capture('soundscape_started', {
-        soundscape_id: item.id,
-        soundscape_title: item.title ?? item.id,
-        category: item.category ?? 'unknown',
-        is_premium: !!item.isPremium || item.category === 'deeper',
-        has_subscription: hasContinuing,
-      });
-    },
-    [posthog, hasContinuing]
-  );
-
-  // Persistent gesture hint (left-swipe on title)
-  const [showHint, setShowHint] = React.useState(false);
-  const hintOpacity = React.useRef(new Animated.Value(0)).current;
-  const hintShift = React.useRef(new Animated.Value(0)).current; // negative = left
-  const [titleAnchorTop, setTitleAnchorTop] = React.useState<number | null>(null);
-
-  React.useEffect(() => {
-    let mounted = true;
-    let interval: any;
-
-    setShowHint(true);
-
-    const runPulse = () => {
-      Animated.sequence([
-        Animated.timing(hintOpacity, { toValue: 1, duration: 280, easing: Easing.out(Easing.quad), useNativeDriver: true }),
-        Animated.loop(
-          Animated.sequence([
-            Animated.timing(hintShift, { toValue: -8, duration: 400, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-            Animated.timing(hintShift, { toValue: 0, duration: 400, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-          ]),
-          { iterations: 3 }
-        ),
-        Animated.timing(hintOpacity, { toValue: 0, duration: 340, easing: Easing.in(Easing.quad), useNativeDriver: true }),
-      ]).start();
-    };
-
-    // First pulse immediately, then every ~12s while on screen
-    runPulse();
-    interval = setInterval(() => { if (mounted) runPulse(); }, 12000);
-
-    return () => { mounted = false; if (interval) clearInterval(interval); };
-  }, [hintOpacity, hintShift]);
+  const handleSoundscapeStart = React.useCallback((item: any) => {
+    posthog.capture('soundscape_started', {
+      soundscape_id: item.id,
+      soundscape_title: item.title ?? item.id,
+      category: item.category ?? 'unknown',
+      is_premium: !!item.isPremium || item.category === 'deeper',
+      has_subscription: hasContinuing,
+    });
+  }, [posthog, hasContinuing]);
 
   // Pre-cache first few soundscapes quietly for instant start
   usePrecacheTracks({ kind: ['soundscape'], limit: 6 });
 
-  const [activeCategory, setActiveCategory] = React.useState<
-    null | 'stillness' | 'clarity' | 'renewal' | 'deeper' | 'tones' | 'noise'
-  >(null);
+  const [activeCategory, setActiveCategory] = React.useState<CategoryKey | null>('stillness');
 
   const tracks = React.useMemo<Track[]>(() => {
     if (!activeCategory) return [];
     return TRACKS.filter(t => t.category === activeCategory);
   }, [activeCategory]);
 
-  // Predefined quick picks for Noise (wire these ids in data/tracks.ts when ready)
   const specialItems = React.useMemo(() => {
     if (activeCategory === 'noise' && tracks.length === 0) {
       return [
@@ -500,123 +325,79 @@ export default function SoundscapesScreen() {
   // Soundscapes Info modal state
   const [showInfo, setShowInfo] = React.useState(false);
   const [infoStep, setInfoStep] = React.useState<0 | 1>(0);
+  const openInfo = React.useCallback(() => { setInfoStep(0); setShowInfo(true); Haptics.selectionAsync().catch(() => {}); }, []);
+  const closeInfo = React.useCallback(() => { setShowInfo(false); Haptics.selectionAsync().catch(() => {}); }, []);
 
-  const openInfo = React.useCallback(() => {
-    setInfoStep(0);
-    setShowInfo(true);
-    Haptics.selectionAsync().catch(() => {});
-  }, []);
-
-  const closeInfo = React.useCallback(() => {
-    setShowInfo(false);
-    Haptics.selectionAsync().catch(() => {});
-  }, []);
-
+  // Search — collapsed by default
+  const [searchExpanded, setSearchExpanded] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState('');
+  const [searchFocused, setSearchFocused] = React.useState(false);
   const normalizedQuery = searchQuery.trim().toLowerCase();
 
   const baseTracks = React.useMemo(() => {
-    // If a category is active, use that category's tracks (or Noise quick picks)
-    if (activeCategory) {
-      return specialItems.length ? specialItems : tracks;
-    }
-
-    // No active category: allow global search across all soundscapes
-    // (but don't auto-render a full list until user starts typing)
+    if (activeCategory) return specialItems.length ? specialItems : tracks;
     return TRACKS.filter((t) => (t as any).kind === 'soundscape');
   }, [activeCategory, specialItems, tracks]);
 
   const filteredTracks = React.useMemo(() => {
     if (!normalizedQuery) return baseTracks;
-
     return baseTracks.filter((item: any) => {
       const title = (item.title ?? '').toLowerCase();
       const desc = ((item as any).description ?? '').toLowerCase();
       const freqLabel = ((item as any).frequencyLabel ?? '').toLowerCase();
-
-      if (title.includes(normalizedQuery) || desc.includes(normalizedQuery) || freqLabel.includes(normalizedQuery)) {
-        return true;
-      }
-
+      if (title.includes(normalizedQuery) || desc.includes(normalizedQuery) || freqLabel.includes(normalizedQuery)) return true;
       const freqs = (item as any).frequencies as number[] | undefined;
       if (Array.isArray(freqs)) {
         const freqStrings = freqs.map((f) => String(f));
-        if (freqStrings.some((f) => normalizedQuery.includes(f) || f.includes(normalizedQuery))) {
-          return true;
-        }
+        if (freqStrings.some((f) => normalizedQuery.includes(f) || f.includes(normalizedQuery))) return true;
       }
-
       return false;
     });
   }, [normalizedQuery, baseTracks]);
 
-  // Reserve space for header + category stack + margins; keep at least one full card visible.
-  const minTrackListHeight = categoryCardHeight + verticalScale(18);
-  const listMaxHeight = Math.max(
-    minTrackListHeight,
-    windowHeight - (Math.max(insets.top + verticalScale(8), verticalScale(24)) + listHeight + verticalScale(220)),
-  );
-  // --- Swipe LEFT on header to go Home (race pan + fling) ---
-  const SWIPE_THRESHOLD = Math.max(36, SCREEN_W * 0.08); // ~8% width
-  const EDGE_GUARD = 10; // avoid OS back edge
+  const [selectedTrack, setSelectedTrack] = React.useState<any | null>(null);
+
+  // Gesture: swipe LEFT → Home
+  const SWIPE_THRESHOLD = Math.max(36, SCREEN_W * 0.08);
+  const EDGE_GUARD = 10;
   const startXRef = React.useRef(0);
   const native = React.useMemo(() => Gesture.Native(), []);
 
   const panToHome = useMemo(
-    () =>
-      Gesture.Pan()
-        .runOnJS(true)
-        .simultaneousWithExternalGesture(native)
-        .activeOffsetX([-10, 10])
-        .minDistance(10)
-        .onStart((e) => {
-          // @ts-ignore
-          startXRef.current = (e as any).absoluteX ?? 0;
-        })
-        .onUpdate(async (e) => {
-          // @ts-ignore
-          const dx = (e as any).translationX ?? 0; // + right, - left
-          const startX = startXRef.current;
-          if (startX < EDGE_GUARD || startX > SCREEN_W - EDGE_GUARD) return;
-          if (dx <= -SWIPE_THRESHOLD) {
-            try { await Haptics.selectionAsync(); } catch {}
-            navigation.navigate('Home' as never);
-          }
-        })
-        .onEnd(async (e) => {
-          // @ts-ignore
-          const dx = (e as any).translationX ?? 0;
-          const startX = startXRef.current;
-          if (startX < EDGE_GUARD || startX > SCREEN_W - EDGE_GUARD) return;
-          if (dx <= -SWIPE_THRESHOLD) {
-            try { await Haptics.selectionAsync(); } catch {}
-            navigation.navigate('Home' as never);
-          }
-        }),
+    () => Gesture.Pan().runOnJS(true).simultaneousWithExternalGesture(native)
+      .activeOffsetX([-10, 10]).minDistance(10)
+      .onStart((e) => { startXRef.current = (e as any).absoluteX ?? 0; })
+      .onUpdate(async (e) => {
+        const dx = (e as any).translationX ?? 0;
+        const startX = startXRef.current;
+        if (startX < EDGE_GUARD || startX > SCREEN_W - EDGE_GUARD) return;
+        if (dx <= -SWIPE_THRESHOLD) { try { await Haptics.selectionAsync(); } catch {} navigation.navigate('Home' as never); }
+      })
+      .onEnd(async (e) => {
+        const dx = (e as any).translationX ?? 0;
+        const startX = startXRef.current;
+        if (startX < EDGE_GUARD || startX > SCREEN_W - EDGE_GUARD) return;
+        if (dx <= -SWIPE_THRESHOLD) { try { await Haptics.selectionAsync(); } catch {} navigation.navigate('Home' as never); }
+      }),
     [SCREEN_W, navigation]
   );
 
   const flingLeft = useMemo(
-    () =>
-      Gesture.Fling()
-        .runOnJS(true)
-        .simultaneousWithExternalGesture(native)
-        .direction(Directions.LEFT)
-        .numberOfPointers(1)
-        .onStart(async (e) => {
-          // @ts-ignore
-          const absX = (e as any).absoluteX ?? 0;
-          if (absX < EDGE_GUARD || absX > SCREEN_W - EDGE_GUARD) return;
-          try { await Haptics.selectionAsync(); } catch {}
-          navigation.navigate('Home' as never);
-        }),
+    () => Gesture.Fling().runOnJS(true).simultaneousWithExternalGesture(native)
+      .direction(Directions.LEFT).numberOfPointers(1)
+      .onStart(async (e) => {
+        const absX = (e as any).absoluteX ?? 0;
+        if (absX < EDGE_GUARD || absX > SCREEN_W - EDGE_GUARD) return;
+        try { await Haptics.selectionAsync(); } catch {}
+        navigation.navigate('Home' as never);
+      }),
     [SCREEN_W, navigation]
   );
 
   const headerGesture = useMemo(() => Gesture.Race(panToHome, flingLeft), [panToHome, flingLeft]);
 
-  const [searchFocused, setSearchFocused] = React.useState(false);
-  const [selectedTrack, setSelectedTrack] = React.useState<any | null>(null);
+  // Track list max height — fills available space below pills + search
+  const showTrackList = activeCategory !== null || normalizedQuery.length > 0;
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -634,340 +415,307 @@ export default function SoundscapesScreen() {
           }}
         />
       </GestureDetector>
-    <View
-      accessible={false}
-      importantForAccessibility={showInfo ? 'no-hide-descendants' : 'auto'}
-      accessibilityElementsHidden={showInfo}
-      style={styles.container}
-    >
+
       <View
-        style={StyleSheet.absoluteFill}
-        pointerEvents="none"
         accessible={false}
-        importantForAccessibility="no"
+        importantForAccessibility={showInfo ? 'no-hide-descendants' : 'auto'}
+        accessibilityElementsHidden={showInfo}
+        style={styles.container}
       >
-        <VideoView
-          player={bgPlayer}
+        {/* Full-screen video background */}
+        <View
           style={StyleSheet.absoluteFill}
-          contentFit="cover"
-          nativeControls={false}
-          allowsPictureInPicture={false}
+          pointerEvents="none"
+          accessible={false}
+          importantForAccessibility="no"
+        >
+          <VideoView
+            player={bgPlayer}
+            style={StyleSheet.absoluteFill}
+            contentFit="cover"
+            nativeControls={false}
+            allowsPictureInPicture={false}
+          />
+        </View>
+
+        {/* Gradient: dark from 45% down so UI elements are readable */}
+        <LinearGradient
+          colors={['transparent', 'rgba(5,4,12,0.82)', 'rgba(5,4,12,0.96)']}
+          locations={[0, 0.45, 1]}
+          style={StyleSheet.absoluteFill}
+          pointerEvents="none"
         />
-      </View>
-      {/* subtle top/bottom vignette so cards and text read */}
-      <LinearGradient
-        colors={['rgba(0,0,0,0.35)', 'rgba(0,0,0,0.0)', 'rgba(0,0,0,0.55)']}
-        style={StyleSheet.absoluteFill}
-        locations={[0, 0.5, 1]}
-        pointerEvents="none"
-      />
 
-
-      <View style={[styles.topDock, { paddingTop: Math.max(insets.top + verticalScale(8), verticalScale(24)), paddingHorizontal: scale(18) }]}> 
-        {/* Header */}
-        <View style={styles.header}>
-          <Text
-            accessibilityRole="header"
-            accessibilityLabel="Soundscapes"
-            accessibilityHint="Swipe left on the title area to go back to Home"
-            style={[
-              Typography.display,
-              { color: '#EFEAF9', letterSpacing: 0.3 },
-              matchesCompactLayout && {
-                fontSize: scale(20),
-                lineHeight: Math.round(scale(27)),
-              },
-            ]}
-            onLayout={(e) => {
-              const { y, height } = e.nativeEvent.layout;
-              // Place chevron ~25% down from the title’s top
-              setTitleAnchorTop(y + height * 0.25);
+        {/* Search + info icons — top of screen, clear of the nav arrow */}
+        <View
+          style={{
+            position: 'absolute',
+            top: insets.top + scale(12),
+            left: scale(16),
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: scale(8),
+            zIndex: 50,
+          }}
+        >
+          {/* Search icon */}
+          <Pressable
+            onPress={() => {
+              setSearchExpanded(v => !v);
+              if (searchExpanded) { setSearchQuery(''); setSearchFocused(false); }
+              Haptics.selectionAsync().catch(() => {});
             }}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel={searchExpanded ? 'Close search' : 'Search soundscapes'}
+            style={styles.iconBtn}
           >
-            Soundscapes
-          </Text>
-          <Text
-            style={[
-              Body.subtle,
-              {
-                fontFamily: 'Inter-ExtraLight', // unify subtitle weight
-                color: '#CBC6D9',
-                marginTop: verticalScale(4),
-                letterSpacing: 0.00,
-                fontSize: scale(14),
-                opacity: 0.8,
-              },
-              matchesCompactLayout && {
-                fontSize: scale(12),
-                lineHeight: Math.round(scale(17)),
-              },
-            ]}
-          >
-            Peaceful tones • Noise • Frequencies
-          </Text>
-
-          {/* One-time gesture hint: subtle left chevron pulse */}
-          {showHint && (
-            <Animated.View
-              // Position slightly under/right of the title, non-interactive
-              pointerEvents="none"
-              style={{
-                position: 'absolute',
-                right: scale(24),
-                top: titleAnchorTop ?? 0,
-                opacity: hintOpacity,
-                transform: [{ translateX: hintShift }],
-              }}
-            >
-              <Text style={{ color: '#CFC3E0', fontSize: scale(20), opacity: 0.95 }}>«</Text>
-            </Animated.View>
-          )}
+            <Text style={{ color: '#EDEAF6', fontSize: scale(15) }}>
+              {searchExpanded ? '✕' : '⌕'}
+            </Text>
+          </Pressable>
 
           {/* Info button */}
           <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="About Soundscapes"
-            accessibilityHint="Opens information about soundscape categories, binaural beats, and frequencies"
             onPress={openInfo}
-            hitSlop={12}
-            style={{
-              position: 'absolute',
-              left: -scale(6),
-              top: 0,
-              width: 36,
-              height: 36,
-              justifyContent: 'center',
-              alignItems: 'center',
-              borderRadius: 18,
-              backgroundColor: 'rgba(0,0,0,0.30)',
-              borderWidth: 1,
-              borderColor: 'rgba(255,255,255,0.12)',
-              zIndex: 300,
-              elevation: 300,
-            }}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel="About The Garden"
+            style={styles.iconBtn}
           >
-            <Text style={{ fontFamily: 'Inter-ExtraLight', color: '#EDEAF6', fontSize: 18, lineHeight: 18 }}>?</Text>
+            <Text style={{ fontFamily: 'Inter-ExtraLight', color: '#EDEAF6', fontSize: scale(16), lineHeight: scale(16) }}>?</Text>
           </Pressable>
         </View>
 
-        {/* Category cards (stack of 3, then scroll) */}
-        <View style={[styles.catListContainer, { height: listHeight, marginTop: verticalScale(10) }]}> 
-          <SoundscapeCardList
-            hasMembership={hasContinuing}
-            cardHeight={categoryCardHeight}
-            spacing={categoryCardGap}
-            onDeeperLockedPress={openPaywall} // legacy fallback; safePresentPaywall is used when hasMembership is provided
-            onSelectCategory={(key) => {
-              Haptics.selectionAsync();
-              setActiveCategory(key as any);
-            }}
-          />
-          {/* bottom fade to hint the list continues */}
-          <LinearGradient
-            colors={['transparent', 'rgba(0,0,0,0.35)']}
-            style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: verticalScale(28) }}
-            pointerEvents="none"
-          />
-        </View>
-
-        {/* Search row (always visible) */}
+        {/* UI area — sits at the bottom, content stacks upward from safe area */}
+        <View style={{ flex: 1, justifyContent: 'flex-end' }}>
         <View
           style={{
-            marginTop: verticalScale(24),
-            marginBottom: verticalScale(4),
-            paddingHorizontal: scale(2),
+            paddingHorizontal: scale(20),
+            paddingBottom: Math.max(insets.bottom + verticalScale(12), verticalScale(24)),
           }}
         >
-          <View
-            style={{
-              borderRadius: 999,
-              overflow: 'hidden',
-              borderWidth: 1,
-              borderColor: searchFocused
-                ? 'rgba(207,195,224,0.22)'
-                : 'rgba(255,255,255,0.08)',
-              backgroundColor: searchFocused
-                ? 'rgba(0,0,0,0.30)'
-                : 'rgba(0,0,0,0.26)',
-            }}
-          >
-            {/* inner vignette */}
-            <LinearGradient
-              pointerEvents="none"
-              colors={['rgba(0,0,0,0.25)', 'rgba(0,0,0,0.00)', 'rgba(0,0,0,0.25)']}
-              locations={[0, 0.5, 1]}
-              start={{ x: 0, y: 0.5 }}
-              end={{ x: 1, y: 0.5 }}
-              style={StyleSheet.absoluteFill}
-            />
-
-            <TextInput
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              placeholder="Search by title or frequency..."
-              placeholderTextColor="rgba(237,232,250,0.5)"
-              style={{
-                borderRadius: 999,
-                paddingVertical: 8,
-                paddingHorizontal: 14,
-                backgroundColor: 'transparent',
-                color: '#FFFFFF',
-                fontSize: 13,
-                fontFamily: 'Inter-ExtraLight',
-                letterSpacing: 0.2,
-              }}
-              returnKeyType="search"
-              clearButtonMode="while-editing"
-              accessibilityLabel="Search soundscapes by name or frequency"
-              onFocus={() => setSearchFocused(true)}
-              onBlur={() => setSearchFocused(false)}
-            />
-          </View>
-          {(activeCategory || searchQuery.length > 0) && (
-            <Pressable
-              onPress={() => {
-                Haptics.selectionAsync();
-                setActiveCategory(null);
-                setSearchQuery('');
-              }}
-              hitSlop={scale(10)}
-              style={{
-                alignSelf: 'flex-start',
-                marginTop: verticalScale(8),
-                marginLeft: scale(18),
-              }}
-              accessibilityRole="button"
-              accessibilityLabel="Clear category and search"
-            >
+          {/* Title */}
+          <View style={{ marginBottom: verticalScale(6) }}>
+              <Text
+                accessibilityRole="header"
+                style={[
+                  Typography.display,
+                  { color: '#EFEAF9', letterSpacing: 0.3 },
+                  matchesCompactLayout && { fontSize: scale(20), lineHeight: Math.round(scale(27)) },
+                ]}
+              >
+                The Garden
+              </Text>
               <Text
                 style={[
                   Body.subtle,
                   {
-                    color: '#B7B0CA',
-                    textDecorationLine: 'underline',
-                    opacity: 0.9,
-                    ...(matchesCompactLayout
-                      ? {
-                          fontSize: scale(11),
-                          lineHeight: Math.round(scale(15)),
-                          letterSpacing: 0.2,
-                        }
-                      : {}),
+                    fontFamily: 'Inter-ExtraLight',
+                    color: '#CBC6D9',
+                    marginTop: verticalScale(3),
+                    fontSize: scale(13),
+                    opacity: 0.75,
                   },
                 ]}
               >
+                A place to breathe. A place to return to.
+              </Text>
+          </View>
+
+          {/* Category pills — horizontal scroll */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ gap: scale(8), paddingVertical: verticalScale(6) }}
+            style={{ marginHorizontal: -scale(4), paddingHorizontal: scale(4) }}
+          >
+            {GARDEN_CATEGORIES.map(({ key, label }) => {
+              const isActive = activeCategory === key;
+              const isLockedCat = key === 'deeper' && !hasContinuing;
+              return (
+                <Pressable
+                  key={key}
+                  onPress={() => {
+                    Haptics.selectionAsync();
+                    if (isLockedCat) { openPaywall(); return; }
+                    setActiveCategory(isActive ? null : key);
+                    if (searchExpanded && !isActive) { setSearchExpanded(false); setSearchQuery(''); }
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${label} category${isLockedCat ? ', locked' : ''}`}
+                  accessibilityState={{ selected: isActive }}
+                  style={[
+                    styles.pill,
+                    isActive && styles.pillActive,
+                  ]}
+                >
+                  {isLockedCat && (
+                    <Image
+                      source={LOCK_ICON}
+                      style={{ width: scale(11), height: scale(11), opacity: 0.6, marginRight: scale(5) }}
+                      resizeMode="contain"
+                    />
+                  )}
+                  <Text
+                    style={[
+                      styles.pillText,
+                      isActive && styles.pillTextActive,
+                    ]}
+                  >
+                    {label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+
+          {/* Search bar — expands when search icon tapped */}
+          {searchExpanded && (
+            <View style={{ marginBottom: verticalScale(10) }}>
+              <View
+                style={{
+                  borderRadius: 999,
+                  borderWidth: 1,
+                  borderColor: searchFocused ? 'rgba(207,195,224,0.22)' : 'rgba(255,255,255,0.08)',
+                  backgroundColor: searchFocused ? 'rgba(0,0,0,0.30)' : 'rgba(0,0,0,0.26)',
+                  overflow: 'hidden',
+                }}
+              >
+                <TextInput
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  placeholder="Search by title or frequency..."
+                  placeholderTextColor="rgba(237,232,250,0.5)"
+                  autoFocus
+                  style={{
+                    paddingVertical: verticalScale(8),
+                    paddingHorizontal: scale(14),
+                    color: '#FFFFFF',
+                    fontSize: scale(13),
+                    fontFamily: 'Inter-ExtraLight',
+                    letterSpacing: 0.2,
+                  }}
+                  returnKeyType="search"
+                  clearButtonMode="while-editing"
+                  accessibilityLabel="Search soundscapes by name or frequency"
+                  onFocus={() => setSearchFocused(true)}
+                  onBlur={() => setSearchFocused(false)}
+                />
+              </View>
+            </View>
+          )}
+
+          {/* Clear link — only when a search query has been typed */}
+          {searchQuery.length > 0 && (
+            <Pressable
+              onPress={() => { Haptics.selectionAsync(); setActiveCategory(null); setSearchQuery(''); }}
+              hitSlop={scale(10)}
+              style={{ alignSelf: 'flex-start', marginBottom: verticalScale(6) }}
+              accessibilityRole="button"
+              accessibilityLabel="Clear category and search"
+            >
+              <Text style={[Body.subtle, { color: '#B7B0CA', textDecorationLine: 'underline', opacity: 0.9, fontSize: scale(11) }]}>
                 Clear
               </Text>
             </Pressable>
           )}
-        </View>
-        {(activeCategory || searchQuery.length > 0) && (
-          <View style={[styles.listWrap, { marginTop: verticalScale(12) }]}>
-            <View style={styles.listHeaderRow}>
-              <Text style={[Typography.title, { color: '#EDE8FA', fontSize: 15, letterSpacing: 0.3, opacity: 0.9 }]}>
+
+          {/* Track list */}
+          {showTrackList && (
+            <View style={{ marginTop: verticalScale(8) }}>
+              {/* Section label */}
+              <Text
+                style={{
+                  fontFamily: 'Inter-ExtraLight',
+                  fontSize: scale(11),
+                  letterSpacing: scale(1.8),
+                  textTransform: 'uppercase',
+                  color: 'rgba(237,232,250,0.45)',
+                  marginBottom: verticalScale(4),
+                }}
+              >
                 {!activeCategory
                   ? 'Search results'
-                  : activeCategory === 'stillness'
-                  ? 'Stillness'
-                  : activeCategory === 'clarity'
-                  ? 'Clarity'
-                  : activeCategory === 'renewal'
-                  ? 'Renewal'
-                  : activeCategory === 'deeper'
-                  ? 'Deeper'
-                  : activeCategory === 'tones'
-                  ? 'Tones'
-                  : 'Noise'}
+                  : CATEGORY_LABELS[activeCategory]}
               </Text>
-            </View>
 
-            <ScrollView
-              style={{ maxHeight: listMaxHeight }}
-              contentContainerStyle={{ gap: verticalScale(10), paddingBottom: Math.max(insets.bottom, verticalScale(16)) }}
-              showsVerticalScrollIndicator={false}
-            >
-              {filteredTracks.length === 0 ? (
-                <View style={{ paddingHorizontal: 2, paddingTop: 4 }}>
+              <ScrollView
+                style={{ maxHeight: windowHeight * 0.45 }}
+                contentContainerStyle={{ paddingBottom: verticalScale(16) }}
+                showsVerticalScrollIndicator={false}
+              >
+                {filteredTracks.length === 0 ? (
                   <Text
-                    style={[
-                      Body.subtle,
-                      {
-                        color: 'rgba(237,232,250,0.7)',
-                        fontFamily: 'Inter-ExtraLight',
-                        fontSize: scale(12),
-                      },
-                    ]}
+                    style={[Body.subtle, {
+                      color: 'rgba(237,232,250,0.7)',
+                      fontFamily: 'Inter-ExtraLight',
+                      fontSize: scale(12),
+                      paddingTop: verticalScale(4),
+                    }]}
                   >
-                    {searchQuery
-                      ? 'No soundscapes found for your search.'
-                      : 'No soundscapes available yet.'}
+                    {searchQuery ? 'No soundscapes found for your search.' : 'No soundscapes available yet.'}
                   </Text>
-                </View>
-              ) : (
-                filteredTracks.map((item: any) => {
-                  // Centralized gating: Deeper soundscapes + premium tracks are locked without membership.
-                  const policyTrack: any = {
-                    id: item.id,
-                    category: (item as any).category,
-                    isPremium: !!(item as any).isPremium,
-                    kind: (item as any).kind,
-                  };
-                  const isLocked = isLockedTrack(policyTrack, hasContinuing);
-
-                  return (
-                    <View key={item.id}>
-                      <SoundscapeRow
+                ) : (
+                  filteredTracks.map((item: any, idx: number) => {
+                    const policyTrack: any = {
+                      id: item.id,
+                      category: (item as any).category,
+                      isPremium: !!(item as any).isPremium,
+                      kind: (item as any).kind,
+                    };
+                    const isLocked = isLockedTrack(policyTrack, hasContinuing);
+                    return (
+                      <GardenTrackRow
+                        key={item.id}
                         item={item}
                         navigation={navigation}
                         isLocked={isLocked}
                         onLockedPress={handleLockedPress}
                         onStart={handleSoundscapeStart}
                         onLongPress={setSelectedTrack}
+                        isLast={idx === filteredTracks.length - 1}
                       />
-                    </View>
-                  );
-                })
-              )}
-            </ScrollView>
-          </View>
-        )}
+                    );
+                  })
+                )}
+              </ScrollView>
+            </View>
+          )}
+        </View>
+        </View>
+
+        {/* Right arrow to return Home */}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Back to Home"
+          onPress={() => { Haptics.selectionAsync(); navigation.navigate('Home' as never); }}
+          style={{
+            position: 'absolute',
+            right: scale(16),
+            top: '47%',
+            width: scale(48),
+            height: scale(48),
+            justifyContent: 'center',
+            alignItems: 'center',
+          }}
+          hitSlop={scale(12)}
+        >
+          <Text
+            style={{
+              color: '#EDE8FA',
+              fontSize: scale(32),
+              opacity: 0.6,
+              textShadowColor: 'rgba(0,0,0,0.35)',
+              textShadowOffset: { width: 0, height: verticalScale(1) },
+              textShadowRadius: scale(3),
+            }}
+          >
+            ›
+          </Text>
+        </Pressable>
       </View>
 
-      {/* Right arrow to return Home (matches Chambers) */}
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Back to Home"
-        onPress={() => {
-          Haptics.selectionAsync();
-          // @ts-ignore
-          navigation.navigate('Home');
-        }}
-        style={{
-          position: 'absolute',
-          right: scale(16),
-          top: '47%',
-          width: scale(48),
-          height: scale(48),
-          justifyContent: 'center',
-          alignItems: 'center',
-        }}
-        hitSlop={scale(12)}
-      >
-        {/* If you later swap to an icon asset, replace this Text with an Image like in Chambers */}
-        <Text
-          style={{
-            color: '#EDE8FA',
-            fontSize: scale(32),
-            opacity: 0.6,
-            textShadowColor: 'rgba(0,0,0,0.35)',
-            textShadowOffset: { width: 0, height: verticalScale(1) },
-            textShadowRadius: scale(3),
-          }}
-        >
-          ›
-        </Text>
-      </Pressable>
-    </View>
       {/* Soundscapes Info Modal */}
       <Modal
         visible={showInfo}
@@ -979,16 +727,12 @@ export default function SoundscapesScreen() {
         accessibilityViewIsModal
       >
         <View style={{ flex: 1 }}>
-          <Pressable
-            style={StyleSheet.absoluteFill}
-            onPress={closeInfo}
-          >
+          <Pressable style={StyleSheet.absoluteFill} onPress={closeInfo}>
             <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)' }} />
           </Pressable>
-
           <View style={{ flex: 1, justifyContent: 'flex-end' }}>
             <View
-              accessible={true}
+              accessible
               accessibilityRole="summary"
               accessibilityLabel={infoStep === 0 ? 'Soundscapes information. Step 1 of 2.' : 'Soundscapes information. Step 2 of 2.'}
               style={{
@@ -1019,20 +763,12 @@ export default function SoundscapesScreen() {
                 <Text
                   style={[
                     Typography.title,
-                    {
-                      color: '#F0EEF8',
-                      letterSpacing: 0.2,
-                      textAlign: 'left',
-                    },
-                    matchesCompactLayout && {
-                      fontSize: scale(16),
-                      lineHeight: Math.round(scale(23)),
-                    },
+                    { color: '#F0EEF8', letterSpacing: 0.2, textAlign: 'left' },
+                    matchesCompactLayout && { fontSize: scale(16), lineHeight: Math.round(scale(23)) },
                   ]}
                 >
                   {infoStep === 0 ? SOUNDSCAPES_INFO.whatTitle : SOUNDSCAPES_INFO.deeperTitle}
                 </Text>
-
                 <Text
                   style={{
                     fontFamily: 'Inter-ExtraLight',
@@ -1046,7 +782,6 @@ export default function SoundscapesScreen() {
                 >
                   {infoStep === 0 ? 'Step 1 of 2' : 'Step 2 of 2'}
                 </Text>
-
                 <Text
                   style={{
                     fontFamily: 'Inter-ExtraLight',
@@ -1059,7 +794,6 @@ export default function SoundscapesScreen() {
                   {infoStep === 0 ? SOUNDSCAPES_INFO.whatBody : SOUNDSCAPES_INFO.deeperBody}
                 </Text>
               </ScrollView>
-
               <View
                 style={{
                   flexDirection: 'row',
@@ -1072,50 +806,35 @@ export default function SoundscapesScreen() {
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={SOUNDSCAPES_INFO.closeLabel}
-                    accessibilityHint="Closes this information sheet"
                     onPress={closeInfo}
                     hitSlop={10}
-                    style={{
-                      paddingVertical: 4,
-                      paddingHorizontal: 8,
-                    }}
+                    style={{ paddingVertical: 4, paddingHorizontal: 8 }}
                   >
                     <Text style={{ fontFamily: 'Inter-ExtraLight', fontSize: 13, color: 'rgba(237,234,246,0.6)' }}>
                       {SOUNDSCAPES_INFO.closeLabel}
                     </Text>
                   </Pressable>
                 )}
-
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: matchesCompactLayout ? scale(8) : 10 }}>
                   {infoStep === 1 && (
                     <Pressable
                       accessibilityRole="button"
                       accessibilityLabel={SOUNDSCAPES_INFO.backLabel}
-                      accessibilityHint="Returns to the previous step"
                       onPress={() => setInfoStep(0)}
                       hitSlop={10}
-                      style={{
-                        paddingVertical: 4,
-                        paddingHorizontal: 8,
-                      }}
+                      style={{ paddingVertical: 4, paddingHorizontal: 8 }}
                     >
                       <Text style={{ fontFamily: 'Inter-ExtraLight', fontSize: 13, color: 'rgba(237,234,246,0.6)' }}>
                         {SOUNDSCAPES_INFO.backLabel}
                       </Text>
                     </Pressable>
                   )}
-
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={infoStep === 0 ? SOUNDSCAPES_INFO.nextLabel : SOUNDSCAPES_INFO.okLabel}
-                    accessibilityHint={infoStep === 0 ? 'Moves to step 2 of 2' : 'Closes this information sheet'}
                     onPress={() => {
-                      if (infoStep === 0) {
-                        setInfoStep(1);
-                        Haptics.selectionAsync().catch(() => {});
-                      } else {
-                        closeInfo();
-                      }
+                      if (infoStep === 0) { setInfoStep(1); Haptics.selectionAsync().catch(() => {}); }
+                      else { closeInfo(); }
                     }}
                     hitSlop={10}
                     style={{
@@ -1140,6 +859,7 @@ export default function SoundscapesScreen() {
         </View>
       </Modal>
 
+      {/* Track description modal (long-press) */}
       <Modal
         visible={!!selectedTrack}
         transparent
@@ -1175,40 +895,40 @@ export default function SoundscapesScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  topDock: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    paddingTop: 0,
-    paddingHorizontal: 0,
-  },
-  header: { 
+  iconBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: 'rgba(0,0,0,0.30)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
     alignItems: 'center',
-    paddingBottom: 10 },
-  listWrap: {
-    marginTop: 12,
-    paddingBottom: 24,
+    justifyContent: 'center',
   },
-  listHeaderRow: {
+  pill: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 2,
-    marginBottom: 2,
-  },
-  trackRow: {
-    padding: 12,
-    borderRadius: 14,
-    backgroundColor: 'rgba(0,0,0,0.32)',
+    justifyContent: 'center',
+    width: 108,
+    height: 36,
+    borderRadius: 999,
+    backgroundColor: 'rgba(0,0,0,0.20)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    overflow: 'hidden',
+    borderColor: 'rgba(255,255,255,0.25)',
   },
-  catListContainer: {
-    position: 'relative',
-    marginTop: 0,
-    overflow: 'hidden',
+  pillActive: {
+    backgroundColor: 'rgba(20,16,36,0.35)',
+    borderColor: 'rgba(255,255,255,1.0)',
+  },
+  pillText: {
+    fontFamily: 'Inter-ExtraLight',
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.85)',
+    letterSpacing: 0.3,
+  },
+  pillTextActive: {
+    color: '#FFFFFF',
+    fontFamily: 'CalSans-SemiBold',
   },
   trackModalBackdrop: {
     flex: 1,
