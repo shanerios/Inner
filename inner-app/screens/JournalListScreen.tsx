@@ -1,6 +1,8 @@
 // screens/JournalListScreen.tsx
 import React, { useEffect, useRef, useState, useCallback, useLayoutEffect } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, Image, Pressable, TextInput, Animated, Easing } from 'react-native';
+import { useVideoPlayer, VideoView } from 'expo-video';
+import { useFocusEffect } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useHeaderHeight } from '@react-navigation/elements';
@@ -69,7 +71,8 @@ export default function JournalListScreen({ navigation }: Props) {
       headerTintColor: '#EDEAF6',
       headerBackTitleVisible: false,
       headerTitleStyle: { color: '#EDEAF6' },
-      headerStyle: { backgroundColor: 'rgba(18,18,32,1)' },
+      headerStyle: { backgroundColor: 'transparent' },
+      headerTransparent: true,
       animationEnabled: true,
       animation: 'fade',
     });
@@ -138,8 +141,30 @@ export default function JournalListScreen({ navigation }: Props) {
 
   const sections = Object.keys(groups).map(k => ({ title: k, data: groups[k] }));
 
+  const bgPlayer = useVideoPlayer(require('../assets/videos/dream_journal_bg.mp4'), player => {
+    player.loop = true;
+    player.muted = true;
+    player.play();
+  });
+
+  useFocusEffect(
+    useCallback(() => {
+      bgPlayer.play();
+      return () => { bgPlayer.pause(); };
+    }, [bgPlayer])
+  );
+
   return (
     <View style={[styles.container, { paddingTop: headerHeight + 12, paddingBottom: insets.bottom + 16 }]}>
+      {/* Animated MP4 background */}
+      <VideoView
+        player={bgPlayer}
+        contentFit="cover"
+        style={StyleSheet.absoluteFill}
+        nativeControls={false}
+        allowsFullscreen={false}
+        allowsPictureInPicture={false}
+      />
       {/* Optional micro-grain overlay.
           To enable: add an image at `../assets/overlays/grain.png` (or update the require path),
           then uncomment the <Image /> below.
@@ -272,7 +297,7 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     opacity: 0.06,
   },
-  container: { flex: 1, backgroundColor: 'rgba(18,18,32,1)', paddingHorizontal: 16 },
+  container: { flex: 1, backgroundColor: 'transparent', paddingHorizontal: 16 },
   header: { ...Typography.title, color: '#EDEAF6', marginBottom: 12, textAlign: 'center' },
   sectionTitle: { ...Body.subtle, color: '#CFC9E8', marginTop: 8, marginBottom: 6, opacity: 0.9 },
   searchWrap: { marginBottom: 12 },

@@ -173,7 +173,7 @@ export default function LearnHub() {
 
   const bgTranslateYCombined = Animated.add(bgTranslateY, bgIdleY);
 
-  const bgPlayer = useVideoPlayer(require('../../assets/images/learning_hub.mp4'), player => {
+  const bgPlayer = useVideoPlayer(require('../../assets/videos/archive_bg.mp4'), player => {
     player.loop = true;
     player.muted = true;
     player.play();
