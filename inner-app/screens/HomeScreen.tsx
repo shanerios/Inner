@@ -3396,45 +3396,22 @@ const openInnerFlame = useCallback(async () => {
           <View pointerEvents="none" style={{ width: scale(48), height: scale(48) }} />
         </AttachStep>
         <Pressable
-  onPress={goToLearnHub}
-  accessibilityRole="button"
-  accessibilityLabel="Open Learning Hub"
-  accessibilityHint="Opens Inner's Learning Hub with guides and lessons"
-  accessible={true}
-  importantForAccessibility="yes"
-  style={[styles.navArrowBottom, { bottom: insets.bottom + verticalScale(24) }]}
-  hitSlop={{
-    top: verticalScale(32),
-    bottom: verticalScale(32),
-    left: scale(56),
-    right: scale(56),
-  }}
->
-  <Text style={styles.navArrowText}>{'\u2304'}</Text>
-</Pressable>
-        <Text
-          pointerEvents="none"
-          accessibilityRole="text"
-          style={[
-            Typography.caption,
-            {
-              fontFamily: 'CalSans-SemiBold',
-              textAlign: 'center',
-              fontSize: scale(16),
-              position: 'absolute',
-              left: '50%',
-              bottom: insets.bottom + verticalScale(4),
-              width: scale(120),
-              transform: [{ translateX: -scale(60) }],
-              color: '#EDEAF6',
-              backgroundColor: 'transparent',
-              zIndex: 61,
-              elevation: 61,
-            },
-          ]}
+          onPress={goToLearnHub}
+          accessibilityRole="button"
+          accessibilityLabel="Open The Archives"
+          style={{
+            position: 'absolute',
+            bottom: -20,
+            alignSelf: 'center',
+            width: '50%',
+          }}
         >
-          The Archives
-        </Text>
+          <Image
+            source={require('../assets/images/archive_nav.png')}
+            style={{ width: '100%', height: undefined, aspectRatio: 2.2 }}
+            resizeMode="contain"
+          />
+        </Pressable>
       </View>
       <LunarWhisperModal
         visible={showLunarModal}
