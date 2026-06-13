@@ -242,7 +242,6 @@ export default function IntentionScreen() {
   const ensureEssenceAssets = async () => {
     try {
       await Asset.loadAsync([
-        require('../assets/images/essence-bg.png'),
         require('../assets/images/particle-overlay.png'),
       ]);
     } catch (e) {

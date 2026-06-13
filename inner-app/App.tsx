@@ -77,8 +77,8 @@ async function preloadTracks() {
 }
 
 import FogTransitionOverlay from './components/FogTransitionOverlay';
-import PaywallModal from './components/PaywallModal';
-import { registerPaywallController } from './src/core/subscriptions/paywallController';
+import PaywallScreen from './screens/PaywallScreen';
+import { navigationRef } from './src/navigation/navigationRef';
 import * as Sentry from '@sentry/react-native';
 import { PostHogProvider, usePostHog } from 'posthog-react-native';
 
@@ -122,6 +122,7 @@ type RootStackParamList = {
   JourneyPlayer: { trackId?: string; chamber?: string } | undefined;
   Glossary: { trackId: 'lucid' | 'obe' };
   Aeris: undefined;
+  Paywall: undefined;
 };
 
 const Stack = createStackNavigator<RootStackParamList>();
@@ -208,10 +209,6 @@ export default Sentry.wrap(function App() {
 
   const [rcReady, setRcReady] = React.useState(false);
 
-  // ── Paywall modal state ──────────────────────────────────────────────────────
-  const [paywallVisible, setPaywallVisible] = React.useState(false);
-  const paywallSuccessRef = React.useRef<(() => void) | undefined>(undefined);
-  const paywallDismissRef = React.useRef<(() => void) | undefined>(undefined);
 
 
 
@@ -234,25 +231,7 @@ export default Sentry.wrap(function App() {
     initRevenueCatOnce().then((ok) => setRcReady(!!ok));
   }, []);
 
-  // Register the imperative paywall controller so safePresentPaywall() works anywhere
-  React.useEffect(() => {
-    registerPaywallController((onSuccess, onDismiss) => {
-      // Always ensure the singleton exists before any PaywallModal code runs.
-      initRevenueCatOnce()
-        .then(() => {
-          setRcReady(true);
-          paywallSuccessRef.current = onSuccess;
-          paywallDismissRef.current = onDismiss;
-          setPaywallVisible(true);
-        })
-        .catch(() => {
-          // Still present the modal, but avoid crashing the app.
-          paywallSuccessRef.current = onSuccess;
-          paywallDismissRef.current = onDismiss;
-          setPaywallVisible(true);
-        });
-    });
-  }, []);
+  // paywallController now uses navigationRef directly — no registration needed here.
 
   // Safety auto-hide: fog will always disappear after 7 seconds
   React.useEffect(() => {
@@ -316,7 +295,7 @@ export default Sentry.wrap(function App() {
       <SafeAreaProvider>
         <BreathProvider>
           <IntentionProvider>
-            <NavigationContainer theme={InnerTheme}>
+            <NavigationContainer theme={InnerTheme} ref={navigationRef}>
               <StatusBar style="light" backgroundColor="#0d0d1a" translucent={false} />
               <Stack.Navigator initialRouteName="Splash"
                 detachInactiveScreens={false}
@@ -464,6 +443,11 @@ export default Sentry.wrap(function App() {
                     },
                   }}
                 />
+                <Stack.Screen
+                  name="Paywall"
+                  component={PaywallScreen}
+                  options={{ headerShown: false, presentation: 'modal' }}
+                />
               </Stack.Navigator>
               <FogTransitionOverlay
                 visible={fogVisible}
@@ -472,20 +456,6 @@ export default Sentry.wrap(function App() {
                 sealBoost={sealBoost}
               />
             </NavigationContainer>
-            <PaywallModal
-              visible={paywallVisible}
-              rcReady={rcReady}
-              onClose={() => {
-                setPaywallVisible(false);
-                paywallSuccessRef.current = undefined;
-                paywallDismissRef.current?.();
-                paywallDismissRef.current = undefined;
-              }}
-              onPurchaseSuccess={() => {
-                paywallSuccessRef.current?.();
-                paywallSuccessRef.current = undefined;
-              }}
-            />
           </IntentionProvider>
         </BreathProvider>
       </SafeAreaProvider>

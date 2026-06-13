@@ -614,29 +614,13 @@ export default function ChambersScreen() {
     Haptics.selectionAsync().catch(() => {});
   }, []);
 
-  // --- Gate modal (premium) ---
-  const [showGate, setShowGate] = useState(false);
-  const [gateLabel, setGateLabel] = useState('');
-
-  const openGate = useCallback((label: string) => {
-    setGateLabel(label);
-    setShowGate(true);
-    Haptics.selectionAsync().catch(() => {});
-  }, []);
-
-  const closeGate = useCallback(() => {
-    setShowGate(false);
-    Haptics.selectionAsync().catch(() => {});
-  }, []);
-
-  const openPaywall = useCallback(() => {
+  const openPaywall = useCallback((_label?: string) => {
     if (presentingPaywall) return;
     setPresentingPaywall(true);
-    setShowGate(false);
     setTimeout(() => {
       safePresentPaywall(() => {
         refreshEntitlement();
-      }).finally(() => setPresentingPaywall(false));
+      }, 'chamber').finally(() => setPresentingPaywall(false));
     }, Platform.OS === 'ios' ? 400 : 200);
   }, [presentingPaywall, refreshEntitlement]);
 
@@ -702,7 +686,7 @@ export default function ChambersScreen() {
   const enterChamber = useCallback((id: ChamberEnvId, title: string) => {
     const pseudoTrack = { id, isPremium: isPremiumChamber(id) };
     if (isLockedTrack(pseudoTrack as any, hasContinuing)) {
-      openGate(title);
+      openPaywall(title);
       return;
     }
 
@@ -727,7 +711,7 @@ export default function ChambersScreen() {
       // @ts-ignore
       navigation.navigate('JourneyPlayer', { trackId: id, chamber: title });
     });
-  }, [hasContinuing, isPremiumChamber, openGate, posthog, portalFade, navigation]);
+  }, [hasContinuing, isPremiumChamber, openPaywall, posthog, portalFade, navigation]);
 
   // Resolve locked state per chamber
   const isLockedForIndex = useCallback((item: ChamberPageData): boolean => {
@@ -751,11 +735,11 @@ export default function ChambersScreen() {
         isActive={index === currentIndex}
         isLocked={isLockedForIndex(item.data)}
         onEnter={enterChamber}
-        onPaywall={openGate}
+        onPaywall={openPaywall}
         insets={insets}
       />
     );
-  }, [currentIndex, isLockedForIndex, enterChamber, openGate, openInfo, insets]);
+  }, [currentIndex, isLockedForIndex, enterChamber, openPaywall, openInfo, insets]);
 
   const keyExtractor = useCallback((item: PagerItem) => item.id, []);
 
@@ -786,6 +770,25 @@ export default function ChambersScreen() {
         })}
       />
 
+      {/* Swipe up hint — top center, only on entry page */}
+      <Text
+        pointerEvents="none"
+        style={{
+          position: 'absolute',
+          top: insets.top + 14,
+          left: 0,
+          right: 0,
+          textAlign: 'center',
+          fontFamily: 'Inter-ExtraLight',
+          fontSize: 12,
+          letterSpacing: 2,
+          color: 'rgba(237,232,250,0.5)',
+          textTransform: 'uppercase',
+        }}
+      >
+        Swipe up to return
+      </Text>
+
       {/* Page indicator — right edge (entry page = index 0, so chamberIndex = currentIndex - 1) */}
       <PageIndicator chamberIndex={currentIndex - 1} insets={insets} />
 
@@ -797,102 +800,6 @@ export default function ChambersScreen() {
           { opacity: portalFade, backgroundColor: 'rgba(10,8,14,0.88)' },
         ]}
       />
-
-      {/* Premium Gate Modal */}
-      <Modal
-        visible={showGate}
-        transparent
-        animationType="fade"
-        onRequestClose={closeGate}
-        presentationStyle="overFullScreen"
-        statusBarTranslucent
-        accessibilityViewIsModal
-      >
-        <Pressable
-          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.70)', justifyContent: 'flex-end' }}
-          onPress={closeGate}
-        >
-          <Pressable
-            onPress={() => {}}
-            style={{
-              paddingBottom: Math.max(insets.bottom + 18, 24),
-              paddingTop: 18,
-              paddingHorizontal: 18,
-              borderTopLeftRadius: 22,
-              borderTopRightRadius: 22,
-              backgroundColor: 'rgba(12,10,18,0.96)',
-              borderTopWidth: 1,
-              borderColor: 'rgba(255,255,255,0.10)',
-            }}
-          >
-            <Text style={[Typography.title, { color: '#F3EDE7', letterSpacing: 0.2 }]}>
-              Continue with Inner
-            </Text>
-            <Text
-              style={{
-                fontFamily: 'Inter-ExtraLight',
-                fontSize: 14,
-                lineHeight: 20,
-                color: 'rgba(237,232,250,0.88)',
-                marginTop: 12,
-              }}
-            >
-              {gateLabel ? `${gateLabel} is part of the deeper Chambers.` : 'This Chamber is part of the deeper Chambers.'}
-              {'\n\n'}
-              Continue with Inner to enter.
-            </Text>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 16 }}>
-              <Pressable
-                onPress={closeGate}
-                hitSlop={10}
-                style={{
-                  paddingVertical: 10,
-                  paddingHorizontal: 12,
-                  borderRadius: 12,
-                  borderWidth: 1,
-                  borderColor: 'rgba(255,255,255,0.10)',
-                  backgroundColor: 'rgba(207,195,224,0.06)',
-                }}
-              >
-                <Text style={{ fontFamily: 'Inter-ExtraLight', color: 'rgba(237,232,250,0.92)', letterSpacing: 0.2 }}>
-                  Not now
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={openPaywall}
-                disabled={presentingPaywall}
-                hitSlop={10}
-                style={{
-                  paddingVertical: 10,
-                  paddingHorizontal: 14,
-                  borderRadius: 12,
-                  backgroundColor: 'rgba(207,195,224,0.16)',
-                  borderWidth: 1,
-                  borderColor: 'rgba(255,255,255,0.12)',
-                  minWidth: 160,
-                  alignItems: 'center',
-                }}
-              >
-                <Text style={{ fontFamily: 'CalSans-SemiBold', color: '#F3EDE7', letterSpacing: 0.2 }}>
-                  {presentingPaywall ? 'Opening…' : 'Continue with Inner'}
-                </Text>
-              </Pressable>
-            </View>
-            {checkingEntitlement && (
-              <Text
-                style={{
-                  marginTop: 12,
-                  fontFamily: 'Inter-ExtraLight',
-                  fontSize: 12,
-                  color: 'rgba(237,232,250,0.55)',
-                }}
-              >
-                Checking access…
-              </Text>
-            )}
-          </Pressable>
-        </Pressable>
-      </Modal>
 
       {/* Chambers Info Modal — triggered by ? button on entry page */}
       <Modal

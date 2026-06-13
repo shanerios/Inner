@@ -545,7 +545,7 @@ const presentPaywall = React.useCallback(() => {
   safePresentPaywall(() => {
     // Runs only on successful purchase/restore
     __DEV__ && logEntitlementState('presentPaywall_success');
-  }).finally(() => setPresentingPaywall(false));
+  }, 'settings').finally(() => setPresentingPaywall(false));
 }, [presentingPaywall, logEntitlementState]);
 
 // Paywall from Settings: close Settings first, present paywall AFTER Modal fully dismisses.
