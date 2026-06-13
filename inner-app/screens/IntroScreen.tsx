@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  ImageBackground,
   TouchableOpacity,
   Animated,
   Switch,
@@ -13,10 +12,9 @@ import {
 import { Audio } from 'expo-av';
 import * as Haptics from 'expo-haptics';
 import { StatusBar } from 'expo-status-bar';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useVideoPlayer, VideoView } from 'expo-video';
 
-
-import Wordmark from '../assets/images/wordmark.svg';
 import { Typography, Body as _Body } from '../core/typography';
 import { useScale } from '../utils/scale';
 
@@ -25,17 +23,15 @@ const Body = _Body ?? ({
   subtle:  { ...Typography.caption },
 } as const);
 
-const WORDMARK_RATIO = 528 / 96.8; // original width:height ratio
-
 const captions = [
-  { time: 0.1, text: 'You\'ve felt it.' },
-  { time: 2.7, text: 'That quiet pull' },
-  { time: 4.1, text: 'towards' },
-  { time: 4.7, text: 'something more.' },
-  { time: 7, text: 'It doesn\'t shout.' },
-  { time: 9.5, text: 'It doesn\'t demand' },
-  { time: 11, text: 'attention.' },
-  { time: 13, text: 'It just needs space.' },
+  { time: 0.1,  text: 'You\'ve felt it.' },
+  { time: 2.7,  text: 'That quiet pull' },
+  { time: 4.1,  text: 'towards' },
+  { time: 4.7,  text: 'something more.' },
+  { time: 7,    text: 'It doesn\'t shout.' },
+  { time: 9.5,  text: 'It doesn\'t demand' },
+  { time: 11,   text: 'attention.' },
+  { time: 13,   text: 'It just needs space.' },
   { time: 16.3, text: 'We\'ll' },
   { time: 17.2, text: 'begin with clarity' },
 ];
@@ -50,15 +46,6 @@ export default function IntroScreen() {
     [scale, windowWidth],
   );
 
-  const wordmarkWidth = useMemo(
-    () => Math.round(Math.min(scale(370), windowWidth * 0.78)),
-    [scale, windowWidth],
-  );
-  const wordmarkHeight = useMemo(
-    () => Math.round(wordmarkWidth / WORDMARK_RATIO),
-    [wordmarkWidth],
-  );
-
   const styles = useMemo(
     () =>
       StyleSheet.create({
@@ -67,7 +54,13 @@ export default function IntroScreen() {
           backgroundColor: '#0d0d1a',
         },
         bgImage: {
-          resizeMode: 'cover',
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          width: '100%',
+          height: '100%',
         },
         content: {
           flex: 1,
@@ -75,15 +68,6 @@ export default function IntroScreen() {
           justifyContent: 'space-between',
           paddingTop: verticalScale(80),
           paddingBottom: verticalScale(60),
-        },
-        fill: {
-          position: 'absolute',
-          top: 0,
-          right: 0,
-          bottom: 0,
-          left: 0,
-          width: '100%',
-          height: '100%',
         },
         captionBox: {
           justifyContent: 'center',
@@ -95,19 +79,14 @@ export default function IntroScreen() {
           alignItems: 'center',
         },
         primaryButton: {
-          backgroundColor: '#CFC3E0',
-          paddingVertical: verticalScale(14),
+          paddingVertical: verticalScale(12),
           paddingHorizontal: scale(28),
-          borderRadius: scale(24),
         },
         primaryButtonWrap: {
           position: 'relative',
           alignItems: 'center',
           justifyContent: 'center',
           marginBottom: verticalScale(8),
-        },
-        primaryButtonEmber: {
-          backgroundColor: '#FFB86C',
         },
         accessibilityToggleRight: {
           position: 'absolute',
@@ -121,35 +100,6 @@ export default function IntroScreen() {
           left: scale(20),
           alignItems: 'center',
         },
-        overlayContainer: {
-          position: 'absolute',
-          top: 0,
-          right: 0,
-          bottom: 0,
-          left: 0,
-          width: '100%',
-          height: '100%',
-          alignItems: 'center',
-          justifyContent: 'center',
-        },
-        overlayImage: {
-          width: '100%',
-          height: '100%',
-        },
-        headerGroup: {
-          alignItems: 'center',
-          justifyContent: 'center',
-          position: 'relative',
-          marginBottom: verticalScale(24),
-        },
-        wordmarkWrap: {
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          alignItems: 'center',
-          zIndex: 0,
-        },
       }),
     [scale, verticalScale, windowWidth],
   );
@@ -161,89 +111,24 @@ export default function IntroScreen() {
   const [showCaptions, setShowCaptions] = useState(true);
   const [isMuted, setIsMuted] = useState(false);
   const captionAnim = useRef(new Animated.Value(0)).current;
-  const wordmarkFadeAnim = useRef(new Animated.Value(0)).current;
   const ctaFadeAnim = useRef(new Animated.Value(0)).current;
   const ctaScale = useRef(new Animated.Value(1)).current;
   const [ctaPressed, setCtaPressed] = useState(false);
   const lastCaptionRef = useRef<string | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  const emberHapticTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const emberHapticIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const firedRef = useRef(false);
-  // Ember cycle timing (22s) and runner
-  const EMBER_TOTAL = 22000;
-  const t70 = 15400; // ~70%
-  const t74 = 880;   // +4%
-  const t76 = 440;   // +2%
-  const t82 = 1320;  // +6%
-  const tRest = EMBER_TOTAL - (t70 + t74 + t76 + t82);
 
-  const runEmber = () => {
-    // Immediate, stronger pulse at the veil moment
-    Animated.sequence([
-      Animated.parallel([
-        Animated.timing(emberOpacity, { toValue: 1.0, duration: 800, useNativeDriver: true, easing: Easing.out(Easing.ease) }),
-        Animated.timing(emberScale,   { toValue: 1.05, duration: 800, useNativeDriver: true, easing: Easing.out(Easing.ease) }),
-      ]),
-      Animated.parallel([
-        Animated.timing(emberOpacity, { toValue: 0.0, duration: 1800, useNativeDriver: true, easing: Easing.inOut(Easing.ease) }),
-        Animated.timing(emberScale,   { toValue: 1.0,  duration: 1800, useNativeDriver: true, easing: Easing.inOut(Easing.ease) }),
-      ]),
-    ]).start(() => {
-      // After the reveal pulse, resume the calm 22s loop
-      Animated.loop(
-        Animated.sequence([
-          Animated.delay(t70),
-          // Bloom
-          Animated.parallel([
-            Animated.timing(emberOpacity, { toValue: 0.85, duration: t74, useNativeDriver: true, easing: Easing.inOut(Easing.ease) }),
-            Animated.timing(emberScale,   { toValue: 1.012, duration: t74, useNativeDriver: true, easing: Easing.inOut(Easing.ease) }),
-          ]),
-          // Bright flash + outward pulse
-          Animated.parallel([
-            Animated.timing(emberOpacity, { toValue: 1.0, duration: t76, useNativeDriver: true, easing: Easing.inOut(Easing.ease) }),
-            Animated.timing(emberScale,   { toValue: 1.02, duration: t76, useNativeDriver: true, easing: Easing.inOut(Easing.ease) }),
-          ]),
-          // Fade back
-          Animated.parallel([
-            Animated.timing(emberOpacity, { toValue: 0.0, duration: t82, useNativeDriver: true, easing: Easing.inOut(Easing.ease) }),
-            Animated.timing(emberScale,   { toValue: 1.0,  duration: t82, useNativeDriver: true, easing: Easing.inOut(Easing.ease) }),
-          ]),
-          Animated.delay(tRest),
-        ])
-      ).start();
-
-      // Haptic alignment: fire once at the veil reveal, then sync with the loop's bright flash
-      if (emberHapticTimeoutRef.current) clearTimeout(emberHapticTimeoutRef.current);
-      if (emberHapticIntervalRef.current) clearInterval(emberHapticIntervalRef.current);
-
-      // Hit haptic now for the initial reveal
-      triggerEmberHaptic();
-
-      // Then schedule recurring haptics to align with loop flash timing (t70 + t74 from loop start)
-      emberHapticTimeoutRef.current = setTimeout(() => {
-        triggerEmberHaptic();
-        emberHapticIntervalRef.current = setInterval(triggerEmberHaptic, EMBER_TOTAL);
-      }, t70 + t74);
-    });
-  };
-
-  const triggerEmberHaptic = async () => {
-    try {
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    } catch {}
-  };
-
-  // Ember portal overlay animation values
-  const emberOpacity = useRef(new Animated.Value(0)).current;
-  const emberScale   = useRef(new Animated.Value(1)).current;
-
-  // Button background color follows the portal's ember call
-  const buttonBg = emberOpacity.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['#CFC3E0', '#FFB86C'], // base → ember
+  const bgPlayer = useVideoPlayer(require('../assets/videos/intro_revamp.mp4'), player => {
+    player.loop = true;
+    player.muted = true;
+    player.play();
   });
 
+  useFocusEffect(
+    React.useCallback(() => {
+      bgPlayer.play();
+      return () => { bgPlayer.pause(); };
+    }, [bgPlayer])
+  );
 
   const stopAudioAndNavigate = async () => {
     if (soundRef.current) {
@@ -259,21 +144,12 @@ export default function IntroScreen() {
       require('../assets/audio/intro_v3.mp3')
     );
     soundRef.current = sound;
-    // Set intro voiceover volume to 60% before playback
     await sound.setVolumeAsync(isMuted ? 0 : 0.6);
     await sound.playAsync();
 
-    // Audio-clock synced cue for "lift the veil" at 16.0s
-    firedRef.current = false;
     sound.setOnPlaybackStatusUpdate((status) => {
       if (!status.isLoaded) return;
-      const t = status.positionMillis ?? 0;
-      if (!firedRef.current && t >= 16000) {
-        firedRef.current = true;
-        runEmber();
-      }
       if ((status as any).didJustFinish) {
-        // Voiceover complete → reveal CTA
         Animated.timing(ctaFadeAnim, {
           toValue: 1,
           duration: 1200,
@@ -315,27 +191,12 @@ export default function IntroScreen() {
   };
 
   useEffect(() => {
-    // Delay audio + captions so The Call can land first
     const voiceDelayMs = 3500;
-    const wordmarkFadeAfterVoiceMs = 20000; // ~"Welcome to Inner"
-
     const voiceTimer = setTimeout(playVoice, voiceDelayMs);
 
-    // Fade in the wordmark on "welcome to inner" (~20s into the voiceover)
-    const wordmarkTimer = setTimeout(() => {
-      Animated.timing(wordmarkFadeAnim, {
-        toValue: 1,
-        duration: 1800,
-        useNativeDriver: true,
-      }).start();
-    }, voiceDelayMs + wordmarkFadeAfterVoiceMs);
-
     return () => {
-      clearTimeout(wordmarkTimer);
       clearTimeout(voiceTimer);
       if (intervalRef.current) clearInterval(intervalRef.current);
-      if (emberHapticTimeoutRef.current) clearTimeout(emberHapticTimeoutRef.current);
-      if (emberHapticIntervalRef.current) clearInterval(emberHapticIntervalRef.current);
       if (soundRef.current) {
         try { soundRef.current.setOnPlaybackStatusUpdate(null as any); } catch {}
         soundRef.current.unloadAsync();
@@ -350,7 +211,6 @@ export default function IntroScreen() {
     }
   }, [isMuted]);
 
-  // New useEffect for continuous breathing animation on CTA button
   useEffect(() => {
     const breathingAnimation = Animated.loop(
       Animated.sequence([
@@ -369,158 +229,150 @@ export default function IntroScreen() {
       ])
     );
     breathingAnimation.start();
-
-    return () => {
-      breathingAnimation.stop();
-    };
+    return () => { breathingAnimation.stop(); };
   }, [ctaScale]);
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#0d0d1a' }}>
-      <ImageBackground
-        source={require('../assets/images/intro-deep-blue.png')}
-        style={styles.container}
-        imageStyle={styles.bgImage}
-        fadeDuration={0}
-      >
-        <StatusBar style="light" backgroundColor="#0d0d1a" translucent={false} />
-        {/* Ember overlay (The Call) fills full screen */}
-        <View style={styles.overlayContainer} pointerEvents="none" collapsable={false}>
-          <Animated.Image
-            source={require('../assets/images/intro-sacred-ember.png')}
-            style={[styles.overlayImage, { opacity: emberOpacity, transform: [{ scale: emberScale }] }]}
-            resizeMode="cover"
-            accessible={false}
-          />
-        </View>
+    <View style={styles.container}>
+      <StatusBar style="light" backgroundColor="#0d0d1a" translucent={false} />
 
-        {/* Content wrapper holds padding/centering so overlay isn't cropped */}
-        <View style={styles.content}>
-          {/* Header group: keeps greeting + wordmark close */}
-          <View style={[styles.headerGroup, { height: wordmarkHeight + verticalScale(24) }]}>
-            {/* Wordmark behind the text */}
-            <Animated.View
-              style={[styles.wordmarkWrap, { opacity: wordmarkFadeAnim }]}
-              pointerEvents="none"
-              accessible
-              accessibilityRole="image"
-              accessibilityLabel="Inner wordmark"
-            >
-              <Wordmark width={wordmarkWidth} height={wordmarkHeight} />
-            </Animated.View>
-          </View>
+      {/* Looping MP4 background */}
+      <VideoView
+        player={bgPlayer}
+        contentFit="cover"
+        style={styles.bgImage}
+        nativeControls={false}
+        allowsFullscreen={false}
+        allowsPictureInPicture={false}
+      />
 
-          <View style={styles.captionBox}>
-            {showCaptions && (
-              <Animated.Text
-                allowFontScaling={false}
-                maxFontSizeMultiplier={1}
-                style={[
-                  Typography.display,
-                  {
-                    // Force caption font to be consistent (CalSans can appear larger on iOS)
-                    fontFamily: 'Inter-ExtraLight',
-                    fontStyle: 'italic',
-                    color: 'white',
-                    textAlign: 'center',
-                    fontSize: captionFontSize,
-                    lineHeight: Math.round(captionFontSize * 1.35),
-                    opacity: captionAnim,
-                  },
-                ]}
-              >
-                {currentCaption}
-              </Animated.Text>
-            )}
-          </View>
-
-          <View style={styles.buttons}>
-            <Animated.View style={{ opacity: ctaFadeAnim }}>
-              <View style={styles.primaryButtonWrap}>
-                <Animated.View
-                  style={{
-                    transform: [{ scale: ctaScale }],
-                    backgroundColor: buttonBg,
-                    borderRadius: primaryButtonRadius,
-                    overflow: 'hidden',
-                  }}
-                >
-                  <TouchableOpacity
-                    onPress={async () => {
-                      setCtaPressed(true);
-                      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                      setCtaPressed(false);
-                      stopAudioAndNavigate();
-                    }}
-                    style={[styles.primaryButton, { backgroundColor: 'transparent' }]}
-                    accessibilityRole="button"
-                    accessibilityLabel="Move inward. Begin your inner journey."
-                  >
-                    <Text style={[Typography.title, { color: '#1F233A' }]}>Move Inward</Text>
-                  </TouchableOpacity>
-                </Animated.View>
-              </View>
-            </Animated.View>
-
-            <TouchableOpacity
-              onPress={async () => {
-                await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                stopAudioAndNavigate();
+      <View style={styles.content}>
+        {/* Caption box — positioned in the upper third (dark sky area) */}
+        <View style={[styles.captionBox, { marginTop: verticalScale(40) }]}>
+          {showCaptions && (
+            <Animated.Text
+              allowFontScaling={false}
+              maxFontSizeMultiplier={1}
+              style={{
+                fontFamily: 'CalSans-SemiBold',
+                color: 'white',
+                textAlign: 'center',
+                fontSize: captionFontSize,
+                lineHeight: Math.round(captionFontSize * 1.35),
+                opacity: captionAnim,
               }}
-              accessibilityRole="button"
-              accessibilityLabel="Skip intro and continue to next screen."
             >
-              <Text
-                style={[
-                  Body.regular,
-                  {
-                    fontFamily: 'Inter-ExtraLight',
-                    color: 'white',
-                    marginTop: verticalScale(10),
-                    opacity: 0.7,
-                  },
-                ]}
+              {currentCaption}
+            </Animated.Text>
+          )}
+        </View>
+
+        {/* Spacer pushes CTA to bottom */}
+        <View style={{ flex: 1 }} />
+
+        {/* CTA + Skip */}
+        <View style={styles.buttons}>
+          <Animated.View style={{ opacity: ctaFadeAnim }}>
+            <View style={styles.primaryButtonWrap}>
+              <Animated.View
+                style={{
+                  transform: [{ scale: ctaScale }],
+                  borderRadius: 12,
+                  overflow: 'hidden',
+                  borderWidth: 1,
+                  borderColor: 'rgba(255,255,255,0.12)',
+                  backgroundColor: 'rgba(207,195,224,0.16)',
+                }}
               >
-                skip
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+                <TouchableOpacity
+                  onPress={async () => {
+                    setCtaPressed(true);
+                    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                    setCtaPressed(false);
+                    stopAudioAndNavigate();
+                  }}
+                  style={styles.primaryButton}
+                  accessibilityRole="button"
+                  accessibilityLabel="Move inward. Begin your inner journey."
+                >
+                  <Text style={{ fontFamily: 'CalSans-SemiBold', color: '#F3EDE7', letterSpacing: 0.2 }}>Move Inward</Text>
+                </TouchableOpacity>
+              </Animated.View>
+            </View>
+          </Animated.View>
 
-        {/* Caption Toggle (Right) */}
-        <View style={styles.accessibilityToggleRight}>
-          <Switch
-            value={showCaptions}
-            onValueChange={(value) => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              setShowCaptions(value);
+          <TouchableOpacity
+            onPress={async () => {
+              await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              stopAudioAndNavigate();
             }}
-            thumbColor={showCaptions ? '#fff' : '#888'}
-            trackColor={{ false: '#555', true: '#ccc' }}
-            accessibilityRole="switch"
-            accessibilityLabel="Captions toggle"
-            accessibilityHint="Turn on or off the on-screen captions for this intro."
-          />
-          <Text style={[Body.subtle, { fontFamily: 'Inter-ExtraLight', color: '#ccc', marginTop: 0 }]}>Captions</Text>
+            accessibilityRole="button"
+            accessibilityLabel="Skip intro and continue to next screen."
+          >
+            <Text
+              style={[
+                Body.regular,
+                {
+                  fontFamily: 'Inter-ExtraLight',
+                  color: 'white',
+                  marginTop: verticalScale(10),
+                  opacity: 0.7,
+                },
+              ]}
+            >
+              skip
+            </Text>
+          </TouchableOpacity>
         </View>
+      </View>
 
-        {/* Mute Toggle (Left) */}
-        <View style={styles.accessibilityToggleLeft}>
-          <Switch
-            value={!isMuted}
-            onValueChange={(value) => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              setIsMuted(!value);
-            }}
-            thumbColor={!isMuted ? '#fff' : '#888'}
-            trackColor={{ false: '#555', true: '#ccc' }}
-            accessibilityRole="switch"
-            accessibilityLabel="Audio toggle"
-            accessibilityHint="Mute or unmute the voice audio."
-          />
-          <Text style={[Body.subtle, { fontFamily: 'Inter-ExtraLight', color: '#ccc', marginTop: 0 }]}>Audio</Text>
-        </View>
-      </ImageBackground>
+      {/* Caption Toggle (Right) */}
+      <View style={[styles.accessibilityToggleRight, {
+        backgroundColor: 'rgba(0,0,0,0.72)',
+        borderRadius: 14,
+        paddingVertical: 8,
+        paddingHorizontal: 10,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
+      }]}>
+        <Switch
+          value={showCaptions}
+          onValueChange={(value) => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            setShowCaptions(value);
+          }}
+          thumbColor={showCaptions ? '#EDE8FA' : '#888'}
+          trackColor={{ false: 'rgba(60,50,90,0.5)', true: 'rgba(207,195,224,0.35)' }}
+          accessibilityRole="switch"
+          accessibilityLabel="Captions toggle"
+          accessibilityHint="Turn on or off the on-screen captions for this intro."
+        />
+        <Text style={{ fontFamily: 'Inter-ExtraLight', fontSize: 11, color: 'rgba(237,232,250,0.75)', marginTop: 4 }}>Captions</Text>
+      </View>
+
+      {/* Audio Toggle (Left) */}
+      <View style={[styles.accessibilityToggleLeft, {
+        backgroundColor: 'rgba(0,0,0,0.72)',
+        borderRadius: 14,
+        paddingVertical: 8,
+        paddingHorizontal: 10,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
+      }]}>
+        <Switch
+          value={!isMuted}
+          onValueChange={(value) => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            setIsMuted(!value);
+          }}
+          thumbColor={!isMuted ? '#EDE8FA' : '#888'}
+          trackColor={{ false: 'rgba(60,50,90,0.5)', true: 'rgba(207,195,224,0.35)' }}
+          accessibilityRole="switch"
+          accessibilityLabel="Audio toggle"
+          accessibilityHint="Mute or unmute the voice audio."
+        />
+        <Text style={{ fontFamily: 'Inter-ExtraLight', fontSize: 11, color: 'rgba(237,232,250,0.75)', marginTop: 4 }}>Audio</Text>
+      </View>
     </View>
   );
 }

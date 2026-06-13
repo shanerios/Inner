@@ -1,6 +1,8 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { View, Text, Pressable, StyleSheet, Animated, Image, Easing, Platform, useWindowDimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useVideoPlayer, VideoView } from 'expo-video';
+import { useFocusEffect } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 import {
   markDailyMicroRitualComplete,
@@ -50,6 +52,19 @@ export default function DailyRitualScreen({ navigation }: any) {
 
   const orbSize = isTabletLayout ? scale(300) : scale(phoneOrbDesignPx);
   const orbRadius = orbSize / 2;
+
+  const bgPlayer = useVideoPlayer(require('../assets/videos/arrive_bg.mp4'), player => {
+    player.loop = true;
+    player.muted = true;
+    player.play();
+  });
+
+  useFocusEffect(
+    useCallback(() => {
+      bgPlayer.play();
+      return () => { bgPlayer.pause(); };
+    }, [bgPlayer])
+  );
   const floatAmp = verticalScale(6);
 
   const styles = useMemo(
@@ -79,22 +94,27 @@ export default function DailyRitualScreen({ navigation }: any) {
         subtitle: {
           fontFamily: 'Inter-ExtraLight',
           fontSize: scale(16),
-          color: '#CFC7F0',
+          color: '#EDE8FA',
           textAlign: 'center',
           maxWidth: scale(260),
           alignSelf: 'center',
           marginTop: verticalScale(2),
           marginBottom: verticalScale(20),
+          textShadowColor: 'rgba(0,0,0,0.95)',
+          textShadowOffset: { width: 0, height: 0 },
+          textShadowRadius: 12,
         },
         helper: {
           fontFamily: 'Inter-ExtraLight',
           fontSize: scale(13),
-          color: '#A8A0CF',
+          color: '#EDE8FA',
           textAlign: 'center',
           maxWidth: scale(260),
           alignSelf: 'center',
-          marginTop: verticalScale(32),
-          marginBottom: verticalScale(6),
+          marginBottom: verticalScale(4),
+          textShadowColor: 'rgba(0,0,0,0.95)',
+          textShadowOffset: { width: 0, height: 0 },
+          textShadowRadius: 12,
         },
         orbWrapper: {
           marginTop: verticalScale(70),
@@ -117,7 +137,7 @@ export default function DailyRitualScreen({ navigation }: any) {
         orbImage: {
           width: '100%',
           height: '100%',
-          opacity: 0.9,
+          opacity: 0.6,
           transform: [{ scale: 1.15 }],
         },
         orbGlint: {
@@ -189,16 +209,17 @@ export default function DailyRitualScreen({ navigation }: any) {
           minWidth: scale(200),
           paddingVertical: verticalScale(10),
           paddingHorizontal: scale(24),
-          borderRadius: 999,
-          backgroundColor: '#CFC3E0',
+          borderRadius: 12,
+          backgroundColor: 'rgba(207,195,224,0.16)',
           borderWidth: 1,
-          borderColor: 'rgba(24,22,42,0.85)',
+          borderColor: 'rgba(255,255,255,0.12)',
         },
         continueLabel: {
           fontFamily: 'CalSans-SemiBold',
-          fontSize: scale(18),
-          color: '#171727',
+          fontSize: scale(16),
+          color: '#F3EDE7',
           textAlign: 'center',
+          letterSpacing: 0.2,
         },
         vignette: {
           position: 'absolute',
@@ -388,10 +409,13 @@ export default function DailyRitualScreen({ navigation }: any) {
       colors={['#0D0C1F', '#1F233A']}
       style={styles.container}
     >
-      <Image
-        source={require('../assets/images/arrive_bg.webp')}
+      <VideoView
+        player={bgPlayer}
+        contentFit="cover"
         style={styles.bgImage}
-        resizeMode="cover"
+        nativeControls={false}
+        allowsFullscreen={false}
+        allowsPictureInPicture={false}
       />
       <LinearGradient
         colors={['transparent', 'rgba(0,0,0,0.25)']}
@@ -400,8 +424,9 @@ export default function DailyRitualScreen({ navigation }: any) {
       />
       <View style={styles.content}>
         <View style={styles.topBlock}>
-          <Text style={styles.title}>Arrive</Text>
+          <Text style={[styles.title, { textShadowColor: 'rgba(0,0,0,0.85)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 8 }]}>Arrive</Text>
 
+          <View style={{ backgroundColor: 'transparent', paddingHorizontal: 2, paddingVertical: 2, borderRadius: 2, marginHorizontal: 40 }}>
           <Text style={styles.subtitle}>
             {lastEmotion
               ? lastEmotion === 'clear'
@@ -411,43 +436,7 @@ export default function DailyRitualScreen({ navigation }: any) {
                 : 'Yesterday your field felt heavy. How does it feel today?'
               : 'Daily field observation before moving inward.'}
           </Text>
-        </View>
-
-        <View
-          style={styles.orbWrapper}
-          accessibilityRole="image"
-          accessibilityLabel="Inner orb breathing to guide your arrival"
-        >
-          <Animated.View
-            style={[
-              styles.orbInner,
-              { transform: [{ translateY: orbFloat }, { scale: orbScale }] },
-            ]}
-          >
-            {/* Orb interior (static for stability and cross-device consistency) */}
-            <Image
-              pointerEvents="none"
-              source={ORB_SOURCE}
-              style={styles.orbImage}
-              resizeMode="cover"
-              onLoad={() => console.log('[DailyRitual] Orb image loaded', { platform: Platform.OS, using: 'png' })}
-              onError={(e) => console.log('[DailyRitual] Orb image error', e?.nativeEvent)}
-            />
-            <Animated.View
-              pointerEvents="none"
-              style={[
-                styles.orbGlint,
-                { opacity: glintOpacity },
-              ]}
-            />
-            <Animated.View
-              pointerEvents="none"
-              style={[
-                styles.orbRimLight,
-                { opacity: rimOpacity },
-              ]}
-            />
-          </Animated.View>
+          </View>
         </View>
 
         <View style={styles.bottomCluster}>
@@ -455,7 +444,7 @@ export default function DailyRitualScreen({ navigation }: any) {
 
           <Animated.View style={{opacity: chipsOpacity}}>
             <View style={styles.emotionGroup}>
-              <Text style={styles.question}>How’s your field today?</Text>
+              <Text style={[styles.question, { textShadowColor: 'rgba(0,0,0,0.85)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 8 }]}>{"How's your field today?"}</Text>
 
               <View style={styles.emotionRow}>
                 {EMOTIONS.map(value => {
@@ -494,11 +483,14 @@ export default function DailyRitualScreen({ navigation }: any) {
                 })}
               </View>
 
-              <Text style={styles.helper}>
-              This quick check-in helps Inner tune today’s ritual to how your field actually feels. We only ask once per day.
-            </Text>
             </View>
           </Animated.View>
+
+          <View style={{ backgroundColor: 'transparent', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 2, marginHorizontal: 40, marginBottom: verticalScale(10) }}>
+            <Text style={styles.helper}>
+              This quick check-in helps Inner tune today's ritual to how your field actually feels. We only ask once per day.
+            </Text>
+          </View>
 
           <Animated.View style={{ opacity: ctaOpacity, transform: [{ scale: ctaScale }] }}>
             <Pressable
