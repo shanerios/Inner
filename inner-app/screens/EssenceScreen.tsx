@@ -1,6 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import React, { useEffect, useState, useRef, useMemo } from 'react';
+import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { useIntention } from '../core/IntentionProvider';
+import { useVideoPlayer, VideoView } from 'expo-video';
+import { useFocusEffect } from '@react-navigation/native';
 const affirmationMap: { [key: string]: string } = {
   calm: 'You are embracing calm and inviting peace into your being.',
   clarity: 'Clarity guides your every step as your path becomes illuminated.',
@@ -14,8 +16,6 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  ImageBackground,
-  Image,
   Animated,
   Easing,
   TextInput,
@@ -23,7 +23,6 @@ import {
   KeyboardAvoidingView,
   Keyboard,
   TouchableWithoutFeedback,
-  ImageSourcePropType,
   useWindowDimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -47,23 +46,23 @@ const INHALE_MS = 4000;  // 4s inhale
 const EXHALE_MS = 6000;  // 6s exhale
 const CYCLE_MS  = INHALE_MS + EXHALE_MS; // 10s total
 
-// Orb assets (prefer WebP on Android, fallback to PNG if decoding/packaging fails in release)
-const ORB_WEBP = require('../assets/splash.webp');
-const ORB_PNG = require('../assets/splash_ios.png');
-
 export default function EssenceScreen() {
   const navigation = useNavigation();
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const { scale, verticalScale, matchesCompactLayout } = useScale();
-  const orbDiameter = useMemo(() => {
-    const base = scale(180);
-    const maxByWidth = windowWidth * 0.5;
-    if (matchesCompactLayout) {
-      // Keep the orb visually contained on short devices (e.g. SE class).
-      return Math.min(base, scale(156), maxByWidth);
-    }
-    return Math.min(base, maxByWidth);
-  }, [scale, windowWidth, matchesCompactLayout]);
+
+  const bgPlayer = useVideoPlayer(require('../assets/videos/essence_bg.mp4'), player => {
+    player.loop = true;
+    player.muted = true;
+    player.play();
+  });
+
+  useFocusEffect(
+    useCallback(() => {
+      bgPlayer.play();
+      return () => { bgPlayer.pause(); };
+    }, [bgPlayer])
+  );
   const namePromptLift = verticalScale(6);
   const namePromptDismissShift = verticalScale(4);
   const journeyPromptDrift = verticalScale(10);
@@ -109,16 +108,14 @@ export default function EssenceScreen() {
           alignItems: 'center',
         },
         primaryButton: {
-          backgroundColor: '#CFC3E0',
+          backgroundColor: 'rgba(207,195,224,0.16)',
           paddingVertical: verticalScale(14),
           paddingHorizontal: scale(40),
-          borderRadius: scale(24),
+          borderRadius: 12,
           marginBottom: verticalScale(12),
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: verticalScale(4) },
-          shadowOpacity: 0.25,
-          shadowRadius: scale(4),
-          elevation: 5,
+          borderWidth: 1,
+          borderColor: 'rgba(255,255,255,0.12)',
+          alignItems: 'center',
         },
         cardContainer: {
           flexDirection: 'row',
@@ -262,53 +259,13 @@ export default function EssenceScreen() {
     [scale, verticalScale],
   );
 
-  // Orb source with safe fallback (Android release builds can be flaky with WebP on some devices)
-  const [orbSource, setOrbSource] = useState<ImageSourcePropType>(
-    Platform.OS === 'android' ? ORB_WEBP : ORB_PNG
-  );
-
-  const handleOrbError = (e: any) => {
-    // If WebP fails, fall back to PNG
-    if (orbSource === ORB_WEBP) {
-      console.warn('[EssenceScreen] Orb WebP failed; falling back to PNG', e?.nativeEvent);
-      setOrbSource(ORB_PNG);
-    } else {
-      console.warn('[EssenceScreen] Orb image failed to load', e?.nativeEvent);
-    }
-  };
-
   const { intentions: ctxIntentions } = useIntention?.() || { intentions: [] as string[] };
 
   const [userIntentions, setUserIntentions] = useState<string[]>([]);
   const effectiveIntentions = (ctxIntentions && ctxIntentions.length > 0) ? ctxIntentions : userIntentions;
   const [personalizedAffirmation, setPersonalizedAffirmation] = useState<string | null>(null);
 
-  // Breathing sheen setup
-  const sheenX = useRef(new Animated.Value(0)).current;
-  const [descWidth, setDescWidth] = useState(0);
-
-  useEffect(() => {
-    // animate a soft sheen left → right once per breath cycle, during exhale
-    const run = () => {
-      if (!descWidth) return;
-      const sweepDuration = Math.min(1800, EXHALE_MS - 400); // keep sweep within exhale window
-      sheenX.setValue(-descWidth);
-      Animated.sequence([
-        Animated.delay(INHALE_MS), // wait through inhale
-        Animated.timing(sheenX, {
-          toValue: descWidth,
-          duration: sweepDuration,
-          easing: Easing.inOut(Easing.quad),
-          useNativeDriver: true,
-        }),
-        Animated.delay(CYCLE_MS - INHALE_MS - sweepDuration), // rest until next cycle
-      ]).start(({ finished }) => { if (finished) run(); });
-    };
-    run();
-    return () => { sheenX.stopAnimation(); };
-  }, [descWidth]);
   const titleOpacity = useRef(new Animated.Value(0)).current;
-  const descriptionOpacity = useRef(new Animated.Value(0)).current;
   // Name capture prompt (optional, one-time)
   const [showNamePrompt, setShowNamePrompt] = useState(false);
   const [nameValue, setNameValue] = useState('');
@@ -382,39 +339,6 @@ export default function EssenceScreen() {
   // Shared breath (0 → exhale, 1 → inhale)
   const breath = useBreath();
 
-  // Local breath fallback (ensures orb breath animates even if provider isn’t driving updates here)
-const localBreath = useRef(new Animated.Value(0)).current;
-
-useEffect(() => {
-  const loop = Animated.loop(
-    Animated.sequence([
-      Animated.timing(localBreath, {
-        toValue: 1,
-        duration: INHALE_MS,
-        easing: Easing.inOut(Easing.quad),
-        useNativeDriver: true,
-      }),
-      Animated.timing(localBreath, {
-        toValue: 0,
-        duration: EXHALE_MS,
-        easing: Easing.inOut(Easing.quad),
-        useNativeDriver: true,
-      }),
-    ])
-  );
-
-  loop.start();
-  return () => loop.stop();
-}, []);
-  // Essence orb breath scale (matches Home orb amplitude feel)
-  const orbScale = localBreath.interpolate({ inputRange: [0, 1], outputRange: [1.0, 1.12] });
-  // Particle veil “glow” breath (subtle)
-  const particlesOpacity = breath.interpolate({ inputRange: [0, 1], outputRange: [0.30, 0.40] });
-
-  // Micro color temperature shift (very subtle): cool on exhale → warm on inhale
-  const warmTintOpacity = breath.interpolate({ inputRange: [0, 1], outputRange: [0.00, 0.10] }); // up to 10% on inhale
-  const coolTintOpacity = breath.interpolate({ inputRange: [0, 1], outputRange: [0.10, 0.00] }); // up to 10% on exhale
-
   // Prompt opacity/position synced to breath (never fully disappears)
   const journeyPromptOpacity = useMemo(() => breath.interpolate({
     inputRange: [0, 1], // 0 = exhale, 1 = inhale
@@ -458,16 +382,10 @@ useEffect(() => {
         duration: 4000,
         useNativeDriver: true,
       }),
-      Animated.timing(descriptionOpacity, {
-        toValue: 1,
-        duration: 800,
-        useNativeDriver: true,
-      }),
     ]).start();
 
     return () => {
       titleOpacity.stopAnimation();
-      descriptionOpacity.stopAnimation();
     };
   }, []);
 
@@ -561,150 +479,70 @@ useEffect(() => {
   return (
     <View style={{ flex: 1, backgroundColor: '#0d0d1a' }}>
       <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-      <ImageBackground
-        source={require('../assets/images/essence-bg.png')} // Your softened cosmic image
-        defaultSource={require('../assets/images/essence-bg.png')}
-        style={styles.container}
-        imageStyle={{ backgroundColor: '#0d0d1a' }}
-        fadeDuration={0}
-        renderToHardwareTextureAndroid
-        needsOffscreenAlphaCompositing
-        resizeMode="cover"
-      >
-      <Animated.Image
-        source={require('../assets/images/particle-overlay.png')}
-        style={[styles.particleOverlay, { opacity: particlesOpacity }]}
-        resizeMode="cover"
-        pointerEvents="none"
-        accessible={false}
-        fadeDuration={0}
-      />
-      {/* Micro color temperature overlays (subtle) */}
-      <Animated.View
-        pointerEvents="none"
-        style={[
-          styles.tempOverlay,
-          { backgroundColor: 'rgba(120,170,255,0.10)', opacity: coolTintOpacity } // cool blue on exhale
-        ]}
-      />
-      <Animated.View
-        pointerEvents="none"
-        style={[
-          styles.tempOverlay,
-          { backgroundColor: 'rgba(255,190,120,0.10)', opacity: warmTintOpacity } // warm amber on inhale
-        ]}
-      />
-      <Animated.Text
-          style={[
-            Typography.display,
-            {
-              color: '#F0EEF8',
-              textAlign: 'center',
-              marginTop: verticalScale(60),
-              marginBottom: verticalScale(12),
-              opacity: titleOpacity,
-            }
-          ]}
-          accessibilityLabel="Take a moment to recenter yourself"
-          accessible
-          accessibilityRole="header"
-        >
-          Take a moment to center yourself.
-      </Animated.Text>
-      <Animated.Text
-        style={[
-          Typography.body,
-          {
-            fontStyle: 'italic',
-            color: '#F0EEF8',
-            textAlign: 'center',
-            marginTop: verticalScale(4),
-            marginBottom: verticalScale(8),
-            zIndex: 2,
-            opacity: Animated.multiply(journeyPromptOpacity, titleOpacity),
-            transform: [{ translateY: journeyPromptTranslateY }]
-          }
-        ]}
-        accessible
-        accessibilityRole="text"
-        accessibilityLabel="The orb breathes with you."
-      >
-        The orb breathes with you.
-      </Animated.Text>
-      <View style={styles.centerContent}>
-        <Animated.View
-          style={[
-            styles.orbWrapper,
-            {
-              width: orbDiameter,
-              height: orbDiameter,
-              borderRadius: orbDiameter / 2,
-              transform: [{ scale: orbScale }],
-            },
-          ]}
-        >
-          {/* Orb interior (static for stability across devices) */}
-          <Image
-            pointerEvents="none"
-            source={orbSource}
-            style={{ width: '100%', height: '100%', opacity: 1 }}
-            resizeMode="contain"
-            onLoad={() => {
-              if (__DEV__) {
-                console.log('[EssenceScreen] Orb image loaded', orbSource === ORB_WEBP ? 'webp' : 'png');
-              }
-            }}
-            onError={handleOrbError}
-          />
-        </Animated.View>
-      </View>
+      <View style={{ flex: 1 }}>
+        {/* Looping video background */}
+        <VideoView
+          player={bgPlayer}
+          contentFit="cover"
+          style={StyleSheet.absoluteFill}
+          nativeControls={false}
+          allowsFullscreen={false}
+          allowsPictureInPicture={false}
+        />
 
-      {!!personalizedAffirmation && (
-        <View style={styles.descriptionWrapper}>
-          <Animated.View style={{ opacity: Animated.multiply(descriptionOpacity, (showNamePrompt || showWakePrompt) ? 0.35 : 1) }}>
-            <View
-              style={styles.descriptionSheenHost}
-              onLayout={e => setDescWidth(e.nativeEvent.layout.width)}
-            >
-              <Text
-                style={[
-                  Body.regular,
-                  {
-                    fontFamily: 'Inter-ExtraLight',
-                    letterSpacing: scale(0.3),
-                    color: '#F0EEF8',
-                    textAlign: 'center',
-                    opacity: 0.85,
-                    paddingHorizontal: scale(10),
-                  },
-                ]}
-                accessible
-                accessibilityRole="text"
-                accessibilityLabel={`Your affirmations: ${personalizedAffirmation}`}
-              >
-                {personalizedAffirmation}
-              </Text>
-              {/* Breathing sheen overlay */}
-              {descWidth > 0 && (
-                <AnimatedLinear
-                  pointerEvents="none"
-                  colors={[
-                    'rgba(255,255,255,0)',
-                    'rgba(255,255,255,0.35)',
-                    'rgba(255,255,255,0)'
-                  ]}
-                  start={{ x: 0, y: 0.5 }}
-                  end={{ x: 1, y: 0.5 }}
-                  style={[
-                    styles.sheen,
-                    { transform: [{ translateX: sheenX }] }
-                  ]}
-                />
-              )}
-            </View>
-          </Animated.View>
+        {/* Top gradient */}
+        <LinearGradient
+          colors={['rgba(0,0,0,0.55)', 'transparent']}
+          style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '20%' }}
+          pointerEvents="none"
+        />
+
+        {/* Bottom gradient */}
+        <LinearGradient
+          colors={['transparent', 'rgba(0,0,0,0.6)']}
+          style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '20%' }}
+          pointerEvents="none"
+        />
+
+        {/* Title + subtitle — upper ~25% of screen */}
+        <View style={{ paddingTop: verticalScale(72), paddingHorizontal: scale(24), alignItems: 'center' }}>
+          <Animated.Text
+            style={[
+              Typography.display,
+              {
+                color: '#F0EEF8',
+                textAlign: 'center',
+                marginBottom: verticalScale(10),
+                opacity: titleOpacity,
+              }
+            ]}
+            accessibilityLabel="Take a moment to center yourself"
+            accessible
+            accessibilityRole="header"
+          >
+            Take a moment to center yourself.
+          </Animated.Text>
+          <Animated.Text
+            style={[
+              Typography.body,
+              {
+                fontStyle: 'italic',
+                color: '#F0EEF8',
+                textAlign: 'center',
+                opacity: Animated.multiply(journeyPromptOpacity, titleOpacity),
+                transform: [{ translateY: journeyPromptTranslateY }],
+              }
+            ]}
+            accessible
+            accessibilityRole="text"
+            accessibilityLabel="The orb breathes with you."
+          >
+            The orb breathes with you.
+          </Animated.Text>
         </View>
-      )}
+
+        {/* Empty middle — video does the work */}
+        <View style={{ flex: 1 }} />
 
       {showNamePrompt && (
         <KeyboardAvoidingView
@@ -866,7 +704,8 @@ useEffect(() => {
         </KeyboardAvoidingView>
       )}
 
-      <View style={styles.buttonContainer}>
+      {/* Buttons — bottom above safe area */}
+      <View style={{ alignItems: 'center', paddingBottom: verticalScale(44), paddingHorizontal: scale(20) }}>
         <TouchableOpacity
           onPress={async () => {
             if (isNavigatingRef.current) return;
@@ -896,7 +735,7 @@ useEffect(() => {
           accessibilityRole="button"
           accessible
         >
-          <Text style={[Typography.title, { color: '#1F233A' }]}>Begin Journey</Text>
+          <Text style={{ fontFamily: 'CalSans-SemiBold', fontSize: scale(16), color: '#F3EDE7', letterSpacing: 0.2 }}>Begin Journey</Text>
         </TouchableOpacity>
         <TouchableOpacity
           onPress={() => navigation.goBack()}
@@ -919,7 +758,7 @@ useEffect(() => {
           </Text>
         </TouchableOpacity>
       </View>
-      </ImageBackground>
+      </View>
       </TouchableWithoutFeedback>
     </View>
   );
