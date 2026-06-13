@@ -422,6 +422,16 @@ export default function DailyRitualScreen({ navigation }: any) {
         style={styles.vignette}
         pointerEvents="none"
       />
+      <LinearGradient
+        colors={['rgba(0,0,0,0.95)', 'transparent']}
+        style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '30%' }}
+        pointerEvents="none"
+      />
+      <LinearGradient
+        colors={['transparent', 'rgba(0,0,0,0.95)']}
+        style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '35%' }}
+        pointerEvents="none"
+      />
       <View style={styles.content}>
         <View style={styles.topBlock}>
           <Text style={[styles.title, { textShadowColor: 'rgba(0,0,0,0.85)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 8 }]}>Arrive</Text>
