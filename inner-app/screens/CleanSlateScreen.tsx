@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,8 @@ import {
   Image,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useVideoPlayer, VideoView } from 'expo-video';
+import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Audio } from 'expo-av';
 import * as Haptics from 'expo-haptics';
@@ -371,6 +373,20 @@ export default function CleanSlateScreen({ navigation }: any) {
     navigation.navigate('Home');
   };
 
+  // Video background
+  const bgPlayer = useVideoPlayer(require('../assets/videos/clean_slate_bg.mp4'), player => {
+    player.loop = true;
+    player.muted = true;
+    player.play();
+  });
+
+  useFocusEffect(
+    useCallback(() => {
+      bgPlayer.play();
+      return () => { bgPlayer.pause(); };
+    }, [bgPlayer])
+  );
+
   // -----------------------------
   // RENDER
   // -----------------------------
@@ -411,19 +427,28 @@ export default function CleanSlateScreen({ navigation }: any) {
   }, [uiScale, verticalScale, windowWidth, windowHeight, matchesCompactLayout]);
 
   return (
-    <LinearGradient colors={['#0D0C1F', '#1F233A']} style={styles.container}>
-
-      {/* Semi-opaque background layer */}
-      <Image
-        source={require('../assets/images/clean_slate_bg.webp')}
-        style={styles.bgImage}
-        resizeMode="cover"
+    <View style={styles.container}>
+      {/* Video background */}
+      <VideoView
+        player={bgPlayer}
+        contentFit="cover"
+        style={StyleSheet.absoluteFill}
+        nativeControls={false}
+        allowsFullscreen={false}
+        allowsPictureInPicture={false}
       />
 
-      {/* Vignette overlay */}
+      {/* Top gradient */}
       <LinearGradient
-        colors={['rgba(0,0,0,0.0)', 'rgba(0,0,0,0.35)', 'rgba(0,0,0,0.0)']}
-        style={styles.vignetteOverlay}
+        colors={['rgba(0,0,0,0.55)', 'transparent']}
+        style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '25%' }}
+        pointerEvents="none"
+      />
+
+      {/* Bottom gradient */}
+      <LinearGradient
+        colors={['transparent', 'rgba(0,0,0,0.55)']}
+        style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '25%' }}
         pointerEvents="none"
       />
 
@@ -438,37 +463,6 @@ export default function CleanSlateScreen({ navigation }: any) {
 
         {/* Orb + Sweep */}
         <View style={styles.orbContainer}>
-          {/* Glow */}
-          <Animated.View
-            style={[
-              styles.orbGlow,
-              {
-                backgroundColor: accentColor,
-                shadowColor: accentColor,
-                transform: [{ translateX: sweepTranslate }],
-                width: orbSizing.glowDiameter,
-                height: orbSizing.glowDiameter,
-                borderRadius: orbSizing.glowDiameter / 2,
-                shadowRadius: orbSizing.glowShadowRadius,
-              },
-            ]}
-          />
-
-          {/* Sweep layer */}
-          <Animated.View
-            style={[
-              styles.sweepLayer,
-              {
-                opacity: 0.25,
-                transform: [{ translateX: sweepTranslate }],
-                backgroundColor: accentColor,
-                width: orbSizing.sweepDiameter,
-                height: orbSizing.sweepDiameter,
-                borderRadius: orbSizing.sweepDiameter / 2,
-              },
-            ]}
-          />
-
           {/* Orb core */}
           <Animated.View
             style={[
@@ -523,7 +517,7 @@ export default function CleanSlateScreen({ navigation }: any) {
         </Animated.View>
       </View>
 
-    </LinearGradient>
+    </View>
   );
 }
 
@@ -578,16 +572,16 @@ const styles = StyleSheet.create({
     width: 170,
     height: 170,
     borderRadius: 85,
-    backgroundColor: '#070716',
+    backgroundColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(181,169,255,0.5)',
+    borderWidth: 0,
+    borderColor: 'transparent',
   },
   innerOrb: {
     width: 175,
     height: 175,
-    opacity: 0.65,
+    opacity: 1,
     transform: [{ translateX: 1 }],
   },
   phaseContainer: {
@@ -612,10 +606,10 @@ const styles = StyleSheet.create({
     minWidth: 200,
     paddingVertical: 10,
     paddingHorizontal: 24,
-    borderRadius: 999,
-    backgroundColor: '#CFC3E0',
+    borderRadius: 12,
+    backgroundColor: 'rgba(207,195,224,0.16)',
     borderWidth: 1,
-    borderColor: 'rgba(24,22,42,0.85)',
+    borderColor: 'rgba(255,255,255,0.12)',
     marginBottom: 8,
     alignItems: 'center',
     justifyContent: 'center',
@@ -623,7 +617,8 @@ const styles = StyleSheet.create({
   beginLabel: {
     fontFamily: 'CalSans-SemiBold',
     fontSize: 15,
-    color: '#171727',
+    color: '#F3EDE7',
+    letterSpacing: 0.2,
   },
   returnButton: {
     paddingVertical: 6,
@@ -634,22 +629,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#CFC3E0',
     textAlign: 'center',
-  },
-  bgImage: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    opacity: 0.25,
-    width: '100%',
-    height: '100%',
-  },
-  vignetteOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
   },
 });

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,8 @@ import {
   Image,
   Platform,
 } from 'react-native';
+import { useVideoPlayer, VideoView } from 'expo-video';
+import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import TrackPlayer from 'react-native-track-player';
 import { Asset } from 'expo-asset';
@@ -57,9 +59,8 @@ export default function PointZeroScreen({ navigation }: PointZeroScreenProps) {
     DEFAULT_AURA;
 
   const scale = useRef(new Animated.Value(0.9)).current;
-  const glowOpacity = useRef(new Animated.Value(0.3)).current;
+  const glowOpacity = useRef(new Animated.Value(0.8)).current;
   const [phase, setPhase] = useState<'inhale' | 'exhale' | 'hold'>('inhale');
-  const holdPulse = useRef(new Animated.Value(1)).current;
   const [hasHeardPreroll, setHasHeardPreroll] = useState<boolean | null>(null);
   const [showExerciseButton, setShowExerciseButton] = useState(false);
   const [exerciseUri, setExerciseUri] = useState<string | null>(null);
@@ -155,7 +156,7 @@ export default function PointZeroScreen({ navigation }: PointZeroScreenProps) {
             useNativeDriver: true,
           }),
           Animated.timing(glowOpacity, {
-            toValue: 0.8,
+            toValue: 1.0,
             duration: 4000,
             easing: Easing.inOut(Easing.quad),
             useNativeDriver: true,
@@ -171,7 +172,7 @@ export default function PointZeroScreen({ navigation }: PointZeroScreenProps) {
             useNativeDriver: true,
           }),
           Animated.timing(glowOpacity, {
-            toValue: 0.8,
+            toValue: 1.0,
             duration: 4000,
             easing: Easing.linear,
             useNativeDriver: true,
@@ -187,7 +188,7 @@ export default function PointZeroScreen({ navigation }: PointZeroScreenProps) {
             useNativeDriver: true,
           }),
           Animated.timing(glowOpacity, {
-            toValue: 0.3,
+            toValue: 0.8,
             duration: 8000,
             easing: Easing.inOut(Easing.quad),
             useNativeDriver: true,
@@ -228,26 +229,6 @@ export default function PointZeroScreen({ navigation }: PointZeroScreenProps) {
     return () => { cancelled = true };
   }, []);
 
-  useEffect(() => {
-    if (phase !== 'hold') return;
-
-    holdPulse.setValue(1);
-
-    Animated.sequence([
-      Animated.timing(holdPulse, {
-        toValue: 1.06,
-        duration: 600,
-        easing: Easing.inOut(Easing.quad),
-        useNativeDriver: true,
-      }),
-      Animated.timing(holdPulse, {
-        toValue: 1.0,
-        duration: 600,
-        easing: Easing.inOut(Easing.quad),
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, [phase, holdPulse]);
 
   // Audio: first-time auto preroll, then push-to-play exercise; later visits = exercise button immediately
   useEffect(() => {
@@ -467,6 +448,20 @@ export default function PointZeroScreen({ navigation }: PointZeroScreenProps) {
     }
   };
 
+  // Video background
+  const bgPlayer = useVideoPlayer(require('../assets/videos/point_zero_bg.mp4'), player => {
+    player.loop = true;
+    player.muted = true;
+    player.play();
+  });
+
+  useFocusEffect(
+    useCallback(() => {
+      bgPlayer.play();
+      return () => { bgPlayer.pause(); };
+    }, [bgPlayer])
+  );
+
   const orbSizing = React.useMemo(() => {
     // Original visual design sizes:
     // - glow: 220
@@ -503,10 +498,30 @@ export default function PointZeroScreen({ navigation }: PointZeroScreenProps) {
   }, [uiScale, windowWidth, windowHeight, matchesCompactLayout]);
 
   return (
-    <LinearGradient
-      colors={['#0D0C1F', '#1F233A']}
-      style={styles.container}
-    >
+    <View style={styles.container}>
+      {/* Video background */}
+      <VideoView
+        player={bgPlayer}
+        contentFit="cover"
+        style={StyleSheet.absoluteFill}
+        nativeControls={false}
+        allowsFullscreen={false}
+        allowsPictureInPicture={false}
+      />
+
+      {/* Top gradient */}
+      <LinearGradient
+        colors={['rgba(0,0,0,0.65)', 'transparent']}
+        style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '25%' }}
+        pointerEvents="none"
+      />
+
+      {/* Bottom gradient */}
+      <LinearGradient
+        colors={['transparent', 'rgba(0,0,0,0.65)']}
+        style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '25%' }}
+        pointerEvents="none"
+      />
       {/* Title & subtitle */}
       <Animated.View style={[styles.header, { opacity: uiOpacity }]}>
         <Text style={styles.title}>Point 0</Text>
@@ -522,23 +537,9 @@ export default function PointZeroScreen({ navigation }: PointZeroScreenProps) {
       <View style={styles.orbContainer}>
         <Animated.View
           style={[
-            styles.orbGlow,
-            {
-              opacity: glowOpacity,
-              backgroundColor: accentColor,
-              shadowColor: accentColor,
-              transform: [{ scale }, { scale: holdPulse }],
-              width: orbSizing.glowDiameter,
-              height: orbSizing.glowDiameter,
-              borderRadius: orbSizing.glowDiameter / 2,
-              shadowRadius: orbSizing.glowShadowRadius,
-            },
-          ]}
-        />
-        <Animated.View
-          style={[
             styles.orbCore,
             {
+              opacity: glowOpacity,
               transform: [{ scale }],
               width: orbSizing.coreDiameter,
               height: orbSizing.coreDiameter,
@@ -622,7 +623,7 @@ export default function PointZeroScreen({ navigation }: PointZeroScreenProps) {
           You can come back to Point 0 whenever you need a one-minute reset.
         </Text>
       </Animated.View>
-    </LinearGradient>
+    </View>
   );
 }
 
@@ -664,30 +665,24 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  orbGlow: {
-    position: 'absolute',
-    width: 220,
-    height: 220,
-    borderRadius: 110,
-    opacity: 0.35,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 40,
-  },
   orbCore: {
     width: 180,
     height: 180,
     borderRadius: 90,
-    backgroundColor: '#070716',
-    borderWidth: 1,
-    borderColor: 'rgba(181,169,255,0.5)',
+    backgroundColor: 'transparent',
+    borderWidth: 0,
+    borderColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: 'rgb(160, 210, 255)',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.28,
+    shadowRadius: 18,
   },
   innerOrbImage: {
-    width: 220,
-    height: 220,
-    opacity: 0.65,
+    width: 180,
+    height: 180,
+    opacity: 1,
     // The orb asset has a tiny visual offset; nudge it so it sits centered in the ring
     transform: [{ translateX: 1 }],
   },
@@ -722,10 +717,10 @@ const styles = StyleSheet.create({
     minWidth: 200,
     paddingVertical: 10,
     paddingHorizontal: 24,
-    borderRadius: 999,
-    backgroundColor: '#CFC3E0',
+    borderRadius: 12,
+    backgroundColor: 'rgba(207,195,224,0.16)',
     borderWidth: 1,
-    borderColor: 'rgba(24,22,42,0.85)',
+    borderColor: 'rgba(255,255,255,0.12)',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 8,
@@ -733,7 +728,7 @@ const styles = StyleSheet.create({
   doneLabel: {
     fontFamily: 'CalSans-SemiBold',
     fontSize: 15,
-    color: '#171727',
+    color: '#F3EDE7',
     letterSpacing: 0.2,
   },
   footerNote: {

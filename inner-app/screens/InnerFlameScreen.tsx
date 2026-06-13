@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { usePostHog } from 'posthog-react-native';
 import {
   View,
@@ -6,10 +6,11 @@ import {
   StyleSheet,
   Animated,
   Image,
-  ImageBackground,
   Pressable,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useVideoPlayer, VideoView } from 'expo-video';
+import { useFocusEffect } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 import { Audio } from 'expo-av';
 import LottieView from 'lottie-react-native';
@@ -76,6 +77,20 @@ export default function InnerFlameScreen({ navigation }: InnerFlameScreenProps) 
   const exerciseStartRef = useRef<number | null>(null);
 
   const ritualStartedTrackedRef = useRef(false);
+
+  // Video background
+  const bgPlayer = useVideoPlayer(require('../assets/videos/inner_flame_bg.mp4'), player => {
+    player.loop = true;
+    player.muted = true;
+    player.play();
+  });
+
+  useFocusEffect(
+    useCallback(() => {
+      bgPlayer.play();
+      return () => { bgPlayer.pause(); };
+    }, [bgPlayer])
+  );
 
   const logRitualCompletionOnce = () => {
     if (hasLoggedPracticeRef.current) return;
@@ -544,13 +559,33 @@ export default function InnerFlameScreen({ navigation }: InnerFlameScreenProps) 
   };
 
   return (
-    <ImageBackground
-      source={require('../assets/images/inner_flame_bg.png')}
-      style={styles.container}
-      resizeMode="cover"
-    >
+    <View style={styles.container}>
+      {/* Video background */}
+      <VideoView
+        player={bgPlayer}
+        contentFit="cover"
+        style={StyleSheet.absoluteFill}
+        nativeControls={false}
+        allowsFullscreen={false}
+        allowsPictureInPicture={false}
+      />
+
+      {/* Top gradient */}
       <LinearGradient
-        colors={['rgba(18,8,22,0.45)', 'rgba(58,23,16,0.8)']}
+        colors={['rgba(0,0,0,0.6)', 'transparent']}
+        style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '25%' }}
+        pointerEvents="none"
+      />
+
+      {/* Bottom gradient */}
+      <LinearGradient
+        colors={['transparent', 'rgba(0,0,0,0.6)']}
+        style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '25%' }}
+        pointerEvents="none"
+      />
+
+      <LinearGradient
+        colors={['rgba(18,8,22,0.15)', 'rgba(58,23,16,0.35)']}
         style={styles.overlay}
       >
         {/* Header */}
@@ -570,6 +605,7 @@ export default function InnerFlameScreen({ navigation }: InnerFlameScreenProps) 
                 width: orbStackSize,
                 height: orbStackSize,
                 marginTop: isLargeScreen ? orbOffset - tabletExtraNudge : orbOffset,
+                transform: [{ scale: 0.6 }],
               },
             ]}
           >
@@ -609,27 +645,28 @@ export default function InnerFlameScreen({ navigation }: InnerFlameScreenProps) 
               resizeMode="contain"
             />
 
-            {/* Ember orb glow layer (tinted copy) */}
+            {/* Ember shadow — warm amber halo at low opacity, no hard tint */}
             <Animated.Image
-              source={require('../assets/images/orb_inner_flame.png')}
+              source={require('../assets/images/inner_flame_orb.png')}
               style={[
                 styles.innerOrbGlow,
                 { width: innerOrbGlowDiameter, height: innerOrbGlowDiameter },
                 {
                   opacity: glowOpacity,
                   transform: [{ scale: glowScale }],
-                  tintColor: emberTint,
+                  tintColor: 'rgba(180, 80, 10, 1)',
                 },
               ]}
               resizeMode="contain"
             />
 
-            {/* Ember orb core */}
-            <Image
-              source={require('../assets/images/orb_inner_flame.png')}
+            {/* Ember orb core — breathes with glowScale */}
+            <Animated.Image
+              source={require('../assets/images/inner_flame_orb.png')}
               style={[
                 styles.innerOrb,
                 { width: innerOrbDiameter, height: innerOrbDiameter },
+                { transform: [{ scale: glowScale }] },
               ]}
               resizeMode="contain"
             />
@@ -670,7 +707,7 @@ export default function InnerFlameScreen({ navigation }: InnerFlameScreenProps) 
           </Pressable>
         </View>
       </LinearGradient>
-    </ImageBackground>
+    </View>
   );
 }
 
@@ -691,7 +728,7 @@ const styles = StyleSheet.create({
   title: {
     fontFamily: 'CalSans-SemiBold',
     fontSize: 22,
-    color: '#FFE9CF',
+    color: '#F59E0B',
     marginBottom: 6,
   },
   subtitle: {
@@ -760,10 +797,10 @@ const styles = StyleSheet.create({
     minWidth: 220,
     paddingVertical: 10,
     paddingHorizontal: 24,
-    borderRadius: 999,
-    backgroundColor: '#FAD0A2',
+    borderRadius: 12,
+    backgroundColor: 'rgba(207,195,224,0.16)',
     borderWidth: 1,
-    borderColor: 'rgba(24,22,42,0.9)',
+    borderColor: 'rgba(255,255,255,0.12)',
     marginBottom: 8,
     alignItems: 'center',
     justifyContent: 'center',
@@ -771,7 +808,8 @@ const styles = StyleSheet.create({
   beginLabel: {
     fontFamily: 'CalSans-SemiBold',
     fontSize: 15,
-    color: '#241014',
+    color: '#F3EDE7',
+    letterSpacing: 0.2,
   },
   returnButton: {
     paddingVertical: 6,
