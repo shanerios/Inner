@@ -1,21 +1,20 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  ImageBackground,
-  Image,
   Animated,
   Easing,
   useWindowDimensions,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import { useIntention } from '../core/IntentionProvider';
 import { Typography, Body as _Body } from '../core/typography';
 import * as Haptics from 'expo-haptics';
-import { useNavigation } from '@react-navigation/native';
-import { useRoute } from '@react-navigation/native';
+import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import { Asset } from 'expo-asset';
 import { getNudge } from '../src/core/language/nudgeLibrary';
 import { getIntentions, getIntentionSetAt, getLastNudgeShownAt, setLastNudgeShownAt } from '../core/session';
@@ -27,31 +26,31 @@ const Body = _Body ?? ({
 } as const);
 
 const intentions = [
-  { id: 'calm', title: 'Calm', description: 'Release the weight, return to stillness' },
-  { id: 'clarity', title: 'Clarity', description: 'Part the haze, let vision sharpen' },
-  { id: 'grounding', title: 'Grounding', description: 'Root deep into the present' },
-  { id: 'healing', title: 'Healing', description: 'Mend the unseen, restore balance' },
-  { id: 'reawakening', title: 'Reawakening', description: 'Stir the dormant self into light' },
-  { id: 'expansion', title: 'Expansion', description: 'Open wide to growth and possibility' },
+  { id: 'lucidity',     title: 'Lucidity',     description: 'Enter the aware dream' },
+  { id: 'clarity',      title: 'Clarity',      description: 'Part the haze, let vision sharpen' },
+  { id: 'grounding',    title: 'Grounding',    description: 'Root deep into the present' },
+  { id: 'healing',      title: 'Healing',      description: 'Mend the unseen, restore balance' },
+  { id: 'reawakening',  title: 'Reawakening',  description: 'Stir the dormant self into light' },
+  { id: 'expansion',    title: 'Expansion',    description: 'Open wide to growth and possibility' },
 ];
 
 // Aura color mapping for selected-state tinting (subtle, brand-aligned)
 const AURA_TINTS: Record<string, string> = {
-  calm: 'rgba(132, 169, 255, 0.22)',        // soft blue
-  clarity: 'rgba(123, 232, 201, 0.22)',     // mint
-  grounding: 'rgba(196, 154, 108, 0.22)',   // earth
-  healing: 'rgba(120, 217, 168, 0.22)',     // green
-  reawakening: 'rgba(255, 183, 213, 0.22)', // rose
-  expansion: 'rgba(207, 195, 224, 0.22)',   // lavender (brand CTA)
+  lucidity:    'rgba(180, 210, 255, 0.22)',    // ethereal blue
+  clarity:     'rgba(123, 232, 201, 0.22)',    // mint
+  grounding:   'rgba(196, 154, 108, 0.22)',    // earth
+  healing:     'rgba(120, 217, 168, 0.22)',    // green
+  reawakening: 'rgba(255, 183, 213, 0.22)',    // rose
+  expansion:   'rgba(207, 195, 224, 0.22)',    // lavender (brand CTA)
 };
 
 const AURA_BORDERS: Record<string, string> = {
-  calm: '#84A9FF',
-  clarity: '#7BE8C9',
-  grounding: '#C49A6C',
-  healing: '#78D9A8',
+  lucidity:    '#B4D2FF',
+  clarity:     '#7BE8C9',
+  grounding:   '#C49A6C',
+  healing:     '#78D9A8',
   reawakening: '#FFB7D5',
-  expansion: '#CFC3E0',
+  expansion:   '#CFC3E0',
 };
 
 export default function IntentionScreen() {
@@ -70,6 +69,20 @@ export default function IntentionScreen() {
   // Return ritual header (only when arriving via Settings → Change Intentions)
   const returnHeaderOpacity = useRef(new Animated.Value(0)).current;
   const returnHeaderTranslateY = useRef(new Animated.Value(-returnHeaderLift)).current;
+
+  // Video background
+  const bgPlayer = useVideoPlayer(require('../assets/videos/intentions_bg.mp4'), player => {
+    player.loop = true;
+    player.muted = true;
+    player.play();
+  });
+
+  useFocusEffect(
+    useCallback(() => {
+      bgPlayer.play();
+      return () => { bgPlayer.pause(); };
+    }, [bgPlayer])
+  );
 
   const styles = useMemo(
     () =>
@@ -94,6 +107,7 @@ export default function IntentionScreen() {
         },
         title: {
           ...Typography.title,
+          fontSize: scale(24),
           color: 'white',
           marginBottom: verticalScale(10),
         },
@@ -101,67 +115,68 @@ export default function IntentionScreen() {
           ...Body.regular,
           fontFamily: 'Inter-ExtraLight',
           color: 'white',
-          fontSize: scale(12),
+          fontSize: scale(11),
           marginBottom: verticalScale(20),
           opacity: 0.7,
-        },
-        explainText: {
-          ...Body.subtle,
-          fontFamily: 'Inter-ExtraLight',
-          color: 'white',
-          opacity: 0.68,
+          maxWidth: scale(260),
           textAlign: 'center',
-          marginBottom: verticalScale(24),
-          maxWidth: scale(320),
         },
         grid: {
           flexDirection: 'row',
           flexWrap: 'wrap',
           justifyContent: 'center',
-          marginBottom: verticalScale(24),
+          marginBottom: verticalScale(16),
+          paddingHorizontal: scale(4),
         },
         card: {
-          width: windowWidth * 0.4,
-          padding: scale(16),
-          backgroundColor: 'rgba(255,255,255,0.1)',
-          borderRadius: scale(12),
+          width: windowWidth * 0.32,
+          paddingVertical: verticalScale(8),
+          paddingHorizontal: 8,
+          backgroundColor: 'rgba(0,0,0,0.25)',
+          borderRadius: 8,
           borderWidth: 1,
-          borderColor: 'rgba(255,255,255,0.6)',
+          borderColor: 'rgba(255,255,255,0.15)',
           alignItems: 'center',
           justifyContent: 'center',
-          marginHorizontal: scale(6),
-          marginVertical: verticalScale(6),
+          marginHorizontal: scale(2),
+          marginVertical: verticalScale(4),
           position: 'relative',
         },
         cardGlow: {
           position: 'absolute',
-          left: scale(-4),
-          right: scale(-4),
-          top: verticalScale(-4),
-          bottom: verticalScale(-4),
-          borderRadius: scale(16),
+          left: 0,
+          right: 0,
+          top: 0,
+          bottom: 0,
+          borderRadius: 8,
           backgroundColor: 'rgba(195, 164, 242, 0.22)',
         },
         cardSelected: {
-          backgroundColor: 'rgba(255,255,255,0.22)',
-          borderColor: '#CFC3E0',
-          borderWidth: scale(2),
+          // Background stays transparent — amber border glow only
+          borderColor: 'rgba(251,191,36,0.5)',
+          borderWidth: 1,
+          shadowColor: '#F59E0B',
+          shadowOffset: { width: 0, height: 0 },
+          shadowRadius: 10,
+          shadowOpacity: 0.7,
+          elevation: 8,
         },
         cardDimmed: {
           opacity: 0.4,
         },
         cardText: {
-          ...Typography.body,
           color: 'white',
+          fontFamily: 'CalSans-SemiBold',
+          fontSize: scale(15),
           textAlign: 'center',
+          fontWeight: '600',
         },
         cardDescription: {
-          ...Typography.caption,
           fontFamily: 'Inter-ExtraLight',
-          color: 'white',
+          color: 'rgba(255,255,255,0.6)',
           textAlign: 'center',
+          fontSize: scale(10),
           marginTop: verticalScale(4),
-          opacity: 0.7,
         },
         checkmark: {
           position: 'absolute',
@@ -175,44 +190,22 @@ export default function IntentionScreen() {
         },
         checkmarkText: {
           color: 'white',
-          fontSize: scale(14),
+          fontSize: scale(8),
         },
         primaryButton: {
-          backgroundColor: '#CFC3E0',
-          paddingVertical: verticalScale(16),
+          backgroundColor: 'rgba(207,195,224,0.16)',
+          paddingVertical: verticalScale(14),
           paddingHorizontal: scale(32),
-          borderRadius: scale(24),
-          borderWidth: 0,
+          borderRadius: 12,
+          borderWidth: 1,
+          borderColor: 'rgba(255,255,255,0.12)',
           alignItems: 'center',
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: verticalScale(4) },
-          shadowOpacity: 0.3,
-          shadowRadius: scale(6),
-          elevation: 5,
-        },
-        orbStack: {
-          width: scale(200),
-          height: scale(200),
-          marginBottom: 0,
-          alignSelf: 'center',
-          position: 'relative',
-        },
-        orbBaseImage: {
-          width: '100%',
-          height: '100%',
-          resizeMode: 'contain',
-        },
-        orbMandalaImage: {
-          position: 'absolute',
-          left: 0,
-          top: 0,
-          width: '100%',
-          height: '100%',
-          resizeMode: 'contain',
         },
         primaryText: {
-          ...Typography.title,
-          color: '#1F233A',
+          fontFamily: 'CalSans-SemiBold',
+          color: '#F3EDE7',
+          letterSpacing: 0.2,
+          fontSize: scale(16),
         },
         disabledButton: {
           opacity: 0.3,
@@ -230,29 +223,19 @@ export default function IntentionScreen() {
 
   const [selectedIntentions, setSelectedIntentions] = useState<string[]>([]);
   const scaleAnimRefs = useRef<{ [key: string]: Animated.Value }>({});
-  // Initialize refs once on first render
   if (Object.keys(scaleAnimRefs.current).length === 0) {
     intentions.forEach(({ id }) => {
       scaleAnimRefs.current[id] = new Animated.Value(1);
     });
   }
 
-  // Lotus pulse (subtle brand continuity)
-  const lotusScale = useRef(new Animated.Value(1)).current;
-  const lotusReveal = useRef(new Animated.Value(0)).current; // 0->1 on first reveal
-  const lotusPulse = useRef(new Animated.Value(1)).current;   // 0..1 loop driver
-  const lotusPulseOpacity = lotusPulse.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1] });
-
-  // Mandala overlay (appears only after first selection)
-  const mandalaOpacity = useRef(new Animated.Value(0)).current;
-
   // CTA enable reveal
-  const ctaEnabledAnim = useRef(new Animated.Value(0)).current; // 0 = disabled, 1 = enabled
+  const ctaEnabledAnim = useRef(new Animated.Value(0)).current;
 
   const glowAnimRefs = useRef<{ [key: string]: Animated.Value }>({});
   if (Object.keys(glowAnimRefs.current).length === 0) {
     intentions.forEach(({ id }) => {
-      glowAnimRefs.current[id] = new Animated.Value(0); // 0 off, 1 on
+      glowAnimRefs.current[id] = new Animated.Value(0);
     });
   }
 
@@ -261,83 +244,16 @@ export default function IntentionScreen() {
       await Asset.loadAsync([
         require('../assets/images/essence-bg.png'),
         require('../assets/images/particle-overlay.png'),
-        // add any additional images used on Essence here
       ]);
     } catch (e) {
       console.log('Essence asset prefetch error', e);
     }
   };
 
-
-  // Mount: fade-in lotus (noticeable) then start slow pulse (scale + opacity)
   React.useEffect(() => {
-    // ensure starting values
-    lotusReveal.setValue(0);
-    lotusScale.setValue(0.85);
-    lotusPulse.setValue(1);
-
-    // one-shot reveal (slower + slight scale ease)
-    Animated.timing(lotusReveal, {
-      toValue: 1,
-      duration: 1400,
-      delay: 1200,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    }).start();
-
-    Animated.timing(lotusScale, {
-      toValue: 1,
-      duration: 1400,
-      delay: 1200,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    }).start();
-
-    // slow breathing loop (scale), start near end of reveal
-    const scalePulse = Animated.loop(
-      Animated.sequence([
-        Animated.timing(lotusScale, { toValue: 1.03, duration: 4200, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-        Animated.timing(lotusScale, { toValue: 0.99, duration: 4200, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-      ])
-    );
-
-    // opacity pulse driver (0..1 maps to 0.92..1 via interpolate)
-    const opacityPulse = Animated.loop(
-      Animated.sequence([
-        Animated.timing(lotusPulse, { toValue: 0, duration: 4200, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-        Animated.timing(lotusPulse, { toValue: 1, duration: 4200, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-      ])
-    );
-
-    const startPulseTimeout = setTimeout(() => {
-      scalePulse.start();
-      opacityPulse.start();
-    }, 1400 + 1200 - 150);
-
-    // Initialize CTA state based on current selection
     ctaEnabledAnim.setValue(0);
-    // Mandala starts hidden until user selects an intention
-    mandalaOpacity.setValue(0);
-
-    return () => {
-      clearTimeout(startPulseTimeout);
-      try { scalePulse.stop(); } catch {}
-      try { opacityPulse.stop(); } catch {}
-    };
   }, []);
 
-  // Fade mandala in after first intention is selected (and back out if cleared)
-  React.useEffect(() => {
-    const shouldShow = selectedIntentions.length > 0;
-    Animated.timing(mandalaOpacity, {
-      toValue: shouldShow ? 1 : 0,
-      duration: shouldShow ? 420 : 220,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    }).start();
-  }, [selectedIntentions.length, mandalaOpacity]);
-
-  // If we came from Settings, reveal a brief re-entry header (ritual framing)
   React.useEffect(() => {
     if (!fromSettings) return;
 
@@ -360,7 +276,6 @@ export default function IntentionScreen() {
     ]).start();
   }, [fromSettings, returnHeaderOpacity, returnHeaderTranslateY, returnHeaderLift]);
 
-  // Nudge engine: show a single gentle reflection (cooldown controlled)
   useEffect(() => {
     if (!fromSettings) {
       setRetuneNudge(null);
@@ -377,7 +292,6 @@ export default function IntentionScreen() {
           getLastNudgeShownAt(),
         ]);
 
-        // DEV override: simulate time-in-intention so nudges are easy to test
         const DEV_DAYS_OVERRIDE = __DEV__ ? 8 : null;
 
         const intentionSetAt =
@@ -396,7 +310,6 @@ export default function IntentionScreen() {
 
         if (nudge?.text) {
           setRetuneNudge(nudge.text);
-          // Stamp as shown so we don’t repeat too often
           await setLastNudgeShownAt(Date.now());
         } else {
           setRetuneNudge(null);
@@ -406,9 +319,7 @@ export default function IntentionScreen() {
       }
     })();
 
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [fromSettings]);
 
   const toggleIntention = (id: string) => {
@@ -431,20 +342,16 @@ export default function IntentionScreen() {
     ]).start();
 
     if (isSelected) {
-      // deselect
       setSelectedIntentions(prev => {
         const next = prev.filter(i => i !== id);
         Animated.timing(glow, { toValue: 0, duration: 220, useNativeDriver: true }).start();
-        // update CTA anim based on next length
         Animated.timing(ctaEnabledAnim, { toValue: next.length > 0 ? 1 : 0, duration: 220, useNativeDriver: true }).start();
         return next;
       });
     } else if (selectedIntentions.length < 2) {
-      // select
       setSelectedIntentions(prev => {
         const next = [...prev, id];
         if (prev.length === 0) {
-          // Fire-and-forget prefetch once on first selection
           ensureEssenceAssets();
         }
         Animated.timing(glow, { toValue: 1, duration: 260, useNativeDriver: true }).start();
@@ -457,25 +364,40 @@ export default function IntentionScreen() {
   const handleContinue = async () => {
     await setIntentions(selectedIntentions);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    // Start (or continue) preloading but don't block UI for too long
     const preload = ensureEssenceAssets();
     await Promise.race([
       preload,
-      new Promise((res) => setTimeout(res, 300)), // cap waiting to ~300ms for snappy UX
+      new Promise((res) => setTimeout(res, 300)),
     ]);
     navigation.navigate('EssenceScreen');
   };
 
   return (
-    <ImageBackground
-      source={require('../assets/images/portal-closeup.png')}
-      defaultSource={require('../assets/images/portal-closeup.png')}
-      style={styles.container}
-      imageStyle={{ backgroundColor: '#0d0d1a' }}
-      fadeDuration={0}
-      renderToHardwareTextureAndroid
-      needsOffscreenAlphaCompositing
-    >
+    <View style={styles.container}>
+      {/* Full-screen looping video background */}
+      <VideoView
+        player={bgPlayer}
+        contentFit="cover"
+        style={StyleSheet.absoluteFill}
+        nativeControls={false}
+        allowsFullscreen={false}
+        allowsPictureInPicture={false}
+      />
+
+      {/* Top gradient */}
+      <LinearGradient
+        colors={['rgba(0,0,0,0.5)', 'transparent']}
+        style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '20%' }}
+        pointerEvents="none"
+      />
+
+      {/* Bottom gradient */}
+      <LinearGradient
+        colors={['transparent', 'rgba(0,0,0,0.5)']}
+        style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '20%' }}
+        pointerEvents="none"
+      />
+
       <View style={styles.inner}>
         <ScrollView
           style={styles.scroll}
@@ -490,27 +412,6 @@ export default function IntentionScreen() {
             accessibilityHint="Select up to two intentions to personalize your journey"
             style={{ alignItems: 'center', width: '100%' }}
           >
-          <Animated.View style={{ opacity: Animated.multiply(lotusReveal, lotusPulseOpacity), transform: [{ scale: lotusScale }] }}>
-            <View style={styles.orbStack} pointerEvents="none">
-              <Image
-                source={require('../assets/splash.webp')}
-                style={styles.orbBaseImage}
-              />
-              <Animated.Image
-                source={require('../assets/images/orb-player-mandala.webp')}
-                style={[
-                  styles.orbMandalaImage,
-                  {
-                    opacity: mandalaOpacity.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [0, 0.6],
-                    }),
-                    transform: [{ scale: 0.985 }],
-                  },
-                ]}
-              />
-            </View>
-          </Animated.View>
           {fromSettings && (
             <Animated.View
               style={{
@@ -553,6 +454,7 @@ export default function IntentionScreen() {
               </Text>
             </Animated.View>
           )}
+
           {!fromSettings && <Text style={styles.title}>Set your path.</Text>}
 
           <Text style={styles.helperText}>
@@ -561,25 +463,14 @@ export default function IntentionScreen() {
                 ? 'Select up to 2 intentions to re-tune your experience.'
                 : 'Your field is set.'
               : selectedIntentions.length < 2
-                ? 'Select up to 2 intentions to shape your path '
+                ? 'Select up to 2 intentions to shape your path'
                 : 'Your path is set.'}
           </Text>
-
-          {!fromSettings && (
-            <Text
-              style={styles.explainText}
-              accessibilityRole="text"
-              accessibilityLabel="Intentions personalize your experience. Colors, sound, and guidance adapt to what you choose."
-            >
-              Your intentions gently tune your Inner experience. Colors, sound, and guidance adapt to support what you choose. You can change your intentions anytime.
-            </Text>
-          )}
 
           <View style={styles.grid}>
             {intentions.map((intention) => {
               const isSelected = selectedIntentions.includes(intention.id);
-              const isMaxSelected =
-                selectedIntentions.length >= 2 && !isSelected;
+              const isMaxSelected = selectedIntentions.length >= 2 && !isSelected;
 
               return (
                 <TouchableOpacity
@@ -588,28 +479,13 @@ export default function IntentionScreen() {
                   disabled={isMaxSelected}
                   style={[
                     styles.card,
-                    isSelected && [
-                      styles.cardSelected,
-                      { borderColor: AURA_BORDERS[intention.id] || '#CFC3E0' },
-                    ],
+                    isSelected && styles.cardSelected,
                     isMaxSelected && styles.cardDimmed,
                   ]}
                   accessibilityLabel={`${intention.title} intention`}
                   accessibilityHint="Double tap to select or deselect this intention"
                   accessibilityRole="button"
                 >
-                  {/* selection glow layer (tinted by intention) */}
-                  <Animated.View
-                    style={[
-                      styles.cardGlow,
-                      { backgroundColor: AURA_TINTS[intention.id] || 'rgba(207,195,224,0.22)', opacity: glowAnimRefs.current[intention.id] },
-                    ]}
-                  />
-                  {isSelected && (
-                    <View style={styles.checkmark}>
-                      <Text style={styles.checkmarkText}>✓</Text>
-                    </View>
-                  )}
                   <Animated.View
                     style={{
                       transform: [{ scale: scaleAnimRefs.current[intention.id] }],
@@ -649,6 +525,6 @@ export default function IntentionScreen() {
           </Animated.View>
         </View>
       </View>
-    </ImageBackground>
+    </View>
   );
 }
