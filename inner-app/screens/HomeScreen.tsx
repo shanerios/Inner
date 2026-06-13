@@ -328,18 +328,13 @@ export default function HomeScreen({ navigation, route }: any) {
           elevation: 75,
         },
         primaryButton: {
-          backgroundColor: '#CFC3E0',
+          backgroundColor: 'rgba(207,195,224,0.16)',
           paddingVertical: matchesCompactLayout ? verticalScale(8) : verticalScale(10),
           paddingHorizontal: matchesCompactLayout ? scale(26) : scale(32),
-          borderRadius: matchesCompactLayout ? scale(16) : scale(20),
+          borderRadius: 12,
           marginBottom: verticalScale(8),
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: verticalScale(4) },
-          shadowOpacity: 0.25,
-          shadowRadius: scale(4),
-          elevation: 5,
           borderWidth: 1,
-          borderColor: 'rgba(255,255,255,0.20)',
+          borderColor: 'rgba(255,255,255,0.12)',
         },
         heroSection: {
           width: '100%',
@@ -3265,7 +3260,7 @@ const openInnerFlame = useCallback(async () => {
                 style={[
                   Typography.title,
                   {
-                    color: '#1F233A',
+                    color: '#F3EDE7',
                     lineHeight: 20,
                   },
                   matchesCompactLayout && {
@@ -3438,7 +3433,7 @@ const openInnerFlame = useCallback(async () => {
             },
           ]}
         >
-          Learning Hub
+          The Archives
         </Text>
       </View>
       <LunarWhisperModal
@@ -3782,19 +3777,19 @@ const openInnerFlame = useCallback(async () => {
                   accessibilityLabel="Resume last journey"
                   accessibilityHint="Continue the last Chamber or Soundscape you were in"
                   style={{
-                    borderRadius: scale(16),
+                    borderRadius: 12,
                     paddingVertical: matchesCompactLayout ? verticalScale(8) : verticalScale(10),
                     paddingHorizontal: matchesCompactLayout ? scale(12) : scale(14),
-                    backgroundColor: '#CFC3E0',
+                    backgroundColor: 'rgba(207,195,224,0.16)',
                     borderWidth: 1,
-                    borderColor: 'rgba(24,22,42,0.85)',
+                    borderColor: 'rgba(255,255,255,0.12)',
                   }}
                 >
                   <Text
                     style={{
                       fontFamily: 'CalSans-SemiBold',
                       fontSize: matchesCompactLayout ? scale(14) : scale(15),
-                      color: '#171727',
+                      color: '#F3EDE7',
                       letterSpacing: scale(0.2),
                       textAlign: 'center',
                       width: '100%',
@@ -3808,7 +3803,7 @@ const openInnerFlame = useCallback(async () => {
                       style={{
                         fontFamily: 'Inter-ExtraLight',
                         fontSize: matchesCompactLayout ? scale(11) : scale(12),
-                        color: '#25243A',
+                        color: 'rgba(237,232,250,0.70)',
                       }}
                     >
                       {resumeSub}

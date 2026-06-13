@@ -376,10 +376,9 @@ const styles = StyleSheet.create({
   emptySub: { ...Body.subtle, color: '#B9B5C9', textAlign: 'center' },
   fab: {
     position: 'absolute', right: 16,
-    width: 52, height: 52, borderRadius: 26,
+    width: 52, height: 52, borderRadius: 12,
     alignItems: 'center', justifyContent: 'center',
-    backgroundColor: '#CFC3E0', borderWidth: 1, borderColor: 'rgba(255,255,255,0.20)',
-    shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 8, shadowOffset: { width: 0, height: 4 },
+    backgroundColor: 'rgba(207,195,224,0.16)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
   },
-  fabPlus: { color: '#1F233A', fontSize: 26, lineHeight: 26, marginTop: -2, fontWeight: '700' },
+  fabPlus: { color: '#F3EDE7', fontSize: 26, lineHeight: 26, marginTop: -2, fontWeight: '700' },
 });

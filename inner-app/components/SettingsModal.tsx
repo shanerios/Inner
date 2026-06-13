@@ -702,13 +702,13 @@ export default function SettingsModal({
                 style={{
                   paddingVertical: 8,
                   paddingHorizontal: 18,
-                  borderRadius: 999,
-                  backgroundColor: '#CFC3E0',
+                  borderRadius: 12,
+                  backgroundColor: 'rgba(207,195,224,0.16)',
                   borderWidth: 1,
-                  borderColor: 'rgba(255,255,255,0.24)',
+                  borderColor: 'rgba(255,255,255,0.12)',
                 }}
               >
-                <Text style={{ fontFamily: 'CalSans-SemiBold', fontSize: 13, color: '#1F233A' }}>
+                <Text style={{ fontFamily: 'CalSans-SemiBold', fontSize: 13, color: '#F3EDE7' }}>
                   Save
                 </Text>
               </TouchableOpacity>
