@@ -26,7 +26,8 @@
       "channel": "internal",
       "android": { "buildType": "app-bundle" },
       "ios": {
-        "simulator": false
+        "simulator": false,
+        "image": "latest"
       },
       "autoIncrement": true,
       "env": {
