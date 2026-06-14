@@ -27,7 +27,7 @@
       "android": { "buildType": "app-bundle" },
       "ios": {
         "simulator": false,
-        "image": "latest"
+        "image": "macos-sequoia-15.6-xcode-26.0"
       },
       "autoIncrement": true,
       "env": {
@@ -40,7 +40,7 @@
       "android": { "buildType": "app-bundle" },
       "ios": {
         "simulator": false,
-        "image": "latest"
+        "image": "macos-sequoia-15.6-xcode-26.0"
       },
       "autoIncrement": true,
       "env": {
@@ -54,7 +54,7 @@
       "android": { "buildType": "app-bundle" },
       "ios": {
         "simulator": false,
-        "image": "latest"
+        "image": "macos-sequoia-15.6-xcode-26.0"
       },
       "autoIncrement": true,
       "env": {
