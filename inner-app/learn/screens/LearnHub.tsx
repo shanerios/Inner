@@ -360,11 +360,11 @@ const recentIntentions: string[] = Array.isArray(selectedIntentions) ? selectedI
         const text = await FileSystem.readAsStringAsync(uri);
         setHelpMd(text);
       } else {
-        setHelpMd('# Learning Hub\n\nBrowse categories, tap a lesson, and use the back arrow to return.');
+        setHelpMd('# The Archives\n\nBrowse categories, tap a lesson, and use the back arrow to return.');
       }
     } catch (e) {
       console.warn('Failed to load inline help markdown:', e);
-      setHelpMd('# Learning Hub\n\nBrowse categories, tap a lesson, and use the back arrow to return.');
+      setHelpMd('# The Archives\n\nBrowse categories, tap a lesson, and use the back arrow to return.');
     } finally {
       setHelpLoading(false);
     }
@@ -429,8 +429,8 @@ const recentIntentions: string[] = Array.isArray(selectedIntentions) ? selectedI
             <Pressable
               onPress={async () => { await Haptics.selectionAsync(); openInlineHelp(); }}
               accessibilityRole="button"
-              accessibilityLabel="Introductory guide to Learning Hub"
-              accessibilityHint="Tap to learn how to use the Learning Hub"
+              accessibilityLabel="Introductory guide to The Archives"
+              accessibilityHint="Tap to learn how to use the The Archives"
               style={{
                 width: 36,
                 height: 36,
@@ -445,7 +445,7 @@ const recentIntentions: string[] = Array.isArray(selectedIntentions) ? selectedI
               <Text style={[Typography.body, { color: '#EDE8FA', lineHeight: 24 }]}>?</Text>
             </Pressable>
           </View>
-          <Text style={[Typography.caption, { color: '#B9B0EB', letterSpacing: 1, textTransform: 'uppercase' }]}>Learning Hub</Text>
+          <Text style={[Typography.caption, { color: 'rgba(200,160,80,0.55)', letterSpacing: 1, textTransform: 'uppercase' }]}>The Archives</Text>
           <Text style={[Typography.display, { color: '#EDE8FA', marginTop: 6 }]}>Guides & Practices</Text>
           <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
             <Chip
@@ -455,7 +455,7 @@ const recentIntentions: string[] = Array.isArray(selectedIntentions) ? selectedI
               containerStyle={{
                 backgroundColor: 'rgba(0,0,0,0.75)',
                 borderWidth: filter === 'all' ? 2 : 1,
-                borderColor: filter === 'all' ? '#CFC3E0' : 'rgba(237,232,250,0.20)',
+                borderColor: filter === 'all' ? 'rgba(220,185,100,0.9)' : 'rgba(237,232,250,0.20)',
               }}
               labelStyle={{ color: '#EDE8FA' }}
             />
@@ -466,7 +466,7 @@ const recentIntentions: string[] = Array.isArray(selectedIntentions) ? selectedI
               containerStyle={{
                 backgroundColor: 'rgba(0,0,0,0.75)',
                 borderWidth: filter === 'lucid' ? 2 : 1,
-                borderColor: filter === 'lucid' ? '#CFC3E0' : 'rgba(237,232,250,0.20)',
+                borderColor: filter === 'lucid' ? 'rgba(220,185,100,0.9)' : 'rgba(237,232,250,0.20)',
               }}
               labelStyle={{ color: '#EDE8FA' }}
             />
@@ -477,7 +477,7 @@ const recentIntentions: string[] = Array.isArray(selectedIntentions) ? selectedI
               containerStyle={{
                 backgroundColor: 'rgba(0,0,0,0.75)',
                 borderWidth: filter === 'obe' ? 2 : 1,
-                borderColor: filter === 'obe' ? '#CFC3E0' : 'rgba(237,232,250,0.20)',
+                borderColor: filter === 'obe' ? 'rgba(220,185,100,0.9)' : 'rgba(237,232,250,0.20)',
               }}
               labelStyle={{ color: '#EDE8FA' }}
             />
@@ -488,7 +488,7 @@ const recentIntentions: string[] = Array.isArray(selectedIntentions) ? selectedI
               containerStyle={{
                 backgroundColor: 'rgba(0,0,0,0.75)',
                 borderWidth: filter === 'shared' ? 2 : 1,
-                borderColor: filter === 'shared' ? '#CFC3E0' : 'rgba(237,232,250,0.20)',
+                borderColor: filter === 'shared' ? 'rgba(220,185,100,0.9)' : 'rgba(237,232,250,0.20)',
               }}
               labelStyle={{ color: '#EDE8FA' }}
             />
@@ -547,7 +547,7 @@ const recentIntentions: string[] = Array.isArray(selectedIntentions) ? selectedI
           {/* Completed lessons section (respects filter) - now appears first */}
           {completedLessons.length > 0 && (
             <View style={{ paddingHorizontal: 24, paddingTop: 0 }}>
-              <Text style={[Typography.caption, { color: '#9C94E6', marginBottom: 6 }]}>
+              <Text style={[Typography.caption, { color: 'rgba(200,160,80,0.7)', marginBottom: 6 }]}>
                 {filter === 'all'
                   ? `Completed Lessons (${completedLessons.length})`
                   : `${filter === 'lucid' ? 'Lucid Lessons' : filter === 'obe' ? 'OBE Lessons' : 'Foundations'} (${completedLessons.length})`}
@@ -588,7 +588,7 @@ const recentIntentions: string[] = Array.isArray(selectedIntentions) ? selectedI
             {/* Your Path (hidden while searching) */}
             {!debouncedQuery && (
               <View style={{ marginTop: 2 }}>
-                <Text style={[Typography.caption, { color: '#9C94E6', marginBottom: 6 }]}>Your Path</Text>
+                <Text style={[Typography.caption, { color: 'rgba(200,160,80,0.7)', marginBottom: 6 }]}>Your Path</Text>
                 <ScrollView
                   horizontal
                   showsHorizontalScrollIndicator={false}
@@ -643,7 +643,7 @@ const recentIntentions: string[] = Array.isArray(selectedIntentions) ? selectedI
 
           {/* Lesson list (always last) */}
           <View style={{ paddingHorizontal: 24, paddingTop: 8 }}>
-            <Text style={[Typography.caption, { color: '#9C94E6', marginBottom: 8 }]}>
+            <Text style={[Typography.caption, { color: 'rgba(200,160,80,0.7)', marginBottom: 8 }]}>
               {debouncedQuery
                 ? `Search results (${orderedFiltered.length})`
                 : (filter === 'all'
@@ -667,7 +667,7 @@ const recentIntentions: string[] = Array.isArray(selectedIntentions) ? selectedI
                 >
                   {item.summary}
                 </Text>
-                <Text style={[Typography.caption, { color: '#9C94E6', marginTop: 8 }]}>
+                <Text style={[Typography.caption, { color: 'rgba(200,160,80,0.7)', marginTop: 8 }]}>
                   {item.minutes} min · {item.trackId === 'shared' ? 'FOUNDATIONS' : item.trackId.toUpperCase()}
                 </Text>
 
@@ -782,36 +782,39 @@ const recentIntentions: string[] = Array.isArray(selectedIntentions) ? selectedI
       </Modal>
       {/* Help Modal */}
       <Modal visible={showHelp} transparent animationType="fade" onRequestClose={() => setShowHelp(false)}>
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center' }}>
-          <View style={{ width: '90%', maxHeight: '80%', backgroundColor: 'rgba(18,18,32,0.96)', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' }}>
-            <Text style={[Typography.body, { color: '#EDE8FA', fontSize: 18, textAlign: 'center', marginBottom: 8 }]}>How to use the Learning Hub</Text>
-            {helpLoading ? (
-              <View style={{ paddingVertical: 24, alignItems: 'center' }}>
-                <ActivityIndicator />
-                <Text style={[Body.subtle, { color: '#B9B0EB', marginTop: 8 }]}>Loading…</Text>
+        <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.75)' }} onPress={() => setShowHelp(false)}>
+          <View style={{ flex: 1, justifyContent: 'flex-end' }}>
+            <Pressable onPress={() => {}}>
+              <View style={{ paddingBottom: 28, paddingTop: 28, paddingHorizontal: 28, borderTopLeftRadius: 12, borderTopRightRadius: 12, backgroundColor: 'rgba(8,5,3,0.97)', borderTopWidth: 1, borderColor: 'rgba(180,140,80,0.2)' }}>
+                <Text style={{ color: 'rgba(220,185,100,0.95)', fontSize: 18, fontWeight: '600', fontFamily: 'CalSans-SemiBold', marginBottom: 16 }}>
+                  The Archives
+                </Text>
+                {helpLoading ? (
+                  <View style={{ paddingVertical: 24, alignItems: 'center' }}>
+                    <ActivityIndicator color="rgba(220,185,100,0.7)" />
+                    <Text style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13, marginTop: 8, fontFamily: 'Inter-ExtraLight' }}>Loading…</Text>
+                  </View>
+                ) : (
+                  <ScrollView style={{ maxHeight: 320 }} contentContainerStyle={{ paddingBottom: 8 }} showsVerticalScrollIndicator={false}>
+                    <Markdown style={markdownStyles}>
+                      {helpMd || 'Browse categories, tap a lesson to open it, and use the back arrow to return.'}
+                    </Markdown>
+                  </ScrollView>
+                )}
+                <View style={{ alignItems: 'flex-end', marginTop: 18 }}>
+                  <Pressable
+                    onPress={() => setShowHelp(false)}
+                    accessibilityRole="button"
+                    accessibilityLabel="Close help"
+                    style={{ paddingVertical: 10, paddingHorizontal: 20, borderRadius: 6, borderWidth: 1, borderColor: 'rgba(200,160,80,0.6)', backgroundColor: 'rgba(180,140,80,0.15)', alignItems: 'center' }}
+                  >
+                    <Text style={{ fontFamily: 'CalSans-SemiBold', fontSize: 13, color: 'rgba(220,185,100,1)' }}>Got it</Text>
+                  </Pressable>
+                </View>
               </View>
-            ) : (
-              <ScrollView contentContainerStyle={{ paddingBottom: 8 }}>
-                {/* Render markdown; fallback shows plain text if renderer is unavailable */}
-                <Markdown
-                  style={markdownStyles}
-                >
-                  {helpMd || 'Browse categories, tap a lesson to open it, and use the back arrow to return.'}
-                </Markdown>
-              </ScrollView>
-            )}
-            <View style={{ alignItems: 'center', marginTop: 12 }}>
-              <Pressable
-                onPress={() => setShowHelp(false)}
-                accessibilityRole="button"
-                accessibilityLabel="Close help"
-                style={{ backgroundColor: '#CFC3E0', paddingVertical: 8, paddingHorizontal: 20, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.20)' }}
-              >
-                <Text style={{ color: '#1F233A', fontWeight: '600' }}>Got it</Text>
-              </Pressable>
-            </View>
+            </Pressable>
           </View>
-        </View>
+        </Pressable>
       </Modal>
       </SafeAreaView>
     </View>
@@ -836,15 +839,15 @@ const styles = StyleSheet.create({
     marginTop: 6,
     paddingHorizontal: 9,
     paddingVertical: 3,
-    borderRadius: 999,
-    backgroundColor: 'rgba(237,232,250,0.10)',
+    borderRadius: 6,
+    backgroundColor: 'rgba(180,140,80,0.15)',
     borderWidth: 1,
-    borderColor: 'rgba(237,232,250,0.10)',
+    borderColor: 'rgba(200,160,80,0.5)',
   },
 completedBadgeText: {
     ...Typography.caption,
     fontSize: 10,
-    color: 'rgba(237,232,250,0.62)',
+    color: 'rgba(220,185,100,0.9)',
     letterSpacing: 0.6,
     textTransform: 'uppercase',
   },
@@ -855,11 +858,11 @@ completedBadgeText: {
     right: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
-    borderRadius: 999,
-    backgroundColor: 'rgba(237,232,250,0.08)',
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: 'rgba(207,195,224,0.16)',
     borderWidth: 1,
-    borderColor: 'rgba(237,232,250,0.12)',
+    borderColor: 'rgba(255,255,255,0.12)',
   },
   floatingHelp: {
     position: 'absolute',
@@ -885,14 +888,14 @@ completedBadgeText: {
   },
   glossaryBtn: {
     alignSelf: 'flex-start',
-    flexShrink: 0, // keep intrinsic width so text doesn't truncate to just "OBE"
-    minWidth: 140, // ensure room for "OBE Glossary"
+    flexShrink: 0,
+    minWidth: 140,
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(185,176,235,0.35)',
-    backgroundColor: 'rgba(0,0,0,0.75)',
+    borderColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: 'rgba(207,195,224,0.16)',
   },
   searchRow: {
     position: 'relative',
@@ -924,7 +927,7 @@ completedBadgeText: {
   completedItem: {
     padding: 12,
     borderRadius: 14,
-    backgroundColor: 'rgba(27, 27, 49, 0.76)',
+    backgroundColor: 'rgba(0,0,0,0.75)',
     borderWidth: 1,
     borderColor: 'rgba(237,232,250,0.10)',
     width: 190,
@@ -942,13 +945,13 @@ const markdownStyles = {
   heading1: {
     fontFamily: 'CalSans-SemiBold',
     fontSize: 24,
-    color: '#EDE8FA',
+    color: 'rgba(220,185,100,0.95)',
     marginBottom: 8,
   },
   heading2: {
     fontFamily: 'CalSans-SemiBold',
     fontSize: 20,
-    color: '#EDE8FA',
+    color: 'rgba(220,185,100,0.95)',
     marginTop: 12,
     marginBottom: 6,
   },
@@ -959,19 +962,19 @@ const markdownStyles = {
   },
   list_item: {
     fontFamily: 'Inter_ExtraLight',
-    color: '#B9B0EB',
+    color: 'rgba(200,160,80,0.55)',
     lineHeight: 22,
   },
   strong: {
     fontFamily: 'CalSans-SemiBold',
-    color: '#CFC3E0',
+    color: 'rgba(220,185,100,0.9)',
   },
   em: {
     fontStyle: 'italic',
-    color: '#CFC3E0',
+    color: 'rgba(220,185,100,0.9)',
   },
   link: {
-    color: '#9C94E6',
+    color: 'rgba(200,160,80,0.7)',
     textDecorationLine: 'underline',
   },
 };

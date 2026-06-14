@@ -12,8 +12,8 @@ export default function FeaturedCard({
 }: { title:string; subtitle:string; onPress:()=>void; progress?:number }) {
   return (
     <Pressable onPress={onPress} style={styles.card}>
-      <Text style={[Typography.title, { color: '#EDE8FA' }]}>{title}</Text>
-      <Text style={[Body.regular, { color: '#B9B0EB', marginTop: 4 }]}>{subtitle}</Text>
+      <Text style={[Typography.title, { color: '#F3EDE7' }]}>{title}</Text>
+      <Text style={[Body.regular, { color: 'rgba(200,160,80,0.7)', marginTop: 4 }]}>{subtitle}</Text>
       <View style={styles.progressTrack}>
         <View style={[styles.progressFill, { width: `${Math.round(progress*100)}%` }]} />
       </View>
@@ -21,7 +21,7 @@ export default function FeaturedCard({
   );
 }
 const styles = StyleSheet.create({
-  card:{width:260,padding:16,borderRadius:16,backgroundColor:'rgba(10,8,20,0.35)',borderWidth:1,borderColor:'rgba(237,232,250,0.08)',marginRight:14},
-  progressTrack:{height:3,backgroundColor:'rgba(237,232,250,0.12)',borderRadius:2,marginTop:12},
-  progressFill:{height:3,backgroundColor:'#6E63D9',borderRadius:2},
+  card:{width:260,padding:16,borderRadius:12,backgroundColor:'rgba(0,0,0,0.75)',borderWidth:1,borderColor:'rgba(255,255,255,0.08)',marginRight:14},
+  progressTrack:{height:3,backgroundColor:'rgba(255,255,255,0.10)',borderRadius:2,marginTop:12},
+  progressFill:{height:3,backgroundColor:'rgba(200,160,80,0.7)',borderRadius:2},
 });

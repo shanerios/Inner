@@ -521,9 +521,9 @@ function CompletionToast({ bottomInset, onReturn }: CompletionToastProps) {
             paddingHorizontal: 16,
             paddingVertical: 10,
             borderRadius: 999,
-            backgroundColor: 'rgba(6, 10, 24, 0.96)',
+            backgroundColor: 'rgba(8,5,3,0.97)',
             borderWidth: 1,
-            borderColor: 'rgba(143, 227, 179, 0.55)',
+            borderColor: 'rgba(180,140,80,0.2)',
           }}
         >
           <Text
@@ -552,7 +552,7 @@ function CompletionToast({ bottomInset, onReturn }: CompletionToastProps) {
             <Pressable
               onPress={onReturn}
               accessibilityRole="button"
-              accessibilityLabel="Return to Learning Hub"
+              accessibilityLabel="Return to The Archives"
               accessibilityHint="Closes this lesson and returns you to the Learning Hub"
               style={{
                 marginTop: 8,
@@ -560,7 +560,7 @@ function CompletionToast({ bottomInset, onReturn }: CompletionToastProps) {
                 paddingHorizontal: 14,
                 paddingVertical: 6,
                 borderRadius: 999,
-                backgroundColor: 'rgba(143, 227, 179, 0.16)',
+                backgroundColor: 'rgba(180,140,80,0.15)',
               }}
             >
               <Text
@@ -594,26 +594,28 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 12,
-    backgroundColor: 'rgba(185,176,235,0.14)',
+    backgroundColor: 'rgba(207,195,224,0.16)',
     borderWidth: 1,
-    borderColor: 'rgba(185,176,235,0.35)',
+    borderColor: 'rgba(255,255,255,0.12)',
   },
   controlPillActive: {
-    backgroundColor: 'rgba(185,176,235,0.22)',
-    borderColor: 'rgba(185,176,235,0.85)',
+    backgroundColor: 'rgba(180,140,80,0.15)',
+    borderColor: 'rgba(200,160,80,0.6)',
   },
   completedBadge: {
     alignSelf: 'flex-start',
     marginTop: 10,
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 999,
-    backgroundColor: 'rgba(151, 220, 174, 0.18)',
+    borderRadius: 6,
+    backgroundColor: 'rgba(180,140,80,0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(200,160,80,0.5)',
   },
   completedBadgeText: {
     ...Typography.caption,
     fontSize: 11,
-    color: '#8FE3B3',
+    color: 'rgba(220,185,100,0.9)',
   },
 });
 
@@ -626,8 +628,8 @@ const markdownStyles = {
     lineHeight: 26,
     letterSpacing: 0.2,
   },
-  heading1: { color: '#EDE8FA', fontFamily: 'CalSans-SemiBold', fontSize: 18, lineHeight: 26, marginTop: 14, marginBottom: 6 },
-  heading2: { color: '#EDE8FA', fontFamily: 'CalSans-SemiBold', fontSize: 16, lineHeight: 24, marginTop: 12, marginBottom: 6 },
+  heading1: { color: 'rgba(220,185,100,0.95)', fontFamily: 'CalSans-SemiBold', fontSize: 18, lineHeight: 26, marginTop: 14, marginBottom: 6 },
+  heading2: { color: 'rgba(220,185,100,0.95)', fontFamily: 'CalSans-SemiBold', fontSize: 16, lineHeight: 24, marginTop: 12, marginBottom: 6 },
   paragraph: { marginTop: 8, marginBottom: 14 },
   list_item: { marginTop: 2, marginBottom: 8 },
   bullet_list: { marginTop: 6, marginBottom: 8 },
@@ -647,7 +649,7 @@ const markdownStyles = {
   },
   ordered_list_content: { flex: 1 },
   strong: { color: '#EDE8FA', fontFamily: 'CalSans-SemiBold' },
-  link: { color: '#B9B0EB' },
+  link: { color: 'rgba(200,160,80,0.8)' },
   hr: {
     borderColor: 'rgba(237,232,250,0.10)',
     borderBottomWidth: 1,
