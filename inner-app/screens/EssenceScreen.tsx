@@ -190,70 +190,72 @@ export default function EssenceScreen() {
         },
         nameBackdrop: {
           width: '92%',
-          paddingTop: verticalScale(8),
-          paddingBottom: verticalScale(14),
-          paddingHorizontal: scale(14),
-          borderRadius: scale(18),
-          backgroundColor: 'rgba(0,0,0,0.18)',
+          paddingTop: verticalScale(20),
+          paddingBottom: verticalScale(20),
+          paddingHorizontal: scale(20),
+          borderRadius: 12,
+          backgroundColor: 'rgba(8,5,3,0.97)',
           borderWidth: 1,
-          borderColor: 'rgba(255,255,255,0.12)',
+          borderColor: 'rgba(180,140,80,0.2)',
           shadowColor: '#000',
           shadowOffset: { width: 0, height: verticalScale(12) },
-          shadowOpacity: 0.22,
+          shadowOpacity: 0.4,
           shadowRadius: scale(22),
           elevation: 10,
+          alignItems: 'center',
         },
         nameInput: {
-          backgroundColor: 'rgba(255,255,255,0.06)',
-          color: '#F0EEF8',
-          borderRadius: scale(12),
-          paddingVertical: verticalScale(12),
-          paddingHorizontal: scale(12),
-          borderWidth: 1,
-          borderColor: 'rgba(255,255,255,0.10)',
+          backgroundColor: 'transparent',
+          color: 'rgba(255,255,255,0.85)',
+          borderRadius: 0,
+          borderWidth: 0,
+          borderBottomWidth: 1,
+          borderBottomColor: 'rgba(180,140,80,0.4)',
+          paddingVertical: verticalScale(10),
+          paddingHorizontal: scale(4),
+          fontSize: scale(18),
+          textAlign: 'center',
           alignSelf: 'stretch',
+          marginBottom: verticalScale(24),
         },
         nameActions: {
-          marginTop: verticalScale(10),
+          marginTop: verticalScale(4),
           flexDirection: 'row',
           justifyContent: 'center',
           alignItems: 'center',
-          gap: scale(16),
+          gap: scale(20),
         },
         nameSaveBtn: {
-          backgroundColor: '#CFC3E0',
-          paddingVertical: verticalScale(8),
-          paddingHorizontal: scale(20),
-          borderRadius: scale(14),
           borderWidth: 1,
-          borderColor: 'rgba(255,255,255,0.20)',
+          borderColor: 'rgba(200,160,80,0.6)',
+          backgroundColor: 'rgba(180,140,80,0.15)',
+          borderRadius: 6,
+          paddingVertical: verticalScale(11),
+          paddingHorizontal: scale(32),
+          alignItems: 'center',
         },
         nameSkipBtn: {
           paddingVertical: verticalScale(8),
-          paddingHorizontal: scale(18),
-          borderRadius: scale(14),
-          borderWidth: 1,
-          borderColor: 'rgba(255,255,255,0.14)',
-          backgroundColor: 'rgba(255,255,255,0.06)',
+          paddingHorizontal: scale(12),
         },
         wakeChipsRow: {
           flexDirection: 'row',
           flexWrap: 'nowrap',
           justifyContent: 'center',
           gap: scale(6),
-          marginBottom: verticalScale(4),
+          marginBottom: verticalScale(8),
         },
         wakeChip: {
-          paddingVertical: verticalScale(4),
-          paddingHorizontal: scale(9),
-          borderRadius: scale(20),
+          paddingVertical: verticalScale(5),
+          paddingHorizontal: scale(10),
+          borderRadius: 6,
           borderWidth: 1,
-          borderColor: 'rgba(255,255,255,0.14)',
-          backgroundColor: 'rgba(255,255,255,0.06)',
+          borderColor: 'rgba(180,140,80,0.3)',
+          backgroundColor: 'transparent',
         },
         wakeChipSelected: {
-          backgroundColor: '#CFC3E0',
-          borderColor: 'rgba(255,255,255,0.20)',
+          backgroundColor: 'rgba(180,140,80,0.15)',
+          borderColor: 'rgba(200,160,80,0.6)',
         },
       }),
     [scale, verticalScale],
@@ -562,17 +564,18 @@ export default function EssenceScreen() {
             ]}
           >
             <View style={styles.nameBackdrop}>
-              <Text
-                style={[Typography.subtle, { color: '#D6D3E6', marginBottom: verticalScale(6), textAlign: 'center' }]}
-              >
-                How should Inner refer to you?
+              <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: scale(22), fontWeight: '500', textAlign: 'center', marginBottom: 8, letterSpacing: 0.3 }}>
+                How should I know you?
+              </Text>
+              <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: scale(13), textAlign: 'center', marginBottom: verticalScale(24), lineHeight: scale(19) }}>
+                Used to greet you. Optional.
               </Text>
               <TextInput
                 value={nameValue}
                 onChangeText={setNameValue}
-                placeholder="Your name (optional)"
-                placeholderTextColor="rgba(240,238,248,0.5)"
-                style={[styles.nameInput, windowHeight < 720 && { paddingVertical: verticalScale(10) }]}
+                placeholder="Your name"
+                placeholderTextColor="rgba(180,140,80,0.4)"
+                style={styles.nameInput}
                 autoCapitalize="words"
                 autoCorrect={false}
                 returnKeyType="done"
@@ -587,14 +590,9 @@ export default function EssenceScreen() {
                   accessibilityRole="button"
                   accessibilityLabel="Save your name"
                   accessibilityHint="Inner will greet you using this name"
-                  hitSlop={{
-                    top: verticalScale(8),
-                    bottom: verticalScale(8),
-                    left: scale(8),
-                    right: scale(8),
-                  }}
+                  hitSlop={{ top: verticalScale(8), bottom: verticalScale(8), left: scale(8), right: scale(8) }}
                 >
-                  <Text style={[Typography.subtle, { color: '#1F233A' }]}>Save</Text>
+                  <Text style={{ color: 'rgba(220,185,100,1)', fontSize: scale(14), letterSpacing: 1 }}>Save</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={skipName}
@@ -602,14 +600,9 @@ export default function EssenceScreen() {
                   accessibilityRole="button"
                   accessibilityLabel="Skip name"
                   accessibilityHint="You can add a name later in Settings"
-                  hitSlop={{
-                    top: verticalScale(8),
-                    bottom: verticalScale(8),
-                    left: scale(8),
-                    right: scale(8),
-                  }}
+                  hitSlop={{ top: verticalScale(8), bottom: verticalScale(8), left: scale(8), right: scale(8) }}
                 >
-                  <Text style={[Typography.subtle, { fontFamily: 'Inter-ExtraLight', color: '#F0EEF8', opacity: 0.85 }]}>Skip</Text>
+                  <Text style={{ color: 'rgba(255,255,255,0.25)', fontSize: scale(12), letterSpacing: 0.5 }}>Skip</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -635,14 +628,10 @@ export default function EssenceScreen() {
             ]}
           >
             <View style={styles.nameBackdrop}>
-              <Text
-                style={[Typography.subtle, { color: '#D6D3E6', marginBottom: verticalScale(4), textAlign: 'center' }]}
-              >
+              <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: scale(22), fontWeight: '500', textAlign: 'center', marginBottom: 8, letterSpacing: 0.3 }}>
                 When do you return from sleep?
               </Text>
-              <Text
-                style={[Typography.subtle, { fontFamily: 'Inter-ExtraLight', color: '#D6D3E6', opacity: 0.65, marginBottom: verticalScale(10), textAlign: 'center' }]}
-              >
+              <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: scale(13), textAlign: 'center', marginBottom: verticalScale(20), lineHeight: scale(19) }}>
                 A reminder will meet you at the threshold.
               </Text>
               <View style={styles.wakeChipsRow}>
@@ -657,7 +646,7 @@ export default function EssenceScreen() {
                     accessibilityRole="button"
                     accessibilityLabel={chip === 'Other' ? 'Enter custom wake time' : `Select ${chip} wake time`}
                   >
-                    <Text style={[Typography.subtle, { color: selectedWakeChip === chip ? '#1F233A' : '#F0EEF8', opacity: selectedWakeChip === chip ? 1 : 0.8 }]}>
+                    <Text style={{ color: selectedWakeChip === chip ? 'rgba(220,185,100,1)' : 'rgba(255,255,255,0.55)', fontSize: scale(12), letterSpacing: 0.5 }}>
                       {chip}
                     </Text>
                   </TouchableOpacity>
@@ -668,7 +657,7 @@ export default function EssenceScreen() {
                   value={customWakeTime}
                   onChangeText={setCustomWakeTime}
                   placeholder="e.g. 10am, 6:30am"
-                  placeholderTextColor="rgba(240,238,248,0.5)"
+                  placeholderTextColor="rgba(180,140,80,0.4)"
                   style={[styles.nameInput, { marginTop: verticalScale(8) }]}
                   autoCapitalize="none"
                   autoCorrect={false}
@@ -686,7 +675,7 @@ export default function EssenceScreen() {
                   accessibilityLabel="Save wake time"
                   hitSlop={{ top: verticalScale(8), bottom: verticalScale(8), left: scale(8), right: scale(8) }}
                 >
-                  <Text style={[Typography.subtle, { color: '#1F233A' }]}>Save</Text>
+                  <Text style={{ color: 'rgba(220,185,100,1)', fontSize: scale(14), letterSpacing: 1 }}>Save</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={skipWake}
@@ -696,7 +685,7 @@ export default function EssenceScreen() {
                   accessibilityHint="You can set a wake time later in Settings"
                   hitSlop={{ top: verticalScale(8), bottom: verticalScale(8), left: scale(8), right: scale(8) }}
                 >
-                  <Text style={[Typography.subtle, { fontFamily: 'Inter-ExtraLight', color: '#F0EEF8', opacity: 0.85 }]}>Skip</Text>
+                  <Text style={{ color: 'rgba(255,255,255,0.25)', fontSize: scale(12), letterSpacing: 0.5 }}>Skip</Text>
                 </TouchableOpacity>
               </View>
             </View>

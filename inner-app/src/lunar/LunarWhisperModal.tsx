@@ -1,8 +1,7 @@
 // src/lunar/LunarWhisperModal.tsx
 import React from 'react';
-import { Modal, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { Modal, View, Text, TouchableOpacity, StyleSheet, ImageBackground } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { LinearGradient } from 'expo-linear-gradient';
 import type { MoonPhase } from '../../utils/lunar';
 import { lunarMeanings } from './lunarMeanings';
 import { lunarLore } from './lunarLore';
@@ -20,138 +19,156 @@ export default function LunarWhisperModal({ visible, phase, onClose, onReflect }
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <TouchableOpacity
-        activeOpacity={1}
-        style={styles.backdrop}
-        onPress={onClose}
-        accessibilityRole="button"
-        accessibilityLabel="Close lunar phase details"
-        accessibilityHint="Dismisses the lunar guidance overlay"
-      >
-        <TouchableOpacity activeOpacity={1} onPress={() => {}} style={styles.card}>
-          <LinearGradient
-            colors={['rgba(207,195,224,0.20)', 'rgba(31,35,58,0.0)']}
-            start={{ x: 0.5, y: 0 }}
-            end={{ x: 0.5, y: 1 }}
-            style={StyleSheet.absoluteFill}
-            pointerEvents="none"
-          />
-          <Text style={[styles.heading]}>{phase.replace('-', ' ')} • {data.title}</Text>
-          <Text style={styles.summary}>{data.summary}</Text>
+      <View style={styles.overlay}>
+        <ImageBackground
+          source={require('../../assets/images/moon_modal.png')}
+          style={styles.tabletContainer}
+          imageStyle={styles.tabletImage}
+        >
+          <View style={styles.tabletInner}>
+            {/* Moon phase title */}
+            <Text style={styles.moonTitle}>
+              {phase.replace('-', ' ')} · {data.title}
+            </Text>
+            <Text style={styles.moonSubtitle}>{data.summary}</Text>
 
-          <View style={{ height: 10 }} />
+            <View style={styles.divider} />
 
-          <Text style={styles.label}>Ritual</Text>
-          <Text style={styles.body}>{data.ritualTip}</Text>
+            <Text style={styles.sectionLabel}>RITUAL</Text>
+            <Text style={styles.bodyText}>{data.ritualTip}</Text>
 
-          <View style={{ height: 10 }} />
+            <Text style={styles.sectionLabel}>AFFIRMATION</Text>
+            <Text style={styles.bodyText}>"{data.affirmation}"</Text>
 
-          <Text style={styles.label}>Affirmation</Text>
-          <Text style={styles.body} accessibilityRole="text">“{data.affirmation}”</Text>
-
-          {lore && (
-            <>
-              <View style={{ height: 10 }} />
-              <Text style={styles.label}>Lore</Text>
-              <Text style={styles.lore}>{lore}</Text>
-            </>
-          )}
-
-          <View style={{ height: 16 }} />
-
-          <View style={styles.row}>
-            <TouchableOpacity
-              onPress={async () => { try { await Haptics.selectionAsync(); } catch {} onClose(); }}
-              accessibilityRole="button"
-              accessibilityLabel="Close lunar guidance"
-              style={[styles.btn, { backgroundColor: 'rgba(255,255,255,0.06)' }]}
-            >
-              <Text style={[styles.btnText, { color: '#EDEAF6' }]}>Close</Text>
-            </TouchableOpacity>
-
-            {onReflect && (
-              <TouchableOpacity
-                onPress={async () => { try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {} onReflect(); }}
-                accessibilityRole="button"
-                accessibilityLabel="Open Journal to reflect"
-                style={[styles.btn, { backgroundColor: '#CFC3E0', borderWidth: 1, borderColor: 'rgba(255,255,255,0.20)' }]}
-              >
-                <Text style={[styles.btnText, { color: '#1F233A' }]}>Reflect</Text>
-              </TouchableOpacity>
+            {lore && (
+              <>
+                <Text style={styles.sectionLabel}>LORE</Text>
+                <Text style={styles.bodyText}>{lore}</Text>
+              </>
             )}
+
+            <View style={styles.buttonRow}>
+              <TouchableOpacity
+                onPress={async () => { try { await Haptics.selectionAsync(); } catch {} onClose(); }}
+                accessibilityRole="button"
+                accessibilityLabel="Close lunar guidance"
+                style={styles.closeButton}
+              >
+                <Text style={styles.closeButtonText}>Close</Text>
+              </TouchableOpacity>
+
+              {onReflect && (
+                <TouchableOpacity
+                  onPress={async () => { try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {} onReflect(); }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Open Journal to reflect"
+                  style={styles.reflectButton}
+                >
+                  <Text style={styles.reflectButtonText}>Reflect</Text>
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
-        </TouchableOpacity>
-      </TouchableOpacity>
+        </ImageBackground>
+      </View>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.55)',
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.88)',
+    justifyContent: 'center',
     alignItems: 'center',
+    paddingBottom: '25%',
+  },
+  tabletContainer: {
+    width: '92%',
+    aspectRatio: 0.68,
     justifyContent: 'center',
+    alignItems: 'center',
   },
-  card: {
-    width: '86%',
-    backgroundColor: 'rgba(18,18,32,0.96)',
-    borderRadius: 16,
-    padding: 18,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
+  tabletImage: {
+    resizeMode: 'contain',
+    alignSelf: 'center',
+    left: 12,
   },
-  heading: {
-    color: '#F0EEF8',
+  tabletInner: {
+    width: '72%',
+    height: '80%',
+    maxWidth: 240,
+    alignSelf: 'center',
+    justifyContent: 'center',
+    gap: 10,
+  },
+  moonTitle: {
+    color: 'rgba(220,185,100,0.95)',
     fontSize: 16,
-    fontFamily: 'CalSans',
+    fontWeight: '600',
+    textAlign: 'center',
+    letterSpacing: 0.5,
+    fontFamily: 'CalSans-SemiBold',
     textTransform: 'capitalize',
-    textAlign: 'center',
-    marginBottom: 8,
   },
-  summary: {
-    color: '#EDEAF6',
-    fontSize: 14,
-    fontFamily: 'Inter-ExtraLight',
-    textAlign: 'center',
-  },
-  label: {
-    color: '#CFC3E0',
+  moonSubtitle: {
+    color: 'rgba(255,255,255,0.65)',
     fontSize: 12,
-    fontFamily: 'CalSans',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    marginBottom: 4,
-  },
-  body: {
-    color: '#EDEAF6',
-    fontSize: 14,
-    fontFamily: 'Inter-ExtraLight',
-  },
-  lore: {
-    color: '#EDEAF6',
-    fontSize: 13,
-    fontFamily: 'Inter-ExtraLight',
-    fontStyle: 'italic',
     textAlign: 'center',
-    textShadowColor: 'rgba(207,195,224,0.35)',
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 6,
-    marginTop: 4,
-  },
-  row: {
-    marginTop: 6,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 14,
-  },
-  btn: {
-    paddingVertical: 8,
-    paddingHorizontal: 18,
-    borderRadius: 14,
-  },
-  btnText: {
+    lineHeight: 18,
     fontFamily: 'Inter-ExtraLight',
-    fontSize: 14,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: 'rgba(180,140,80,0.2)',
+    marginVertical: 4,
+  },
+  sectionLabel: {
+    color: 'rgba(200,160,80,0.95)',
+    fontSize: 9,
+    letterSpacing: 2,
+    textTransform: 'uppercase',
+    marginTop: 6,
+    textAlign: 'center',
+    fontFamily: 'CalSans-SemiBold',
+  },
+  bodyText: {
+    color: 'rgba(255,255,255,0.75)',
+    fontSize: 12,
+    lineHeight: 17,
+    fontFamily: 'Inter-ExtraLight',
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 12,
+    gap: 10,
+  },
+  closeButton: {
+    flex: 1,
+    paddingVertical: 9,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 4,
+  },
+  closeButtonText: {
+    color: 'rgba(255,255,255,0.35)',
+    fontSize: 12,
+    fontFamily: 'Inter-ExtraLight',
+  },
+  reflectButton: {
+    flex: 1,
+    paddingVertical: 9,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(200,160,80,0.6)',
+    backgroundColor: 'rgba(180,140,80,0.15)',
+    borderRadius: 4,
+  },
+  reflectButtonText: {
+    color: 'rgba(220,185,100,1)',
+    fontSize: 12,
+    fontFamily: 'CalSans-SemiBold',
   },
 });

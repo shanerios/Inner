@@ -32,17 +32,17 @@ const SOUNDSCAPES_INFO = {
   whatTitle: 'What you\'re listening to',
   whatBody: `The library is organized by state.
 
-Stillness — quiet meditation, breath, and nervous-system settling. Designed to soften the mind without pulling attention, helping the body return to presence.
+Still Water — quiet meditation, breath, and nervous-system settling. Designed to soften the mind without pulling attention, helping the body return to presence.
 
-Clarity — soundscapes for focus, awareness, and creative flow. For work, study, writing, or mindful attention without becoming a distraction.
+Clear Air — soundscapes for focus, awareness, and creative flow. For work, study, writing, or mindful attention without becoming a distraction.
 
-Renewal — a restorative space for release, emotional softening, and gentle return. These tracks help clear residue from the day and invite the system back into balance.
+New Growth — a restorative space for release, emotional softening, and gentle return. These tracks help clear residue from the day and invite the system back into balance.
 
-Deeper — for threshold states, descent, lucid dreaming, and deeper inner work. Slower, heavier environments for those ready to move beyond surface calm.
+Root Deep — for threshold states, descent, lucid dreaming, and deeper inner work. Slower, heavier environments for those ready to move beyond surface calm.
 
-Tones — minimal frequency-based audio for intentional listening. Solfeggio, binaural, and high-frequency experiences gathered into a simple space for tuning and resonance.
+Resonance — minimal frequency-based audio for intentional listening. Solfeggio, binaural, and high-frequency experiences gathered into a simple space for tuning and resonance.
 
-Noise — simple noise fields for sleep, focus, and nervous-system steadiness. Neutral texture without emotional direction.
+Natural — simple noise fields for sleep, focus, and nervous-system steadiness. Neutral texture without emotional direction.
 
 
 Binaural Beats
@@ -407,7 +407,7 @@ export default function SoundscapesScreen() {
           style={{
             position: 'absolute',
             top: 0,
-            left: 72,
+            left: 110,
             right: 0,
             height: Math.max(insets.top + verticalScale(120), verticalScale(140)),
             zIndex: 100,
@@ -455,7 +455,7 @@ export default function SoundscapesScreen() {
             flexDirection: 'row',
             alignItems: 'center',
             gap: scale(8),
-            zIndex: 50,
+            zIndex: 110,
           }}
         >
           {/* Search icon */}
@@ -728,7 +728,7 @@ export default function SoundscapesScreen() {
       >
         <View style={{ flex: 1 }}>
           <Pressable style={StyleSheet.absoluteFill} onPress={closeInfo}>
-            <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)' }} />
+            <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.75)' }} />
           </Pressable>
           <View style={{ flex: 1, justifyContent: 'flex-end' }}>
             <View
@@ -737,60 +737,25 @@ export default function SoundscapesScreen() {
               accessibilityLabel={infoStep === 0 ? 'Soundscapes information. Step 1 of 2.' : 'Soundscapes information. Step 2 of 2.'}
               style={{
                 paddingBottom: Math.max(insets.bottom + (matchesCompactLayout ? verticalScale(10) : 18), matchesCompactLayout ? verticalScale(16) : 24),
-                paddingTop: matchesCompactLayout ? 12 : 18,
-                paddingHorizontal: matchesCompactLayout ? 12 : 18,
-                borderTopLeftRadius: 16,
-                borderTopRightRadius: 16,
-                backgroundColor: 'rgba(18,18,32,0.96)',
+                paddingTop: 28,
+                paddingHorizontal: 28,
+                borderTopLeftRadius: 12,
+                borderTopRightRadius: 12,
+                backgroundColor: 'rgba(8,5,3,0.97)',
                 borderTopWidth: 1,
-                borderColor: 'rgba(255,255,255,0.06)',
-                overflow: 'hidden',
+                borderColor: 'rgba(180,140,80,0.2)',
               }}
             >
-              <LinearGradient
-                colors={['rgba(207,195,224,0.20)', 'rgba(31,35,58,0.0)']}
-                start={{ x: 0.5, y: 0 }}
-                end={{ x: 0.5, y: 1 }}
-                style={StyleSheet.absoluteFill}
-                pointerEvents="none"
-              />
               <ScrollView
                 style={{ maxHeight: matchesCompactLayout ? windowHeight * 0.55 : windowHeight * 0.58 }}
                 contentContainerStyle={{ paddingBottom: verticalScale(6), flexGrow: 1 }}
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
               >
-                <Text
-                  style={[
-                    Typography.title,
-                    { color: '#F0EEF8', letterSpacing: 0.2, textAlign: 'left' },
-                    matchesCompactLayout && { fontSize: scale(16), lineHeight: Math.round(scale(23)) },
-                  ]}
-                >
+                <Text style={{ color: 'rgba(220,185,100,0.95)', fontSize: 18, fontWeight: '600', fontFamily: 'CalSans-SemiBold', marginBottom: 16 }}>
                   {infoStep === 0 ? SOUNDSCAPES_INFO.whatTitle : SOUNDSCAPES_INFO.deeperTitle}
                 </Text>
-                <Text
-                  style={{
-                    fontFamily: 'Inter-ExtraLight',
-                    fontSize: matchesCompactLayout ? scale(10) : 11,
-                    lineHeight: matchesCompactLayout ? verticalScale(13) : 14,
-                    color: 'rgba(237,232,250,0.5)',
-                    letterSpacing: matchesCompactLayout ? scale(0.55) : 0.6,
-                    textTransform: 'uppercase',
-                    marginTop: matchesCompactLayout ? verticalScale(4) : 6,
-                  }}
-                >
-                  {infoStep === 0 ? 'Step 1 of 2' : 'Step 2 of 2'}
-                </Text>
-                <Text
-                  style={{
-                    fontFamily: 'Inter-ExtraLight',
-                    fontSize: matchesCompactLayout ? scale(13) : 14,
-                    lineHeight: matchesCompactLayout ? Math.round(scale(18)) : 20,
-                    color: '#EDEAF6',
-                    marginTop: matchesCompactLayout ? verticalScale(10) : 12,
-                  }}
-                >
+                <Text style={{ fontFamily: 'Inter-ExtraLight', fontSize: 13, lineHeight: 20, color: 'rgba(255,255,255,0.65)', marginBottom: 12 }}>
                   {infoStep === 0 ? SOUNDSCAPES_INFO.whatBody : SOUNDSCAPES_INFO.deeperBody}
                 </Text>
               </ScrollView>
@@ -799,7 +764,7 @@ export default function SoundscapesScreen() {
                   flexDirection: 'row',
                   alignItems: 'center',
                   justifyContent: infoStep === 0 ? 'space-between' : 'flex-end',
-                  marginTop: matchesCompactLayout ? verticalScale(8) : 16,
+                  marginTop: 18,
                 }}
               >
                 {infoStep === 0 && (
@@ -808,23 +773,23 @@ export default function SoundscapesScreen() {
                     accessibilityLabel={SOUNDSCAPES_INFO.closeLabel}
                     onPress={closeInfo}
                     hitSlop={10}
-                    style={{ paddingVertical: 4, paddingHorizontal: 8 }}
+                    style={{ paddingVertical: 10, paddingHorizontal: 20, borderRadius: 6, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', alignItems: 'center' }}
                   >
-                    <Text style={{ fontFamily: 'Inter-ExtraLight', fontSize: 13, color: 'rgba(237,234,246,0.6)' }}>
+                    <Text style={{ fontFamily: 'Inter-ExtraLight', fontSize: 13, color: 'rgba(255,255,255,0.3)' }}>
                       {SOUNDSCAPES_INFO.closeLabel}
                     </Text>
                   </Pressable>
                 )}
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: matchesCompactLayout ? scale(8) : 10 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                   {infoStep === 1 && (
                     <Pressable
                       accessibilityRole="button"
                       accessibilityLabel={SOUNDSCAPES_INFO.backLabel}
                       onPress={() => setInfoStep(0)}
                       hitSlop={10}
-                      style={{ paddingVertical: 4, paddingHorizontal: 8 }}
+                      style={{ paddingVertical: 10, paddingHorizontal: 20, borderRadius: 6, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', alignItems: 'center' }}
                     >
-                      <Text style={{ fontFamily: 'Inter-ExtraLight', fontSize: 13, color: 'rgba(237,234,246,0.6)' }}>
+                      <Text style={{ fontFamily: 'Inter-ExtraLight', fontSize: 13, color: 'rgba(255,255,255,0.3)' }}>
                         {SOUNDSCAPES_INFO.backLabel}
                       </Text>
                     </Pressable>
@@ -837,18 +802,9 @@ export default function SoundscapesScreen() {
                       else { closeInfo(); }
                     }}
                     hitSlop={10}
-                    style={{
-                      paddingVertical: 10,
-                      paddingHorizontal: 20,
-                      borderRadius: 16,
-                      borderWidth: 1,
-                      borderColor: 'rgba(207,195,224,0.35)',
-                      borderTopColor: 'rgba(207,195,224,0.7)',
-                      alignItems: 'center',
-                      overflow: 'hidden',
-                    }}
+                    style={{ paddingVertical: 10, paddingHorizontal: 20, borderRadius: 6, borderWidth: 1, borderColor: 'rgba(200,160,80,0.6)', backgroundColor: 'rgba(180,140,80,0.15)', minWidth: 80, alignItems: 'center' }}
                   >
-                    <Text style={{ fontFamily: 'CalSans-SemiBold', fontSize: 16, color: '#F0EEF8' }}>
+                    <Text style={{ fontFamily: 'CalSans-SemiBold', fontSize: 13, color: 'rgba(220,185,100,1)' }}>
                       {infoStep === 0 ? SOUNDSCAPES_INFO.nextLabel : SOUNDSCAPES_INFO.okLabel}
                     </Text>
                   </Pressable>

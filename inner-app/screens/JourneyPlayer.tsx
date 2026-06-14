@@ -131,6 +131,22 @@ export default function JourneyPlayer() {
     }, [bgVideoPlayer, chamberVideoSource])
   );
 
+  // --- Garden video background (soundscapes) ---
+  const trackKindEarly = (selectedTrack as any)?.kind || (meta as any)?.kind;
+  const gardenVideoSource = trackKindEarly === 'soundscape' ? require('../assets/videos/garden_player.mp4') : null;
+  const gardenPlayer = useVideoPlayer(gardenVideoSource, player => {
+    player.loop = true;
+    player.muted = true;
+    if (gardenVideoSource) player.play();
+  });
+
+  useFocusEffect(
+    useCallback(() => {
+      if (gardenVideoSource) gardenPlayer.play();
+      return () => { gardenPlayer.pause(); };
+    }, [gardenPlayer, gardenVideoSource])
+  );
+
   const saveTimer = useRef<NodeJS.Timeout | null>(null);
 
   // --- Membership / entitlement cache (player-level gate) ---
@@ -482,6 +498,37 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
   const veilOpacity = useRef(new Animated.Value(1)).current;
 
   const closeOpacity = useRef(new Animated.Value(0)).current;
+
+  // Orb breathing scale for garden soundscape player
+  const orbScale = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    if (playingForVisuals) {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(orbScale, {
+            toValue: 1.06,
+            duration: 3000,
+            easing: Easing.inOut(Easing.sin),
+            useNativeDriver: true,
+          }),
+          Animated.timing(orbScale, {
+            toValue: 1,
+            duration: 3000,
+            easing: Easing.inOut(Easing.sin),
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+    } else {
+      orbScale.stopAnimation();
+      Animated.timing(orbScale, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [playingForVisuals]);
 
   // Crossfade from aura → chamber tint
   const chamberFade = useRef(new Animated.Value(0)).current;
@@ -1703,64 +1750,8 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
   const soundscapeOrbInterior = (
     <>
       <OrbPortal
-        variant="inner"
         size={ORB_VISUAL_SIZE}
         imageSource={require('../assets/splash.webp')}
-        enhance
-        overlayScale={0.83}
-        overlayOffsetX={-3}
-        overlayOffsetY={0}
-      />
-      <Animated.Image
-        source={require('../assets/images/orb-player-mandala.webp')}
-        resizeMode="contain"
-        blurRadius={2}
-        style={{
-          position: 'absolute',
-          width: mandalaContentDiameter,
-          height: mandalaContentDiameter,
-          top: '50%',
-          left: '50%',
-          transform: [
-            { translateX: -mandalaContentDiameter / 2 },
-            { translateY: -mandalaContentDiameter / 2 },
-            { scale: mandalaBlurExtraScale },
-          ],
-          opacity: finalMandalaBlurOpacity,
-        }}
-      />
-      <Animated.Image
-        source={require('../assets/images/orb-player-mandala.webp')}
-        resizeMode="contain"
-        style={{
-          position: 'absolute',
-          width: mandalaContentDiameter,
-          height: mandalaContentDiameter,
-          top: '50%',
-          left: '50%',
-          transform: [
-            { translateX: -mandalaContentDiameter / 2 },
-            { translateY: -mandalaContentDiameter / 2 },
-          ],
-          opacity: finalMandalaSharpOpacity,
-        }}
-      />
-      <View
-        pointerEvents="none"
-        style={{
-          position: 'absolute',
-          width: mandalaContentDiameter,
-          height: mandalaContentDiameter,
-          top: '50%',
-          left: '50%',
-          transform: [
-            { translateX: -mandalaContentDiameter / 2 },
-            { translateY: -mandalaContentDiameter / 2 },
-          ],
-          borderRadius: mandalaContentDiameter / 2,
-          borderWidth: mandalaMaskBorder,
-          borderColor: MANDALA_EDGE_MASK_COLOR,
-        }}
       />
     </>
   );
@@ -1798,87 +1789,238 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
         </View>
       )}
 
-      {/* Aura → Chamber crossfade overlays */}
-      <Animated.View
-        pointerEvents="none"
-        style={[
-          StyleSheet.absoluteFill,
-          { opacity: Animated.subtract(1, chamberFade) },
-        ]}
-      >
-        {/* Uses the existing aura overlay from Home/Essence; if this component renders nothing, the fade is effectively a no-op on the aura layer */}
-        <AuraOverlay strength={auraStrength as any} />
-      </Animated.View>
+      {/* Garden altar background (soundscapes only) */}
+      {!!gardenVideoSource && (
+        <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+          <VideoView
+            player={gardenPlayer}
+            contentFit="cover"
+            style={StyleSheet.absoluteFill}
+            nativeControls={false}
+            allowsFullscreen={false}
+            allowsPictureInPicture={false}
+          />
+        </View>
+      )}
 
-      <Animated.View
-        pointerEvents="none"
-        style={[
-          StyleSheet.absoluteFill,
-          { opacity: chamberFade },
-        ]}
-      >
-        {/* Chamber-tinted gradient that softly lifts the environment using its accent color */}
+      {/* Top gradient overlay — track info legibility (soundscapes) */}
+      {isSoundscape && (
         <LinearGradient
-          colors={[`${accent}24`, `${accent}14`, 'transparent']}
-          locations={[0, 0.35, 1]}
-          style={StyleSheet.absoluteFill}
+          colors={['rgba(0,0,0,0.7)', 'transparent']}
+          style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '30%', zIndex: 1 }}
+          pointerEvents="none"
         />
-      </Animated.View>
+      )}
 
-      {/* Ambient veil to keep foreground legible */}
-      <View
-        pointerEvents="none"
-        style={[
-          StyleSheet.absoluteFill,
-          {
-            backgroundColor: 'rgba(8,6,12,0.55)',
-            opacity: env?.overlayOpacity ?? 1,
-          },
-        ]}
-      />
+      {/* Bottom gradient overlay — controls legibility (soundscapes) */}
+      {isSoundscape && (
+        <LinearGradient
+          colors={['transparent', 'rgba(0,0,0,0.85)']}
+          style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '35%', zIndex: 1 }}
+          pointerEvents="none"
+        />
+      )}
 
-      {/* Foreground content wrapper (keeps previous layout) */}
-      <View style={{ flex: 1, paddingTop: 80, paddingHorizontal: 20 }}>
+      {/* Aura → Chamber crossfade overlays — chambers only */}
+      {!isSoundscape && (
+        <>
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              StyleSheet.absoluteFill,
+              { opacity: Animated.subtract(1, chamberFade) },
+            ]}
+          >
+            <AuraOverlay strength={auraStrength as any} />
+          </Animated.View>
+
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              StyleSheet.absoluteFill,
+              { opacity: chamberFade },
+            ]}
+          >
+            <LinearGradient
+              colors={[`${accent}24`, `${accent}14`, 'transparent']}
+              locations={[0, 0.35, 1]}
+              style={StyleSheet.absoluteFill}
+            />
+          </Animated.View>
+        </>
+      )}
+
+      {/* Ambient veil to keep foreground legible — chambers only */}
+      {!isSoundscape && (
+        <View
+          pointerEvents="none"
+          style={[
+            StyleSheet.absoluteFill,
+            {
+              backgroundColor: 'rgba(8,6,12,0.55)',
+              opacity: env?.overlayOpacity ?? 1,
+            },
+          ]}
+        />
+      )}
+
+      {/* Soundscape layout — absolutely positioned, orb above title */}
+      {isSoundscape && (
+        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 2 }}>
+          {/* Orb — at top 10%, 50% smaller, 100% opaque, tap to play/pause */}
+          <View style={{ position: 'absolute', top: '2.5%', left: 0, right: 0, alignItems: 'center' }}>
+            <TouchableOpacity
+              onPress={toggle}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel={isPlayingUI ? 'Pause' : 'Play'}
+              accessibilityHint={isPlayingUI ? 'Pauses playback' : 'Starts playback'}
+            >
+              <Animated.View style={{ transform: [{ scale: Animated.multiply(orbScale, 0.5) }], opacity: 0.8 }}>
+                {soundscapeOrbStack}
+              </Animated.View>
+            </TouchableOpacity>
+          </View>
+
+          {/* Title + details at ~30% */}
+          <View style={{ position: 'absolute', top: '30%', left: 0, right: 0, alignItems: 'center' }}>
+            <LinearGradient
+              colors={['transparent', 'rgba(0,0,0,0.6)', 'transparent']}
+              style={{ paddingVertical: 12, paddingHorizontal: 24, alignItems: 'center', gap: 6, width: '100%' }}
+            >
+              <Text style={[Typography.display, { color: '#F0EEF8', textAlign: 'center', letterSpacing: 0.3 }]}>
+                {displayTitle}
+              </Text>
+              <Text style={[Typography.caption, { color: '#B9B5C9', textAlign: 'center', letterSpacing: 0.9 }]}>
+                {(durationRef.current && durationRef.current > 0)
+                  ? `${mmss(position)} / −${mmss(Math.max(0, durationRef.current - position))}`
+                  : (duration > 0
+                      ? `${mmss(position)} / −${mmss(Math.max(0, duration - position))}`
+                      : 'warming…')}
+              </Text>
+              {sleepTimerActive && countdownLabel ? (
+                <Text style={[Typography.caption, { color: '#9F98B8', textAlign: 'center', letterSpacing: 0.5, opacity: 0.92 }]}>
+                  Sleep in {countdownLabel}
+                </Text>
+              ) : null}
+              <Text style={[styles.qualityText, { opacity: 0.6 }]}>
+                {getPreferredQuality() === 'hq' ? 'High Quality Audio' : 'Low Data Mode'}
+              </Text>
+            </LinearGradient>
+          </View>
+
+          {/* Sleep timer + Close — pinned to bottom */}
+          <View style={{ position: 'absolute', bottom: Math.max(insets.bottom + 24, 40), left: 0, right: 0, alignItems: 'center' }}>
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel={showTimerMenu ? 'Close sleep timer menu' : 'Open sleep timer menu'}
+              accessibilityState={{ expanded: showTimerMenu }}
+              onPress={async () => {
+                pulseSleepIcon();
+                try { await Haptics.selectionAsync(); } catch {}
+                setShowTimerMenu(prev => !prev);
+              }}
+              activeOpacity={0.95}
+              style={{ alignItems: 'center', justifyContent: 'center', padding: playerChrome.sleepOuterPadding }}
+            >
+              <Animated.View
+                style={{
+                  width: playerChrome.sleepBtnSize,
+                  height: playerChrome.sleepBtnSize,
+                  borderRadius: playerChrome.sleepBtnSize / 2,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  position: 'relative',
+                  backgroundColor: sleepMinutes ? '#CFC3E0' : 'transparent',
+                  shadowColor: sleepMinutes ? 'transparent' : '#CFC3E0',
+                  shadowOpacity: sleepMinutes ? 0 : 0.45,
+                  shadowRadius: sleepMinutes ? 0 : playerChrome.sleepShadowRadius,
+                  shadowOffset: sleepMinutes ? { width: 0, height: 0 } : { width: 0, height: playerChrome.sleepShadowOffsetY },
+                  transform: [{ scale: sleepScale }],
+                }}
+              >
+                <SleepIcon width={playerChrome.sleepIconSize} height={playerChrome.sleepIconSize} fill={sleepMinutes ? '#1F233A' : '#CFC3E0'} />
+                {sleepMinutes && (
+                  <View style={{ position: 'absolute', right: playerChrome.sleepBadgeRight, top: playerChrome.sleepBadgeTop, paddingHorizontal: playerChrome.sleepBadgePadH, paddingVertical: playerChrome.sleepBadgePadV, borderRadius: 10, backgroundColor: '#CFC3E0' }}>
+                    <Text style={{ fontFamily: 'Inter-ExtraLight', fontSize: playerChrome.sleepBadgeFont, color: '#1F233A' }}>{sleepMinutes}m</Text>
+                  </View>
+                )}
+              </Animated.View>
+            </TouchableOpacity>
+
+            <Animated.View style={{ opacity: menuAnim, transform: [{ translateY: menuAnim.interpolate({ inputRange: [0, 1], outputRange: [10, -6] }) }] }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: playerChrome.sleepMenuMarginTop }}>
+                {[15, 30, 45, 60].map(opt => (
+                  <TouchableOpacity
+                    key={opt}
+                    onPress={() => {
+                      Animated.sequence([
+                        Animated.timing(optionScales[opt], { toValue: 0.94, duration: 70, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+                        Animated.timing(optionScales[opt], { toValue: 1.06, duration: 100, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+                        Animated.timing(optionScales[opt], { toValue: 1.0, duration: 90, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+                      ]).start();
+                      setSleepMinutes(prev => prev === opt ? null : opt);
+                      setShowTimerMenu(false);
+                    }}
+                    style={{ paddingVertical: playerChrome.sleepOptionPadV, paddingHorizontal: playerChrome.sleepOptionPadH, borderRadius: playerChrome.sleepOptionBorderRadius, borderWidth: 1, borderColor: sleepMinutes === opt ? '#CFC3E0' : 'rgba(207,195,224,0.4)', backgroundColor: sleepMinutes === opt ? '#CFC3E0' : 'transparent', marginHorizontal: playerChrome.sleepOptionMarginH, transform: [{ scale: optionScales[opt] }] }}
+                  >
+                    <Text style={{ fontFamily: 'Inter-ExtraLight', fontSize: playerChrome.sleepOptionFontSize, color: sleepMinutes === opt ? '#1F233A' : '#E8E4F3' }}>{opt} min</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </Animated.View>
+
+            <Animated.View style={{ opacity: closeOpacity, marginTop: 12 }}>
+              <TouchableOpacity
+                style={{
+                  paddingVertical: 14,
+                  paddingHorizontal: 40,
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: 'rgba(255,255,255,0.12)',
+                  backgroundColor: 'rgba(207,195,224,0.16)',
+                  alignItems: 'center',
+                }}
+                onPress={handleClose}
+                hitSlop={matchesCompactLayout ? 10 : 12}
+              >
+                <Text style={{ fontFamily: 'CalSans-SemiBold', fontSize: 16, color: '#F3EDE7', letterSpacing: 0.2 }}>Return</Text>
+              </TouchableOpacity>
+            </Animated.View>
+          </View>
+        </View>
+      )}
+
+      {/* Foreground content wrapper — chambers only */}
+      {!isSoundscape && <View style={{ flex: 1, paddingTop: 80, paddingHorizontal: 20 }}>
       <Text style={[Typography.display, { color: '#F0EEF8', textAlign: 'center', letterSpacing: 0.3 }]}>{displayTitle}</Text>
       <View style={{ height: 16 }} />
 
       {/* Transport */}
-      <View style={styles.transport}>
-        <LinearGradient
-          colors={[playingForVisuals ? 'rgba(255,173,102,0.78)' : 'rgba(178,139,255,0.75)', 'rgba(125,91,214,0.85)']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={[
-            styles.controlBtn,
-            {
-              width: playerChrome.controlBtnSize,
-              height: playerChrome.controlBtnSize,
-              borderRadius: playerChrome.controlBtnSize / 2,
-            },
-          ]}
-        >
-          <View
-            pointerEvents="none"
-            style={[
-              styles.controlBtnInset,
-              { borderRadius: playerChrome.controlBtnSize / 2 },
-            ]}
-          />
+      {!isSoundscape && <View style={styles.transport}>
           <TouchableOpacity
             onPress={toggle}
             hitSlop={matchesCompactLayout ? 10 : 12}
             accessibilityRole="button"
             accessibilityLabel={isPlayingUI ? 'Pause' : 'Play'}
             accessibilityHint={isPlayingUI ? 'Pauses playback' : 'Starts playback'}
-            style={{ width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' }}
             activeOpacity={0.85}
+            style={{
+              width: playerChrome.controlBtnSize,
+              height: playerChrome.controlBtnSize,
+              borderRadius: 12,
+              borderWidth: 1,
+              borderColor: isPlayingUI ? 'rgba(255,255,255,0.12)' : 'rgba(200,160,80,0.6)',
+              backgroundColor: isPlayingUI ? 'rgba(207,195,224,0.16)' : 'rgba(180,140,80,0.15)',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
           >
-            <Ionicons name={isPlayingUI ? 'pause' : 'play'} size={playerChrome.playIconSize} color="rgba(14,10,20,0.9)" />
+            <Ionicons name={isPlayingUI ? 'pause' : 'play'} size={playerChrome.playIconSize} color={isPlayingUI ? '#F3EDE7' : 'rgba(220,185,100,1)'} />
           </TouchableOpacity>
-        </LinearGradient>
-      </View>
+      </View>}
 
-      {/* 
+      {/*
         Use a "safe" duration (fallback if needed) for display so users don't see 0:00/0:00 on streams.
       */}
       <Text
@@ -1924,74 +2066,7 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
         </Text>
       </View>
 
-      {/* Orb portal player visual */}
-      {isSoundscape && (
-        <View style={styles.orbContainer} {...panResponder.panHandlers}>
-          <Animated.View
-            style={{
-              width: RING_SIZE,
-              height: RING_SIZE,
-              alignItems: 'center',
-              justifyContent: 'center',
-              transform: [{ translateY: orbDriftY }],
-            }}
-          >
-            {/* Loading veil overlay */}
-            {!isPrimed && (
-              <Animated.View
-                pointerEvents="none"
-                style={{
-                  position: 'absolute',
-                  top: 0, left: 0, right: 0, bottom: 0,
-                  backgroundColor: 'rgba(10,8,14,0.35)',
-                  zIndex: 3,
-                  opacity: veilOpacity,
-                  borderRadius: loadingVeilBorderRadius,
-                }}
-              />
-            )}
-            {/* Circular progress ring (track + progress + soft halo) */}
-            <Svg
-              width={RING_SIZE}
-              height={RING_SIZE}
-              style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                zIndex: 1,
-                pointerEvents: 'none',
-              }}
-            >
-              <Circle cx={RING_SIZE / 2} cy={RING_SIZE / 2} r={r} stroke="#5A4E9C" strokeWidth={STROKE + (ringStrokeBoost ? 2 : 0)} fill="none" opacity={0.20} />
-              <Circle cx={RING_SIZE / 2} cy={RING_SIZE / 2} r={r} stroke="#5A4E9C" strokeWidth={STROKE + (ringStrokeBoost ? 2 : 0)} strokeLinecap="round" strokeDasharray={`${dash},${gap}`} rotation="-90" originX={RING_SIZE / 2} originY={RING_SIZE / 2} fill="none" opacity={ringOpacity} />
-            </Svg>
-
-            <Pressable
-              onPressIn={handleOrbPressIn}
-              accessibilityRole="button"
-              accessibilityLabel={isPlayingUI ? 'Pause' : 'Play'}
-              accessibilityHint={isPlayingUI
-                ? 'Pauses playback. Double-tap left to go back 15 seconds or right to skip forward 15 seconds.'
-                : 'Starts playback. Double-tap left to go back 15 seconds or right to skip forward 15 seconds.'}
-              hitSlop={10}
-              style={{
-                position: 'absolute',
-                width: ORB_PRESSABLE_SIZE,
-                height: ORB_PRESSABLE_SIZE,
-                borderRadius: ORB_PRESSABLE_SIZE / 2,
-                alignItems: 'center',
-                justifyContent: 'center',
-                top: '50%',
-                left: '50%',
-                transform: [{ translateX: -ORB_PRESSABLE_SIZE / 2 }, { translateY: -ORB_PRESSABLE_SIZE / 2 }],
-              }}
-            >
-              {soundscapeOrbStack}
-            </Pressable>
-          </Animated.View>
-        </View>
-      )}
-      {!isSoundscape && <View style={{ flex: 1 }} />}
+      <View style={{ flex: 1 }} />
 
       {showComplete && (
         <Animated.View
@@ -2098,123 +2173,7 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
         </Animated.View>
       )}
 
-      {/* Sleep Timer UI */}
-      {isSoundscape && (
-        <View style={{ alignItems: 'center', marginTop: 12 }}>
-          <TouchableOpacity
-            accessibilityRole="button"
-            accessibilityLabel={showTimerMenu ? 'Close sleep timer menu' : 'Open sleep timer menu'}
-            accessibilityHint="Opens options for 15, 30, 45, or 60 minutes"
-            accessibilityState={{ expanded: showTimerMenu }}
-            onPress={async () => {
-              pulseSleepIcon();
-              try { await Haptics.selectionAsync(); } catch {}
-              setShowTimerMenu(prev => !prev);
-            }}
-            activeOpacity={0.95}
-            style={{
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: playerChrome.sleepOuterPadding,
-            }}
-          >
-            <Animated.View
-              style={{
-                width: playerChrome.sleepBtnSize,
-                height: playerChrome.sleepBtnSize,
-                borderRadius: playerChrome.sleepBtnSize / 2,
-                alignItems: 'center',
-                justifyContent: 'center',
-                position: 'relative',
-                backgroundColor: sleepMinutes ? '#CFC3E0' : 'transparent',
-                // Disable glow when selected; keep mild lifted shadow when not selected (iOS-only)
-                shadowColor: sleepMinutes ? 'transparent' : '#CFC3E0',
-                shadowOpacity: sleepMinutes ? 0 : 0.45,
-                shadowRadius: sleepMinutes ? 0 : playerChrome.sleepShadowRadius,
-                shadowOffset: sleepMinutes ? { width: 0, height: 0 } : { width: 0, height: playerChrome.sleepShadowOffsetY },
-                elevation: 0, // no Android elevation; we want a flat filled circle when selected
-                transform: [{ scale: sleepScale }],
-              }}
-            >
-              <SleepIcon width={playerChrome.sleepIconSize} height={playerChrome.sleepIconSize} fill={sleepMinutes ? '#1F233A' : '#CFC3E0'} />
-              {sleepMinutes && (
-                <View
-                  style={{
-                    position: 'absolute',
-                    right: playerChrome.sleepBadgeRight,
-                    top: playerChrome.sleepBadgeTop,
-                    paddingHorizontal: playerChrome.sleepBadgePadH,
-                    paddingVertical: playerChrome.sleepBadgePadV,
-                    borderRadius: 10,
-                    backgroundColor: '#CFC3E0',
-                  }}
-                >
-                  <Text
-                    style={{
-                      fontFamily: 'Inter-ExtraLight',
-                      fontSize: playerChrome.sleepBadgeFont,
-                      color: '#1F233A',
-                    }}
-                  >
-                    {sleepMinutes}m
-                  </Text>
-                </View>
-              )}
-            </Animated.View>
-          </TouchableOpacity>
-
-          <Animated.View
-            style={{
-              opacity: menuAnim,
-              transform: [{
-                translateY: menuAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [10, -6],
-                }),
-              }],
-            }}
-          >
-            <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: playerChrome.sleepMenuMarginTop, flexWrap: 'wrap' }}>
-              {[15, 30, 45, 60].map(opt => (
-                <TouchableOpacity
-                  key={opt}
-                  onPress={() => {
-                    Animated.sequence([
-                      Animated.timing(optionScales[opt], { toValue: 0.94, duration: 70, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-                      Animated.timing(optionScales[opt], { toValue: 1.06, duration: 100, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-                      Animated.timing(optionScales[opt], { toValue: 1.0, duration: 90, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-                    ]).start();
-                    setSleepMinutes(prev => prev === opt ? null : opt);
-                    setShowTimerMenu(false);
-                  }}
-                  style={{
-                    paddingVertical: playerChrome.sleepOptionPadV,
-                    paddingHorizontal: playerChrome.sleepOptionPadH,
-                    borderRadius: playerChrome.sleepOptionBorderRadius,
-                    borderWidth: 1,
-                    borderColor: sleepMinutes === opt ? '#CFC3E0' : 'rgba(207,195,224,0.4)',
-                    backgroundColor: sleepMinutes === opt ? '#CFC3E0' : 'transparent',
-                    marginHorizontal: playerChrome.sleepOptionMarginH,
-                    transform: [{ scale: optionScales[opt] }],
-                  }}
-                >
-                  <Text
-                    style={{
-                      fontFamily: 'Inter-ExtraLight',
-                      fontSize: playerChrome.sleepOptionFontSize,
-                      color: sleepMinutes === opt ? '#1F233A' : '#E8E4F3',
-                    }}
-                  >
-                    {opt} min
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </Animated.View>
-        </View>
-      )}
-
-      {/* Close */}
+      {/* Close — chambers only */}
       <Animated.View style={{ opacity: closeOpacity }}>
         <TouchableOpacity
           style={[
@@ -2241,7 +2200,7 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
           <Text style={[Typography.caption, { color: '#C6C1D8' }]}>Pos/Dur: {duration > 0 ? `${mmss(position)} / ${mmss(duration)}` : '—'}</Text>
         </View>
       )}
-      </View>
+      </View>}
     </View>
   );
 }

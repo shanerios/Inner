@@ -12,6 +12,7 @@ import {
   Platform,
   Linking,
 } from 'react-native';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import * as Haptics from 'expo-haptics';
 import * as FileSystem from 'expo-file-system';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -254,6 +255,25 @@ export default function SettingsModal({
     });
   }, [onClose, onOpenPaywall]);
 
+  // ── Video background ─────────────────────────────────────────────────────
+
+  const settingsPlayer = useVideoPlayer(
+    require('../assets/videos/settings_bg.mp4'),
+    (player) => {
+      player.loop = true;
+      player.muted = true;
+      player.play();
+    }
+  );
+
+  useEffect(() => {
+    if (visible) {
+      settingsPlayer.play();
+    } else {
+      settingsPlayer.pause();
+    }
+  }, [visible]);
+
   // ── Render ───────────────────────────────────────────────────────────────
 
   return (
@@ -270,7 +290,7 @@ export default function SettingsModal({
           onSettingsDismiss?.();
         }}
       >
-        <View style={modalStyles.backdrop}>
+        <View style={modalStyles.overlay}>
           {/* Backdrop tap closes settings */}
           <Pressable
             style={StyleSheet.absoluteFillObject}
@@ -279,16 +299,23 @@ export default function SettingsModal({
             accessibilityLabel="Close settings"
           />
 
-          {/* Card */}
-          <View style={modalStyles.card}>
+          {/* Arch container with video background */}
+          <View style={modalStyles.archContainer}>
+            <VideoView
+              player={settingsPlayer}
+              style={StyleSheet.absoluteFillObject}
+              contentFit="cover"
+              nativeControls={false}
+            />
+
+            <View style={modalStyles.archInner}>
             <ScrollView
-              style={{ maxHeight: '100%' }}
               showsVerticalScrollIndicator={false}
-              contentContainerStyle={{ paddingBottom: 16 }}
+              contentContainerStyle={modalStyles.scrollContent}
             >
               {/* Header */}
               <View style={{ alignItems: 'center', marginBottom: 12 }}>
-                <Text style={[Typography.title, { color: '#F0EEF8', fontSize: 20 }]}>
+                <Text style={[Typography.title, { color: '#ffffff', fontSize: 20 }]}>
                   Settings
                 </Text>
                 <Text
@@ -300,7 +327,7 @@ export default function SettingsModal({
                       fontSize: 12,
                       letterSpacing: 0.8,
                       textTransform: 'uppercase',
-                      color: '#CFC3E0',
+                      color: '#ffffff',
                     },
                   ]}
                 >
@@ -316,7 +343,7 @@ export default function SettingsModal({
                     {
                       fontFamily: 'Inter-ExtraLight',
                       fontSize: 14,
-                      color: '#EDEAF6',
+                      color: 'rgba(255,255,255,0.7)',
                       textAlign: 'center',
                       marginBottom: 10,
                     },
@@ -325,30 +352,26 @@ export default function SettingsModal({
                   How should Inner address you?
                 </Text>
 
-                <View
+                <TextInput
+                  value={tempName}
+                  onChangeText={setTempName}
+                  placeholder={profileName ? profileName : 'Your name (optional)'}
+                  placeholderTextColor="rgba(180,140,80,0.4)"
                   style={{
-                    borderRadius: 14,
-                    borderWidth: 1,
-                    borderColor: 'rgba(255,255,255,0.16)',
-                    backgroundColor: 'rgba(8,8,20,0.92)',
-                    paddingHorizontal: 14,
-                    paddingVertical: 9,
+                    backgroundColor: 'transparent',
+                    borderWidth: 0,
+                    borderBottomWidth: 1,
+                    borderBottomColor: 'rgba(180,140,80,0.4)',
+                    borderRadius: 0,
+                    color: 'rgba(255,255,255,0.85)',
+                    paddingVertical: 8,
+                    paddingHorizontal: 4,
+                    fontSize: 14,
+                    width: '100%',
                   }}
-                >
-                  <TextInput
-                    value={tempName}
-                    onChangeText={setTempName}
-                    placeholder={profileName ? profileName : 'Your name (optional)'}
-                    placeholderTextColor="rgba(198,192,230,0.6)"
-                    style={{
-                      fontFamily: 'Inter-ExtraLight',
-                      fontSize: 14,
-                      color: '#F4F1FF',
-                    }}
-                    returnKeyType="done"
-                    onSubmitEditing={saveName}
-                  />
-                </View>
+                  returnKeyType="done"
+                  onSubmitEditing={saveName}
+                />
               </View>
 
               {/* Wake time */}
@@ -359,7 +382,7 @@ export default function SettingsModal({
                     {
                       fontFamily: 'Inter-ExtraLight',
                       fontSize: 14,
-                      color: '#EDEAF6',
+                      color: 'rgba(255,255,255,0.7)',
                       textAlign: 'center',
                       marginBottom: 10,
                     },
@@ -368,33 +391,29 @@ export default function SettingsModal({
                   When do you return from sleep?
                 </Text>
 
-                <View
+                <TextInput
+                  value={tempWakeTime}
+                  onChangeText={setTempWakeTime}
+                  placeholder={savedWakeTime ? savedWakeTime : 'e.g. 7am'}
+                  placeholderTextColor="rgba(180,140,80,0.4)"
                   style={{
-                    borderRadius: 14,
-                    borderWidth: 1,
-                    borderColor: 'rgba(255,255,255,0.16)',
-                    backgroundColor: 'rgba(8,8,20,0.92)',
-                    paddingHorizontal: 14,
-                    paddingVertical: 9,
+                    backgroundColor: 'transparent',
+                    borderWidth: 0,
+                    borderBottomWidth: 1,
+                    borderBottomColor: 'rgba(180,140,80,0.4)',
+                    borderRadius: 0,
+                    color: 'rgba(255,255,255,0.85)',
+                    paddingVertical: 8,
+                    paddingHorizontal: 4,
+                    fontSize: 14,
+                    width: '100%',
                   }}
-                >
-                  <TextInput
-                    value={tempWakeTime}
-                    onChangeText={setTempWakeTime}
-                    placeholder={savedWakeTime ? savedWakeTime : 'e.g. 7am'}
-                    placeholderTextColor="rgba(198,192,230,0.6)"
-                    style={{
-                      fontFamily: 'Inter-ExtraLight',
-                      fontSize: 14,
-                      color: '#F4F1FF',
-                    }}
-                    returnKeyType="done"
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    accessibilityLabel="Wake time"
-                    accessibilityHint="Enter the time you usually wake from sleep"
-                  />
-                </View>
+                  returnKeyType="done"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  accessibilityLabel="Wake time"
+                  accessibilityHint="Enter the time you usually wake from sleep"
+                />
               </View>
 
               {/* Intentions helper / CTA */}
@@ -403,27 +422,16 @@ export default function SettingsModal({
                   onPress={onChangeIntentions}
                   accessibilityRole="button"
                   accessibilityLabel="Change intentions"
-                  style={{
-                    borderRadius: 999,
-                    paddingVertical: 10,
-                    paddingHorizontal: 14,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    backgroundColor: 'rgba(34,28,68,0.98)',
-                    borderWidth: 1,
-                    borderColor: 'rgba(207,195,224,0.65)',
-                  }}
+                  style={{ borderWidth: 1, borderColor: 'rgba(180,140,80,0.5)', backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: 6, paddingVertical: 11, alignItems: 'center', marginBottom: 4 }}
                 >
-                  <Text style={{ fontFamily: 'CalSans-SemiBold', fontSize: 14, color: '#F4F1FF' }}>
-                    Change intentions
-                  </Text>
+                  <Text style={{ color: 'rgba(210,170,90,0.95)', fontSize: 13, letterSpacing: 0.5 }}>Change intentions</Text>
                 </TouchableOpacity>
 
                 <Text
                   style={{
                     fontFamily: 'Inter-ExtraLight',
                     fontSize: 12,
-                    color: '#9C96C2',
+                    color: 'rgba(255,255,255,0.7)',
                     textAlign: 'center',
                     marginTop: 6,
                   }}
@@ -440,26 +448,15 @@ export default function SettingsModal({
                   accessibilityRole="button"
                   accessibilityLabel="Open Continuing with Inner"
                   accessibilityHint="Opens the membership paywall"
-                  style={{
-                    borderRadius: 999,
-                    paddingVertical: 10,
-                    paddingHorizontal: 14,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    backgroundColor: 'rgba(180,140,255,0.16)',
-                    borderWidth: 1,
-                    borderColor: 'rgba(220,200,255,0.55)',
-                  }}
+                  style={{ borderWidth: 1, borderColor: 'rgba(180,140,80,0.5)', backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: 6, paddingVertical: 11, alignItems: 'center', marginBottom: 4 }}
                 >
-                  <Text style={{ fontFamily: 'CalSans-SemiBold', fontSize: 14, color: '#F4F1FF' }}>
-                    Continuing with Inner
-                  </Text>
+                  <Text style={{ color: 'rgba(210,170,90,0.95)', fontSize: 13, letterSpacing: 0.5 }}>Continuing with Inner</Text>
                 </TouchableOpacity>
                 <Text
                   style={{
                     fontFamily: 'Inter-ExtraLight',
                     fontSize: 11,
-                    color: '#9C96C2',
+                    color: 'rgba(255,255,255,0.7)',
                     textAlign: 'center',
                     marginTop: 6,
                   }}
@@ -479,7 +476,7 @@ export default function SettingsModal({
                       textAlign: 'center',
                       letterSpacing: 0.6,
                       textTransform: 'uppercase',
-                      color: '#CFC3E0',
+                      color: '#ffffff',
                       marginBottom: 6,
                     },
                   ]}
@@ -491,52 +488,20 @@ export default function SettingsModal({
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                   <TouchableOpacity
                     onPress={() => setQuality('low')}
-                    style={{
-                      flex: 1,
-                      paddingVertical: 8,
-                      borderRadius: 999,
-                      borderWidth: 1,
-                      borderColor: audioQuality === 'low' ? '#CFC3E0' : 'rgba(255,255,255,0.16)',
-                      backgroundColor: audioQuality === 'low' ? 'rgba(207,195,224,0.16)' : 'transparent',
-                      alignItems: 'center',
-                    }}
+                    style={[modalStyles.btn, { flex: 1, opacity: audioQuality === 'low' ? 1 : 0.45 }]}
                   >
-                    <Text
-                      style={{
-                        fontFamily: 'CalSans-SemiBold',
-                        fontSize: 13,
-                        color: audioQuality === 'low' ? '#F0EEF8' : '#C2BCD8',
-                      }}
-                    >
-                      Low data
-                    </Text>
+                    <Text style={modalStyles.btnText}>Low data</Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity
                     onPress={() => setQuality('high')}
-                    style={{
-                      flex: 1,
-                      paddingVertical: 8,
-                      borderRadius: 999,
-                      borderWidth: 1,
-                      borderColor: audioQuality === 'high' ? '#CFC3E0' : 'rgba(255,255,255,0.16)',
-                      backgroundColor: audioQuality === 'high' ? 'rgba(207,195,224,0.16)' : 'transparent',
-                      alignItems: 'center',
-                    }}
+                    style={[modalStyles.btn, { flex: 1, opacity: audioQuality === 'high' ? 1 : 0.45 }]}
                   >
-                    <Text
-                      style={{
-                        fontFamily: 'CalSans-SemiBold',
-                        fontSize: 13,
-                        color: audioQuality === 'high' ? '#F0EEF8' : '#C2BCD8',
-                      }}
-                    >
-                      High quality
-                    </Text>
+                    <Text style={modalStyles.btnText}>High quality</Text>
                   </TouchableOpacity>
                 </View>
 
-                <Text style={{ fontFamily: 'Inter-ExtraLight', fontSize: 11, color: '#8E88B4' }}>
+                <Text style={{ fontFamily: 'Inter-ExtraLight', fontSize: 11, color: 'rgba(255,255,255,0.7)' }}>
                   Low data reduces download size. High quality preserves full
                   fidelity for immersive listening.
                 </Text>
@@ -548,19 +513,9 @@ export default function SettingsModal({
                   onPress={handleOpenClearCache}
                   accessibilityRole="button"
                   accessibilityLabel="Clear downloaded audio"
-                  style={{
-                    paddingVertical: 8,
-                    paddingHorizontal: 14,
-                    borderRadius: 999,
-                    borderWidth: 1,
-                    borderColor: 'rgba(255,255,255,0.20)',
-                    alignItems: 'center',
-                    backgroundColor: 'rgba(10,10,24,0.98)',
-                  }}
+                  style={{ borderWidth: 1, borderColor: 'rgba(180,140,80,0.5)', backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: 6, paddingVertical: 11, alignItems: 'center', marginBottom: 4 }}
                 >
-                  <Text style={{ fontFamily: 'CalSans-SemiBold', fontSize: 13, color: '#EDEAF6' }}>
-                    Clear audio cache
-                  </Text>
+                  <Text style={{ color: 'rgba(210,170,90,0.95)', fontSize: 13, letterSpacing: 0.5 }}>Clear audio cache</Text>
                 </TouchableOpacity>
 
                 <Text
@@ -568,7 +523,7 @@ export default function SettingsModal({
                     fontFamily: 'Inter-ExtraLight',
                     fontSize: 11,
                     textAlign: 'center',
-                    color: '#F0EEF8',
+                    color: 'rgba(255,255,255,0.7)',
                     marginTop: 4,
                   }}
                 >
@@ -599,7 +554,7 @@ export default function SettingsModal({
                         letterSpacing: 0.6,
                         textAlign: 'center',
                         textTransform: 'uppercase',
-                        color: '#CFC3E0',
+                        color: '#ffffff',
                         marginBottom: 6,
                       },
                     ]}
@@ -619,7 +574,7 @@ export default function SettingsModal({
                       <Text
                         style={[
                           Body.subtle,
-                          { fontFamily: 'Inter-ExtraLight', fontSize: 13, color: '#EDEAF6', marginBottom: 2 },
+                          { fontFamily: 'Inter-ExtraLight', fontSize: 13, color: 'rgba(255,255,255,0.7)', marginBottom: 2 },
                         ]}
                       >
                         Heartbeat under the orb
@@ -627,7 +582,7 @@ export default function SettingsModal({
                       <Text
                         style={[
                           Body.subtle,
-                          { fontFamily: 'Inter-ExtraLight', fontSize: 12, color: '#9B96B8' },
+                          { fontFamily: 'Inter-ExtraLight', fontSize: 12, color: 'rgba(255,255,255,0.7)' },
                         ]}
                       >
                         A subtle pulse unlocked by your daily embers. You can
@@ -650,7 +605,7 @@ export default function SettingsModal({
                   <Text
                     style={[
                       Body.subtle,
-                      { fontFamily: 'CalSans-SemiBold', fontSize: 11, color: '#9189C8' },
+                      { fontFamily: 'Inter-ExtraLight', fontSize: 11, color: 'rgba(255,255,255,0.7)' },
                     ]}
                   >
                     This week: {weeklyEmbers} embers · All-time: {totalEmbers}
@@ -664,20 +619,9 @@ export default function SettingsModal({
                   onPress={handleOpenPrivacy}
                   accessibilityRole="button"
                   accessibilityLabel="Open privacy notice"
-                  style={{
-                    borderRadius: 999,
-                    paddingVertical: 9,
-                    paddingHorizontal: 18,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    backgroundColor: 'rgba(207,195,224,0.14)',
-                    borderWidth: 1,
-                    borderColor: 'rgba(255,255,255,0.20)',
-                  }}
+                  style={{ borderWidth: 1, borderColor: 'rgba(180,140,80,0.5)', backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: 6, paddingVertical: 11, alignItems: 'center', marginBottom: 4 }}
                 >
-                  <Text style={{ fontFamily: 'CalSans-SemiBold', fontSize: 13, color: '#F0EEF8' }}>
-                    Privacy &amp; Data
-                  </Text>
+                  <Text style={{ color: 'rgba(210,170,90,0.95)', fontSize: 13, letterSpacing: 0.5 }}>Privacy &amp; Data</Text>
                 </TouchableOpacity>
               </View>
             </ScrollView>
@@ -688,9 +632,9 @@ export default function SettingsModal({
                 onPress={onClose}
                 accessibilityRole="button"
                 accessibilityLabel="Cancel and close settings"
-                style={{ paddingVertical: 8, paddingHorizontal: 16, borderRadius: 999 }}
+                style={{ paddingVertical: 8, paddingHorizontal: 16 }}
               >
-                <Text style={{ fontFamily: 'CalSans-SemiBold', fontSize: 13, color: '#D0CAE8' }}>
+                <Text style={{ fontFamily: 'Inter-ExtraLight', fontSize: 13, color: 'rgba(255,255,255,0.85)', letterSpacing: 0.2 }}>
                   Cancel
                 </Text>
               </TouchableOpacity>
@@ -699,22 +643,14 @@ export default function SettingsModal({
                 onPress={saveName}
                 accessibilityRole="button"
                 accessibilityLabel="Save settings"
-                style={{
-                  paddingVertical: 8,
-                  paddingHorizontal: 18,
-                  borderRadius: 12,
-                  backgroundColor: 'rgba(207,195,224,0.16)',
-                  borderWidth: 1,
-                  borderColor: 'rgba(255,255,255,0.12)',
-                }}
+                style={modalStyles.btn}
               >
-                <Text style={{ fontFamily: 'CalSans-SemiBold', fontSize: 13, color: '#F3EDE7' }}>
-                  Save
-                </Text>
+                <Text style={modalStyles.btnText}>Save</Text>
               </TouchableOpacity>
             </View>
-          </View>
-        </View>
+            </View>{/* archInner */}
+          </View>{/* archContainer */}
+        </View>{/* overlay */}
       </Modal>
 
       {/* ── Privacy Notice Modal ── */}
@@ -852,23 +788,42 @@ export default function SettingsModal({
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
 const modalStyles = StyleSheet.create({
-  backdrop: {
+  overlay: {
     flex: 1,
-    backgroundColor: 'rgba(4,4,10,0.82)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 20,
   },
-  card: {
-    width: '92%',
-    maxWidth: 460,
-    maxHeight: '82%',
-    borderRadius: 22,
-    paddingHorizontal: 20,
-    paddingVertical: 18,
-    backgroundColor: 'rgba(16,16,32,0.96)',
+  archContainer: {
+    flex: 1,
+    width: '100%',
+    overflow: 'hidden',
+  },
+  archInner: {
+    flex: 1,
+    paddingHorizontal: 24,
+    paddingTop: 64,
+    paddingBottom: 32,
+    maxWidth: 280,
+    alignSelf: 'center',
+    width: '100%',
+  },
+  scrollContent: {
+    paddingVertical: 12,
+    gap: 12,
+  },
+  btn: {
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    backgroundColor: 'rgba(207,195,224,0.16)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.16)',
+    borderColor: 'rgba(255,255,255,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  btnText: {
+    fontFamily: 'CalSans-SemiBold',
+    fontSize: 14,
+    color: '#ffffff',
+    letterSpacing: 0.2,
   },
   modalBackdrop: {
     ...StyleSheet.absoluteFillObject,

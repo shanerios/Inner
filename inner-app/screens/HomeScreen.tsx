@@ -153,11 +153,11 @@ function TourTooltip({
 
 const tourStyles = StyleSheet.create({
   card: {
-    backgroundColor: 'rgba(14,14,28,0.95)',
-    borderRadius: 16,
-    padding: 16,
+    backgroundColor: 'rgba(8,5,3,0.97)',
+    borderRadius: 12,
+    padding: 20,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.10)',
+    borderColor: 'rgba(180,140,80,0.2)',
     maxWidth: 260,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
@@ -167,23 +167,24 @@ const tourStyles = StyleSheet.create({
   },
   label: {
     fontFamily: 'Inter-ExtraLight',
-    fontSize: 11,
-    color: '#B5A9FF',
+    fontSize: 10,
+    color: 'rgba(200,160,80,0.55)',
     textTransform: 'uppercase',
-    letterSpacing: 0.6,
+    letterSpacing: 2,
     marginBottom: 4,
   },
   title: {
     fontFamily: 'CalSans-SemiBold',
     fontSize: 16,
-    color: '#F0EEF8',
-    marginBottom: 6,
+    fontWeight: '600',
+    color: 'rgba(220,185,100,0.95)',
+    marginBottom: 8,
   },
   body: {
     fontFamily: 'Inter-ExtraLight',
     fontSize: 13,
-    color: '#DCD5F0',
-    lineHeight: 18,
+    color: 'rgba(255,255,255,0.65)',
+    lineHeight: 19,
     marginBottom: 12,
   },
   actions: {
@@ -192,20 +193,20 @@ const tourStyles = StyleSheet.create({
     alignItems: 'center',
   },
   skip: {
-    color: '#9B96B8',
+    color: 'rgba(255,255,255,0.3)',
     fontSize: 13,
     fontFamily: 'Inter-ExtraLight',
   },
   nextBtn: {
-    backgroundColor: '#CFC3E0',
-    paddingVertical: 7,
-    paddingHorizontal: 18,
-    borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.20)',
+    borderColor: 'rgba(200,160,80,0.6)',
+    backgroundColor: 'rgba(180,140,80,0.15)',
+    borderRadius: 6,
+    paddingVertical: 9,
+    paddingHorizontal: 20,
   },
   nextText: {
-    color: '#1F233A',
+    color: 'rgba(220,185,100,1)',
     fontSize: 13,
     fontFamily: 'Inter-Regular',
   },
@@ -219,7 +220,7 @@ const HOME_TOUR_STEPS: TourStep[] = [
         title="The Orb"
         body="Your entry point. Press to begin a session or resume where you left off."
         stepNum={1}
-        total={4}
+        total={6}
         onNext={next}
         onStop={stop}
       />
@@ -229,10 +230,10 @@ const HOME_TOUR_STEPS: TourStep[] = [
     floatingProps: { middleware: [offset(12), shift(), flip()], placement: 'right' },
     render: ({ next, stop }) => (
       <TourTooltip
-        title="Soundscapes"
-        body="Press or swipe right for looping psychoacoustic environments — crafted for deep rest and induction."
+        title="The Garden"
+        body={"Press or swipe left to right for looping psychoacoustic environments — crafted for deep rest and induction."}
         stepNum={2}
-        total={4}
+        total={6}
         onNext={next}
         onStop={stop}
       />
@@ -242,10 +243,36 @@ const HOME_TOUR_STEPS: TourStep[] = [
     floatingProps: { middleware: [offset(12), shift(), flip()], placement: 'left' },
     render: ({ next, stop }) => (
       <TourTooltip
-        title="Chambers"
-        body="Press or swipe left for guided journeys — structured experiences from beginning to end."
+        title="The Chambers"
+        body={"Press or swipe left from right side for guided descent — structured experiences from beginning to end."}
         stepNum={3}
-        total={4}
+        total={6}
+        onNext={next}
+        onStop={stop}
+      />
+    ),
+  },
+  {
+    floatingProps: { middleware: [offset(12), shift(), flip()], placement: 'right' },
+    render: ({ next, stop }) => (
+      <TourTooltip
+        title="Dream Journal"
+        body="The quill sigil opens your dream journal — log what you experienced, set intentions, and track your inner journey."
+        stepNum={4}
+        total={6}
+        onNext={next}
+        onStop={stop}
+      />
+    ),
+  },
+  {
+    floatingProps: { middleware: [offset(12), shift(), flip()], placement: 'left' },
+    render: ({ next, stop }) => (
+      <TourTooltip
+        title="Aeris"
+        body="The orb sigil opens Aeris — your AI guide for reflection, pattern recognition, and deeper understanding of your practice."
+        stepNum={5}
+        total={6}
         onNext={next}
         onStop={stop}
       />
@@ -255,10 +282,10 @@ const HOME_TOUR_STEPS: TourStep[] = [
     floatingProps: { middleware: [offset(12), shift(), flip()], placement: 'top' },
     render: ({ next, stop }) => (
       <TourTooltip
-        title="Learning Hub"
+        title="The Archive"
         body="Press below for the science and practice behind Inner — lessons, techniques, and deeper context."
-        stepNum={4}
-        total={4}
+        stepNum={6}
+        total={6}
         onNext={next}
         onStop={stop}
       />
@@ -446,6 +473,49 @@ export default function HomeScreen({ navigation, route }: any) {
           borderColor: 'rgba(255,255,255,0.12)',
           zIndex: 300,
           elevation: 300,
+        },
+        navZoneLeft: {
+          position: 'absolute',
+          left: 15,
+          top: '52%',
+          alignItems: 'center',
+          zIndex: 61,
+          elevation: 61,
+        },
+        navZoneRight: {
+          position: 'absolute',
+          right: 15,
+          top: '52%',
+          alignItems: 'center',
+          zIndex: 61,
+          elevation: 61,
+        },
+        verticalLabel: {
+          flexDirection: 'column',
+          alignItems: 'center',
+          marginTop: 6,
+        },
+        navLabelCharLeft: {
+          color: 'rgba(190, 150, 255, 0.85)',
+          fontSize: scale(10),
+          letterSpacing: 1,
+          lineHeight: scale(12),
+          textAlign: 'center',
+          fontFamily: 'Inter-ExtraLight',
+          textShadowColor: 'rgba(160, 100, 255, 0.6)',
+          textShadowOffset: { width: 0, height: 0 },
+          textShadowRadius: 6,
+        },
+        navLabelCharRight: {
+          color: 'rgba(251, 168, 80, 0.85)',
+          fontSize: scale(10),
+          letterSpacing: 1,
+          lineHeight: scale(12),
+          textAlign: 'center',
+          fontFamily: 'Inter-ExtraLight',
+          textShadowColor: 'rgba(245, 158, 11, 0.6)',
+          textShadowOffset: { width: 0, height: 0 },
+          textShadowRadius: 6,
         },
         navArrowBottom: {
           position: 'absolute',
@@ -2307,8 +2377,8 @@ const openInnerFlame = useCallback(async () => {
   <SpotlightTourProvider
     ref={tourRef}
     steps={HOME_TOUR_STEPS}
-    overlayColor="rgba(8,8,16,1)"
-    overlayOpacity={0.7}
+    overlayColor="rgba(0,0,0,1)"
+    overlayOpacity={0.82}
     onBackdropPress="continue"
     onStop={() => {
       setTourRunning(false);
@@ -2872,6 +2942,22 @@ const openInnerFlame = useCallback(async () => {
           <View pointerEvents="none" style={{ width: ORB_WIDTH, height: ORB_WIDTH }} />
         </AttachStep>
 
+        {/* Journal sigil spotlight target */}
+        <AttachStep
+          index={3}
+          style={{ position: 'absolute', left: SIGIL_LEFT_LEFT, top: SIGIL_LEFT_TOP, width: SIGIL_SIZE, height: SIGIL_SIZE }}
+        >
+          <View pointerEvents="none" style={{ width: SIGIL_SIZE, height: SIGIL_SIZE }} />
+        </AttachStep>
+
+        {/* Aeris sigil spotlight target */}
+        <AttachStep
+          index={4}
+          style={{ position: 'absolute', left: SIGIL_RIGHT_LEFT, top: SIGIL_RIGHT_TOP, width: SIGIL_SIZE, height: SIGIL_SIZE }}
+        >
+          <View pointerEvents="none" style={{ width: SIGIL_SIZE, height: SIGIL_SIZE }} />
+        </AttachStep>
+
         {/* Tap target limited to orb center so list below remains touchable */}
         <AnimatedPressable
           pointerEvents="box-only"
@@ -3298,120 +3384,64 @@ const openInnerFlame = useCallback(async () => {
         }}
       >
         {/* Left: Soundscapes */}
-<Animated.View
-  pointerEvents="box-none"
-  style={{
-    position: 'absolute',
-    top: 0, left: 0, right: 0, bottom: 0,
-    opacity: leftHintOpacity,
-  }}
->
-  <AttachStep
-    index={1}
-    style={{ position: 'absolute', left: scale(12), top: verticalScale(300), width: scale(48), height: scale(48) }}
-  >
-    <View pointerEvents="none" style={{ width: scale(48), height: scale(48) }} />
-  </AttachStep>
-  <Pressable
-    onPress={goToSoundscapes}
-    accessibilityRole="button"
-    accessibilityLabel="Go to Soundscapes"
-    style={[styles.navArrowLeft, { zIndex: 61, elevation: 61 }]}
-    hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
-    onLongPress={async () => {
-      try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-      runHint(leftHint);
-    }}
-    delayLongPress={450}
-    >
-    <Animated.Text
-      style={[
-        styles.navArrowText,
-        {
-          // pulse only the glyph
-          opacity: leftHintOpacity,
-          transform: [
-            {
-              scale: leftHintScale,
-            },
-          ],
-        },
-      ]}
-    >
-      {'\u2039'}
-    </Animated.Text>
-  </Pressable>
-</Animated.View>
-
-        {/* Right: Chambers */}
-<Animated.View
-  pointerEvents="box-none"
-  style={{
-    position: 'absolute',
-    top: 0, left: 0, right: 0, bottom: 0,
-    opacity: rightHintOpacity,
-  }}
->
-  <AttachStep
-    index={2}
-    style={{ position: 'absolute', right: scale(12), top: verticalScale(300), width: scale(48), height: scale(48) }}
-  >
-    <View pointerEvents="none" style={{ width: scale(48), height: scale(48) }} />
-  </AttachStep>
-  <Pressable
-    onPress={goToChambers}
-    accessibilityRole="button"
-    accessibilityLabel="Go to Chambers"
-    style={[styles.navArrowRight, { zIndex: 61, elevation: 61 }]}
-    hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
-    onLongPress={async () => {
-      try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-      runHint(rightHint);
-    }}
-    delayLongPress={450}
-  >
-    <Animated.Text
-      style={[
-        styles.navArrowText,
-        {
-          opacity: rightHintOpacity,
-          transform: [
-            {
-              scale: rightHintScale,
-            },
-          ],
-        },
-      ]}
-    >
-      {'\u203A'}
-    </Animated.Text>
-  </Pressable>
-</Animated.View>
-
-        {/* Bottom: Learning Hub */}
+        {/* Spotlight targets for left/right nav labels */}
         <AttachStep
-          index={3}
-          style={{ position: 'absolute', left: '50%', bottom: insets.bottom + verticalScale(24), width: scale(48), height: scale(48), transform: [{ translateX: -scale(24) }] }}
+          index={1}
+          style={{ position: 'absolute', left: 0, top: '53%', width: 20, height: 160 }}
         >
-          <View pointerEvents="none" style={{ width: scale(48), height: scale(48) }} />
+          <View pointerEvents="none" style={{ width: 20, height: 160 }} />
         </AttachStep>
-        <Pressable
-          onPress={goToLearnHub}
-          accessibilityRole="button"
-          accessibilityLabel="Open The Archives"
-          style={{
-            position: 'absolute',
-            bottom: -20,
-            alignSelf: 'center',
-            width: '50%',
-          }}
+        <AttachStep
+          index={2}
+          style={{ position: 'absolute', right: 0, top: '53%', width: 20, height: 160 }}
         >
-          <Image
-            source={require('../assets/images/archive_nav.png')}
-            style={{ width: '100%', height: undefined, aspectRatio: 2.2 }}
-            resizeMode="contain"
-          />
-        </Pressable>
+          <View pointerEvents="none" style={{ width: 20, height: 160 }} />
+        </AttachStep>
+
+        {/* Left \u2014 The Garden */}
+        <TouchableOpacity
+          style={styles.navZoneLeft}
+          onPress={() => navigation.navigate('Soundscapes')}
+          activeOpacity={0.7}
+        >
+          <View style={styles.verticalLabel}>
+            {'THE GARDEN'.split('').map((char, i) => (
+              <Text key={i} style={styles.navLabelCharLeft}>{char}</Text>
+            ))}
+          </View>
+        </TouchableOpacity>
+
+        {/* Right \u2014 The Chambers */}
+        <TouchableOpacity
+          style={styles.navZoneRight}
+          onPress={() => navigation.navigate('Chambers')}
+          activeOpacity={0.7}
+        >
+          <View style={styles.verticalLabel}>
+            {'THE CHAMBERS'.split('').map((char, i) => (
+              <Text key={i} style={styles.navLabelCharRight}>{char}</Text>
+            ))}
+          </View>
+        </TouchableOpacity>
+
+        {/* Bottom: The Archives */}
+        <AttachStep
+          index={5}
+          style={{ position: 'absolute', bottom: 0, alignSelf: 'center', width: '50%' }}
+        >
+          <Pressable
+            onPress={goToLearnHub}
+            accessibilityRole="button"
+            accessibilityLabel="Open The Archives"
+            style={{ width: '100%', bottom: -20 }}
+          >
+            <Image
+              source={require('../assets/images/archive_nav.png')}
+              style={{ width: '100%', height: undefined, aspectRatio: 2.2 }}
+              resizeMode="contain"
+            />
+          </Pressable>
+        </AttachStep>
       </View>
       <LunarWhisperModal
         visible={showLunarModal}
