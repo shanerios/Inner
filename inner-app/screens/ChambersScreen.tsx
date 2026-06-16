@@ -14,6 +14,7 @@ import {
   FlatList,
   Dimensions,
   Modal,
+  PanResponder,
   Platform,
   StyleSheet,
   ScrollView,
@@ -168,11 +169,13 @@ const PAGER_DATA: PagerItem[] = [
 
 type EntryPageProps = {
   isActive: boolean;
+  screenFocused: boolean;
   onInfo: () => void;
   insets: { top: number; bottom: number; left: number; right: number };
+  panHandlers: any;
 };
 
-const EntryPage = React.memo(function EntryPage({ isActive, onInfo, insets }: EntryPageProps) {
+const EntryPage = React.memo(function EntryPage({ isActive, screenFocused, onInfo, insets, panHandlers }: EntryPageProps) {
   const videoPlayer = useVideoPlayer(
     require('../assets/images/chamber_revamp.mp4'),
     player => {
@@ -182,15 +185,15 @@ const EntryPage = React.memo(function EntryPage({ isActive, onInfo, insets }: En
   );
 
   useEffect(() => {
-    if (isActive) {
+    if (isActive && screenFocused) {
       videoPlayer.play();
     } else {
       videoPlayer.pause();
     }
-  }, [isActive]);
+  }, [isActive, screenFocused]);
 
   return (
-    <View style={{ width: SCREEN_W, height: SCREEN_H }}>
+    <View style={{ width: SCREEN_W, height: SCREEN_H }} {...panHandlers}>
       {/* Video background */}
       <VideoView
         player={videoPlayer}
@@ -285,13 +288,15 @@ const EntryPage = React.memo(function EntryPage({ isActive, onInfo, insets }: En
 type ChamberPageProps = {
   item: ChamberPageData;
   isActive: boolean;
+  screenFocused: boolean;
   isLocked: boolean;
   onEnter: (id: ChamberEnvId, title: string) => void;
   onPaywall: (label: string) => void;
+  onGoHome: () => void;
   insets: { top: number; bottom: number; left: number; right: number };
 };
 
-const ChamberPage = React.memo(function ChamberPage({ item, isActive, isLocked, onEnter, onPaywall, insets }: ChamberPageProps) {
+const ChamberPage = React.memo(function ChamberPage({ item, isActive, screenFocused, isLocked, onEnter, onPaywall, onGoHome, insets }: ChamberPageProps) {
   const env = CHAMBER_ENVIRONMENTS[item.id];
   const { isCached, isWorking, progress, download, remove } = useOfflineAsset(item.id, 'chamber');
 
@@ -300,14 +305,14 @@ const ChamberPage = React.memo(function ChamberPage({ item, isActive, isLocked, 
     player.muted = true;
   });
 
-  // Play only when this page is the active visible one
+  // Play only when this page is the active visible one AND the screen is focused
   useEffect(() => {
-    if (isActive) {
+    if (isActive && screenFocused) {
       videoPlayer.play();
     } else {
       videoPlayer.pause();
     }
-  }, [isActive]);
+  }, [isActive, screenFocused]);
 
   const handleEnter = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
@@ -340,6 +345,37 @@ const ChamberPage = React.memo(function ChamberPage({ item, isActive, isLocked, 
         style={StyleSheet.absoluteFill}
         pointerEvents="none"
       />
+
+      {/* Return home — top center, matches "Swipe down to return" hint style */}
+      <Pressable
+        onPress={() => {
+          Haptics.selectionAsync().catch(() => {});
+          onGoHome();
+        }}
+        hitSlop={14}
+        accessibilityRole="button"
+        accessibilityLabel="Return home"
+        style={{
+          position: 'absolute',
+          top: insets.top + 14,
+          left: 0,
+          right: 0,
+          alignItems: 'center',
+          zIndex: 10,
+        }}
+      >
+        <Text
+          style={{
+            fontFamily: 'Inter-ExtraLight',
+            fontSize: 12,
+            letterSpacing: 2,
+            color: 'rgba(237,232,250,0.5)',
+            textTransform: 'uppercase',
+          }}
+        >
+          Return
+        </Text>
+      </Pressable>
 
       {/* Top area — chamber number, title, descriptor */}
       <View
@@ -627,7 +663,11 @@ export default function ChambersScreen() {
   // --- Portal fade veil ---
   const portalFade = useRef(new Animated.Value(0)).current;
 
+  // Track screen focus so child video players pause when we navigate away
+  const [screenFocused, setScreenFocused] = useState(true);
+
   useFocusEffect(useCallback(() => {
+    setScreenFocused(true);
     portalFade.setValue(0.52);
     Animated.timing(portalFade, {
       toValue: 0,
@@ -635,7 +675,7 @@ export default function ChambersScreen() {
       easing: Easing.out(Easing.quad),
       useNativeDriver: true,
     }).start();
-    return () => {};
+    return () => { setScreenFocused(false); };
   }, [portalFade]));
 
   // --- Current visible index ---
@@ -656,23 +696,31 @@ export default function ChambersScreen() {
     }
   );
 
-  // --- Swipe down on page 0 → Home ---
-  const listRef = useRef<FlatList<PagerItem>>(null);
-  const scrollOffsetRef = useRef(0);
-
-  const handleScrollBeginDrag = useCallback((e: any) => {
-    scrollOffsetRef.current = e.nativeEvent.contentOffset.y;
-  }, []);
-
-  const handleScroll = useCallback((e: any) => {
-    const offsetY = e.nativeEvent.contentOffset.y;
-    // If we're on page 0 and the list bounces into negative territory → go Home
-    if (currentIndexRef.current === 0 && offsetY < -40) {
-      Haptics.selectionAsync().catch(() => {});
-      // @ts-ignore
-      navigation.navigate('Home');
-    }
+  const goHome = useCallback(() => {
+    // @ts-ignore
+    navigation.navigate('Home');
   }, [navigation]);
+
+  // --- Swipe down on entry page (index 0) → Home ---
+  // PanResponder approach works on physical iOS and Android; the old
+  // negative-contentOffset bounce trick was iOS-simulator-only.
+  const listRef = useRef<FlatList<PagerItem>>(null);
+
+  const swipeDownResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gs) =>
+        // Only activate on the entry page, only for a clear downward swipe
+        currentIndexRef.current === 0 &&
+        gs.dy > 20 &&
+        Math.abs(gs.dy) > Math.abs(gs.dx) * 2,
+      onPanResponderRelease: (_, gs) => {
+        if (currentIndexRef.current === 0 && gs.dy > 60) {
+          Haptics.selectionAsync().catch(() => {});
+          goHome();
+        }
+      },
+    })
+  ).current;
 
   // --- Enter chamber ---
   const isPremiumChamber = useCallback((id: ChamberEnvId) => {
@@ -724,8 +772,10 @@ export default function ChambersScreen() {
       return (
         <EntryPage
           isActive={index === currentIndex}
+          screenFocused={screenFocused}
           onInfo={openInfo}
           insets={insets}
+          panHandlers={swipeDownResponder.panHandlers}
         />
       );
     }
@@ -733,13 +783,15 @@ export default function ChambersScreen() {
       <ChamberPage
         item={item.data}
         isActive={index === currentIndex}
+        screenFocused={screenFocused}
         isLocked={isLockedForIndex(item.data)}
         onEnter={enterChamber}
         onPaywall={openPaywall}
+        onGoHome={goHome}
         insets={insets}
       />
     );
-  }, [currentIndex, isLockedForIndex, enterChamber, openPaywall, openInfo, insets]);
+  }, [currentIndex, screenFocused, isLockedForIndex, enterChamber, openPaywall, goHome, openInfo, insets]);
 
   const keyExtractor = useCallback((item: PagerItem) => item.id, []);
 
@@ -757,9 +809,6 @@ export default function ChambersScreen() {
         decelerationRate="fast"
         viewabilityConfig={viewabilityConfig.current}
         onViewableItemsChanged={onViewableItemsChanged.current}
-        onScrollBeginDrag={handleScrollBeginDrag}
-        onScroll={handleScroll}
-        scrollEventThrottle={16}
         initialNumToRender={2}
         maxToRenderPerBatch={2}
         windowSize={3}
@@ -770,24 +819,26 @@ export default function ChambersScreen() {
         })}
       />
 
-      {/* Swipe up hint — top center, only on entry page */}
-      <Text
-        pointerEvents="none"
-        style={{
-          position: 'absolute',
-          top: insets.top + 14,
-          left: 0,
-          right: 0,
-          textAlign: 'center',
-          fontFamily: 'Inter-ExtraLight',
-          fontSize: 12,
-          letterSpacing: 2,
-          color: 'rgba(237,232,250,0.5)',
-          textTransform: 'uppercase',
-        }}
-      >
-        Swipe up to return
-      </Text>
+      {/* Swipe down hint — entry page only */}
+      {currentIndex === 0 && (
+        <Text
+          pointerEvents="none"
+          style={{
+            position: 'absolute',
+            top: insets.top + 14,
+            left: 0,
+            right: 0,
+            textAlign: 'center',
+            fontFamily: 'Inter-ExtraLight',
+            fontSize: 12,
+            letterSpacing: 2,
+            color: 'rgba(237,232,250,0.5)',
+            textTransform: 'uppercase',
+          }}
+        >
+          Swipe down to return
+        </Text>
+      )}
 
       {/* Page indicator — right edge (entry page = index 0, so chamberIndex = currentIndex - 1) */}
       <PageIndicator chamberIndex={currentIndex - 1} insets={insets} />

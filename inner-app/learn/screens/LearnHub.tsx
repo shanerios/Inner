@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Modal, ActivityIndicator, Animated, TextInput, Easing } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Modal, ActivityIndicator, Animated, TextInput, Easing, Dimensions } from 'react-native';
+const { height: SCREEN_H } = Dimensions.get('window');
 import { Asset } from 'expo-asset';
 import * as FileSystem from 'expo-file-system';
 import MarkdownDisplay from 'react-native-markdown-display';
@@ -785,7 +786,7 @@ const recentIntentions: string[] = Array.isArray(selectedIntentions) ? selectedI
         <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.75)' }} onPress={() => setShowHelp(false)}>
           <View style={{ flex: 1, justifyContent: 'flex-end' }}>
             <Pressable onPress={() => {}}>
-              <View style={{ paddingBottom: 28, paddingTop: 28, paddingHorizontal: 28, borderTopLeftRadius: 12, borderTopRightRadius: 12, backgroundColor: 'rgba(8,5,3,0.97)', borderTopWidth: 1, borderColor: 'rgba(180,140,80,0.2)' }}>
+              <View style={{ paddingBottom: Math.max(insets.bottom + 16, 28), paddingTop: 28, paddingHorizontal: 28, borderTopLeftRadius: 12, borderTopRightRadius: 12, backgroundColor: 'rgba(8,5,3,0.97)', borderTopWidth: 1, borderColor: 'rgba(180,140,80,0.2)' }}>
                 <Text style={{ color: 'rgba(220,185,100,0.95)', fontSize: 18, fontWeight: '600', fontFamily: 'CalSans-SemiBold', marginBottom: 16 }}>
                   The Archives
                 </Text>
@@ -795,7 +796,7 @@ const recentIntentions: string[] = Array.isArray(selectedIntentions) ? selectedI
                     <Text style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13, marginTop: 8, fontFamily: 'Inter-ExtraLight' }}>Loading…</Text>
                   </View>
                 ) : (
-                  <ScrollView style={{ maxHeight: 320 }} contentContainerStyle={{ paddingBottom: 8 }} showsVerticalScrollIndicator={false}>
+                  <ScrollView style={{ maxHeight: SCREEN_H * 0.45 }} contentContainerStyle={{ paddingBottom: 8 }} showsVerticalScrollIndicator={false}>
                     <Markdown style={markdownStyles}>
                       {helpMd || 'Browse categories, tap a lesson to open it, and use the back arrow to return.'}
                     </Markdown>

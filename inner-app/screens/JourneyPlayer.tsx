@@ -476,6 +476,11 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
   const tpWasPlayingRef = useRef(false);
   const tpPausedDuringScrubRef = useRef(false);
 
+  // Soundscape horizontal time-scrub state
+  const scrubStartPosRef = useRef(0);   // playback ms at gesture start
+  const scrubPausedRef = useRef(false); // whether we paused during this scrub
+  const windowWidthRef = useRef(0);     // kept in sync via effect
+
   const [ringOpacity, setRingOpacity] = useState(RING_NORM_OPACITY);
   const [ringStrokeBoost, setRingStrokeBoost] = useState(false);
 
@@ -1337,6 +1342,7 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
 
   // Orb / ring geometry — compact phones only; Pro Max / tall phones keep original sizes
   const { scale: uiScale, width: windowWidth, height: windowHeight, matchesCompactLayout } = useScale();
+  useEffect(() => { windowWidthRef.current = windowWidth; }, [windowWidth]);
 
   const orbGeometry = useMemo(() => {
     const ORB_VISUAL_SCALE = 1.10;
@@ -1656,6 +1662,61 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
     })
   ).current;
 
+  // --- Soundscape horizontal time scrubber ---
+  // Full-width swipe = full track duration. Pauses during drag, resumes on release.
+  const soundscapeScrubResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_, gs) => Math.abs(gs.dx) > 6 && Math.abs(gs.dx) > Math.abs(gs.dy),
+      onPanResponderGrant: async () => {
+        suppressCompleteRef.current = true;
+        scrubPausedRef.current = false;
+        try {
+          const posSec = await TrackPlayer.getPosition();
+          scrubStartPosRef.current = Math.floor((posSec || 0) * 1000);
+          const st = await TrackPlayer.getState();
+          if (st === State.Playing) {
+            await TrackPlayer.pause();
+            scrubPausedRef.current = true;
+          }
+        } catch {}
+        setSeeking(true);
+      },
+      onPanResponderMove: (_, gs) => {
+        const dur = durationRef.current && durationRef.current > 0
+          ? durationRef.current
+          : SOUNDSCAPE_DEFAULT_MS;
+        const w = windowWidthRef.current || 390;
+        const delta = Math.round((gs.dx / w) * dur);
+        const target = Math.max(0, Math.min(dur - 1, scrubStartPosRef.current + delta));
+        setPosition(target);
+      },
+      onPanResponderRelease: async (_, gs) => {
+        const dur = durationRef.current && durationRef.current > 0
+          ? durationRef.current
+          : SOUNDSCAPE_DEFAULT_MS;
+        const w = windowWidthRef.current || 390;
+        const delta = Math.round((gs.dx / w) * dur);
+        const target = Math.max(0, Math.min(dur - 1, scrubStartPosRef.current + delta));
+        try {
+          await seekToMs(target);
+          await savePosition(target);
+          await Haptics.selectionAsync();
+        } catch {}
+        if (scrubPausedRef.current) {
+          try { await TrackPlayer.play(); uiHoldUntilRef.current = Date.now() + 600; } catch {}
+          scrubPausedRef.current = false;
+        }
+        setSeeking(false);
+        setTimeout(() => { suppressCompleteRef.current = false; }, 200);
+      },
+      onPanResponderTerminate: () => {
+        scrubPausedRef.current = false;
+        setSeeking(false);
+      },
+    })
+  ).current;
+
   // --- Loop and skip helpers ---
   // Loop toggle removed: expo-av only (TrackPlayer loop is set on load)
 
@@ -1891,13 +1952,28 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
               <Text style={[Typography.display, { color: '#F0EEF8', textAlign: 'center', letterSpacing: 0.3 }]}>
                 {displayTitle}
               </Text>
-              <Text style={[Typography.caption, { color: '#B9B5C9', textAlign: 'center', letterSpacing: 0.9 }]}>
-                {(durationRef.current && durationRef.current > 0)
-                  ? `${mmss(position)} / −${mmss(Math.max(0, durationRef.current - position))}`
-                  : (duration > 0
-                      ? `${mmss(position)} / −${mmss(Math.max(0, duration - position))}`
-                      : 'warming…')}
-              </Text>
+              <View
+                {...soundscapeScrubResponder.panHandlers}
+                hitSlop={{ top: 14, bottom: 14, left: 40, right: 40 }}
+                accessibilityRole="adjustable"
+                accessibilityLabel="Scrub playback position"
+                accessibilityHint="Drag left or right to seek"
+                style={{ alignItems: 'center', paddingVertical: 6 }}
+              >
+                <Text style={[Typography.caption, { color: seeking ? '#E8E4F3' : '#B9B5C9', textAlign: 'center', letterSpacing: 0.9 }]}>
+                  {(durationRef.current && durationRef.current > 0)
+                    ? `${mmss(position)} / −${mmss(Math.max(0, durationRef.current - position))}`
+                    : (duration > 0
+                        ? `${mmss(position)} / −${mmss(Math.max(0, duration - position))}`
+                        : 'warming…')}
+                </Text>
+                {/* Drag affordance — two arrows flanking a thin line */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4, opacity: seeking ? 0.9 : 0.35 }}>
+                  <Text style={{ color: '#B9B5C9', fontSize: 10 }}>‹</Text>
+                  <View style={{ width: 36, height: 1, backgroundColor: '#B9B5C9', marginHorizontal: 4 }} />
+                  <Text style={{ color: '#B9B5C9', fontSize: 10 }}>›</Text>
+                </View>
+              </View>
               {sleepTimerActive && countdownLabel ? (
                 <Text style={[Typography.caption, { color: '#9F98B8', textAlign: 'center', letterSpacing: 0.5, opacity: 0.92 }]}>
                   Sleep in {countdownLabel}

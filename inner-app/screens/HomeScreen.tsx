@@ -2,7 +2,7 @@ import { Asset } from 'expo-asset';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useMemo, useRef } from 'react';
-import { Animated, AppState, Dimensions, Easing, Image, Modal, Platform, Pressable, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
+import { Animated, AppState, Dimensions, Easing, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { Directions, Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Purchases from 'react-native-purchases';
 import { safePresentPaywall } from '../src/core/subscriptions/safePresentPaywall';
@@ -138,7 +138,9 @@ function TourTooltip({
     <View style={tourStyles.card}>
       <Text style={tourStyles.label}>{stepNum} of {total}</Text>
       <Text style={tourStyles.title}>{title}</Text>
-      <Text style={tourStyles.body}>{body}</Text>
+      <ScrollView style={{ maxHeight: 120 }} showsVerticalScrollIndicator={false}>
+        <Text style={tourStyles.body}>{body}</Text>
+      </ScrollView>
       <View style={tourStyles.actions}>
         <TouchableOpacity onPress={onStop} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
           <Text style={tourStyles.skip}>Skip</Text>
@@ -227,11 +229,11 @@ const HOME_TOUR_STEPS: TourStep[] = [
     ),
   },
   {
-    floatingProps: { middleware: [offset(12), shift(), flip()], placement: 'right' },
+    floatingProps: { middleware: [offset(12), shift()], placement: 'top' },
     render: ({ next, stop }) => (
       <TourTooltip
         title="The Garden"
-        body={"Press or swipe left to right for looping psychoacoustic environments — crafted for deep rest and induction."}
+        body={"Press or swipe right to left for looping psychoacoustic environments — crafted for deep rest and induction."}
         stepNum={2}
         total={6}
         onNext={next}
@@ -240,7 +242,7 @@ const HOME_TOUR_STEPS: TourStep[] = [
     ),
   },
   {
-    floatingProps: { middleware: [offset(12), shift(), flip()], placement: 'left' },
+    floatingProps: { middleware: [offset(12), shift()], placement: 'top' },
     render: ({ next, stop }) => (
       <TourTooltip
         title="The Chambers"
@@ -314,6 +316,11 @@ export default function HomeScreen({ navigation, route }: any) {
       StyleSheet.create({
         container: {
           flex: 1,
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
           backgroundColor: '#0d0d1a',
           justifyContent: 'flex-start',
           alignItems: 'center',
@@ -323,8 +330,8 @@ export default function HomeScreen({ navigation, route }: any) {
           ...StyleSheet.absoluteFillObject,
           alignItems: 'center',
           justifyContent: 'center',
-          zIndex: 55,
-          elevation: 55,
+          zIndex: 120,
+          elevation: 120,
         },
         orbImage: {},
         orbHit: {
@@ -476,7 +483,7 @@ export default function HomeScreen({ navigation, route }: any) {
         },
         navZoneLeft: {
           position: 'absolute',
-          left: 15,
+          left: -20,
           top: '52%',
           alignItems: 'center',
           zIndex: 61,
@@ -484,7 +491,7 @@ export default function HomeScreen({ navigation, route }: any) {
         },
         navZoneRight: {
           position: 'absolute',
-          right: 15,
+          right: -15,
           top: '52%',
           alignItems: 'center',
           zIndex: 61,
@@ -2446,8 +2453,8 @@ const openInnerFlame = useCallback(async () => {
           backgroundColor: 'rgba(0,0,0,0.30)',
           borderWidth: 1,
           borderColor: 'rgba(255,255,255,0.12)',
-          zIndex: 120,
-          elevation: 120,
+          zIndex: 90,
+          elevation: 90,
           opacity: 0.9,
         }}
         hitSlop={scale(12)}
@@ -2473,7 +2480,7 @@ const openInnerFlame = useCallback(async () => {
           backgroundColor: 'rgba(0,0,0,0.30)',
           borderWidth: 1,
           borderColor: 'rgba(255,255,255,0.12)',
-          zIndex: 120,
+          zIndex: 100,
           elevation: 120,
           opacity: 0.9,
         }}
@@ -2525,6 +2532,8 @@ const openInnerFlame = useCallback(async () => {
               {
                 opacity: quickCalmOverlayOpacity,
                 backgroundColor: 'rgba(10,6,26,0.55)',
+                zIndex: 110,
+                elevation: 110,
               },
             ]}
           />
@@ -2538,6 +2547,8 @@ const openInnerFlame = useCallback(async () => {
               right: 0,
               top: SCREEN_H * 0.65,
               alignItems: 'center',
+              zIndex: 111,
+              elevation: 111,
             }}
           >
             <Animated.Text
@@ -2565,8 +2576,8 @@ const openInnerFlame = useCallback(async () => {
             position: 'absolute',
             top: insets.top + verticalScale(10),
             right: scale(56),
-            zIndex: 130,
-            elevation: 130,
+            zIndex: 90,
+            elevation: 90,
           }}
         >
           <BlurView
@@ -3047,8 +3058,9 @@ const openInnerFlame = useCallback(async () => {
           ) : null}
         </AnimatedPressable>
 
-
-
+        {/* Sigil visibility gate — hides both sigils during Quick Calm without
+            removing them from portalWrap's stacking context (keeps touches working) */}
+        <View style={{ ...StyleSheet.absoluteFillObject, opacity: quickCalmVisible ? 0 : 1 }} pointerEvents="box-none">
         {/* Left Sigil Halo — Lavender (soft PNG radial) */}
         <Animated.Image
           pointerEvents="none"
@@ -3231,7 +3243,8 @@ const openInnerFlame = useCallback(async () => {
             <Image source={SIGIL_COMMUNITY} resizeMode="contain" style={{ width: '100%', height: '100%' }} />
           </Pressable>
         </Animated.View>
-      </View>
+        </View>{/* end sigil visibility gate */}
+      </View>{/* end portalWrap */}
 
       <View
         pointerEvents="box-none"
@@ -3387,41 +3400,45 @@ const openInnerFlame = useCallback(async () => {
         {/* Spotlight targets for left/right nav labels */}
         <AttachStep
           index={1}
-          style={{ position: 'absolute', left: 0, top: '53%', width: 20, height: 160 }}
+          style={{ position: 'absolute', left: 0, top: '53%', width: 60, height: 240 }}
         >
-          <View pointerEvents="none" style={{ width: 20, height: 160 }} />
+          <View pointerEvents="none" style={{ width: 60, height: 240 }} />
         </AttachStep>
         <AttachStep
           index={2}
-          style={{ position: 'absolute', right: 0, top: '53%', width: 20, height: 160 }}
+          style={{ position: 'absolute', right: 0, top: '53%', width: 60, height: 240 }}
         >
           <View pointerEvents="none" style={{ width: 20, height: 160 }} />
         </AttachStep>
 
-        {/* Left \u2014 The Garden */}
+        {/* Left  The Garden */}
         <TouchableOpacity
           style={styles.navZoneLeft}
           onPress={() => navigation.navigate('Soundscapes')}
-          activeOpacity={0.7}
+          activeOpacity={0.9}
+          accessibilityRole="button"
+          accessibilityLabel="Go to The Garden"
         >
-          <View style={styles.verticalLabel}>
-            {'THE GARDEN'.split('').map((char, i) => (
-              <Text key={i} style={styles.navLabelCharLeft}>{char}</Text>
-            ))}
-          </View>
+          <Image
+            source={require('../assets/images/garden_nav.png')}
+            style={{ width: 60, height: 240 }}
+            resizeMode="contain"
+          />
         </TouchableOpacity>
 
-        {/* Right \u2014 The Chambers */}
+        {/* Right The Chambers */}
         <TouchableOpacity
           style={styles.navZoneRight}
           onPress={() => navigation.navigate('Chambers')}
           activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Go to The Chambers"
         >
-          <View style={styles.verticalLabel}>
-            {'THE CHAMBERS'.split('').map((char, i) => (
-              <Text key={i} style={styles.navLabelCharRight}>{char}</Text>
-            ))}
-          </View>
+          <Image
+            source={require('../assets/images/chambers_nav.png')}
+            style={{ width: 60, height: 240 }}
+            resizeMode="contain"
+          />
         </TouchableOpacity>
 
         {/* Bottom: The Archives */}

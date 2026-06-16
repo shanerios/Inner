@@ -7,6 +7,7 @@ import {
   ScrollView,
   Animated,
   Easing,
+  Platform,
   useWindowDimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -142,24 +143,21 @@ export default function IntentionScreen() {
           marginVertical: verticalScale(4),
           position: 'relative',
         },
-        cardGlow: {
-          position: 'absolute',
-          left: 0,
-          right: 0,
-          top: 0,
-          bottom: 0,
-          borderRadius: 8,
-          backgroundColor: 'rgba(195, 164, 242, 0.22)',
-        },
         cardSelected: {
-          // Background stays transparent — amber border glow only
-          borderColor: 'rgba(251,191,36,0.5)',
-          borderWidth: 1,
-          shadowColor: '#F59E0B',
-          shadowOffset: { width: 0, height: 0 },
-          shadowRadius: 10,
-          shadowOpacity: 0.7,
-          elevation: 8,
+          borderColor: 'rgba(251,191,36,0.8)',
+          borderWidth: 1.5,
+          backgroundColor: 'rgba(180, 140, 80, 0.12)',
+          ...Platform.select({
+            ios: {
+              shadowColor: '#F59E0B',
+              shadowOffset: { width: 0, height: 0 },
+              shadowRadius: 10,
+              shadowOpacity: 0.7,
+            },
+            android: {
+              // Border is the selection indicator on Android — no shadow/elevation
+            },
+          }),
         },
         cardDimmed: {
           opacity: 0.4,

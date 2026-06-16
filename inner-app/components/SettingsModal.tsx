@@ -19,6 +19,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Typography } from '../core/typography';
 import { Typography as _Typography, Body as _Body } from '../core/typography';
 import { scheduleDailyWakeNotification } from '../utils/notifications';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const Body = _Body ?? ({ regular: { ..._Typography.body }, subtle: { ..._Typography.caption } } as const);
 
@@ -68,6 +69,8 @@ export default function SettingsModal({
   weeklyEmbers,
   totalEmbers,
 }: SettingsModalProps) {
+
+  const insets = useSafeAreaInsets();
 
   // ── Local state ──────────────────────────────────────────────────────────
 
@@ -257,22 +260,16 @@ export default function SettingsModal({
 
   // ── Video background ─────────────────────────────────────────────────────
 
+  // Only allocate the player when the modal is actually open — avoids holding
+  // decoded frame buffers in memory while the modal is hidden (Android OOM risk).
   const settingsPlayer = useVideoPlayer(
-    require('../assets/videos/settings_bg.mp4'),
+    visible ? require('../assets/videos/settings_bg.mp4') : null,
     (player) => {
       player.loop = true;
       player.muted = true;
-      player.play();
+      if (visible) player.play();
     }
   );
-
-  useEffect(() => {
-    if (visible) {
-      settingsPlayer.play();
-    } else {
-      settingsPlayer.pause();
-    }
-  }, [visible]);
 
   // ── Render ───────────────────────────────────────────────────────────────
 
@@ -627,7 +624,7 @@ export default function SettingsModal({
             </ScrollView>
 
             {/* Footer: Save button row */}
-            <View style={{ marginTop: 6, flexDirection: 'row', justifyContent: 'flex-end', gap: 12 }}>
+            <View style={{ marginTop: 6, paddingBottom: Math.max(insets.bottom + 12, 16), flexDirection: 'row', justifyContent: 'flex-end', gap: 12 }}>
               <TouchableOpacity
                 onPress={onClose}
                 accessibilityRole="button"

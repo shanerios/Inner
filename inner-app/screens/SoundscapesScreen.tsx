@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { usePostHog } from 'posthog-react-native';
-import { StyleSheet, View, Text, Pressable, ScrollView, Animated, Easing, TextInput, Alert, Platform, Modal, Dimensions } from 'react-native';
+import { StyleSheet, View, Text, Pressable, ScrollView, Animated, Easing, TextInput, Alert, Platform, Modal, Dimensions, KeyboardAvoidingView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'react-native';
@@ -105,6 +105,7 @@ const GARDEN_CATEGORIES = [
   { key: 'deeper'    as const, label: 'Root Deep'  },
   { key: 'tones'     as const, label: 'Resonance'   },
   { key: 'noise'     as const, label: 'Natural'     },
+  { key: 'sanctuary' as const, label: 'Sanctuary'   },
 ] as const;
 
 type CategoryKey = typeof GARDEN_CATEGORIES[number]['key'];
@@ -117,6 +118,7 @@ const CATEGORY_LABELS: Record<CategoryKey, string> = {
   deeper:    'Root Deep',
   tones:     'Resonance',
   noise:     'Natural',
+  sanctuary: 'Sanctuary',
 };
 
 // Dimensions used for track list max height
@@ -488,7 +490,10 @@ export default function SoundscapesScreen() {
         </View>
 
         {/* UI area — sits at the bottom, content stacks upward from safe area */}
-        <View style={{ flex: 1, justifyContent: 'flex-end' }}>
+        <KeyboardAvoidingView
+          style={{ flex: 1, justifyContent: 'flex-end' }}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
         <View
           style={{
             paddingHorizontal: scale(20),
@@ -644,6 +649,7 @@ export default function SoundscapesScreen() {
                 style={{ maxHeight: windowHeight * 0.45 }}
                 contentContainerStyle={{ paddingBottom: verticalScale(16) }}
                 showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
               >
                 {filteredTracks.length === 0 ? (
                   <Text
@@ -683,7 +689,7 @@ export default function SoundscapesScreen() {
             </View>
           )}
         </View>
-        </View>
+        </KeyboardAvoidingView>
 
         {/* Right arrow to return Home */}
         <Pressable

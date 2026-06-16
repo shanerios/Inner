@@ -573,6 +573,41 @@ export const TRACKS: TrackMeta[] = [
     category: 'noise',
     durationHintMs: 10 * 60 * 1000,
   },
+
+  // Sanctuary
+  {
+    id: 'the_approach',
+    title: 'The Approach',
+    kind: 'soundscape',
+    loop: true,
+    remote: 'https://f005.backblazeb2.com/file/inner-audio/Soundscapes/the_approach_hq.m4a',
+    remoteLow: 'https://f005.backblazeb2.com/file/inner-audio/Soundscapes/the_approach_64k.m4a',
+    category: 'sanctuary',
+    isPremium: false,
+    durationHintMs: 60 * 60 * 1000,
+  },
+  {
+    id: 'the_central_hall',
+    title: 'The Central Hall',
+    kind: 'soundscape',
+    loop: true,
+    remote: 'https://f005.backblazeb2.com/file/inner-audio/Soundscapes/the_central_hall_hq.m4a',
+    remoteLow: 'https://f005.backblazeb2.com/file/inner-audio/Soundscapes/the_central_hall_64k.m4a',
+    category: 'sanctuary',
+    isPremium: true,
+    durationHintMs: 60 * 60 * 1000,
+  },
+  {
+    id: 'inner_chamber',
+    title: 'Inner Chamber',
+    kind: 'soundscape',
+    loop: true,
+    remote: 'https://f005.backblazeb2.com/file/inner-audio/Soundscapes/inner_chamber_hq.m4a',
+    remoteLow: 'https://f005.backblazeb2.com/file/inner-audio/Soundscapes/inner_chamber_64k.m4a',
+    category: 'sanctuary',
+    isPremium: true,
+    durationHintMs: 60 * 60 * 1000,
+  },
 ];
 
 export const TRACK_INDEX: Record<string, TrackMeta> =
