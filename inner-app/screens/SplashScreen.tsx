@@ -24,7 +24,7 @@ const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 // Scale needed to cover the full screen from the orb's center position.
 // Uses screen diagonal so it works on any device size.
-const ORB_SIZE = 165;
+const ORB_SIZE = Math.round(SCREEN_W * 0.38); // ~38% of screen width, scales across all devices
 const ORB_EFFECTIVE_RADIUS = (ORB_SIZE / 2) * 1.15;
 const ENGULF_SCALE = Math.ceil(
   Math.sqrt(SCREEN_W ** 2 + SCREEN_H ** 2) / ORB_EFFECTIVE_RADIUS
@@ -543,27 +543,26 @@ export default function SplashScreen() {
 const styles = StyleSheet.create({
   orbPressable: {
     position: 'absolute',
-    // Center the ORB_SIZE box on screen, then apply the visual offset
     left: SCREEN_W / 2 - ORB_SIZE / 2 + 5,
-    top: SCREEN_H / 2 - ORB_SIZE / 2 - 130,
+    top: SCREEN_H * 0.37 - ORB_SIZE / 2,
   },
   wordmarkWrapper: {
     position: 'absolute',
-    bottom: 420,
+    bottom: SCREEN_H * 0.44,
     left: 0,
     right: 0,
     alignItems: 'center',
   },
   taglineWrapper: {
     position: 'absolute',
-    bottom: 300,
+    bottom: SCREEN_H * 0.22,
     left: 0,
     right: 0,
     alignItems: 'center',
   },
   returnHomeWrapper: {
     position: 'absolute',
-    bottom: 220,
+    bottom: SCREEN_H * 0.16,
     left: 0,
     right: 0,
     alignItems: 'center',

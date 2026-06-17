@@ -487,7 +487,6 @@ export default function HomeScreen({ navigation, route }: any) {
           top: '52%',
           alignItems: 'center',
           zIndex: 61,
-          elevation: 61,
         },
         navZoneRight: {
           position: 'absolute',
@@ -495,7 +494,6 @@ export default function HomeScreen({ navigation, route }: any) {
           top: '52%',
           alignItems: 'center',
           zIndex: 61,
-          elevation: 61,
         },
         verticalLabel: {
           flexDirection: 'column',
@@ -1558,10 +1556,7 @@ const pan = useMemo(
   // Short-phone class (e.g. iPhone SE): smaller orb — see utils/scale matchesCompactLayout + !isTablet
   const isCompactPhone = !isTablet && matchesCompactLayout;
 
-  // On wider or large-width devices, the orb tweaks can visually lift the sigils.
-  // Add a stronger downward offset so they sit closer to the orb base.
-  const isLargeW = SCREEN_W >= 420; // wide dp threshold (e.g., Pixel Pro / Galaxy Ultra class)
-  const SIGIL_Y_PROFILE_TWEAK = (isWide || isLargeW) ? verticalScale(40) : 0; // move sigils down on wide/large screens
+  const isLargeW = SCREEN_W >= 420;
 
   // Video background player
   const bgPlayer = useVideoPlayer(require('../assets/images/home_revamp.mp4'), player => {
@@ -1676,14 +1671,12 @@ const ORB_TOP =
   const SIGIL_LEFT_CENTER_X  = BG_BOX_LEFT + BG_BOX_W * 0.34;
   const SIGIL_RIGHT_CENTER_X = BG_BOX_LEFT + BG_BOX_W * 0.66;
 
-  // Convert centers to top-left for absolute positioning (adjusted positions)
-  const sigilExtraLift = verticalScale(20);
+  // Convert centers to top-left for absolute positioning
   const SIGIL_LEFT_LEFT  = SIGIL_LEFT_CENTER_X  - SIGIL_SIZE / 2 - scale(15);
-  const SIGIL_LEFT_TOP =
-    SIGIL_CENTER_Y - SIGIL_SIZE / 2 + verticalScale(50) + SIGIL_Y_PROFILE_TWEAK - sigilExtraLift;
   const SIGIL_RIGHT_LEFT = SIGIL_RIGHT_CENTER_X - SIGIL_SIZE / 2 + scale(15);
-  const SIGIL_RIGHT_TOP =
-    SIGIL_CENTER_Y - SIGIL_SIZE / 2 + verticalScale(50) + SIGIL_Y_PROFILE_TWEAK - sigilExtraLift;
+  const SIGIL_TOP = SCREEN_H * 0.50 - SIGIL_SIZE / 2;
+  const SIGIL_LEFT_TOP  = SIGIL_TOP;
+  const SIGIL_RIGHT_TOP = SIGIL_TOP;
 
   // Welcome message fade-up
   const msgOpacity = useRef(new Animated.Value(0)).current;
@@ -2453,10 +2446,11 @@ const openInnerFlame = useCallback(async () => {
           backgroundColor: 'rgba(0,0,0,0.30)',
           borderWidth: 1,
           borderColor: 'rgba(255,255,255,0.12)',
-          zIndex: 90,
-          elevation: 90,
-          opacity: 0.9,
+          zIndex: 121,
+          elevation: 121,
+          opacity: quickCalmVisible ? 0 : 0.9,
         }}
+        pointerEvents={quickCalmVisible ? 'none' : 'auto'}
         hitSlop={scale(12)}
         onPressIn={async () => { try { await Haptics.selectionAsync(); } catch {} }}
       >
@@ -2480,10 +2474,11 @@ const openInnerFlame = useCallback(async () => {
           backgroundColor: 'rgba(0,0,0,0.30)',
           borderWidth: 1,
           borderColor: 'rgba(255,255,255,0.12)',
-          zIndex: 100,
-          elevation: 120,
-          opacity: 0.9,
+          zIndex: 121,
+          elevation: 121,
+          opacity: quickCalmVisible ? 0 : 0.9,
         }}
+        pointerEvents={quickCalmVisible ? 'none' : 'auto'}
         hitSlop={scale(12)}
         onPressIn={async () => { try { await Haptics.selectionAsync(); } catch {} }}
       >
@@ -3393,7 +3388,6 @@ const openInnerFlame = useCallback(async () => {
           right: 0,
           bottom: 0,
           zIndex: 100,
-          elevation: 100,
         }}
       >
         {/* Left: Soundscapes */}
@@ -3413,7 +3407,7 @@ const openInnerFlame = useCallback(async () => {
 
         {/* Left  The Garden */}
         <TouchableOpacity
-          style={styles.navZoneLeft}
+          style={[styles.navZoneLeft, { elevation: 101 }]}
           onPress={() => navigation.navigate('Soundscapes')}
           activeOpacity={0.9}
           accessibilityRole="button"
@@ -3428,7 +3422,7 @@ const openInnerFlame = useCallback(async () => {
 
         {/* Right The Chambers */}
         <TouchableOpacity
-          style={styles.navZoneRight}
+          style={[styles.navZoneRight, { elevation: 101 }]}
           onPress={() => navigation.navigate('Chambers')}
           activeOpacity={0.7}
           accessibilityRole="button"
@@ -3444,13 +3438,13 @@ const openInnerFlame = useCallback(async () => {
         {/* Bottom: The Archives */}
         <AttachStep
           index={5}
-          style={{ position: 'absolute', bottom: 0, alignSelf: 'center', width: '50%' }}
+          style={{ position: 'absolute', bottom: 0, alignSelf: 'center', width: '50%', elevation: 101 }}
         >
           <Pressable
             onPress={goToLearnHub}
             accessibilityRole="button"
             accessibilityLabel="Open The Archives"
-            style={{ width: '100%', bottom: -20 }}
+            style={{ width: '100%', bottom: -20, elevation: 101 }}
           >
             <Image
               source={require('../assets/images/archive_nav.png')}

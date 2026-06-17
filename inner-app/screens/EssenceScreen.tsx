@@ -174,7 +174,7 @@ export default function EssenceScreen() {
           zIndex: 3,
         },
         nameOverlay: {
-          width: '86%',
+          width: '84%',
           backgroundColor: 'transparent',
           borderRadius: 0,
           paddingVertical: 0,
@@ -189,14 +189,14 @@ export default function EssenceScreen() {
           alignItems: 'center',
         },
         nameBackdrop: {
-          width: '92%',
-          paddingTop: verticalScale(20),
-          paddingBottom: verticalScale(20),
+          width: '90%',
+          paddingTop: verticalScale(10),
+          paddingBottom: verticalScale(10),
           paddingHorizontal: scale(20),
           borderRadius: 12,
-          backgroundColor: 'rgba(8,5,3,0.97)',
+          backgroundColor: 'rgba(8,5,3,0.6)',
           borderWidth: 1,
-          borderColor: 'rgba(180,140,80,0.2)',
+          borderColor: 'rgba(180,140,80,0.3)',
           shadowColor: '#000',
           shadowOffset: { width: 0, height: verticalScale(12) },
           shadowOpacity: 0.4,
@@ -211,12 +211,12 @@ export default function EssenceScreen() {
           borderWidth: 0,
           borderBottomWidth: 1,
           borderBottomColor: 'rgba(180,140,80,0.4)',
-          paddingVertical: verticalScale(10),
+          paddingVertical: verticalScale(2),
           paddingHorizontal: scale(4),
           fontSize: scale(18),
           textAlign: 'center',
           alignSelf: 'stretch',
-          marginBottom: verticalScale(24),
+          marginBottom: verticalScale(12),
         },
         nameActions: {
           marginTop: verticalScale(4),
@@ -552,7 +552,7 @@ export default function EssenceScreen() {
           style={[
             styles.nameOverlayWrap,
             {
-              top: Math.max(verticalScale(148), Math.round(windowHeight * 0.22) + verticalScale(24)),
+              top: Math.max(verticalScale(148), Math.round(windowHeight * 0.52) + verticalScale(24)),
             },
           ]}
           pointerEvents="box-none"
@@ -564,10 +564,10 @@ export default function EssenceScreen() {
             ]}
           >
             <View style={styles.nameBackdrop}>
-              <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: scale(22), fontWeight: '500', textAlign: 'center', marginBottom: 8, letterSpacing: 0.3 }}>
+              <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: scale(16), fontWeight: '500', textAlign: 'center', marginBottom: 8, letterSpacing: 0.3 }}>
                 How should I know you?
               </Text>
-              <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: scale(13), textAlign: 'center', marginBottom: verticalScale(24), lineHeight: scale(19) }}>
+              <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: scale(10), textAlign: 'center', marginBottom: verticalScale(24), lineHeight: scale(18) }}>
                 Used to greet you. Optional.
               </Text>
               <TextInput
@@ -616,7 +616,7 @@ export default function EssenceScreen() {
           style={[
             styles.nameOverlayWrap,
             {
-              top: Math.max(verticalScale(148), Math.round(windowHeight * 0.22) + verticalScale(24)),
+              top: Math.max(verticalScale(148), Math.round(windowHeight * 0.52) + verticalScale(24)),
             },
           ]}
           pointerEvents="box-none"
@@ -628,10 +628,10 @@ export default function EssenceScreen() {
             ]}
           >
             <View style={styles.nameBackdrop}>
-              <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: scale(22), fontWeight: '500', textAlign: 'center', marginBottom: 8, letterSpacing: 0.3 }}>
+              <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: scale(16), fontWeight: '500', textAlign: 'center', marginBottom: 8, letterSpacing: 0.3 }}>
                 When do you return from sleep?
               </Text>
-              <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: scale(13), textAlign: 'center', marginBottom: verticalScale(20), lineHeight: scale(19) }}>
+              <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: scale(10), textAlign: 'center', marginBottom: verticalScale(20), lineHeight: scale(19) }}>
                 A reminder will meet you at the threshold.
               </Text>
               <View style={styles.wakeChipsRow}>
