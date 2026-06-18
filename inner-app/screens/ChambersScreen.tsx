@@ -14,7 +14,6 @@ import {
   FlatList,
   Dimensions,
   Modal,
-  PanResponder,
   Platform,
   StyleSheet,
   ScrollView,
@@ -171,11 +170,11 @@ type EntryPageProps = {
   isActive: boolean;
   screenFocused: boolean;
   onInfo: () => void;
+  onGoHome: () => void;
   insets: { top: number; bottom: number; left: number; right: number };
-  panHandlers: any;
 };
 
-const EntryPage = React.memo(function EntryPage({ isActive, screenFocused, onInfo, insets, panHandlers }: EntryPageProps) {
+const EntryPage = React.memo(function EntryPage({ isActive, screenFocused, onInfo, onGoHome, insets }: EntryPageProps) {
   const videoPlayer = useVideoPlayer(
     require('../assets/images/chamber_revamp.mp4'),
     player => {
@@ -183,6 +182,8 @@ const EntryPage = React.memo(function EntryPage({ isActive, screenFocused, onInf
       player.muted = true;
     }
   );
+
+  const returnOpacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (isActive && screenFocused) {
@@ -192,8 +193,18 @@ const EntryPage = React.memo(function EntryPage({ isActive, screenFocused, onInf
     }
   }, [isActive, screenFocused]);
 
+  useEffect(() => {
+    Animated.sequence([
+      Animated.timing(returnOpacity, { toValue: 1.0, duration: 400, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.delay(1200),
+      Animated.timing(returnOpacity, { toValue: 0.85, duration: 700, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(returnOpacity, { toValue: 1.0, duration: 700, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(returnOpacity, { toValue: 0.45, duration: 1000, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+    ]).start();
+  }, []);
+
   return (
-    <View style={{ width: SCREEN_W, height: SCREEN_H }} {...panHandlers}>
+    <View style={{ width: SCREEN_W, height: SCREEN_H }}>
       {/* Video background */}
       <VideoView
         player={videoPlayer}
@@ -211,6 +222,16 @@ const EntryPage = React.memo(function EntryPage({ isActive, screenFocused, onInf
         style={StyleSheet.absoluteFill}
         pointerEvents="none"
       />
+
+      {/* RETURN — centered, matches ChamberPage style */}
+      <Animated.View
+        style={{ position: 'absolute', top: insets.top + 14, left: 0, right: 0, alignItems: 'center', zIndex: 10, opacity: returnOpacity }}
+        pointerEvents="box-none"
+      >
+        <Pressable onPress={onGoHome} hitSlop={14} accessibilityRole="button" accessibilityLabel="Return home">
+          <Text style={{ fontFamily: 'Inter-ExtraLight', fontSize: 12, letterSpacing: 2, color: 'rgba(237,232,250,0.7)', textTransform: 'uppercase' }}>Return</Text>
+        </Pressable>
+      </Animated.View>
 
       {/* ? button — top right */}
       <Pressable
@@ -274,7 +295,7 @@ const EntryPage = React.memo(function EntryPage({ isActive, screenFocused, onInf
             textShadowRadius: 4,
           }}
         >
-          Swipe to descend
+          Swipe up to descend
         </Text>
       </View>
     </View>
@@ -346,7 +367,7 @@ const ChamberPage = React.memo(function ChamberPage({ item, isActive, screenFocu
         pointerEvents="none"
       />
 
-      {/* Return home — top center, matches "Swipe down to return" hint style */}
+      {/* Return home */}
       <Pressable
         onPress={() => {
           Haptics.selectionAsync().catch(() => {});
@@ -701,26 +722,7 @@ export default function ChambersScreen() {
     navigation.navigate('Home');
   }, [navigation]);
 
-  // --- Swipe down on entry page (index 0) → Home ---
-  // PanResponder approach works on physical iOS and Android; the old
-  // negative-contentOffset bounce trick was iOS-simulator-only.
   const listRef = useRef<FlatList<PagerItem>>(null);
-
-  const swipeDownResponder = useRef(
-    PanResponder.create({
-      onMoveShouldSetPanResponder: (_, gs) =>
-        // Only activate on the entry page, only for a clear downward swipe
-        currentIndexRef.current === 0 &&
-        gs.dy > 20 &&
-        Math.abs(gs.dy) > Math.abs(gs.dx) * 2,
-      onPanResponderRelease: (_, gs) => {
-        if (currentIndexRef.current === 0 && gs.dy > 60) {
-          Haptics.selectionAsync().catch(() => {});
-          goHome();
-        }
-      },
-    })
-  ).current;
 
   // --- Enter chamber ---
   const isPremiumChamber = useCallback((id: ChamberEnvId) => {
@@ -774,8 +776,8 @@ export default function ChambersScreen() {
           isActive={index === currentIndex}
           screenFocused={screenFocused}
           onInfo={openInfo}
+          onGoHome={goHome}
           insets={insets}
-          panHandlers={swipeDownResponder.panHandlers}
         />
       );
     }
@@ -819,26 +821,6 @@ export default function ChambersScreen() {
         })}
       />
 
-      {/* Swipe down hint — entry page only */}
-      {currentIndex === 0 && (
-        <Text
-          pointerEvents="none"
-          style={{
-            position: 'absolute',
-            top: insets.top + 14,
-            left: 0,
-            right: 0,
-            textAlign: 'center',
-            fontFamily: 'Inter-ExtraLight',
-            fontSize: 12,
-            letterSpacing: 2,
-            color: 'rgba(237,232,250,0.5)',
-            textTransform: 'uppercase',
-          }}
-        >
-          Swipe down to return
-        </Text>
-      )}
 
       {/* Page indicator — right edge (entry page = index 0, so chamberIndex = currentIndex - 1) */}
       <PageIndicator chamberIndex={currentIndex - 1} insets={insets} />
