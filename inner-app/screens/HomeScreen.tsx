@@ -138,7 +138,7 @@ function TourTooltip({
     <View style={tourStyles.card}>
       <Text style={tourStyles.label}>{stepNum} of {total}</Text>
       <Text style={tourStyles.title}>{title}</Text>
-      <ScrollView style={{ maxHeight: 120 }} showsVerticalScrollIndicator={false}>
+      <ScrollView style={{ maxHeight: 100 }} showsVerticalScrollIndicator={false}>
         <Text style={tourStyles.body}>{body}</Text>
       </ScrollView>
       <View style={tourStyles.actions}>
@@ -157,10 +157,12 @@ const tourStyles = StyleSheet.create({
   card: {
     backgroundColor: 'rgba(8,5,3,0.97)',
     borderRadius: 12,
-    padding: 20,
+    padding: 14,
     borderWidth: 1,
     borderColor: 'rgba(180,140,80,0.2)',
-    maxWidth: 260,
+    maxWidth: 480,
+    maxHeight: 260,
+    width: '90%',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.4,
@@ -173,21 +175,21 @@ const tourStyles = StyleSheet.create({
     color: 'rgba(200,160,80,0.55)',
     textTransform: 'uppercase',
     letterSpacing: 2,
-    marginBottom: 4,
+    marginBottom: 2,
   },
   title: {
     fontFamily: 'CalSans-SemiBold',
     fontSize: 16,
     fontWeight: '600',
     color: 'rgba(220,185,100,0.95)',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   body: {
     fontFamily: 'Inter-ExtraLight',
     fontSize: 13,
     color: 'rgba(255,255,255,0.65)',
     lineHeight: 19,
-    marginBottom: 12,
+    marginBottom: 8,
   },
   actions: {
     flexDirection: 'row',
@@ -304,6 +306,7 @@ export default function HomeScreen({ navigation, route }: any) {
   const posthog = usePostHog();
   const { width: SCREEN_W, height: SCREEN_H } = useWindowDimensions();
   const DEVICE_SCREEN_H = Dimensions.get('screen').height;
+  const DEVICE_SCREEN_W = Dimensions.get('screen').width;
   const { scale, verticalScale, matchesCompactLayout } = useScale();
   const ORB_HIT_OFFSET_X = 0; // tweak to nudge hit-area horizontally
   const ORB_HIT_OFFSET_Y = verticalScale(-30); // tweak to nudge hit-area vertically
@@ -2374,6 +2377,7 @@ const openInnerFlame = useCallback(async () => {
   const isInnerFlameRecommended = ritualTargetId === 'innerFlame';
 
   return (
+  <View style={{ position: 'absolute', top: 0, left: 0, width: DEVICE_SCREEN_W, height: DEVICE_SCREEN_H }}>
   <SpotlightTourProvider
     ref={tourRef}
     steps={HOME_TOUR_STEPS}
@@ -3394,15 +3398,15 @@ const openInnerFlame = useCallback(async () => {
         {/* Spotlight targets for left/right nav labels */}
         <AttachStep
           index={1}
-          style={{ position: 'absolute', left: 0, top: '53%', width: 60, height: 240 }}
+          style={{ position: 'absolute', left: 0, top: '53%', width: 60, height: 200 }}
         >
-          <View pointerEvents="none" style={{ width: 60, height: 240 }} />
+          <View pointerEvents="none" style={{ width: 60, height: 210 }} />
         </AttachStep>
         <AttachStep
           index={2}
-          style={{ position: 'absolute', right: 0, top: '53%', width: 60, height: 240 }}
+          style={{ position: 'absolute', right: 0, top: '53%', width: 60, height: 200 }}
         >
-          <View pointerEvents="none" style={{ width: 20, height: 160 }} />
+          <View pointerEvents="none" style={{ width: 20, height: 130 }} />
         </AttachStep>
 
         {/* Left  The Garden */}
@@ -3877,5 +3881,6 @@ const openInnerFlame = useCallback(async () => {
     </View>
     </GestureDetector>
   </SpotlightTourProvider>
+  </View>
     );
 }

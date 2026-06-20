@@ -8,6 +8,7 @@ import { useNavigation } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 import { StatusBar } from 'expo-status-bar';
 import { Audio } from 'expo-av';
+import { initAudioOnce } from '../core/initAudio';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Crypto from 'expo-crypto';
 import { usePostHog } from 'posthog-react-native';
@@ -18,8 +19,10 @@ const Body = _Body ?? ({
 } as const);
 
 const SPLASH_TIMESTAMP_KEY = 'inner.splash.lastOpenTimestamp';
+const SPLASH_SKIPPED_TIMESTAMP_KEY = 'inner.splash.lastSkippedTimestamp';
 const USER_ID_KEY = 'inner.user.id';
 const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
+const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 // Scale needed to cover the full screen from the orb's center position.
@@ -43,6 +46,7 @@ export default function SplashScreen() {
   const navigating = useRef(false);
   const overlayOpacity = useRef(new Animated.Value(0)).current;
   const whooshSound = useRef<Audio.Sound | null>(null);
+  const ambientSound = useRef<Audio.Sound | null>(null);
 
   const [canReturnHome, setCanReturnHome] = useState(false);
   const [showReturnHome, setShowReturnHome] = useState(false);
@@ -53,6 +57,7 @@ export default function SplashScreen() {
 
   // Video state
   const [showVideo, setShowVideo] = useState(false);
+  const showVideoRef = useRef(false);
   // After video ends/skip, show the static final frame PNG behind the orb UI
   const [showFinalFrame, setShowFinalFrame] = useState(false);
   const [showSkip, setShowSkip] = useState(false);
@@ -122,14 +127,27 @@ export default function SplashScreen() {
       clearTimeout(skipTimerRef.current);
       skipTimerRef.current = null;
     }
+    if (ambientSound.current) {
+      ambientSound.current.setVolumeAsync(0).catch(() => {});
+      setTimeout(() => { ambientSound.current?.stopAsync().catch(() => {}); }, 500);
+    }
+    showVideoRef.current = false;
     setShowSkip(false);
     setShowVideo(false);
     setShowFinalFrame(true);
     fadeInUI();
   };
 
-  const handleSkip = () => {
+  const handleSkip = async () => {
+    try {
+      await AsyncStorage.setItem(SPLASH_SKIPPED_TIMESTAMP_KEY, String(Date.now()));
+    } catch {}
+
     videoPlayer.pause();
+    if (ambientSound.current) {
+      ambientSound.current.setVolumeAsync(0).catch(() => {});
+      setTimeout(() => { ambientSound.current?.stopAsync().catch(() => {}); }, 300);
+    }
     handleVideoEnd();
   };
 
@@ -158,15 +176,19 @@ export default function SplashScreen() {
       // Timestamp check
       try {
         const raw = await AsyncStorage.getItem(SPLASH_TIMESTAMP_KEY);
+        const skippedRaw = await AsyncStorage.getItem(SPLASH_SKIPPED_TIMESTAMP_KEY);
         await AsyncStorage.setItem(SPLASH_TIMESTAMP_KEY, String(now));
         const last = raw ? parseInt(raw, 10) : 0;
-        const shouldPlayVideo = !raw || (now - last) > TWO_HOURS_MS;
+        const lastSkipped = skippedRaw ? parseInt(skippedRaw, 10) : 0;
+        const recentlySkipped = !!lastSkipped && (now - lastSkipped) < TWELVE_HOURS_MS;
+        const shouldPlayVideo = !recentlySkipped && (!raw || (now - last) > TWO_HOURS_MS);
         if (shouldPlayVideo) {
           setShowFinalFrame(true);
+          showVideoRef.current = true;
           setShowVideo(true);
           skipTimerRef.current = setTimeout(() => setShowSkip(true), 2000);
         } else {
-          // Under 2h: skip video entirely, show final frame as background
+          // Under 2h or recently skipped: skip video entirely, show final frame as background
           setShowFinalFrame(true);
           fadeInUI();
         }
@@ -191,6 +213,8 @@ export default function SplashScreen() {
   useEffect(() => {
     if (!showVideo) return;
     videoPlayer.play();
+    Audio.setAudioModeAsync({ playsInSilentModeIOS: true }).catch(() => {});
+    ambientSound.current?.replayAsync().catch(() => {});
 
     const endSub = videoPlayer.addListener('playToEnd', () => {
       handleVideoEnd();
@@ -220,6 +244,32 @@ export default function SplashScreen() {
     return () => {
       isMounted = false;
       whooshSound.current?.unloadAsync();
+    };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    const loadAmbient = async () => {
+      try {
+        await initAudioOnce();
+        const { sound } = await Audio.Sound.createAsync(
+          require('../assets/audio/splash_intro.aac')
+        );
+        if (!isMounted) { sound.unloadAsync(); return; }
+        ambientSound.current = sound;
+        await sound.setVolumeAsync(0.85);
+        // Play immediately if the video already started while we were loading
+        if (showVideoRef.current) {
+          sound.replayAsync().catch(() => {});
+        }
+      } catch (e) {
+        // noop
+      }
+    };
+    loadAmbient();
+    return () => {
+      isMounted = false;
+      ambientSound.current?.unloadAsync();
     };
   }, []);
 
