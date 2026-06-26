@@ -1490,6 +1490,12 @@ const pan = useMemo(
 );
 
   // Fallback short-gesture detection (fling) in case Pan is being intercepted by RN scroll responders
+  // Stable refs used by flingUp/flingDown — updated each render after ORB dimensions
+  // and flip callbacks are computed (avoids TDZ issues with declarations below).
+  const orbBoundsRef = useRef({ cx: 0, cy: 0, hitDiameter: 0 });
+  const flipGuardianFnRef = useRef<(() => void) | null>(null);
+  const flipDefaultFnRef = useRef<(() => void) | null>(null);
+
   const flingLeft = useMemo(
     () =>
       Gesture.Fling()
@@ -1533,17 +1539,44 @@ const pan = useMemo(
       .runOnJS(true)
       .direction(Directions.UP)
       .numberOfPointers(1)
-      .onStart(async (e) => {
+      .onStart((e) => {
         __DEV__ && console.log('[FLING UP] triggered');
-        await goToLearnHub();
+        const absX = (e as any).absoluteX ?? 0;
+        const absY = (e as any).absoluteY ?? 0;
+        const { cx, cy, hitDiameter } = orbBoundsRef.current;
+        const dist = Math.sqrt((absX - cx) ** 2 + (absY - cy) ** 2);
+        if (dist < hitDiameter * 1.2) {
+          if (!isGuardianOrbRef.current) flipGuardianFnRef.current?.();
+          return;
+        }
+        goToLearnHub();
       }),
   [gesturesDisabled, goToLearnHub]
 );
 
+  const flingDown = useMemo(
+  () =>
+    Gesture.Fling()
+      .enabled(!gesturesDisabled)
+      .runOnJS(true)
+      .direction(Directions.DOWN)
+      .numberOfPointers(1)
+      .onStart((e) => {
+        const absX = (e as any).absoluteX ?? 0;
+        const absY = (e as any).absoluteY ?? 0;
+        const { cx, cy, hitDiameter } = orbBoundsRef.current;
+        const dist = Math.sqrt((absX - cx) ** 2 + (absY - cy) ** 2);
+        if (dist < hitDiameter * 1.2 && isGuardianOrbRef.current) {
+          flipDefaultFnRef.current?.();
+        }
+      }),
+  [gesturesDisabled]
+);
+
   // Combine pan + fling; whichever recognizes first will win
   const rootGesture = useMemo(
-  () => Gesture.Race(pan, Gesture.Exclusive(flingLeft, flingRight), flingUp),
-  [pan, flingLeft, flingRight, flingUp]
+  () => Gesture.Race(pan, Gesture.Exclusive(flingLeft, flingRight, flingDown), flingUp),
+  [pan, flingLeft, flingRight, flingDown, flingUp]
 );
   // Some Android devices (gesture nav, certain emulators) report a smaller `window` height than the full
   // device screen. Use `screen` height to compute any extra space below the window and bleed the BG into it.
@@ -1580,7 +1613,66 @@ const pan = useMemo(
   const HALO_DIFFUSE = require('../assets/sigils/sigil_halo_diffuse.png');
   // Lunar Whisper: two-sprite swap (default orb ⇄ moon-phase orb)
   const DEFAULT_ORB_SRC = require('../assets/images/orb-enhanced.png');
+  const GUARDIAN_ORB_SRC = require('../assets/images/guardian_orb.png');
 const QUICKCALM_BREATH = require('../assets/audio/quickcalm_breath_v1_mastered.m4a');
+
+  // --- Guardian Orb flip state ---
+  const [isGuardianOrb, setIsGuardianOrb] = React.useState(false);
+  const isGuardianOrbRef = React.useRef(false);
+  const [activeOrbSrc, setActiveOrbSrc] = React.useState<any>(DEFAULT_ORB_SRC);
+  const orbFlipScaleX = useRef(new Animated.Value(1)).current;
+  const orbFlipAnimatingRef = useRef(false);
+
+  const flipToGuardian = useCallback(() => {
+    if (orbFlipAnimatingRef.current || isGuardianOrbRef.current) return;
+    orbFlipAnimatingRef.current = true;
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {}); } catch {}
+    const HALF = 220;
+    Animated.timing(orbFlipScaleX, {
+      toValue: 0,
+      duration: HALF,
+      easing: Easing.inOut(Easing.quad),
+      useNativeDriver: true,
+    }).start(() => {
+      setActiveOrbSrc(GUARDIAN_ORB_SRC);
+      isGuardianOrbRef.current = true;
+      setIsGuardianOrb(true);
+      Animated.timing(orbFlipScaleX, {
+        toValue: 1,
+        duration: HALF,
+        easing: Easing.inOut(Easing.quad),
+        useNativeDriver: true,
+      }).start(() => { orbFlipAnimatingRef.current = false; });
+    });
+  }, [orbFlipScaleX]);
+
+  const flipToDefault = useCallback(() => {
+    if (orbFlipAnimatingRef.current || !isGuardianOrbRef.current) return;
+    orbFlipAnimatingRef.current = true;
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {}); } catch {}
+    const HALF = 220;
+    Animated.timing(orbFlipScaleX, {
+      toValue: 0,
+      duration: HALF,
+      easing: Easing.inOut(Easing.quad),
+      useNativeDriver: true,
+    }).start(() => {
+      setActiveOrbSrc(DEFAULT_ORB_SRC);
+      isGuardianOrbRef.current = false;
+      setIsGuardianOrb(false);
+      Animated.timing(orbFlipScaleX, {
+        toValue: 1,
+        duration: HALF,
+        easing: Easing.inOut(Easing.quad),
+        useNativeDriver: true,
+      }).start(() => { orbFlipAnimatingRef.current = false; });
+    });
+  }, [orbFlipScaleX]);
+
+  // Keep fling gesture refs in sync each render
+  flipGuardianFnRef.current = flipToGuardian;
+  flipDefaultFnRef.current = flipToDefault;
+
   // --- Threshold Moment (post-chamber / ritual acknowledgment) ---
   const [thresholdLine, setThresholdLine] = React.useState<string | null>(null);
   const thresholdOpacity = useRef(new Animated.Value(0)).current;
@@ -1662,6 +1754,13 @@ const ORB_TOP =
     scale(isCompactPhone ? 135 : 150),
     ORB_WIDTH * 1.06,
   );
+
+  // Update stable refs used by flingUp/flingDown each render (avoids stale closure issues)
+  orbBoundsRef.current = {
+    cx: ORB_LEFT + ORB_WIDTH / 2,
+    cy: ORB_TOP + ORB_WIDTH / 2,
+    hitDiameter: ORB_HIT_DIAMETER,
+  };
 
   // Sigils: placed symmetrically below the orb base, sized relative to bg width
   const SIGIL_SIZE_PCT = isTablet ? 0.085 : 0.11; // slightly smaller on tablets
@@ -2085,6 +2184,13 @@ useEffect(() => {
 const handleOrbTap = async () => {
   __DEV__ && console.log('[HOME] Orb tapped');
   if (tourRunning) return;
+
+  if (isGuardianOrbRef.current) {
+    try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
+    try { await fadeOutHum(); } catch {}
+    navigation.navigate('GuardianChamber');
+    return;
+  }
 
   // Haptic feedback
   try {
@@ -2863,72 +2969,7 @@ const openInnerFlame = useCallback(async () => {
 
       {/* Portal / Orb */}
       <View style={styles.portalWrap} pointerEvents="box-none">
-        {/* Base orb — always visible */}
-        <Animated.Image
-          pointerEvents="none"
-          source={DEFAULT_ORB_SRC}
-          resizeMode="contain"
-          accessibilityRole="image"
-          accessibilityLabel={'Home orb'}
-          style={[
-            styles.orbImage,
-            {
-              position: 'absolute',
-              left: ORB_LEFT,
-              top: ORB_TOP,
-              width: ORB_WIDTH,
-              height: ORB_WIDTH,
-              transform: [{
-                scale: Animated.multiply(
-                  Animated.multiply(
-                    Animated.multiply(
-                      Animated.multiply(orbScale, orbParallaxScale),
-                      portalPressScale
-                    ),
-                    quickCalmOrbScale
-                  ),
-                  innerPulseScale
-                ),
-              }],
-              // Attenuate with parallax only; no swap alpha here
-              opacity: orbParallaxOpacity,
-            },
-          ]}
-        />
-
-
-        {/* Moon overlay — fades in/out above the base orb */}
-        <Animated.Image
-          pointerEvents="none"
-          source={moonOverlaySrc}
-          resizeMode="contain"
-          accessible={false}
-          style={[
-            styles.orbImage,
-            {
-              position: 'absolute',
-              left: ORB_LEFT,
-              top: ORB_TOP,
-              width: ORB_WIDTH,
-              height: ORB_WIDTH,
-              transform: [{
-                scale: Animated.multiply(
-                  Animated.multiply(
-                    Animated.multiply(
-                      Animated.multiply(orbScale, orbParallaxScale),
-                      portalPressScale
-                    ),
-                    quickCalmOrbScale
-                  ),
-                  innerPulseScale
-                ),
-              }],
-              // Fade the moon overlay only; base orb stays visible underneath
-              opacity: Animated.multiply(orbParallaxOpacity, orbSwapAlpha),
-            },
-          ]}
-        />
-        {/* Aeris continuity glow — lavender pulse over orb on return from Aeris */}
+        {/* Orb layers — scaleY driven by guardian flip animation (vertical fold) */}
         <Animated.View
           pointerEvents="none"
           style={{
@@ -2937,11 +2978,89 @@ const openInnerFlame = useCallback(async () => {
             top: ORB_TOP,
             width: ORB_WIDTH,
             height: ORB_WIDTH,
-            borderRadius: ORB_WIDTH / 2,
-            backgroundColor: 'rgba(181, 169, 255, 1)',
-            opacity: aerisGlow,
+            transform: [{ scaleY: orbFlipScaleX }],
           }}
-        />
+        >
+          {/* Base orb — source swaps between default and guardian at flip midpoint */}
+          <Animated.Image
+            pointerEvents="none"
+            source={activeOrbSrc}
+            resizeMode="contain"
+            accessibilityRole="image"
+            accessibilityLabel={'Home orb'}
+            style={[
+              styles.orbImage,
+              {
+                position: 'absolute',
+                left: 0,
+                top: 0,
+                width: ORB_WIDTH,
+                height: ORB_WIDTH,
+                transform: [{
+                  scale: Animated.multiply(
+                    Animated.multiply(
+                      Animated.multiply(
+                        Animated.multiply(orbScale, orbParallaxScale),
+                        portalPressScale
+                      ),
+                      quickCalmOrbScale
+                    ),
+                    innerPulseScale
+                  ),
+                }],
+                opacity: orbParallaxOpacity,
+              },
+            ]}
+          />
+
+          {/* Moon overlay — only visible in default orb state */}
+          {!isGuardianOrb && (
+            <Animated.Image
+              pointerEvents="none"
+              source={moonOverlaySrc}
+              resizeMode="contain"
+              accessible={false}
+              style={[
+                styles.orbImage,
+                {
+                  position: 'absolute',
+                  left: 0,
+                  top: 0,
+                  width: ORB_WIDTH,
+                  height: ORB_WIDTH,
+                  transform: [{
+                    scale: Animated.multiply(
+                      Animated.multiply(
+                        Animated.multiply(
+                          Animated.multiply(orbScale, orbParallaxScale),
+                          portalPressScale
+                        ),
+                        quickCalmOrbScale
+                      ),
+                      innerPulseScale
+                    ),
+                  }],
+                  opacity: Animated.multiply(orbParallaxOpacity, orbSwapAlpha),
+                },
+              ]}
+            />
+          )}
+
+          {/* Aeris continuity glow */}
+          <Animated.View
+            pointerEvents="none"
+            style={{
+              position: 'absolute',
+              left: 0,
+              top: 0,
+              width: ORB_WIDTH,
+              height: ORB_WIDTH,
+              borderRadius: ORB_WIDTH / 2,
+              backgroundColor: 'rgba(181, 169, 255, 1)',
+              opacity: aerisGlow,
+            }}
+          />
+        </Animated.View>
 
 
         {/* Orb spotlight beacon — sized to visual orb bounds, not the hit area */}

@@ -212,15 +212,38 @@ export default function SplashScreen() {
 
   useEffect(() => {
     if (!showVideo) return;
+    let cancelled = false;
+
+    // Ensure video is unmuted (init callback may not re-run on subsequent mounts)
+    try { (videoPlayer as any).muted = false; } catch {}
     videoPlayer.play();
-    Audio.setAudioModeAsync({ playsInSilentModeIOS: true }).catch(() => {});
-    ambientSound.current?.replayAsync().catch(() => {});
+
+    (async () => {
+      try {
+        await Audio.setAudioModeAsync({
+          playsInSilentModeIOS: true,
+          staysActiveInBackground: true,
+          shouldDuckAndroid: false,
+        });
+      } catch {}
+      if (cancelled) return;
+      if (ambientSound.current) {
+        ambientSound.current.replayAsync().catch(() => {});
+      }
+      // Retry once after a short delay in case the sound was still loading
+      setTimeout(() => {
+        if (!cancelled && ambientSound.current) {
+          ambientSound.current.replayAsync().catch(() => {});
+        }
+      }, 400);
+    })();
 
     const endSub = videoPlayer.addListener('playToEnd', () => {
       handleVideoEnd();
     });
 
     return () => {
+      cancelled = true;
       endSub.remove();
     };
   }, [showVideo]);
@@ -260,6 +283,13 @@ export default function SplashScreen() {
         await sound.setVolumeAsync(0.85);
         // Play immediately if the video already started while we were loading
         if (showVideoRef.current) {
+          try {
+            await Audio.setAudioModeAsync({
+              playsInSilentModeIOS: true,
+              staysActiveInBackground: true,
+              shouldDuckAndroid: false,
+            });
+          } catch {}
           sound.replayAsync().catch(() => {});
         }
       } catch (e) {
@@ -270,6 +300,7 @@ export default function SplashScreen() {
     return () => {
       isMounted = false;
       ambientSound.current?.unloadAsync();
+      ambientSound.current = null;
     };
   }, []);
 

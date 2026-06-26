@@ -42,6 +42,16 @@
 !service.js
 !service.ts
 
+# Additional source directories
+!src/
+!src/**
+!theme/
+!theme/**
+!plugins/
+!plugins/**
+!service/
+!service/**
+
 # 3) Re-exclude unnecessary or heavy items even inside whitelisted folders
 node_modules/
 dist/
@@ -51,7 +61,17 @@ dist/
 .git/
 .github/
 .DS_Store
+**/.DS_Store
 *.log
+
+# Adobe XMP sidecar files
+**/*.xmp
+
+# Planning/brief PDFs bundled inside assets
+assets/**/*.pdf
+
+# Research content (not app content)
+learn/content/research/
 
 # Native folders are optional to upload — let EAS prebuild on the server
 android/

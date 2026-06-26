@@ -69,10 +69,18 @@ ios/
 
 # adobe metadata + temp
 *.xmp
+**/*.xmp
 fog.png
 inner-clean/
 .DS_Store
 **/.DS_Store
+
+# stray project-root files
+guardian_ecology_manuscript.docx
+guardian_ecology_manuscript.html
+
+# planning/research PDFs inside assets
+assets/**/*.pdf
 
 ##worktrees
 .claude/
