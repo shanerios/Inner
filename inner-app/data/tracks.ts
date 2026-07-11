@@ -608,6 +608,17 @@ export const TRACKS: TrackMeta[] = [
     isPremium: true,
     durationHintMs: 60 * 60 * 1000,
   },
+
+  // ---------------------------------------------------------------------------
+  // Guardians
+  // ---------------------------------------------------------------------------
+  {
+    id: 'guardian_1_cultivation',
+    title: 'Cultivation',
+    kind: 'soundscape',
+    remote: 'https://f005.backblazeb2.com/file/inner-audio/Guardians/Guardian_1_Recognition_HQ.m4a',
+    remoteLow: 'https://f005.backblazeb2.com/file/inner-audio/Guardians/Guardian_1_Recognition_LQ.m4a',
+  },
 ];
 
 export const TRACK_INDEX: Record<string, TrackMeta> =

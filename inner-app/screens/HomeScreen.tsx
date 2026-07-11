@@ -1598,11 +1598,18 @@ const pan = useMemo(
   const bgPlayer = useVideoPlayer(require('../assets/images/home_revamp.mp4'), player => {
     player.loop = true;
     player.muted = true;
+    // Muted decorative video must not claim exclusive AVAudioSession ownership —
+    // the default 'doNotMix' mode fights TrackPlayer's session on background/lock.
+    player.audioMixingMode = 'mixWithOthers';
     player.play();
   });
 
   useFocusEffect(useCallback(() => {
     bgPlayer.play();
+    // Flip guardian orb back to default when returning from Guardian screen
+    if (isGuardianOrbRef.current) {
+      flipDefaultFnRef.current?.();
+    }
     return () => { bgPlayer.pause(); };
   }, [bgPlayer]));
 
@@ -2188,7 +2195,7 @@ const handleOrbTap = async () => {
   if (isGuardianOrbRef.current) {
     try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
     try { await fadeOutHum(); } catch {}
-    navigation.navigate('GuardianChamber');
+    navigation.navigate('Guardian');
     return;
   }
 

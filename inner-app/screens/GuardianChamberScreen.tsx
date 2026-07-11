@@ -11,6 +11,9 @@ export default function GuardianChamberScreen({ navigation }: any) {
   const bgPlayer = useVideoPlayer(require('../assets/videos/guardian_screen.mp4'), player => {
     player.loop = true;
     player.muted = true;
+    // Muted decorative video must not claim exclusive AVAudioSession ownership —
+    // the default 'doNotMix' mode fights TrackPlayer's session on background/lock.
+    player.audioMixingMode = 'mixWithOthers';
     player.play();
   });
 
@@ -26,6 +29,11 @@ export default function GuardianChamberScreen({ navigation }: any) {
     navigation.navigate('Home');
   };
 
+  const handleGuardian1 = async () => {
+    try { await Haptics.selectionAsync(); } catch {}
+    navigation.navigate('Guardian1');
+  };
+
   return (
     <View style={styles.container}>
       <VideoView
@@ -38,6 +46,14 @@ export default function GuardianChamberScreen({ navigation }: any) {
       />
 
       <Text style={styles.screenTitle}>GUARDIANS</Text>
+
+      {/* Archway tap target — center of screen, over the archway */}
+      <Pressable
+        onPress={handleGuardian1}
+        accessibilityRole="button"
+        accessibilityLabel="Enter Guardian I — Recognition"
+        style={styles.archwayTarget}
+      />
 
       <Pressable
         onPress={handleReturn}
@@ -56,6 +72,13 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#0d0d1a',
+  },
+  archwayTarget: {
+    position: 'absolute',
+    alignSelf: 'center',
+    top: '38%',
+    width: 180,
+    height: 220,
   },
   screenTitle: {
     position: 'absolute',

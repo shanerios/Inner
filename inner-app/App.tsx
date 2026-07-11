@@ -29,7 +29,8 @@ import CleanSlateScreen from './screens/CleanSlateScreen';
 import InnerFlameScreen from './screens/InnerFlameScreen';
 import DailyRitualScreen from './screens/DailyRitualScreen';
 import AerisScreen from './screens/AerisScreen';
-import GuardianChamberScreen from './screens/GuardianChamberScreen';
+import GuardianScreen from './screens/GuardianScreen';
+import GuardianPlayerScreen from './screens/GuardianPlayerScreen';
 import { Asset } from 'expo-asset';
 
 import { Audio } from "expo-av";
@@ -409,7 +410,8 @@ export default Sentry.wrap(function App() {
                     },
                   }}
                 />
-                <Stack.Screen name="GuardianChamber" component={GuardianChamberScreen} options={{ headerShown: false }} />
+                <Stack.Screen name="Guardian" component={GuardianScreen} options={{ headerShown: false }} />
+                <Stack.Screen name="GuardianPlayer" component={GuardianPlayerScreen} options={{ headerShown: false }} />
                 <Stack.Screen name="PointZero" component={PointZeroScreen} options={{ headerShown: false }} />
                 <Stack.Screen name="CleanSlate" component={CleanSlateScreen} options={{ headerShown: false }} />
                 <Stack.Screen name="InnerFlame" component={InnerFlameScreen} options={{ headerShown: false }} />

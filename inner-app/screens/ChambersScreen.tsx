@@ -180,6 +180,9 @@ const EntryPage = React.memo(function EntryPage({ isActive, screenFocused, onInf
     player => {
       player.loop = true;
       player.muted = true;
+      // Muted decorative video must not claim exclusive AVAudioSession ownership —
+      // the default 'doNotMix' mode fights TrackPlayer's session on background/lock.
+      player.audioMixingMode = 'mixWithOthers';
     }
   );
 
@@ -324,6 +327,9 @@ const ChamberPage = React.memo(function ChamberPage({ item, isActive, screenFocu
   const videoPlayer = useVideoPlayer(CHAMBER_VIDEOS[item.id], player => {
     player.loop = true;
     player.muted = true;
+    // Muted decorative video must not claim exclusive AVAudioSession ownership —
+    // the default 'doNotMix' mode fights TrackPlayer's session on background/lock.
+    player.audioMixingMode = 'mixWithOthers';
   });
 
   // Play only when this page is the active visible one AND the screen is focused

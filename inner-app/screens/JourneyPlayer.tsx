@@ -120,6 +120,9 @@ export default function JourneyPlayer() {
   const bgVideoPlayer = useVideoPlayer(chamberVideoSource, player => {
     player.loop = true;
     player.muted = true;
+    // Muted decorative video must not claim exclusive AVAudioSession ownership —
+    // the default 'doNotMix' mode fights TrackPlayer's session on background/lock.
+    player.audioMixingMode = 'mixWithOthers';
     if (chamberVideoSource) player.play();
   });
 
@@ -137,6 +140,9 @@ export default function JourneyPlayer() {
   const gardenPlayer = useVideoPlayer(gardenVideoSource, player => {
     player.loop = true;
     player.muted = true;
+    // Muted decorative video must not claim exclusive AVAudioSession ownership —
+    // the default 'doNotMix' mode fights TrackPlayer's session on background/lock.
+    player.audioMixingMode = 'mixWithOthers';
     if (gardenVideoSource) player.play();
   });
 
@@ -428,6 +434,7 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
       try {
         await TrackPlayer.setupPlayer({
           waitForBuffer: true,
+          autoHandleInterruptions: true,
           iosCategory: IOSCategory.Playback,
           iosCategoryOptions: [
             IOSCategoryOptions.AllowBluetooth,

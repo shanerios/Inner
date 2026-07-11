@@ -13,6 +13,7 @@ export async function initAudioOnce() {
     try {
       await TrackPlayer.setupPlayer({
         waitForBuffer: true,
+        autoHandleInterruptions: true,
         iosCategory: IOSCategory.Playback,
         iosCategoryOptions: [
           IOSCategoryOptions.AllowBluetooth,

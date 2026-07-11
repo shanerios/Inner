@@ -250,6 +250,9 @@ export default function SoundscapesScreen() {
   const bgPlayer = useVideoPlayer(require('../assets/videos/garden_bg.mp4'), player => {
     player.loop = true;
     player.muted = true;
+    // Muted decorative video must not claim exclusive AVAudioSession ownership —
+    // the default 'doNotMix' mode fights TrackPlayer's session on background/lock.
+    player.audioMixingMode = 'mixWithOthers';
     try { player.play(); } catch {}
   });
 
