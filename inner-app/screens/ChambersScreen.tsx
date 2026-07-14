@@ -19,7 +19,7 @@ import {
   ScrollView,
   ViewToken,
 } from 'react-native';
-import { useVideoPlayer, VideoView } from 'expo-video';
+import { useVideoPlayer, VideoView } from '../core/memorySafeVideo';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -183,7 +183,8 @@ const EntryPage = React.memo(function EntryPage({ isActive, screenFocused, onInf
       // Muted decorative video must not claim exclusive AVAudioSession ownership —
       // the default 'doNotMix' mode fights TrackPlayer's session on background/lock.
       player.audioMixingMode = 'mixWithOthers';
-    }
+    },
+    { enabled: isActive && screenFocused }
   );
 
   const returnOpacity = useRef(new Animated.Value(0)).current;
@@ -330,7 +331,7 @@ const ChamberPage = React.memo(function ChamberPage({ item, isActive, screenFocu
     // Muted decorative video must not claim exclusive AVAudioSession ownership —
     // the default 'doNotMix' mode fights TrackPlayer's session on background/lock.
     player.audioMixingMode = 'mixWithOthers';
-  });
+  }, { enabled: isActive && screenFocused });
 
   // Play only when this page is the active visible one AND the screen is focused
   useEffect(() => {
@@ -725,7 +726,7 @@ export default function ChambersScreen() {
 
   const goHome = useCallback(() => {
     // @ts-ignore
-    navigation.navigate('Home');
+    navigation.popTo('Home');
   }, [navigation]);
 
   const listRef = useRef<FlatList<PagerItem>>(null);

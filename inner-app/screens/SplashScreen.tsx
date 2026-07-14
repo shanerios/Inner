@@ -3,7 +3,7 @@ import { Animated, Pressable, View, StyleSheet, Image, Platform, Text, Dimension
 import { BlurView } from 'expo-blur';
 import WordmarkSvg from '../assets/wordmark-glow.svg';
 import { Typography, _Body } from '../core/typography';
-import { useVideoPlayer, VideoView } from 'expo-video';
+import { useVideoPlayer, VideoView } from '../core/memorySafeVideo';
 import { useNavigation } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 import { StatusBar } from 'expo-status-bar';
@@ -85,7 +85,7 @@ export default function SplashScreen() {
   const videoPlayer = useVideoPlayer(require('../assets/images/splash-intro.mp4'), player => {
     player.loop = false;
     player.muted = false;
-  });
+  }, { enabled: showVideo, autoplay: showVideo });
 
   const fadeInUI = () => {
     setUiReady(true);

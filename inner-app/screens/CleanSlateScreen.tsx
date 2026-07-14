@@ -9,7 +9,7 @@ import {
   Image,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useVideoPlayer, VideoView } from 'expo-video';
+import { useVideoPlayer, VideoView } from '../core/memorySafeVideo';
 import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Audio } from 'expo-av';
@@ -294,7 +294,7 @@ export default function CleanSlateScreen({ navigation }: any) {
             if (status.didJustFinish) {
               // If the user stays through it, count completion
               logRitualCompletionOnce();
-              navigation.navigate('Home');
+              navigation.popTo('Home');
             }
           }
         );
@@ -311,7 +311,7 @@ export default function CleanSlateScreen({ navigation }: any) {
     if (autoReturnRef.current) clearTimeout(autoReturnRef.current);
     autoReturnRef.current = setTimeout(() => {
       logRitualCompletionOnce();
-      navigation.navigate('Home');
+      navigation.popTo('Home');
     }, 67000);
   };
 
@@ -370,7 +370,7 @@ export default function CleanSlateScreen({ navigation }: any) {
     } catch {}
     exerciseSoundRef.current = null;
 
-    navigation.navigate('Home');
+    navigation.popTo('Home');
   };
 
   // Video background

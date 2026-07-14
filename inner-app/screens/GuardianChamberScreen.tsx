@@ -1,6 +1,6 @@
 import React, { useCallback } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
-import { useVideoPlayer, VideoView } from 'expo-video';
+import { useVideoPlayer, VideoView } from '../core/memorySafeVideo';
 import { useFocusEffect } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -26,7 +26,7 @@ export default function GuardianChamberScreen({ navigation }: any) {
 
   const handleReturn = async () => {
     try { await Haptics.selectionAsync(); } catch {}
-    navigation.navigate('Home');
+    navigation.popTo('Home');
   };
 
   const handleGuardian1 = async () => {

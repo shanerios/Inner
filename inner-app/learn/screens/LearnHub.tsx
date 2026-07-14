@@ -6,7 +6,7 @@ import * as FileSystem from 'expo-file-system';
 import MarkdownDisplay from 'react-native-markdown-display';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import { useVideoPlayer, VideoView } from 'expo-video';
+import { useVideoPlayer, VideoView } from '../../core/memorySafeVideo';
 import Chip from '../../components/Chip';
 import FeaturedCard from '../../components/FeaturedCard';
 import * as Haptics from 'expo-haptics';

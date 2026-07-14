@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { useIntention } from '../core/IntentionProvider';
-import { useVideoPlayer, VideoView } from 'expo-video';
+import { useVideoPlayer, VideoView } from '../core/memorySafeVideo';
 import { useFocusEffect } from '@react-navigation/native';
 const affirmationMap: { [key: string]: string } = {
   calm: 'You are embracing calm and inviting peace into your being.',

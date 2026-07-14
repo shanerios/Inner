@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useRef } from 'react';
 import { Animated, Easing } from 'react-native';
+import { usesStaticBackgrounds } from './memorySafeVideo';
 
 type BreathCtx = { breath: Animated.Value }; // 0 → exhale, 1 → inhale
 const BreathContext = createContext<BreathCtx | null>(null);
@@ -10,6 +11,10 @@ export const BreathProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const breath = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
+    if (usesStaticBackgrounds) {
+      breath.setValue(0.5);
+      return;
+    }
     // Seamless, symmetric loop matching the Home orb feel
     const easing = Easing.inOut(Easing.sin);
     const up = Animated.timing(breath, { toValue: 1, duration: 5000, easing, useNativeDriver: true });

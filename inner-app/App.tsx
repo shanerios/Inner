@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import OnboardingFlow from './screens/OnboardingFlow';
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -82,6 +82,7 @@ import FogTransitionOverlay from './components/FogTransitionOverlay';
 import PaywallScreen from './screens/PaywallScreen';
 import { navigationRef } from './src/navigation/navigationRef';
 import * as Sentry from '@sentry/react-native';
+import { initializeMemoryTelemetry } from './core/memorySafeVideo';
 import { PostHogProvider, usePostHog } from 'posthog-react-native';
 
 Sentry.init({
@@ -98,16 +99,24 @@ Sentry.init({
   // spotlight: __DEV__,
 
   beforeSend(event) {
-    if (event.breadcrumbs?.values) {
-      event.breadcrumbs.values = event.breadcrumbs.values.map((b) => ({
-        ...b,
-        data: undefined,
-        message: b.message?.replace(/journal|entry|dream|intention/gi, '[redacted]'),
-      }));
+    if (Array.isArray(event.breadcrumbs)) {
+      event.breadcrumbs = event.breadcrumbs.map((b) => {
+        const safeLifecycleData =
+          b.category === 'media.lifecycle' || b.category === 'navigation.lifecycle'
+            ? b.data
+            : undefined;
+        return {
+          ...b,
+          data: safeLifecycleData,
+          message: b.message?.replace(/journal|entry|dream|intention/gi, '[redacted]'),
+        };
+      });
     }
     return event;
   },
 });
+
+initializeMemoryTelemetry();
 
 type RootStackParamList = {
   Splash: undefined;
@@ -200,6 +209,7 @@ function PostHogBootTracker() {
 }
 
 export default Sentry.wrap(function App() {
+  const previousRouteName = useRef<string | undefined>(undefined);
   const [fontsLoaded] = useFonts({
     'CalSans-Regular': require('./assets/fonts/CalSans-Regular.ttf'),
     'CalSans-SemiBold': require('./assets/fonts/calsans-semibold.otf'),
@@ -297,12 +307,31 @@ export default Sentry.wrap(function App() {
       <SafeAreaProvider>
         <BreathProvider>
           <IntentionProvider>
-            <NavigationContainer theme={InnerTheme} ref={navigationRef}>
+            <NavigationContainer
+              theme={InnerTheme}
+              ref={navigationRef}
+              onReady={() => {
+                previousRouteName.current = (navigationRef.getCurrentRoute() as any)?.name;
+              }}
+              onStateChange={() => {
+                const current = (navigationRef.getCurrentRoute() as any)?.name as string | undefined;
+                if (!current || current === previousRouteName.current) return;
+                Sentry.addBreadcrumb({
+                  category: 'navigation.lifecycle',
+                  level: 'info',
+                  message: 'screen changed',
+                  data: { from: previousRouteName.current, to: current },
+                });
+                Sentry.setTag('navigation.current_screen', current);
+                previousRouteName.current = current;
+              }}
+            >
               <StatusBar style="light" backgroundColor="#0d0d1a" translucent={false} />
               <Stack.Navigator initialRouteName="Splash"
-                detachInactiveScreens={false}
+                detachInactiveScreens
                 screenOptions={{
                   headerShown: false,
+                  freezeOnBlur: true,
                   cardStyle: { backgroundColor: '#0d0d1a' },
                   cardStyleInterpolator: CardStyleInterpolators.forFadeFromCenter,
                   transitionSpec: {

@@ -13,7 +13,7 @@ import { Audio } from 'expo-av';
 import * as Haptics from 'expo-haptics';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import { useVideoPlayer, VideoView } from 'expo-video';
+import { useVideoPlayer, VideoView } from '../core/memorySafeVideo';
 
 import { Typography, Body as _Body } from '../core/typography';
 import { useScale } from '../utils/scale';

@@ -10,7 +10,7 @@ import { Asset } from 'expo-asset';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRoute, useNavigation, useFocusEffect } from '@react-navigation/native';
-import { useVideoPlayer, VideoView } from 'expo-video';
+import { useVideoPlayer, VideoView } from '../core/memorySafeVideo';
 import OrbPortal from '../components/OrbPortal';
 import AuraOverlay from '../components/AuraOverlay';
 import { TRACKS, TRACK_INDEX, getTrackUrl, getPreferredQuality, setPreferredQuality } from '../data/tracks';

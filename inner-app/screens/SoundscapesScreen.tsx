@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'react-native';
 import { Gesture, GestureDetector, Directions, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import { useVideoPlayer, VideoView } from 'expo-video';
+import { useVideoPlayer, VideoView } from '../core/memorySafeVideo';
 import * as Haptics from 'expo-haptics';
 import { TRACKS, Track } from '../data/tracks';
 import { setLastSession } from '../core/session';
@@ -376,13 +376,13 @@ export default function SoundscapesScreen() {
         const dx = (e as any).translationX ?? 0;
         const startX = startXRef.current;
         if (startX < EDGE_GUARD || startX > SCREEN_W - EDGE_GUARD) return;
-        if (dx <= -SWIPE_THRESHOLD) { try { await Haptics.selectionAsync(); } catch {} navigation.navigate('Home' as never); }
+        if (dx <= -SWIPE_THRESHOLD) { try { await Haptics.selectionAsync(); } catch {} (navigation as any).popTo('Home'); }
       })
       .onEnd(async (e) => {
         const dx = (e as any).translationX ?? 0;
         const startX = startXRef.current;
         if (startX < EDGE_GUARD || startX > SCREEN_W - EDGE_GUARD) return;
-        if (dx <= -SWIPE_THRESHOLD) { try { await Haptics.selectionAsync(); } catch {} navigation.navigate('Home' as never); }
+        if (dx <= -SWIPE_THRESHOLD) { try { await Haptics.selectionAsync(); } catch {} (navigation as any).popTo('Home'); }
       }),
     [SCREEN_W, navigation]
   );
@@ -394,7 +394,7 @@ export default function SoundscapesScreen() {
         const absX = (e as any).absoluteX ?? 0;
         if (absX < EDGE_GUARD || absX > SCREEN_W - EDGE_GUARD) return;
         try { await Haptics.selectionAsync(); } catch {}
-        navigation.navigate('Home' as never);
+        (navigation as any).popTo('Home');
       }),
     [SCREEN_W, navigation]
   );
@@ -698,7 +698,7 @@ export default function SoundscapesScreen() {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Back to Home"
-          onPress={() => { Haptics.selectionAsync(); navigation.navigate('Home' as never); }}
+          onPress={() => { Haptics.selectionAsync(); (navigation as any).popTo('Home'); }}
           style={{
             position: 'absolute',
             right: scale(16),

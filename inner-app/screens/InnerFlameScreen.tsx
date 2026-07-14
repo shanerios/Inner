@@ -9,7 +9,7 @@ import {
   Pressable,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useVideoPlayer, VideoView } from 'expo-video';
+import { useVideoPlayer, VideoView } from '../core/memorySafeVideo';
 import { useFocusEffect } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 import { Audio } from 'expo-av';
@@ -484,7 +484,7 @@ export default function InnerFlameScreen({ navigation }: InnerFlameScreenProps) 
 
               // Small safety: defer navigation slightly to avoid race conditions
               setTimeout(() => {
-                navigation.navigate('Home');
+                navigation.popTo('Home');
               }, 200);
             }
           }
@@ -558,7 +558,7 @@ export default function InnerFlameScreen({ navigation }: InnerFlameScreenProps) 
       // Fail silently for now; we can add logging later if needed
       console.warn('[INNER FLAME] return error', e);
     }
-    navigation.navigate('Home');
+    navigation.popTo('Home');
   };
 
   return (

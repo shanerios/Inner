@@ -10,7 +10,7 @@ import {
   Animated,
   Easing,
 } from 'react-native';
-import { useVideoPlayer, VideoView } from 'expo-video';
+import { useVideoPlayer, VideoView } from '../core/memorySafeVideo';
 import { useFocusEffect } from '@react-navigation/native';
 import TrackPlayer, {
   State,

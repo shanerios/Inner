@@ -10,7 +10,7 @@ import {
   BackHandler,
   useWindowDimensions,
 } from 'react-native';
-import { useVideoPlayer, VideoView } from 'expo-video';
+import { useVideoPlayer, VideoView } from '../core/memorySafeVideo';
 import { useFocusEffect } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -150,7 +150,7 @@ export default function GuardianScreen({ navigation }: any) {
 
   const handleReturn = () => {
     if (isDetailRef.current) transitionToChamber();
-    else navigation.navigate('Home');
+    else navigation.popTo('Home');
   };
 
   const handleTrackPress = async (track: ReturnType<typeof getTracksForGuardian>[number]) => {

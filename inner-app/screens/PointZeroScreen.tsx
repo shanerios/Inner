@@ -9,7 +9,7 @@ import {
   Image,
   Platform,
 } from 'react-native';
-import { useVideoPlayer, VideoView } from 'expo-video';
+import { useVideoPlayer, VideoView } from '../core/memorySafeVideo';
 import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import TrackPlayer from 'react-native-track-player';
@@ -376,7 +376,7 @@ export default function PointZeroScreen({ navigation }: PointZeroScreenProps) {
     } catch (e) {
       console.log('[Point 0] handleDone stop error', e);
     }
-    navigation.navigate('Home');
+    navigation.popTo('Home');
   };
 
   const handleStartExercise = async () => {
@@ -441,7 +441,7 @@ export default function PointZeroScreen({ navigation }: PointZeroScreenProps) {
       autoReturnTimeoutRef.current = setTimeout(() => {
         console.log('[Point 0] Auto-return after exercise');
         logRitualCompletionOnce();
-        navigation.navigate('Home');
+        navigation.popTo('Home');
       }, 67000);
     } catch (e) {
       console.log('[Point 0] exercise start error', e);
