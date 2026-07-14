@@ -3,7 +3,9 @@
     "name": "Inner",
     "slug": "inner",
     "version": "2.2",
-    "runtimeVersion": "1.0.0",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
     "orientation": "portrait",
     "assetBundlePatterns": [
       "**/*",
@@ -71,7 +73,8 @@
           "organization": "kolor-design-llc"
         }
       ],
-      "expo-localization"
+      "expo-localization",
+      "expo-secure-store"
     ],
     "web": {
       "favicon": "./assets/favicon.png"

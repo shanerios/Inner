@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const STORAGE_KEY = 'inner.progress.v1';
 
-export type TrackId = 'lucid' | 'obe';
+export type TrackId = 'lucid' | 'obe' | 'shared' | 'guide';
 export type ProgressMap = {
   [trackId in TrackId]?: {
     [lessonId: string]: number;
@@ -19,10 +19,10 @@ export async function loadProgress() {
     const json = await AsyncStorage.getItem(STORAGE_KEY);
     if (json) {
       progressMap = JSON.parse(json);
-      try { console.log('[progress] loaded from storage:', progressMap); } catch {}
+      if (__DEV__) console.log('[progress] loaded');
     } else {
       progressMap = {};
-      try { console.log('[progress] no saved state'); } catch {}
+      if (__DEV__) console.log('[progress] no saved state');
     }
   } catch (e) {
     progressMap = {};
@@ -60,7 +60,7 @@ function schedulePersist() {
   persistTimeout = setTimeout(async () => {
     try {
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(progressMap));
-      try { console.log('[progress] persisted'); } catch {}
+      if (__DEV__) console.log('[progress] persisted');
     } catch {
       // ignore errors
     }
@@ -76,7 +76,7 @@ export function setLessonProgress(trackId: TrackId, lessonId: string, value: num
   const prev = progressMap[trackId]![lessonId];
   if (prev === clamped) return; // no change
   progressMap[trackId]![lessonId] = clamped;
-  try { console.log('[progress] set', `${trackId}:${lessonId}`, '→', clamped); } catch {}
+  if (__DEV__) console.log('[progress] updated', { trackId, lessonId, value: clamped });
   notifySubscribers();
   schedulePersist();
 }

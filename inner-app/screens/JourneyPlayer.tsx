@@ -11,6 +11,7 @@ import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRoute, useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useVideoPlayer, VideoView } from '../core/memorySafeVideo';
+import { sanitizeResumePosition, shouldCacheBeforePlayback } from '../core/mediaPolicy';
 import OrbPortal from '../components/OrbPortal';
 import AuraOverlay from '../components/AuraOverlay';
 import { TRACKS, TRACK_INDEX, getTrackUrl, getPreferredQuality, setPreferredQuality } from '../data/tracks';
@@ -111,7 +112,7 @@ export default function JourneyPlayer() {
     : (meta?.title && String(meta.title).trim().length > 0)
       ? (meta.title as string)
       : (chamber || 'Journey');
-  const env = chamberEnvForTrack((selectedTrack?.id || legacyId || ''), (selectedTrack as any) || (meta as any));
+  const env = chamberEnvForTrack(selectedTrack?.id || legacyId || '');
   const accent = env?.accent || '#8E7CFF';
   const insets = useSafeAreaInsets();
 
@@ -762,18 +763,6 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
     } catch {}
   };
 
-  // Helper: sanitize resume position so reopening a completed Chamber never resumes near the end.
-  const sanitizeResumePosition = useCallback((resumeMs: number, durMs: number, isSoundscapeTrack: boolean) => {
-    if (!resumeMs || resumeMs <= 0) return 0;
-
-    // Soundscapes are ambient and should continue resuming normally.
-    if (isSoundscapeTrack) return resumeMs;
-
-    // Chambers should always reopen from the beginning.
-    // This avoids stale near-end resume states that can leave TrackPlayer stuck in ended/warming.
-    return 0;
-  }, []);
-
   // Configure audio + load track
   useEffect(() => {
     let mounted = true;
@@ -816,7 +805,7 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
               if (res.isRemote) {
                 // Stream-first for soundscapes to avoid huge cache + long “first play” waits.
                 // Cache-first for chambers on iOS for reliability.
-                const cacheFirst = Platform.OS === 'ios' && !isSoundscape;
+                const cacheFirst = shouldCacheBeforePlayback(Platform.OS, isSoundscape);
 
                 if (cacheFirst) {
                   try {
@@ -1591,23 +1580,6 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
         isScrubbingRef.current = true;
         setSeeking(true);
 
-        // Expo‑AV path: remember running state and pause handled above for TP
-        if (!useTP) {
-          const s = soundRef.current;
-          pausedDuringScrubRef.current = false;
-          if (s) {
-            try {
-              const st = await s.getStatusAsync();
-              const wasPlaying = !!st.isLoaded && !!(st as any).isPlaying;
-              wasPlayingRef.current = wasPlaying;
-              if (wasPlaying) {
-                try { await s.pauseAsync(); } catch {}
-                pausedDuringScrubRef.current = true;
-              }
-            } catch {}
-          }
-        }
-
         const safeDur = getSeekableDuration();
         const target = Math.max(10, Math.min(safeDur - 1, Math.floor(safeDur * p)));
         setPosition(target);
@@ -1640,14 +1612,6 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
           await savePosition(target);
           await Haptics.selectionAsync(); // seek confirm haptic
         } catch {}
-
-        // Resume expo-av playback only if we paused during this scrub
-        if (!useTP && pausedDuringScrubRef.current) {
-          const s = soundRef.current;
-          try { await s?.playAsync(); } catch {}
-          pausedDuringScrubRef.current = false;
-          wasPlayingRef.current = false;
-        }
 
         // Resume TrackPlayer playback only if we paused during this scrub
         if (useTP && tpPausedDuringScrubRef.current) {

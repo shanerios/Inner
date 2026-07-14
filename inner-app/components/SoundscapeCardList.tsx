@@ -116,7 +116,7 @@ const CATEGORIES: Category[] = [
     colors: ['#1a190bff', '#3d256bff'],           // near-black → dark violet
     subtitle: 'Threshold • Descent • Beyond',
     description: 'A premium layer for threshold states, descent, lucid dreaming, and deeper inner work. These soundscapes are slower, heavier, and designed for users ready to move beyond surface calm.',
-    sigil: <DeeperSigilWithLock />,
+    sigil: <DeeperSigilWithLock sigilSize={48} lockSize={22} />,
   },
   {
     key: 'tones',

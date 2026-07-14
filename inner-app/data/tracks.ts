@@ -20,6 +20,8 @@ export type TrackMeta = {
   paywallKey?: 'continuing_with_inner'; // which paywall/entitlement should unlock (for now, single entitlement)
 };
 
+export type Track = TrackMeta;
+
 export type AudioQuality = 'hq' | 'lq';
 let preferredQuality: AudioQuality = 'hq';
 

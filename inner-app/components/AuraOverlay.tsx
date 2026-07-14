@@ -34,8 +34,8 @@ const AURA_KEYS = [
   'aura:lastColor',
 ];
 
-const DEFAULT_COLORS = ['#120E1B', '#0E0A14']; // subtle brand darks
-const DEFAULT_LOCATIONS = [0, 1];
+const DEFAULT_COLORS: [string, string] = ['#120E1B', '#0E0A14']; // subtle brand darks
+const DEFAULT_LOCATIONS: [number, number] = [0, 1];
 const DEFAULT_OPACITY = 0.28; // gentle veil
 
 // add alpha to hex like '#RRGGBB' -> '#RRGGBBAA'
@@ -90,10 +90,10 @@ async function loadStoredAura(): Promise<StoredAura | null> {
   return null;
 }
 
-function coerceGradient(input: StoredAura | null) {
+function coerceGradient(input: StoredAura | null): { colors: [string, string, ...string[]]; locations: [number, number, ...number[]]; opacity: number } {
   // Defaults
-  let colors = DEFAULT_COLORS.slice();
-  let locations = DEFAULT_LOCATIONS.slice();
+  let colors: [string, string, ...string[]] = [...DEFAULT_COLORS];
+  let locations: [number, number, ...number[]] = [...DEFAULT_LOCATIONS];
   let opacity = DEFAULT_OPACITY;
 
   if (!input) {
@@ -116,11 +116,11 @@ function coerceGradient(input: StoredAura | null) {
   if (Array.isArray(obj.colors) && obj.colors.length >= 2) {
     colors = obj.colors.map((c, i) =>
       withAlpha(c, i === 0 ? opacity : Math.max(0, opacity * 0.7))
-    );
+    ) as [string, string, ...string[]];
     if (Array.isArray(obj.locations) && obj.locations.length === colors.length) {
-      locations = obj.locations.slice();
+      locations = obj.locations.slice() as [number, number, ...number[]];
     } else {
-      locations = DEFAULT_LOCATIONS.slice();
+      locations = [...DEFAULT_LOCATIONS];
     }
     return { colors, locations, opacity };
   }
@@ -129,7 +129,7 @@ function coerceGradient(input: StoredAura | null) {
     const start = obj.start || '#120E1B';
     const end = obj.end || '#0E0A14';
     colors = [withAlpha(start, opacity), withAlpha(end, Math.max(0, opacity * 0.7))];
-    locations = DEFAULT_LOCATIONS.slice();
+    locations = [...DEFAULT_LOCATIONS];
     return { colors, locations, opacity };
   }
 
@@ -152,7 +152,10 @@ export default function AuraOverlay({ strength = 1 }: AuraOverlayProps) {
   }, []);
 
   const { colors, locations } = useMemo(() => coerceGradient(payload), [payload]);
-  const scaledColors = useMemo(() => colors.map(c => scaleAlpha(c, strength)), [colors, strength]);
+  const scaledColors = useMemo(
+    () => colors.map(c => scaleAlpha(c, strength)) as [string, string, ...string[]],
+    [colors, strength]
+  );
 
   return (
     <>

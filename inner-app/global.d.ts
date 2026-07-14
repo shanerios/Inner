@@ -1,6 +1,11 @@
 // global.d.ts
 export {};
 
+declare module '*.webp' {
+  const source: number;
+  export default source;
+}
+
 declare global {
   // Extend the NodeJS global object
   // so TypeScript knows about our custom global property

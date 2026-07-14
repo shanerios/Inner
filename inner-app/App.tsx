@@ -46,6 +46,8 @@ import { initRevenueCatOnce } from './utils/revenueCat';
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
     shouldPlaySound: true,
     shouldSetBadge: false,
   }),
@@ -58,7 +60,7 @@ if (!(globalThis as any).__tp_service_registered) {
 }
 
 // Preload specific long-form tracks so first play is instant
-const TRACKS_TO_PRELOAD = [
+const TRACKS_TO_PRELOAD: Array<{ id: string; module: number }> = [
 ];
 
 // Removed the Harmonic_Resonance track from preloading
@@ -132,6 +134,14 @@ type RootStackParamList = {
   JourneyPicker: undefined;
   JourneyPlayer: { trackId?: string; chamber?: string } | undefined;
   Glossary: { trackId: 'lucid' | 'obe' };
+  Journal: undefined;
+  JournalEntry: { id: string; isNew?: boolean };
+  Guardian: undefined;
+  GuardianPlayer: { trackId: string };
+  PointZero: undefined;
+  CleanSlate: undefined;
+  InnerFlame: undefined;
+  DailyRitual: undefined;
   Aeris: undefined;
   Paywall: undefined;
 };
@@ -545,7 +555,7 @@ async function cleanAudioCache() {
         }
         const lower = name.toLowerCase();
         if (AUDIO_EXTS.some(ext => lower.endsWith(ext))) {
-          const mtime = (info.modificationTime ?? info.mtime ?? now) * 1000; // Expo returns seconds
+          const mtime = (info.modificationTime ?? now / 1000) * 1000; // Expo returns seconds
           candidates.push({ uri, size: info.size ?? 0, mtime });
         }
       }

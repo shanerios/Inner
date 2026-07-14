@@ -33,7 +33,7 @@ const ENGULF_SCALE = Math.ceil(
   Math.sqrt(SCREEN_W ** 2 + SCREEN_H ** 2) / ORB_EFFECTIVE_RADIUS
 ) + 1;
 
-console.log('[Engulf] ENGULF_SCALE:', ENGULF_SCALE, 'ORB_EFFECTIVE_RADIUS:', ORB_EFFECTIVE_RADIUS);
+if (__DEV__) console.log('[Engulf] ENGULF_SCALE:', ENGULF_SCALE, 'ORB_EFFECTIVE_RADIUS:', ORB_EFFECTIVE_RADIUS);
 
 export default function SplashScreen() {
   const navigation = useNavigation();
@@ -158,7 +158,7 @@ export default function SplashScreen() {
     orbOpacity.setValue(0);
     orbScale.setValue(1);
     overlayOpacity.setValue(0);
-    console.log('[SplashScreen] Orb resolved asset', resolvedOrb);
+    if (__DEV__) console.log('[SplashScreen] Orb resolved asset', resolvedOrb);
 
     (async () => {
       const now = Date.now();
@@ -442,7 +442,7 @@ export default function SplashScreen() {
     AsyncStorage.setItem(RETURN_HOME_USED_KEY, 'true').catch(() => {});
 
     // @ts-ignore
-    navigation.reset({
+    (navigation as any).reset({
       index: 0,
       routes: [{ name: 'Home' }],
     });
@@ -517,12 +517,11 @@ export default function SplashScreen() {
           }}
         >
           <Image
-            pointerEvents="none"
             source={orbSource}
             style={{ width: '100%', height: '100%', borderRadius: ORB_SIZE / 2, opacity: 1 }}
             resizeMode="contain"
             onError={(e) => {
-              console.warn('[SplashScreen] Orb image failed to load', e?.nativeEvent);
+              if (__DEV__) console.warn('[SplashScreen] Orb image failed to load', e?.nativeEvent);
               setOrbSource(require('../assets/splash_ios.png'));
             }}
             onLoad={() => console.log('[SplashScreen] Orb image loaded')}

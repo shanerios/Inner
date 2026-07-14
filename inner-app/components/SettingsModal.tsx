@@ -11,6 +11,7 @@ import {
   Switch,
   Platform,
   Linking,
+  Alert,
 } from 'react-native';
 import { useVideoPlayer, VideoView } from '../core/memorySafeVideo';
 import * as Haptics from 'expo-haptics';
@@ -20,6 +21,8 @@ import { Typography } from '../core/typography';
 import { Typography as _Typography, Body as _Body } from '../core/typography';
 import { scheduleDailyWakeNotification } from '../utils/notifications';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { clearPrivateUserData } from '../core/privacyData';
+import { reportError } from '../core/logger';
 
 const Body = _Body ?? ({ regular: { ..._Typography.body }, subtle: { ..._Typography.caption } } as const);
 
@@ -83,6 +86,8 @@ export default function SettingsModal({
   const [cacheEstimateMB, setCacheEstimateMB] = useState<number | null>(null);
   const [isEstimating, setIsEstimating] = useState(false);
   const [isClearing, setIsClearing] = useState(false);
+  const [isClearingPrivate, setIsClearingPrivate] = useState(false);
+  const [privateDataCleared, setPrivateDataCleared] = useState(false);
   const [clearedMB, setClearedMB] = useState<number | null>(null);
   const [clearError, setClearError] = useState<string | null>(null);
   const [clearPressCount, setClearPressCount] = useState(0);
@@ -670,8 +675,37 @@ export default function SettingsModal({
                 Inner stores your chosen name, intentions, and playback preferences on your device. Audio you play may be cached locally to reduce bandwidth. You can clear cached audio anytime in Settings.
               </Text>
               <Text style={[Body.subtle, { fontFamily: 'Inter-ExtraLight', color: '#B9B5C9', fontSize: 12, textAlign: 'center', marginTop: 8 }]}>
-                We don't use third‑party trackers inside the app. See our site for the full policy.
+                Inner uses privacy-conscious diagnostics and product analytics to improve reliability. Journal and conversation text are excluded from diagnostics. See our site for the full policy.
               </Text>
+              <Text style={[Body.subtle, { color: '#B9B5C9', fontSize: 12, textAlign: 'center', marginTop: 8 }]}>Journal entries and saved Aeris conversations are encrypted on this device. Messages you send to Aeris are securely transmitted to Inner's service to generate a response.</Text>
+              {privateDataCleared ? (
+                <Text style={[Body.subtle, { color: '#B8E0C0', textAlign: 'center', marginTop: 12 }]}>Private journals and Aeris history cleared.</Text>
+              ) : (
+                <TouchableOpacity
+                  disabled={isClearingPrivate}
+                  onPress={() => Alert.alert('Clear private data?', 'This permanently deletes every journal entry and your Aeris conversation history from this device.', [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: 'Delete', style: 'destructive', onPress: async () => {
+                      setIsClearingPrivate(true);
+                      try {
+                        await clearPrivateUserData();
+                        setPrivateDataCleared(true);
+                        try { await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch {}
+                      } catch (error) {
+                        reportError(error, 'clear-private-data');
+                        Alert.alert('Could not clear data', 'Please try again.');
+                      } finally {
+                        setIsClearingPrivate(false);
+                      }
+                    } },
+                  ])}
+                  accessibilityRole="button"
+                  accessibilityLabel="Clear journals and Aeris history"
+                  style={{ alignSelf: 'center', marginTop: 14, paddingVertical: 8, paddingHorizontal: 16, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(255,150,150,0.55)', opacity: isClearingPrivate ? 0.6 : 1 }}
+                >
+                  <Text style={[Typography.subtle, { color: '#FFB4B4' }]}>{isClearingPrivate ? 'Clearing…' : 'Clear private data'}</Text>
+                </TouchableOpacity>
+              )}
               <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 16, marginTop: 14 }}>
                 <TouchableOpacity
                   onPress={async () => {

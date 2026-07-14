@@ -1,7 +1,10 @@
 module.exports = function (api) {
-  api.cache(true);
+  const isProduction = api.env('production');
   return {
     presets: ['babel-preset-expo', '@babel/preset-flow'],
-    plugins: ['react-native-reanimated/plugin'],
+    plugins: [
+      ...(isProduction ? ['./plugins/removeConsoleInProduction'] : []),
+      'react-native-reanimated/plugin',
+    ],
   };
 };

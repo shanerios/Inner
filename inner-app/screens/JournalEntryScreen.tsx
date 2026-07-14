@@ -359,8 +359,8 @@ export default function JournalEntryScreen({ route, navigation }: Props) {
       {/* Intention-reactive background gradients (crossfade) */}
       <Animated.View style={[StyleSheet.absoluteFill, { opacity: Animated.subtract(1, gradFade) }]} pointerEvents="none">
         <LinearGradient
-          colors={gradPrev}
-          locations={gradPrev.length === 3 ? [0, 0.7, 1] : [0, 1]}
+          colors={gradPrev as [string, string, ...string[]]}
+          locations={(gradPrev.length === 3 ? [0, 0.7, 1] : [0, 1]) as [number, number, ...number[]]}
           style={StyleSheet.absoluteFill}
           start={{ x: 0.2, y: 0 }}
           end={{ x: 0.8, y: 1 }}
@@ -368,8 +368,8 @@ export default function JournalEntryScreen({ route, navigation }: Props) {
       </Animated.View>
       <Animated.View style={[StyleSheet.absoluteFill, { opacity: gradFade }]} pointerEvents="none">
         <LinearGradient
-          colors={gradCur}
-          locations={gradCur.length === 3 ? [0, 0.7, 1] : [0, 1]}
+          colors={gradCur as [string, string, ...string[]]}
+          locations={(gradCur.length === 3 ? [0, 0.7, 1] : [0, 1]) as [number, number, ...number[]]}
           style={StyleSheet.absoluteFill}
           start={{ x: 0.2, y: 0 }}
           end={{ x: 0.8, y: 1 }}

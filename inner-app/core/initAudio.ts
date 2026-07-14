@@ -24,7 +24,6 @@ export async function initAudioOnce() {
       if (!String(e).toLowerCase().includes('already')) throw e;
     }
     await TrackPlayer.updateOptions({
-      stopWithApp: false,
       capabilities: [
         Capability.Play,
         Capability.Pause,

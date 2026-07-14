@@ -139,7 +139,7 @@ export default function IntroScreen() {
       await soundRef.current.unloadAsync();
       soundRef.current = null;
     }
-    navigation.navigate('Intention');
+    (navigation as any).navigate('Intention');
   };
 
   const playVoice = async () => {

@@ -4,6 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const STREAK_KEY = 'inner_learning_streak_v1';
 
 export type PracticeSource = 'lesson' | 'ritual';
+export type PracticeKind = PracticeSource;
 
 export type LearningStreakState = {
   lastActiveDate: string | null;
@@ -111,3 +112,5 @@ export async function recordPracticeEvent(
   await saveLearningStreak(next);
   return next;
 }
+
+export const registerPracticeActivity = recordPracticeEvent;

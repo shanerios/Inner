@@ -1,5 +1,6 @@
 // core/journalRepo.ts
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { secureGetItem, secureRemoveItem, secureSetItem } from './secureStorage';
 
 // Lightweight uuid generator (no external deps). RFC4122-ish, good enough for client IDs.
 function uuidv4(): string {
@@ -23,6 +24,7 @@ export type JournalEntry = {
   kind?: JournalKind;
   chamberId?: string;       // set when kind === 'chamber'
   chamberTitle?: string;    // human-readable title of the chamber session
+  dreamSigns?: string[];
 };
 
 const INDEX_KEY = 'journal:index';
@@ -46,7 +48,7 @@ export async function listEntries(): Promise<JournalEntry[]> {
   const results: JournalEntry[] = [];
   // newest first (ids list is stored newest-first; keep it)
   for (const id of ids) {
-    const raw = await AsyncStorage.getItem(ENTRY_KEY(id));
+    const raw = await secureGetItem(ENTRY_KEY(id));
     if (raw) {
       try { results.push(JSON.parse(raw)); } catch {}
     }
@@ -55,7 +57,7 @@ export async function listEntries(): Promise<JournalEntry[]> {
 }
 
 export async function getEntry(id: string): Promise<JournalEntry | null> {
-  const raw = await AsyncStorage.getItem(ENTRY_KEY(id));
+  const raw = await secureGetItem(ENTRY_KEY(id));
   if (!raw) return null;
   try { return JSON.parse(raw); } catch { return null; }
 }
@@ -72,7 +74,7 @@ export async function createEntry(partial?: Partial<JournalEntry>): Promise<Jour
     mood: partial?.mood ?? undefined,
     kind: partial?.kind || 'note',
   };
-  await AsyncStorage.setItem(ENTRY_KEY(entry.id), JSON.stringify(entry));
+  await secureSetItem(ENTRY_KEY(entry.id), JSON.stringify(entry));
   const ids = await readIndex();
   await writeIndex([entry.id, ...ids]); // prepend newest
   return entry;
@@ -80,7 +82,7 @@ export async function createEntry(partial?: Partial<JournalEntry>): Promise<Jour
 
 export async function saveEntry(entry: JournalEntry): Promise<void> {
   entry.updatedAt = Date.now();
-  await AsyncStorage.setItem(ENTRY_KEY(entry.id), JSON.stringify(entry));
+  await secureSetItem(ENTRY_KEY(entry.id), JSON.stringify(entry));
   // ensure it's in index (in case it was created elsewhere)
   const ids = await readIndex();
   if (!ids.includes(entry.id)) {
@@ -89,7 +91,7 @@ export async function saveEntry(entry: JournalEntry): Promise<void> {
 }
 
 export async function deleteEntry(id: string): Promise<void> {
-  await AsyncStorage.removeItem(ENTRY_KEY(id));
+  await secureRemoveItem(ENTRY_KEY(id));
   const ids = await readIndex();
   await writeIndex(ids.filter(x => x !== id));
 }

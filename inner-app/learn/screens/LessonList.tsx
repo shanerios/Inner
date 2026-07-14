@@ -16,7 +16,7 @@ export default function LessonList() {
   const route = useRoute();
   const { trackId } = (route.params || { trackId: 'lucid' }) as RouteParams;
 
-  const track = LEARN_TRACKS[trackId];
+  const track = (LEARN_TRACKS as any)[trackId];
   const lessons = track?.lessons ?? [];
   const progressMap = useLessonProgressMap();
 
@@ -36,8 +36,8 @@ export default function LessonList() {
 
         <View style={{ height: 16 }} />
 
-        {lessons.map((lesson) => {
-          const p = progressMap[trackId]?.[lesson.id] ?? 0;
+        {lessons.map((lesson: any) => {
+          const p = (progressMap as any)[trackId]?.[lesson.id] ?? 0;
           const isCompleted = p >= 0.85;
 
           return (

@@ -8,10 +8,14 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
-    "start:tunnel": "npx expo start --tunnel -c"
+    "start:tunnel": "npx expo start --tunnel -c",
+    "typecheck": "tsc --noEmit",
+    "test": "jest --runInBand",
+    "check": "npm run typecheck && npm test"
   },
   "dependencies": {
     "@expo/vector-icons": "^14.1.0",
+    "@noble/ciphers": "^2.2.0",
     "@react-native-async-storage/async-storage": "2.1.2",
     "@react-native-community/hooks": "^100.1.0",
     "@react-native-community/netinfo": "11.4.1",
@@ -35,12 +39,14 @@
     "expo-linear-gradient": "~14.1.5",
     "expo-localization": "~16.1.6",
     "expo-notifications": "~0.31.5",
+    "expo-secure-store": "~14.2.4",
     "expo-speech": "~13.1.7",
     "expo-status-bar": "~2.2.3",
     "expo-store-review": "~8.1.5",
     "expo-updates": "~0.28.17",
     "expo-video": "~2.2.2",
     "getenv": "^2.0.0",
+    "jest-expo": "~53.0.14",
     "lodash": "^4.17.21",
     "lottie-react-native": "7.2.2",
     "moti": "^0.26.1",
@@ -72,6 +78,13 @@
     "typescript": "~5.8.3"
   },
   "private": true,
+  "jest": {
+    "preset": "jest-expo",
+    "testPathIgnorePatterns": ["/node_modules/", "/dist/"],
+    "transformIgnorePatterns": [
+      "node_modules/(?!((jest-)?react-native|@react-native(-community)?|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@noble/ciphers/.*))"
+    ]
+  },
   "volta": {
     "node": "20.20.0",
     "npm": "10.9.4"

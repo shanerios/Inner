@@ -20,9 +20,10 @@ type Props = {
   onPress?: () => void;
   onLongPress?: () => void;
   style?: ViewStyle;
-  subtitle?: string;              // optional small descriptor
+  subtitle?: React.ReactNode;     // optional small descriptor
   sigil?: ImageSourcePropType | React.ReactNode | string; // image, node, or glyph string
   isLocked?: boolean;
+  showArrow?: boolean;
   onLockedPress?: () => void;
 };
 
@@ -35,6 +36,7 @@ export default function SoundscapeCard({
   subtitle,
   sigil,
   isLocked,
+  showArrow: _showArrow,
   onLockedPress,
 }: Props) {
   const { scale, matchesCompactLayout } = useScale();

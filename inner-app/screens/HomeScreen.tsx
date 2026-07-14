@@ -11,6 +11,8 @@ import HomeAuraContinuity from '../components/HomeAuraContinuity';
 import SettingsModal from '../components/SettingsModal';
 import { CHAMBERS, LESSONS, SOUNDSCAPES } from '../data/suggestions';
 import { getTodaySuggestion } from '../utils/suggest';
+import type { Suggestion } from '../types/suggestion';
+import * as ThresholdEngine from '../src/core/thresholds/ThresholdEngine';
 
 import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { Audio } from 'expo-av';
@@ -216,10 +218,10 @@ const tourStyles = StyleSheet.create({
   },
 });
 
-const HOME_TOUR_STEPS: TourStep[] = [
+const HOME_TOUR_STEPS = [
   {
     floatingProps: { middleware: [offset(12), shift(), flip()], placement: 'bottom' },
-    render: ({ next, stop }) => (
+    render: ({ next, stop }: any) => (
       <TourTooltip
         title="The Orb"
         body="Your entry point. Press to begin a session or resume where you left off."
@@ -232,7 +234,7 @@ const HOME_TOUR_STEPS: TourStep[] = [
   },
   {
     floatingProps: { middleware: [offset(12), shift()], placement: 'top' },
-    render: ({ next, stop }) => (
+    render: ({ next, stop }: any) => (
       <TourTooltip
         title="The Garden"
         body={"Press or swipe right to left for looping psychoacoustic environments — crafted for deep rest and induction."}
@@ -245,7 +247,7 @@ const HOME_TOUR_STEPS: TourStep[] = [
   },
   {
     floatingProps: { middleware: [offset(12), shift()], placement: 'top' },
-    render: ({ next, stop }) => (
+    render: ({ next, stop }: any) => (
       <TourTooltip
         title="The Chambers"
         body={"Press or swipe left from right side for guided descent — structured experiences from beginning to end."}
@@ -258,7 +260,7 @@ const HOME_TOUR_STEPS: TourStep[] = [
   },
   {
     floatingProps: { middleware: [offset(12), shift(), flip()], placement: 'right' },
-    render: ({ next, stop }) => (
+    render: ({ next, stop }: any) => (
       <TourTooltip
         title="Dream Journal"
         body="The quill sigil opens your dream journal — log what you experienced, set intentions, and track your inner journey."
@@ -271,7 +273,7 @@ const HOME_TOUR_STEPS: TourStep[] = [
   },
   {
     floatingProps: { middleware: [offset(12), shift(), flip()], placement: 'left' },
-    render: ({ next, stop }) => (
+    render: ({ next, stop }: any) => (
       <TourTooltip
         title="Aeris"
         body="The orb sigil opens Aeris — your AI guide for reflection, pattern recognition, and deeper understanding of your practice."
@@ -284,7 +286,7 @@ const HOME_TOUR_STEPS: TourStep[] = [
   },
   {
     floatingProps: { middleware: [offset(12), shift(), flip()], placement: 'top' },
-    render: ({ next, stop }) => (
+    render: ({ next, stop }: any) => (
       <TourTooltip
         title="The Archive"
         body="Press below for the science and practice behind Inner — lessons, techniques, and deeper context."
@@ -295,7 +297,7 @@ const HOME_TOUR_STEPS: TourStep[] = [
       />
     ),
   },
-];
+] as unknown as TourStep[];
 
 export default function HomeScreen({ navigation, route }: any) {
   // --- DEBUG: visualize/tune orb hit area ---
@@ -1027,21 +1029,21 @@ React.useEffect(() => {
     try { await Haptics.selectionAsync(); } catch {}
     try { await fadeOutHum(); } catch {}
     navigation.navigate('Chambers');
-  }, [tourRunning, navigation, fadeOutHum]);
+  }, [tourRunning, navigation]);
 
   const goToSoundscapes = useCallback(async () => {
     if (tourRunning) return;
     try { await Haptics.selectionAsync(); } catch {}
     try { await fadeOutHum(); } catch {}
     navigation.navigate('Soundscapes');
-  }, [tourRunning, navigation, fadeOutHum]);
+  }, [tourRunning, navigation]);
 
   const goToLearnHub = useCallback(async () => {
     if (tourRunning) return;
     try { await Haptics.selectionAsync(); } catch {}
     try { await fadeOutHum(); } catch {}
     navigation.navigate('LearnHub');
-  }, [tourRunning, navigation, fadeOutHum]);
+  }, [tourRunning, navigation]);
 
   // Lunar Whisper modal (long‑press orb)
   const [showLunarModal, setShowLunarModal] = React.useState(false);
@@ -2032,7 +2034,7 @@ useEffect(() => {
           if (active?.id === HUM_TRACK_ID) TrackPlayer.pause().catch(() => {});
         }).catch(() => {});
       };
-    }, [maybeStartHum, loadResumeInfo])
+    }, [maybeStartHum])
   );
 
   useFocusEffect(
@@ -2390,7 +2392,7 @@ const openPointZero = useCallback(async () => {
   await fadeOutHum();
   navigation.navigate('PointZero');
   setShowPicker(false);
-}, [fadeOutHum, navigation]);
+}, [navigation]);
 
 const openCleanSlate = useCallback(async () => {
   try { await Haptics.selectionAsync(); } catch {}
@@ -2405,6 +2407,9 @@ const openInnerFlame = useCallback(async () => {
   navigation.navigate('InnerFlame');
   setShowPicker(false);
 }, [fadeOutHum, navigation]);
+
+  // Journey Threading – surface last step inside Ritual Modal
+  const { suggestion: threadSuggestion } = useThreadSuggestion();
 
   // --- Journey Threading: continue suggested next step from Ritual Modal ---
   const handleThreadContinue = React.useCallback(async () => {
@@ -2437,9 +2442,6 @@ const openInnerFlame = useCallback(async () => {
 
     setShowPicker(false);
   }, [threadSuggestion, fadeOutHum, navigation]);
-
-  // Journey Threading – surface last step inside Ritual Modal
-  const { suggestion: threadSuggestion } = useThreadSuggestion();
 
   const threadLine = React.useMemo(() => {
     if (!threadSuggestion) return '';
@@ -2536,7 +2538,7 @@ const openInnerFlame = useCallback(async () => {
       <FogPulse />
       {/* Intention aura overlay — static gradient tied to current intentions (RGBA-based) */}
       <LinearGradient
-        colors={auraColors}
+        colors={auraColors as [string, string, ...string[]]}
         locations={auraLocations as any}
         start={{ x: 0.5, y: 0 }}
         end={{ x: 0.5, y: 1 }}
@@ -2771,7 +2773,6 @@ const openInnerFlame = useCallback(async () => {
           source={require('../assets/animations/dust-drift.json')}
           autoPlay
           loop
-          pointerEvents="none"
           style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
           speed={0.8}
         />
@@ -2978,7 +2979,6 @@ const openInnerFlame = useCallback(async () => {
       <View style={styles.portalWrap} pointerEvents="box-none">
         {/* Orb layers — scaleY driven by guardian flip animation (vertical fold) */}
         <Animated.View
-          pointerEvents="none"
           style={{
             position: 'absolute',
             left: ORB_LEFT,
@@ -2990,7 +2990,6 @@ const openInnerFlame = useCallback(async () => {
         >
           {/* Base orb — source swaps between default and guardian at flip midpoint */}
           <Animated.Image
-            pointerEvents="none"
             source={activeOrbSrc}
             resizeMode="contain"
             accessibilityRole="image"
@@ -3023,7 +3022,6 @@ const openInnerFlame = useCallback(async () => {
           {/* Moon overlay — only visible in default orb state */}
           {!isGuardianOrb && (
             <Animated.Image
-              pointerEvents="none"
               source={moonOverlaySrc}
               resizeMode="contain"
               accessible={false}
@@ -3188,7 +3186,6 @@ const openInnerFlame = useCallback(async () => {
         <View style={{ ...StyleSheet.absoluteFillObject, opacity: quickCalmVisible ? 0 : 1 }} pointerEvents="box-none">
         {/* Left Sigil Halo — Lavender (soft PNG radial) */}
         <Animated.Image
-          pointerEvents="none"
           source={HALO_LAVENDER}
           resizeMode="contain"
           style={{
@@ -3200,12 +3197,10 @@ const openInnerFlame = useCallback(async () => {
             opacity: sigilColorOpacityL,
             transform: [{ scale: sigilScaleL }],
             zIndex: 55,
-            elevation: 55,
           }}
         />
         {/* Left Sigil Diffusion — soft white */}
         <Animated.Image
-          pointerEvents="none"
           source={HALO_DIFFUSE}
           resizeMode="contain"
           style={{
@@ -3217,7 +3212,6 @@ const openInnerFlame = useCallback(async () => {
             opacity: sigilDiffuseOpacityL,
             transform: [{ scale: sigilScaleL }],
             zIndex: 55.5,
-            elevation: 55,
           }}
         />
         {/* Left Sigil — Journal / Reflections */}
@@ -3274,7 +3268,6 @@ const openInnerFlame = useCallback(async () => {
 
         {/* Right Sigil Halo — Gold (soft PNG radial) */}
         <Animated.Image
-          pointerEvents="none"
           source={HALO_GOLD}
           resizeMode="contain"
           style={{
@@ -3286,12 +3279,10 @@ const openInnerFlame = useCallback(async () => {
             opacity: sigilColorOpacityR,
             transform: [{ scale: sigilScaleR }],
             zIndex: 55,
-            elevation: 55,
           }}
         />
         {/* Right Sigil Diffusion — soft white */}
         <Animated.Image
-          pointerEvents="none"
           source={HALO_DIFFUSE}
           resizeMode="contain"
           style={{
@@ -3303,7 +3294,6 @@ const openInnerFlame = useCallback(async () => {
             opacity: sigilDiffuseOpacityR,
             transform: [{ scale: sigilScaleR }],
             zIndex: 55.5,
-            elevation: 55,
           }}
         />
         {/* Right Sigil — Community / Resonance */}

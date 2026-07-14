@@ -17,7 +17,7 @@ export default function BeginScreen() {
         paddingVertical: verticalScale(24),
       }}
     >
-      <Text color="white" fontSize="2xl">Welcome to Inner.</Text>
+      <Text style={{ color: 'white', fontSize: scale(24) }}>Welcome to Inner.</Text>
     </LinearGradient>
   );
 }

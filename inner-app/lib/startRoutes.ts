@@ -1,4 +1,5 @@
 import { NavigationProp } from '@react-navigation/native';
+import { LEARN_TRACKS } from '../data/learn';
 
 export type Suggestion = {
   id: string;
@@ -21,7 +22,11 @@ export function startFromSuggestion(s: Suggestion, navigation: NavigationProp<an
     return;
   }
   if (kind === 'lesson') {
-    navigation.navigate('LessonReader', { id });
+    const entry = Object.entries(LEARN_TRACKS).find(([, track]) =>
+      track.lessons.some(lesson => lesson.id === id)
+    );
+    if (entry) navigation.navigate('LessonReader', { trackId: entry[0], lessonId: id });
+    else navigation.navigate('LearnHub');
     return;
   }
 

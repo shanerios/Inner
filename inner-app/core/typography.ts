@@ -46,3 +46,11 @@ export const Typography = {
     opacity: 0.9,
   },
 } as const;
+
+// Backward-compatible semantic aliases used throughout the existing screens.
+export const Body = {
+  regular: Typography.body,
+  subtle: Typography.subtle,
+} as const;
+
+export const _Body = Body;

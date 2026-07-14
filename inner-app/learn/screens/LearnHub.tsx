@@ -24,7 +24,7 @@ const Body = _Body ?? ({
 const Markdown = (MarkdownDisplay as any) ?? (({ children }: any) => <Text>{children}</Text>);
 
 // Flatten real lessons from the registry (guard against undefined during startup)
-const TRACKS_SAFE = (learn_tracks ?? {}) as Record<string, { lessons?: Array<{ id: string; title: string; summary?: string; minutes?: number }> }>;
+const TRACKS_SAFE = (learn_tracks ?? {}) as Record<string, { lessons?: Array<{ id: string; title: string; summary?: string; minutes?: number; durationMin?: number }> }>;
 const BASE_LESSONS = (() => {
   const raw = Object.entries(TRACKS_SAFE).flatMap(([trackKey, track]) =>
     (track?.lessons ?? []).map((lesson) => {
@@ -77,6 +77,7 @@ type LessonLite = {
   key: string;
   id: string;
   title: string;
+  summary: string;
   minutes: number;
   level: string;
   intentions: string[];

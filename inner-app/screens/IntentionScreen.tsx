@@ -369,7 +369,7 @@ export default function IntentionScreen() {
       preload,
       new Promise((res) => setTimeout(res, 300)),
     ]);
-    navigation.navigate('EssenceScreen');
+    (navigation as any).navigate('EssenceScreen');
   };
 
   return (

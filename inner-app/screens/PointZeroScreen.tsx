@@ -14,7 +14,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import TrackPlayer from 'react-native-track-player';
 import { Asset } from 'expo-asset';
-import { Audio } from 'expo-av';
+import { Audio, InterruptionModeAndroid, InterruptionModeIOS } from 'expo-av';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useIntention } from '../core/IntentionProvider';
@@ -89,10 +89,10 @@ export default function PointZeroScreen({ navigation }: PointZeroScreenProps) {
     try {
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: false,
-        interruptionModeIOS: Audio.INTERRUPTION_MODE_IOS_DO_NOT_MIX,
+        interruptionModeIOS: InterruptionModeIOS.DoNotMix,
         playsInSilentModeIOS: true,
         shouldDuckAndroid: true,
-        interruptionModeAndroid: Audio.INTERRUPTION_MODE_ANDROID_DO_NOT_MIX,
+        interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
         playThroughEarpieceAndroid: false,
         staysActiveInBackground: false,
       });
@@ -107,7 +107,7 @@ export default function PointZeroScreen({ navigation }: PointZeroScreenProps) {
     await asset.downloadAsync();
     const uri = asset.localUri ?? asset.uri;
 
-    console.log('[Point 0][expo-av] play', { label, uri });
+    if (__DEV__) console.log('[Point 0][expo-av] play', { label, uri });
 
     const { sound } = await Audio.Sound.createAsync(
       { uri },
@@ -286,7 +286,7 @@ export default function PointZeroScreen({ navigation }: PointZeroScreenProps) {
 
             const prerollUri = prerollAsset.localUri ?? prerollAsset.uri;
 
-            console.log('[Point 0] preroll uri', {
+            if (__DEV__) console.log('[Point 0] preroll uri', {
               uri: prerollUri,
               localUri: prerollAsset.localUri,
               uriRaw: prerollAsset.uri,
@@ -420,7 +420,7 @@ export default function PointZeroScreen({ navigation }: PointZeroScreenProps) {
           uriToUse = exerciseAsset.localUri ?? exerciseAsset.uri;
         }
 
-        console.log('[Point 0] exercise uri', { uri: uriToUse });
+        if (__DEV__) console.log('[Point 0] exercise uri', { uri: uriToUse });
 
         await TrackPlayer.add({
           id: 'point_zero_exercise',

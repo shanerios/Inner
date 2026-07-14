@@ -76,7 +76,11 @@ export async function evictIfOver(maxBytes = 400 * 1024 * 1024) {
   const entries = await Promise.all(names.map(async n => {
     const p = CACHE_DIR + n;
     const s = await FileSystem.getInfoAsync(p);
-    return { p, size: s.size ?? 0, mtime: s.modificationTime ?? 0 };
+    return {
+      p,
+      size: s.exists ? s.size : 0,
+      mtime: s.exists ? s.modificationTime : 0,
+    };
   }));
   const total = entries.reduce((a, b) => a + b.size, 0);
   if (total <= maxBytes) return;

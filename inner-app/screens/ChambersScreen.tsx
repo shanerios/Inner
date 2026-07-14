@@ -120,7 +120,7 @@ function buildChamberData(): ChamberPageData[] {
   return CHAMBER_IDS.map((id, i) => {
     const env = CHAMBER_ENVIRONMENTS[id];
     const track = TRACKS.find(t => t.id === id);
-    const meta = chamberReleaseManifest?.[id as any];
+    const meta = chamberReleaseManifest[id] as { isPublished: boolean; releaseDate?: string };
     let comingSoon = false;
     let countdownLabel: string | undefined;
 

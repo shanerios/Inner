@@ -13,6 +13,7 @@ import {
   PanResponder,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { secureGetItem, secureRemoveItem, secureSetItem } from '../core/secureStorage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
@@ -111,7 +112,7 @@ function renderInlineSegment(
         key={key++}
         style={styles.chamberRef}
         onPress={() => {
-          console.log('[Aeris] Chamber tapped:', name);
+          if (__DEV__) console.log('[Aeris] Chamber tapped:', name);
           onChamberTap?.(name, num);
         }}
       >
@@ -363,7 +364,7 @@ export default function AerisScreen({ route }: { route: any }) {
       let currentMessages: Message[] = [INITIAL_MESSAGE];
       try {
         const [storedHistory, storedDate] = await Promise.all([
-          AsyncStorage.getItem('aerisHistory'),
+          secureGetItem('aerisHistory'),
           AsyncStorage.getItem('aerisHistoryDate'),
         ]);
         if (storedDate === today && storedHistory) {
@@ -376,7 +377,7 @@ export default function AerisScreen({ route }: { route: any }) {
           }
         } else {
           await Promise.all([
-            AsyncStorage.removeItem('aerisHistory'),
+            secureRemoveItem('aerisHistory'),
             AsyncStorage.setItem('aerisHistoryDate', today),
           ]);
         }
@@ -459,7 +460,7 @@ export default function AerisScreen({ route }: { route: any }) {
   // Persist full message history after every update, once initial load is done
   useEffect(() => {
     if (!historyLoaded.current) return;
-    AsyncStorage.setItem('aerisHistory', JSON.stringify(messages)).catch(() => {});
+    secureSetItem('aerisHistory', JSON.stringify(messages)).catch(() => {});
   }, [messages]);
 
   const buildApiMessages = useCallback(
@@ -505,7 +506,7 @@ export default function AerisScreen({ route }: { route: any }) {
     if (!trackId) return;
 
     const navigateToChamber = () => {
-      navigation.navigate('JourneyPlayer', { trackId, chamber: name });
+      (navigation as any).navigate('JourneyPlayer', { trackId, chamber: name });
     };
 
     if (PREMIUM_CHAMBERS.has(num) && !isSubscribed) {

@@ -10,7 +10,7 @@ export function isReleased(
 }
 
 export function isChamberReleased(chamberId: string, now = new Date()) {
-  const chamber = chamberReleaseManifest[chamberId];
+  const chamber = chamberReleaseManifest[chamberId as keyof typeof chamberReleaseManifest];
   if (!chamber) return false;
   return isReleased(chamber, now);
 }

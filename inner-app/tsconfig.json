@@ -3,7 +3,7 @@
   "compilerOptions": {
     "strict": true,
     "jsx": "react",
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "esModuleInterop": true,
     "allowJs": true,
     "skipLibCheck": true
