@@ -87,9 +87,15 @@ export function useVideoPlayer(
 ): VideoPlayer {
   const focused = useIsFocused();
   const route = useRoute();
-  const player = useExpoVideoPlayer(null, setup);
-  const staticSource = STATIC_BACKGROUNDS.get(source);
   const enabled = options.enabled ?? true;
+  // Give a newly mounted, focused screen its source immediately. Starting every
+  // player empty and attaching the source later in a focus effect can race the
+  // iOS VideoView lifecycle and leave AVPlayer waiting with no item to play.
+  // Low-memory Android devices still start empty and render the static fallback.
+  const initialSource = usesStaticBackgrounds || !enabled ? null : source;
+  const player = useExpoVideoPlayer(initialSource, setup);
+  const attachedSource = React.useRef<VideoSource>(initialSource);
+  const staticSource = STATIC_BACKGROUNDS.get(source);
   const autoplay = options.autoplay ?? true;
 
   playerMetadata.set(player, { enabled, focused, staticSource });
@@ -101,12 +107,27 @@ export function useVideoPlayer(
         return () => {};
       }
 
+      if (attachedSource.current === source) {
+        activeVideoSources += 1;
+        if (autoplay) player.play();
+        breadcrumb('video source loaded', route.name, { load: 'initial' });
+
+        return () => {
+          attachedSource.current = null;
+          try { player.pause(); } catch {}
+          void player.replaceAsync(null).catch(() => {});
+          activeVideoSources = Math.max(0, activeVideoSources - 1);
+          breadcrumb('video source released', route.name);
+        };
+      }
+
       let cancelled = false;
       void player.replaceAsync(source).then(() => {
         if (cancelled) {
           void player.replaceAsync(null).catch(() => {});
           return;
         }
+        attachedSource.current = source;
         activeVideoSources += 1;
         if (autoplay) player.play();
         breadcrumb('video source loaded', route.name);
@@ -116,6 +137,7 @@ export function useVideoPlayer(
 
       return () => {
         cancelled = true;
+        attachedSource.current = null;
         try { player.pause(); } catch {}
         void player.replaceAsync(null).catch(() => {});
         activeVideoSources = Math.max(0, activeVideoSources - 1);
