@@ -3,7 +3,22 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Inner</title>
+  <title>Inner — Guided Psychoacoustic Journeys</title>
+  <meta name="description" content="Inner is a guided audio experience for deep rest, lucid awareness, and intentional inner exploration." />
+  <link rel="canonical" href="https://getinner.app/" />
+  <meta name="theme-color" content="#0D0C1F" />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://getinner.app/" />
+  <meta property="og:title" content="Inner — Guided Psychoacoustic Journeys" />
+  <meta property="og:description" content="Guided audio environments for deep rest, lucid awareness, and intentional inner exploration." />
+  <meta property="og:image" content="https://getinner.app/favicon-master.png" />
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="Inner — Guided Psychoacoustic Journeys" />
+  <meta name="twitter:description" content="Guided audio environments for deep rest, lucid awareness, and intentional inner exploration." />
+  <meta name="twitter:image" content="https://getinner.app/favicon-master.png" />
+  <link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48" />
+  <link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,200;0,300;0,400;0,500;0,600;1,200;1,300&display=swap" rel="stylesheet">
@@ -55,6 +70,7 @@
       padding: 20px;
       padding-top: calc(8px + env(safe-area-inset-top, 0px) + var(--topbar-height));
       box-sizing: border-box;
+      scroll-padding-top: calc(var(--topbar-height) + 20px);
     }
     .breathing-orb {
       width: min(370px, 76vw);
@@ -209,6 +225,7 @@
       margin: 0 auto;
       padding: 72px 0;
       position: relative;
+      scroll-margin-top: calc(var(--topbar-height) + 20px);
     }
     .section.compact {
       padding: 0px 0;
@@ -555,6 +572,13 @@
       transform: translateY(0);
     }
 
+    a:focus-visible,
+    button:focus-visible,
+    summary:focus-visible {
+      outline: 2px solid #b6a8ff;
+      outline-offset: 4px;
+    }
+
     /* Section separators */
     .veil-line {
       width: 100%;
@@ -773,13 +797,13 @@
       border-color: #a18cff;
     }
     .chamber-card:nth-child(1) {
-      background: url('outer_sanctum_card.webp') center/cover no-repeat;
+      background: linear-gradient(rgba(7, 7, 18, 0.42), rgba(7, 7, 18, 0.84)), url('outer_sanctum_card.webp') center/cover no-repeat;
     }
     .chamber-card:nth-child(2) {
-      background: url('inner_flame_card.webp') center/cover no-repeat;
+      background: linear-gradient(rgba(7, 7, 18, 0.42), rgba(7, 7, 18, 0.84)), url('inner_flame_card.webp') center/cover no-repeat;
     }
     .chamber-card:nth-child(3) {
-      background: url('horizon_gate_card.webp') center/cover no-repeat;
+      background: linear-gradient(rgba(7, 7, 18, 0.42), rgba(7, 7, 18, 0.84)), url('horizon_gate_card.webp') center/cover no-repeat;
     }
     .chamber-title {
       font-weight: 700;
@@ -792,7 +816,7 @@
     .chamber-desc {
       font-size: 0.95rem;
       line-height: 1.3;
-      color: #bbb9d6;
+      color: rgba(245, 243, 255, 0.92);
       text-align: center;
       width: 100%;
       margin: 0;
@@ -862,6 +886,22 @@
       color: rgba(235, 232, 255, 0.86);
       line-height: 1.62;
     }
+    .science-more {
+      margin-top: 12px;
+      border-top: 1px solid rgba(161, 140, 255, 0.22);
+    }
+    .science-more summary {
+      width: fit-content;
+      margin: 0 auto;
+      padding: 16px 24px;
+      color: rgba(235, 232, 255, 0.94);
+      font-family: 'CalSans', sans-serif;
+      cursor: pointer;
+      list-style-position: inside;
+    }
+    .science-more[open] summary {
+      margin-bottom: 4px;
+    }
     /* Books Section */
     .books-row {
       display: flex;
@@ -902,7 +942,7 @@
     }
     .book-card-desc {
       text-align: center !important;
-      color: rgba(235, 232, 255, 0.80) !important;
+      color: rgba(235, 232, 255, 0.90) !important;
       font-size: 0.95rem !important;
       line-height: 1.60 !important;
       margin: 0 0 22px 0 !important;
@@ -1202,6 +1242,22 @@
         bottom: 4px;
       }
     }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      .breathing-orb { animation: none; }
+      .reveal,
+      .reveal.visible {
+        opacity: 1;
+        transform: none;
+        transition: none;
+      }
+      *, *::before, *::after {
+        scroll-behavior: auto !important;
+        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+      }
+    }
   </style>
 </head>
 <body>
@@ -1238,7 +1294,7 @@
 
   <!-- HERO / THRESHOLD -->
   <section class="section compact" aria-label="Hero">
-    <div class="container center reveal">
+    <div class="container center visible">
       <div class="breathing-orb" aria-hidden="true">
         <img src="inner_orb.png" alt="" />
       </div>
@@ -1283,7 +1339,7 @@
           <p class="book-card-subtitle">An Inner Axiom</p>
           <p class="book-card-desc">The science and practice behind the Chambers, how structured sound shapes consciousness, why repetition deepens access, and how to use auditory environments as a deliberate tool for inner work.</p>
           <div class="cta-row" style="justify-content:center; margin-top:0;">
-            <a class="store-btn" href="javascript:void(0)" onclick="openModal('aa-modal')" role="button">Get The Book</a>
+            <button class="store-btn" type="button" onclick="openModal('aa-modal', this)">Get The Book</button>
           </div>
         </div>
 
@@ -1294,7 +1350,7 @@
           <p class="book-card-subtitle">A Discovered Ecology for Lucid Awareness</p>
           <p class="book-card-desc">Five presences. One living system. A complete framework for conscious dreaming. Synthesized from LaBerge's science, Monroe's cartography, and Tibetan dream yoga into a unified developmental sequence.</p>
           <div class="cta-row" style="justify-content:center; margin-top:0;">
-            <a class="store-btn" href="javascript:void(0)" onclick="openModal('guardians-modal')" role="button">Get The Book</a>
+            <button class="store-btn" type="button" onclick="openModal('guardians-modal', this)">Get The Book</button>
           </div>
         </div>
 
@@ -1344,17 +1400,20 @@
         <h3>Chambers Are a Nervous System Instrument</h3>
         <p>Sound is not decoration, it’s a way to <em>sonically play the nervous system</em>. The brain is rhythmic by nature. Breath, heart rate, attention, and even perception respond to patterns. A Chamber is built as a controlled sonic environment: a blend of spatial cues, harmonic tension and release, and subtle pulse structures designed to guide the listener toward coherence. With repetition, the system learns the shape of the Chamber, like returning to a familiar path through a forest, so less energy is spent orienting, and more becomes available for dropping beneath thought.</p>
 
-        <h3>Entrainment, Attention, and State Change</h3>
-        <p>The efficacy of Chambers isn’t mystical, it’s physiological. Sound can entrain attention and influence arousal through well‑understood mechanisms: steady modulation, low‑frequency rhythmic energy, and spatial continuity help reduce vigilance in the nervous system. When the mind stops scanning for novelty, the body receives permission to downshift. This is why Chambers are designed for repetition. Early sessions often calm the system. Later sessions can shift perception because the brain begins to associate the Chamber’s sonic signature with safety, stillness, and depth, making entry into those states faster and more reliable over time.</p>
+        <details class="science-more">
+          <summary>Explore the science behind the Chambers</summary>
+          <h3>Entrainment, Attention, and State Change</h3>
+          <p>The efficacy of Chambers isn’t mystical, it’s physiological. Sound can entrain attention and influence arousal through well‑understood mechanisms: steady modulation, low‑frequency rhythmic energy, and spatial continuity help reduce vigilance in the nervous system. When the mind stops scanning for novelty, the body receives permission to downshift. This is why Chambers are designed for repetition. Early sessions often calm the system. Later sessions can shift perception because the brain begins to associate the Chamber’s sonic signature with safety, stillness, and depth, making entry into those states faster and more reliable over time.</p>
 
-        <h3>Why Repetition Matters (and Why It Gets Deeper)</h3>
-        <p>Most audio is designed to entertain. Chambers are designed to <em>condition</em>. When stimuli constantly change, the brain remains in evaluation mode: comparing, judging, staying subtly alert. Returning to the same Chamber removes that novelty tax. The auditory system stops analyzing and begins entraining. This is when deeper effects emerge: slower breath, softer muscle tone, reduced mental chatter, and occasionally the appearance of hypnagogic imagery or lucid‑like awareness. The Chamber isn’t “doing something” to you, it’s creating the conditions where your nervous system does what it already knows how to do: regulate, open, and reorganize.</p>
+          <h3>Why Repetition Matters (and Why It Gets Deeper)</h3>
+          <p>Most audio is designed to entertain. Chambers are designed to <em>condition</em>. When stimuli constantly change, the brain remains in evaluation mode: comparing, judging, staying subtly alert. Returning to the same Chamber removes that novelty tax. The auditory system stops analyzing and begins entraining. This is when deeper effects emerge: slower breath, softer muscle tone, reduced mental chatter, and occasionally the appearance of hypnagogic imagery or lucid‑like awareness. The Chamber isn’t “doing something” to you, it’s creating the conditions where your nervous system does what it already knows how to do: regulate, open, and reorganize.</p>
 
-        <h3>Spatial Audio and the Sense of Presence</h3>
-        <p>Chambers are built in three dimensions. Spatial sound isn’t a gimmick, it’s a perceptual anchor. When audio has depth and placement, the brain treats it less like a track and more like an environment. And environments change behavior. A coherent sonic space reduces cognitive drift and increases the sense of presence: one of the strongest predictors of whether someone actually settles into a restorative state. In practical terms, spatial continuity helps you stay with the experience long enough for it to work.</p>
+          <h3>Spatial Audio and the Sense of Presence</h3>
+          <p>Chambers are built in three dimensions. Spatial sound isn’t a gimmick, it’s a perceptual anchor. When audio has depth and placement, the brain treats it less like a track and more like an environment. And environments change behavior. A coherent sonic space reduces cognitive drift and increases the sense of presence: one of the strongest predictors of whether someone actually settles into a restorative state. In practical terms, spatial continuity helps you stay with the experience long enough for it to work.</p>
 
-        <h3>What Chambers Can Realistically Do</h3>
-        <p>Chambers are not a medical claim, and they are not a shortcut to enlightenment. What they <em>can</em> do, reliably, is guide the listener into states associated with recovery and insight: downshifting stress arousal, stabilizing attention, improving breath‑led regulation, and supporting transitions into sleep‑adjacent states where memory, emotion, and imagery behave differently. Some people experience this as calm. Others as clarity. Others as a doorway. The point isn’t the label. The point is repeatable access.</p>
+          <h3>What Chambers Can Realistically Do</h3>
+          <p>Chambers are not a medical claim, and they are not a shortcut to enlightenment. What they <em>can</em> do, reliably, is guide the listener into states associated with recovery and insight: downshifting stress arousal, stabilizing attention, improving breath‑led regulation, and supporting transitions into sleep‑adjacent states where memory, emotion, and imagery behave differently. Some people experience this as calm. Others as clarity. Others as a doorway. The point isn’t the label. The point is repeatable access.</p>
+        </details>
       </div>
     </div>
   </section>
@@ -1485,7 +1544,7 @@
 
       <div class="veil-line" aria-hidden="true" style="margin-top:34px;"></div>
       <p class="subtle" style="margin:18px auto 0 auto;">
-        <span class="footer-links">© Inner • getinner.app <a href="/impact.html">Impact</a></span>
+        <span class="footer-links">© Inner • getinner.app <a href="/impact.html">Impact</a> <a href="/privacy.html">Privacy</a> <a href="/support.html">Support</a></span>
       </p>
     </div>
   </section>
@@ -1528,6 +1587,31 @@
     }, { threshold: 0.12 });
 
     revealEls.forEach((el) => io.observe(el));
+
+    // Keep anchored section headings clear of the fixed navigation.
+    function scrollToSection(hash, behavior = 'smooth') {
+      if (!hash || hash === '#') return;
+      const target = document.querySelector(hash);
+      if (!target) return;
+      const topbarHeight = document.querySelector('.topbar')?.offsetHeight || 0;
+      const top = window.scrollY + target.getBoundingClientRect().top - topbarHeight - 16;
+      window.scrollTo({ top: Math.max(0, top), behavior });
+    }
+
+    document.querySelectorAll('a[href^="#"]').forEach((link) => {
+      link.addEventListener('click', (event) => {
+        const hash = link.getAttribute('href');
+        if (!hash || hash === '#') return;
+        event.preventDefault();
+        history.pushState(null, '', hash);
+        scrollToSection(hash);
+      });
+    });
+
+    if (window.location.hash) {
+      requestAnimationFrame(() => scrollToSection(window.location.hash, 'auto'));
+      window.addEventListener('load', () => scrollToSection(window.location.hash, 'auto'), { once: true });
+    }
 
     // Active nav tracking
     const sections = document.querySelectorAll('section[id]');
@@ -1628,22 +1712,28 @@
       const isOpen = mobileNav.classList.toggle('is-open');
       hamburger.classList.toggle('is-open', isOpen);
       hamburger.setAttribute('aria-expanded', isOpen);
+      hamburger.setAttribute('aria-label', isOpen ? 'Close navigation' : 'Open navigation');
     });
     mobileNav.querySelectorAll('a').forEach(link => {
       link.addEventListener('click', () => {
         mobileNav.classList.remove('is-open');
         hamburger.classList.remove('is-open');
         hamburger.setAttribute('aria-expanded', 'false');
+        hamburger.setAttribute('aria-label', 'Open navigation');
       });
     });
 
     // Generic modal
-    function openModal(id) {
+    let modalTrigger = null;
+    function openModal(id, trigger) {
       const modal = document.getElementById(id);
       if (!modal) return;
+      modalTrigger = trigger || document.activeElement;
       modal.setAttribute('aria-hidden', 'false');
       modal.classList.add('is-open');
       document.body.style.overflow = 'hidden';
+      const firstFocusable = modal.querySelector('button, a[href]');
+      if (firstFocusable) firstFocusable.focus();
     }
     function closeModal(id) {
       const modal = document.getElementById(id);
@@ -1651,6 +1741,8 @@
       modal.setAttribute('aria-hidden', 'true');
       modal.classList.remove('is-open');
       document.body.style.overflow = '';
+      if (modalTrigger) modalTrigger.focus();
+      modalTrigger = null;
     }
     document.querySelectorAll('.modal-backdrop').forEach(function(modal) {
       modal.addEventListener('click', function(e) {
@@ -1658,6 +1750,21 @@
       });
     });
     document.addEventListener('keydown', function(e) {
+      const openModalEl = document.querySelector('.modal-backdrop.is-open');
+      if (e.key === 'Tab' && openModalEl) {
+        const focusable = Array.from(openModalEl.querySelectorAll('button, a[href]'));
+        if (focusable.length) {
+          const first = focusable[0];
+          const last = focusable[focusable.length - 1];
+          if (e.shiftKey && document.activeElement === first) {
+            e.preventDefault();
+            last.focus();
+          } else if (!e.shiftKey && document.activeElement === last) {
+            e.preventDefault();
+            first.focus();
+          }
+        }
+      }
       if (e.key === 'Escape') {
         document.querySelectorAll('.modal-backdrop.is-open').forEach(function(m) {
           closeModal(m.id);
