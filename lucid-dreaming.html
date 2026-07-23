@@ -108,6 +108,14 @@
     .day-label { color: var(--violet); font-family: 'CalSans', sans-serif; font-size: .84rem; letter-spacing: .08em; text-transform: uppercase; }
     .day h3 { margin: 0 0 5px; font-size: 1.08rem; }
     .day p { margin: 0; color: var(--muted); }
+    .guardian-path { max-width: 860px; margin: 34px auto 0; display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); border-top: 1px solid rgba(161,140,255,.32); border-bottom: 1px solid rgba(161,140,255,.18); }
+    .guardian { padding: 20px 14px; border-right: 1px solid rgba(161,140,255,.16); text-align: center; }
+    .guardian:last-child { border-right: 0; }
+    .guardian span { display: block; margin-bottom: 6px; color: var(--violet); font-family: 'CalSans', sans-serif; font-size: .72rem; letter-spacing: .1em; }
+    .guardian strong { font-family: 'CalSans', sans-serif; font-size: .9rem; font-weight: 400; }
+    .guardian-links { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin-top: 28px; }
+    .text-link { color: rgba(188,174,255,.94); font-family: 'CalSans', sans-serif; text-decoration: none; border-bottom: 1px solid rgba(161,140,255,.38); }
+    .text-link:hover { color: #fff; }
     .inner-callout { max-width: 860px; margin: 0 auto; padding: 42px; border: 1px solid rgba(161,140,255,.28); border-radius: 20px; background: linear-gradient(135deg, rgba(41,35,80,.45), rgba(16,15,36,.42)); text-align: center; }
     .inner-callout h2 { margin: 0 0 14px; font-size: 2rem; }
     .inner-callout p { max-width: 680px; margin: 0 auto 24px; color: var(--muted); }
@@ -125,6 +133,9 @@
       .section { padding: 48px 0; }
       .inner-callout { padding: 32px 20px; }
       .day { grid-template-columns: 1fr; gap: 5px; }
+      .guardian-path { grid-template-columns: 1fr; }
+      .guardian { padding: 16px 8px; border-right: 0; border-bottom: 1px solid rgba(161,140,255,.16); }
+      .guardian:last-child { border-bottom: 0; }
     }
     @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
   </style>
@@ -184,6 +195,28 @@
         <div class="prose">
           <p>Dream recall is the practical foundation of lucid dreaming. A moment of lucidity can occur and still disappear with the rest of the night if it is not stabilized in memory. Recall also reveals your dream signs—the repeating material that makes your dreams recognizable.</p>
           <p>When you wake, stay still and ask: <strong>Where was I? Who was there? What was I feeling?</strong> Work backward from the final fragment. Record images, emotions, or single sentences even when the dream feels incomplete. Consistency matters more than perfect detail.</p>
+        </div>
+      </section>
+
+      <section class="section" id="guardian-ecology">
+        <div class="section-head"><p class="kicker">Inner's Native Framework</p><h2>The Guardian Ecology</h2><p>A developmental system for carrying felt awareness through successive moments of the lucid experience.</p></div>
+        <div class="prose">
+          <p>Many lucid-dreaming methods depend on remembering an intention after sleep has already changed the way memory works. Inner's Guardian Ecology approaches the threshold differently: it cultivates distinct <strong>felt presences</strong>, each oriented toward recognizing and supporting a particular moment within the dream.</p>
+          <p>The Guardians are developed in sequence. Recognition establishes awareness. Stability helps it remain coherent. Depth signals when further exploration is available. Protection supports difficult dream territory. Continuity connects the practice across nights.</p>
+        </div>
+        <div class="guardian-path" aria-label="The five Guardians">
+          <div class="guardian"><span>01</span><strong>Recognition</strong></div>
+          <div class="guardian"><span>02</span><strong>Stability</strong></div>
+          <div class="guardian"><span>03</span><strong>Depth</strong></div>
+          <div class="guardian"><span>04</span><strong>Protection</strong></div>
+          <div class="guardian"><span>05</span><strong>Continuity</strong></div>
+        </div>
+        <div class="prose" style="margin-top:28px; text-align:center;">
+          <p>Inner teaches the framework progressively through its in-app lucid-awareness lessons and guided practice. <em>Guardians: A Discovered Ecology for Lucid Awareness</em> is the companion book for practitioners who want the complete theory, developmental sequence, and deeper context behind the system.</p>
+        </div>
+        <div class="guardian-links">
+          <a class="text-link" href="#download">Explore the lessons in Inner</a>
+          <a class="text-link" href="guardians.html">Discover the Guardians book</a>
         </div>
       </section>
 
