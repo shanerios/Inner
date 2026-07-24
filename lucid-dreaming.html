@@ -38,6 +38,19 @@
     }
   }
   </script>
+  <script type="application/ld+json">
+  {
+    "@context":"https://schema.org",
+    "@type":"FAQPage",
+    "mainEntity":[
+      {"@type":"Question","name":"Is lucid dreaming safe?","acceptedAnswer":{"@type":"Answer","text":"For many people, gentle lucid-dreaming practices such as journaling and daytime awareness are compatible with healthy sleep. Avoid repeatedly disrupting sleep, and pause if vivid dreams or sleep-related experiences cause distress."}},
+      {"@type":"Question","name":"How long does it take to have a lucid dream?","acceptedAnswer":{"@type":"Answer","text":"There is no reliable timetable. Recall, sleep patterns, consistency, and individual differences all matter. Treat lucidity as a practice developed over time rather than a guaranteed result."}},
+      {"@type":"Question","name":"Do I need to wake during the night?","acceptedAnswer":{"@type":"Answer","text":"No. Wake-back-to-bed is optional. Dream recall, awareness pauses, intention, and hypnagogic observation can all be practiced without scheduled waking."}},
+      {"@type":"Question","name":"Why is dream recall important?","acceptedAnswer":{"@type":"Answer","text":"Recall helps preserve lucid moments and reveals recurring dream signs that can later become cues for awareness within dreams."}},
+      {"@type":"Question","name":"How are the Guardians different from reality checks?","acceptedAnswer":{"@type":"Answer","text":"Reality checks use remembered critical attention. Inner's Guardians are sequential felt presences cultivated while awake and trained to be recognized from within the dream."}}
+    ]
+  }
+  </script>
   <style>
     @font-face {
       font-family: 'CalSans';
@@ -82,6 +95,11 @@
     .topbar nav { display: flex; gap: 22px; align-items: center; }
     .topbar nav a { color: rgba(235,232,255,.84); font-size: .95rem; }
     .topbar nav a:hover, .topbar nav a.active { color: var(--violet); }
+    .nav-dropdown { position: relative; }
+    .nav-dropdown-toggle { display: inline-flex; align-items: center; gap: 5px; }
+    .nav-dropdown-menu { position: absolute; top: 100%; left: 50%; width: 220px; padding: 9px; border: 1px solid rgba(161,140,255,.2); border-radius: 10px; background: rgba(18,17,39,.98); opacity: 0; transform: translate(-50%,8px); pointer-events: none; transition: .18s ease; }
+    .nav-dropdown:hover .nav-dropdown-menu, .nav-dropdown:focus-within .nav-dropdown-menu { opacity: 1; transform: translate(-50%,4px); pointer-events: auto; }
+    .nav-dropdown-menu a { display: block; padding: 9px 10px; border-radius: 6px; }
     .hero { max-width: 900px; margin: 0 auto; padding: 142px 24px 84px; text-align: center; }
     .orb { width: 118px; height: 118px; margin: 0 auto 22px; overflow: hidden; border-radius: 50%; }
     .orb img { width: 100%; height: 100%; display: block; object-fit: cover; object-position: center 30%; }
@@ -124,11 +142,16 @@
     .button { display: inline-flex; align-items: center; justify-content: center; min-width: 190px; padding: 13px 20px; border: 1px solid rgba(161,140,255,.36); border-radius: 8px; background: linear-gradient(135deg, rgba(154,134,245,.42), rgba(122,109,224,.34)); color: #fff; font-weight: 600; text-decoration: none; box-shadow: 0 5px 18px rgba(161,140,255,.16); }
     .button.secondary { background: transparent; box-shadow: none; }
     .safety { max-width: 760px; margin: 28px auto 0; color: rgba(210,205,240,.66); font-size: .88rem; text-align: center; }
+    .faq { max-width: 800px; margin: 0 auto; }
+    .faq details { padding: 20px 0; border-top: 1px solid rgba(161,140,255,.2); }
+    .faq summary { cursor: pointer; color: #fff; font-family: 'CalSans',sans-serif; font-size: 1.06rem; }
+    .faq details p { margin: 12px 0 0; color: var(--muted); }
     footer { max-width: 1040px; margin: 0 auto; padding: 26px 24px 42px; border-top: 1px solid rgba(161,140,255,.18); color: rgba(210,205,240,.64); font-size: .85rem; text-align: center; }
     footer a { margin-left: 12px; text-decoration: none; }
     @media (max-width: 760px) {
       :root { --topbar-height: 64px; }
       .topbar nav a:not(.download-link) { display: none; }
+      .nav-dropdown { display: none; }
       .hero { padding-top: 120px; padding-bottom: 60px; }
       .steps, .techniques, .mistakes { grid-template-columns: 1fr; gap: 20px; }
       .section { padding: 48px 0; }
@@ -144,9 +167,18 @@
   <header class="topbar" aria-label="Inner navigation">
     <a class="brand" href="index.html">inner</a>
     <nav aria-label="Site navigation">
-      <a class="active" href="lucid-dreaming.html">Lucid Dreaming</a>
+      <div class="nav-dropdown">
+        <a class="nav-dropdown-toggle active" href="lucid-dreaming.html">Practices ▾</a>
+        <div class="nav-dropdown-menu">
+          <a class="active" href="lucid-dreaming.html">Lucid Dreaming</a>
+          <a href="#recall">Dream Recall</a>
+          <a href="obe-awareness.html">OBE Awareness</a>
+          <a href="index.html#chambers">Deep Rest</a>
+        </div>
+      </div>
       <a href="index.html#chambers">Chambers</a>
       <a href="auditory-ascension.html">Books</a>
+      <a href="about.html">About</a>
       <a class="download-link" href="#download">Download</a>
     </nav>
   </header>
@@ -248,6 +280,17 @@
         </div>
       </section>
 
+      <section class="section" id="faq">
+        <div class="section-head"><p class="kicker">Questions</p><h2>Lucid-dreaming FAQ</h2></div>
+        <div class="faq">
+          <details><summary>Is lucid dreaming safe?</summary><p>For many people, gentle practices such as journaling and daytime awareness are compatible with healthy sleep. Avoid repeatedly disrupting sleep, and pause if vivid dreams or sleep-related experiences cause distress.</p></details>
+          <details><summary>How long does it take to have a lucid dream?</summary><p>There is no reliable timetable. Recall, sleep patterns, consistency, and individual differences all matter. Treat lucidity as a practice developed over time rather than a guaranteed result.</p></details>
+          <details><summary>Do I need to wake during the night?</summary><p>No. Wake-back-to-bed can help some practitioners, but it is optional. Dream recall, awareness pauses, intention, and hypnagogic observation can all be practiced without scheduled waking.</p></details>
+          <details><summary>Why is dream recall important?</summary><p>Recall preserves lucid moments and reveals recurring places, people, emotions, and impossibilities that can become personal cues for awareness.</p></details>
+          <details><summary>How are the Guardians different from reality checks?</summary><p>Reality checks use remembered critical attention. Inner's Guardians are sequential felt presences cultivated while awake and trained to be recognized from within the dream.</p></details>
+        </div>
+      </section>
+
       <section class="section" id="download">
         <div class="inner-callout">
           <p class="kicker">Practice with Inner</p>
@@ -264,6 +307,6 @@
     </article>
   </main>
 
-  <footer>© Inner • getinner.app <a href="impact.html">Impact</a><a href="privacy.html">Privacy</a><a href="support.html">Support</a></footer>
+  <footer>© Inner • getinner.app <a href="about.html">About</a><a href="impact.html">Impact</a><a href="privacy.html">Privacy</a><a href="support.html">Support</a></footer>
 </body>
 </html>

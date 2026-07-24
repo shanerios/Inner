@@ -492,6 +492,15 @@
       <a href="index.html" class="brand-link">inner</a>
     </div>
     <nav aria-label="Site navigation">
+      <div class="nav-dropdown" id="practices-dropdown">
+        <a href="#" class="nav-dropdown-toggle" onclick="event.preventDefault();">Practices <span class="dropdown-chevron">▾</span></a>
+        <div class="nav-dropdown-menu" role="menu">
+          <a href="lucid-dreaming.html" role="menuitem">Lucid Dreaming</a>
+          <a href="lucid-dreaming.html#recall" role="menuitem">Dream Recall</a>
+          <a href="obe-awareness.html" role="menuitem">OBE Awareness</a>
+          <a href="/#chambers" role="menuitem">Deep Rest</a>
+        </div>
+      </div>
       <div class="nav-dropdown" id="books-dropdown">
         <a href="#" class="nav-dropdown-toggle" onclick="event.preventDefault();">Books <span class="dropdown-chevron">▾</span></a>
         <div class="nav-dropdown-menu" role="menu">
@@ -499,8 +508,8 @@
           <a href="guardians.html" role="menuitem">Guardians</a>
         </div>
       </div>
-      <a href="lucid-dreaming.html">Lucid Dreaming</a>
       <a href="/#chambers">Chambers</a>
+      <a href="about.html">About</a>
       <a href="/#join">Download</a>
     </nav>
     <button class="hamburger" id="hamburger" aria-label="Open navigation" aria-expanded="false">
@@ -512,7 +521,10 @@
     <a href="auditory-ascension.html" class="active">Auditory Ascension</a>
     <a href="guardians.html">Guardians</a>
     <a href="lucid-dreaming.html">Lucid Dreaming</a>
+    <a href="lucid-dreaming.html#recall">Dream Recall</a>
+    <a href="obe-awareness.html">OBE Awareness</a>
     <a href="/#chambers">Chambers</a>
+    <a href="about.html">About</a>
     <a href="/#join">Download</a>
   </nav>
 
@@ -629,7 +641,7 @@
 
       <div class="veil-line" aria-hidden="true" style="margin-top:40px;"></div>
       <p class="subtle" style="margin:18px auto 0 auto;">
-        <span class="footer-links">© Inner • <a href="/">getinner.app</a> <a href="/impact.html">Impact</a></span>
+        <span class="footer-links">© Inner • <a href="/">getinner.app</a> <a href="/about.html">About</a> <a href="/impact.html">Impact</a></span>
       </p>
     </div>
   </section>
@@ -702,17 +714,19 @@
       }
     });
 
-    // Books dropdown
-    const booksDropdown = document.getElementById('books-dropdown');
-    if (booksDropdown) {
-      booksDropdown.querySelector('.nav-dropdown-toggle').addEventListener('click', function(e) {
+    // Dropdowns
+    document.querySelectorAll('.nav-dropdown').forEach(function(dropdown) {
+      dropdown.querySelector('.nav-dropdown-toggle').addEventListener('click', function(e) {
         e.preventDefault();
-        booksDropdown.classList.toggle('is-open');
+        document.querySelectorAll('.nav-dropdown').forEach(function(other) {
+          if (other !== dropdown) other.classList.remove('is-open');
+        });
+        dropdown.classList.toggle('is-open');
       });
       document.addEventListener('click', function(e) {
-        if (!booksDropdown.contains(e.target)) booksDropdown.classList.remove('is-open');
+        if (!dropdown.contains(e.target)) dropdown.classList.remove('is-open');
       });
-    }
+    });
   </script>
 
 </body>
