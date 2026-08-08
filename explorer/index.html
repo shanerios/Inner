@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#0b0b20" />
+  <meta name="description" content="Continue your Little Explorer adventure with Inner." />
+  <title>Continue the Adventure | Inner</title>
+
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #0b0b20;
+      color: #f7f5ff;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      min-height: 100vh;
+      margin: 0;
+      display: grid;
+      place-items: center;
+      padding: 2rem 1.25rem;
+      text-align: center;
+      background:
+        radial-gradient(circle at 50% 20%, rgba(140, 122, 255, 0.18), transparent 34rem),
+        linear-gradient(180deg, #080819 0%, #111129 100%);
+    }
+
+    main {
+      width: min(100%, 36rem);
+    }
+
+    .spark {
+      width: 4.5rem;
+      height: 4.5rem;
+      margin: 0 auto 1.5rem;
+      border-radius: 50%;
+      background: radial-gradient(circle at 38% 32%, #fff 0 4%, #c8beff 18%, #7569d9 48%, transparent 70%);
+      filter: drop-shadow(0 0 1.75rem rgba(151, 133, 255, 0.4));
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(2.25rem, 8vw, 4rem);
+      line-height: 1.05;
+      letter-spacing: -0.04em;
+    }
+
+    p {
+      max-width: 31rem;
+      margin: 1.15rem auto 0;
+      color: rgba(239, 235, 255, 0.76);
+      font-size: 1.05rem;
+      line-height: 1.65;
+    }
+
+    .store-links {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 0.8rem;
+      margin-top: 2rem;
+    }
+
+    .store-link {
+      min-width: 13rem;
+      padding: 0.95rem 1.25rem;
+      border: 1px solid rgba(196, 186, 255, 0.3);
+      border-radius: 0.9rem;
+      background: rgba(130, 112, 225, 0.2);
+      color: #fff;
+      font-weight: 650;
+      text-decoration: none;
+      transition: transform 160ms ease, background 160ms ease, border-color 160ms ease;
+    }
+
+    .store-link:hover {
+      transform: translateY(-2px);
+      border-color: rgba(215, 208, 255, 0.55);
+      background: rgba(145, 127, 239, 0.3);
+    }
+
+    .store-link:focus-visible {
+      outline: 3px solid #c8beff;
+      outline-offset: 4px;
+    }
+
+    @media (max-width: 32rem) {
+      .store-links {
+        flex-direction: column;
+      }
+
+      .store-link {
+        width: 100%;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .store-link {
+        transition: none;
+      }
+    }
+  </style>
+
+  <script>
+    (function () {
+      var IOS_URL = "https://apps.apple.com/us/app/inner-official/id6755213270";
+      var ANDROID_URL = "https://play.google.com/store/apps/details?id=com.getinner.app";
+      var userAgent = navigator.userAgent || navigator.vendor || "";
+      var isAndroid = /android/i.test(userAgent);
+      var isIOS = /iPad|iPhone|iPod/i.test(userAgent) ||
+        (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+
+      if (isAndroid) {
+        window.location.replace(ANDROID_URL);
+      } else if (isIOS) {
+        window.location.replace(IOS_URL);
+      }
+    }());
+  </script>
+</head>
+<body>
+  <main>
+    <div class="spark" aria-hidden="true"></div>
+    <h1>Continue the Adventure</h1>
+    <p>
+      Step beyond the page and discover peaceful stories, guided experiences,
+      and more places to explore with Inner.
+    </p>
+
+    <nav class="store-links" aria-label="Download Inner">
+      <a class="store-link" href="https://apps.apple.com/us/app/inner-official/id6755213270">
+        Download on the App Store
+      </a>
+      <a class="store-link" href="https://play.google.com/store/apps/details?id=com.getinner.app">
+        Get it on Google Play
+      </a>
+    </nav>
+  </main>
+</body>
+</html>

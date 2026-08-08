@@ -45,8 +45,8 @@ export default function RadialTransport({
   useEffect(() => {
     const loop = Animated.loop(
       Animated.sequence([
-        Animated.timing(halo, { toValue: 1, duration: 4000, easing: Easing.inOut(Easing.quad), useNativeDriver: false }),
-        Animated.timing(halo, { toValue: 0, duration: 4000, easing: Easing.inOut(Easing.quad), useNativeDriver: false }),
+        Animated.timing(halo, { toValue: 1, duration: 4000, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+        Animated.timing(halo, { toValue: 0, duration: 4000, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
       ])
     );
     loop.start();

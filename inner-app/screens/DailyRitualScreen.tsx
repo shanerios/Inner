@@ -61,8 +61,6 @@ export default function DailyRitualScreen({ navigation }: any) {
     player.play();
   });
 
-  const floatAmp = verticalScale(6);
-
   const styles = useMemo(
     () =>
       StyleSheet.create({
@@ -244,8 +242,6 @@ export default function DailyRitualScreen({ navigation }: any) {
   // Breathing orb scale
   const orbScale = useRef(new Animated.Value(0.96)).current;
 
-  const orbFloat = useRef(new Animated.Value(0)).current;
-
   const ORB_SOURCE = require('../assets/splash_ios.png');
 
 
@@ -288,33 +284,6 @@ export default function DailyRitualScreen({ navigation }: any) {
       loop.stop();
     };
   }, [orbScale]);
-
-  useEffect(() => {
-    const floatLoop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(orbFloat, {
-          toValue: -floatAmp,
-          duration: 4500,
-          useNativeDriver: true,
-        }),
-        Animated.timing(orbFloat, {
-          toValue: floatAmp,
-          duration: 4500,
-          useNativeDriver: true,
-        }),
-        Animated.timing(orbFloat, {
-          toValue: 0,
-          duration: 4500,
-          useNativeDriver: true,
-        }),
-      ]),
-      { resetBeforeIteration: false }
-    );
-    floatLoop.start();
-    return () => {
-      floatLoop.stop();
-    };
-  }, [orbFloat, floatAmp]);
 
   useEffect(() => {
     Animated.sequence([

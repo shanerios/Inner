@@ -338,9 +338,6 @@ export default function EssenceScreen() {
       }
     };
   }, []);
-  // Card glow animation for intention cards
-  const cardGlowAnim = useRef(new Animated.Value(0)).current;
-
   // Shared breath (0 → exhale, 1 → inhale)
   const breath = useBreath();
 
@@ -363,23 +360,6 @@ export default function EssenceScreen() {
   const isNavigatingRef = useRef(false);
 
   useEffect(() => {
-    // Card glow animation loop
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(cardGlowAnim, {
-          toValue: 1,
-          duration: 3000,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: false,
-        }),
-        Animated.timing(cardGlowAnim, {
-          toValue: 0,
-          duration: 3000,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: false,
-        }),
-      ])
-    ).start();
     Animated.sequence([
       Animated.delay(4000),
       Animated.timing(titleOpacity, {
