@@ -36,8 +36,8 @@
     }
 
     .spark {
-      width: 4.5rem;
-      height: 4.5rem;
+      width: min(370px, 76vw);
+      height: min(370px, 76vw);
       margin: 0 auto 1.5rem;
       display: block;
       object-fit: contain;
@@ -91,6 +91,11 @@
     }
 
     @media (max-width: 32rem) {
+      .spark {
+        width: 74vw;
+        height: 74vw;
+      }
+
       .store-links {
         flex-direction: column;
       }
