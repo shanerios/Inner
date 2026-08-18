@@ -9,7 +9,7 @@ import Purchases from 'react-native-purchases';
 import { Asset } from 'expo-asset';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useRoute, useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useRoute, useNavigation } from '@react-navigation/native';
 import { useVideoPlayer, VideoView } from '../core/memorySafeVideo';
 import { sanitizeResumePosition, shouldCacheBeforePlayback } from '../core/mediaPolicy';
 import OrbPortal from '../components/OrbPortal';
@@ -124,16 +124,7 @@ export default function JourneyPlayer() {
     // Muted decorative video must not claim exclusive AVAudioSession ownership —
     // the default 'doNotMix' mode fights TrackPlayer's session on background/lock.
     player.audioMixingMode = 'mixWithOthers';
-    if (chamberVideoSource) player.play();
   });
-
-  // Play/pause with screen focus so video doesn't run in the background
-  useFocusEffect(
-    useCallback(() => {
-      if (chamberVideoSource) bgVideoPlayer.play();
-      return () => { bgVideoPlayer.pause(); };
-    }, [bgVideoPlayer, chamberVideoSource])
-  );
 
   // --- Garden video background (soundscapes) ---
   const trackKindEarly = (selectedTrack as any)?.kind || (meta as any)?.kind;
@@ -144,15 +135,7 @@ export default function JourneyPlayer() {
     // Muted decorative video must not claim exclusive AVAudioSession ownership —
     // the default 'doNotMix' mode fights TrackPlayer's session on background/lock.
     player.audioMixingMode = 'mixWithOthers';
-    if (gardenVideoSource) player.play();
   });
-
-  useFocusEffect(
-    useCallback(() => {
-      if (gardenVideoSource) gardenPlayer.play();
-      return () => { gardenPlayer.pause(); };
-    }, [gardenPlayer, gardenVideoSource])
-  );
 
   const saveTimer = useRef<NodeJS.Timeout | null>(null);
 

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Image, Platform, StyleSheet, View, type ImageStyle } from 'react-native';
+import { AppState, Image, Platform, StyleSheet, View, type ImageStyle } from 'react-native';
 import * as Device from 'expo-device';
 import {
   VideoView as ExpoVideoView,
@@ -7,7 +7,7 @@ import {
   type VideoPlayer,
   type VideoSource,
 } from 'expo-video';
-import { useFocusEffect, useIsFocused, useRoute } from '@react-navigation/native';
+import { useIsFocused, useRoute } from '@react-navigation/native';
 import * as Sentry from '@sentry/react-native';
 
 const GIB = 1024 * 1024 * 1024;
@@ -88,63 +88,80 @@ export function useVideoPlayer(
   const focused = useIsFocused();
   const route = useRoute();
   const enabled = options.enabled ?? true;
+  const [appState, setAppState] = React.useState(AppState.currentState);
+  const appActive = appState === 'active';
   // Give a newly mounted, focused screen its source immediately. Starting every
   // player empty and attaching the source later in a focus effect can race the
   // iOS VideoView lifecycle and leave AVPlayer waiting with no item to play.
   // Low-memory Android devices still start empty and render the static fallback.
-  const initialSource = usesStaticBackgrounds || !enabled ? null : source;
+  const initialSource = usesStaticBackgrounds || !enabled || !focused || !appActive ? null : source;
   const player = useExpoVideoPlayer(initialSource, setup);
   const attachedSource = React.useRef<VideoSource>(initialSource);
   const staticSource = STATIC_BACKGROUNDS.get(source);
   const autoplay = options.autoplay ?? true;
 
-  playerMetadata.set(player, { enabled, focused, staticSource });
+  playerMetadata.set(player, { enabled, focused: focused && appActive, staticSource });
 
-  useFocusEffect(
-    React.useCallback(() => {
-      if (!source || !enabled || usesStaticBackgrounds) {
-        breadcrumb(usesStaticBackgrounds ? 'static background active' : 'empty video source', route.name);
-        return () => {};
-      }
+  React.useEffect(() => {
+    const subscription = AppState.addEventListener('change', setAppState);
+    return () => subscription.remove();
+  }, []);
 
-      if (attachedSource.current === source) {
-        activeVideoSources += 1;
-        if (autoplay) player.play();
-        breadcrumb('video source loaded', route.name, { load: 'initial' });
+  React.useEffect(() => {
+    const shouldAttach = Boolean(source && enabled && focused && appActive && !usesStaticBackgrounds);
 
-        return () => {
-          attachedSource.current = null;
-          try { player.pause(); } catch {}
-          void player.replaceAsync(null).catch(() => {});
-          activeVideoSources = Math.max(0, activeVideoSources - 1);
-          breadcrumb('video source released', route.name);
-        };
-      }
-
-      let cancelled = false;
-      void player.replaceAsync(source).then(() => {
-        if (cancelled) {
-          void player.replaceAsync(null).catch(() => {});
-          return;
-        }
-        attachedSource.current = source;
-        activeVideoSources += 1;
-        if (autoplay) player.play();
-        breadcrumb('video source loaded', route.name);
-      }).catch((error) => {
-        Sentry.captureException(error, { tags: { subsystem: 'video-lifecycle', screen: route.name } });
-      });
-
-      return () => {
-        cancelled = true;
+    if (!shouldAttach) {
+      if (attachedSource.current != null) {
         attachedSource.current = null;
+        activeVideoSources = Math.max(0, activeVideoSources - 1);
+
+        // Run suspension while the hook-owned SharedObject is still mounted.
+        // Calling player methods from effect cleanup races expo-video's own
+        // release and can fatally reject with "shared object already released".
         try { player.pause(); } catch {}
         void player.replaceAsync(null).catch(() => {});
-        activeVideoSources = Math.max(0, activeVideoSources - 1);
-        breadcrumb('video source released', route.name);
-      };
-    }, [autoplay, enabled, player, route.name, source])
-  );
+        breadcrumb('video source suspended', route.name, { appState, focused });
+      } else {
+        // Also cancel a replaceAsync(source) that may still be in flight. This
+        // runs on the background/blur state transition, never during unmount.
+        if (source && !usesStaticBackgrounds) {
+          void player.replaceAsync(null).catch(() => {});
+        }
+        breadcrumb(usesStaticBackgrounds ? 'static background active' : 'empty video source', route.name);
+      }
+      return;
+    }
+
+    if (attachedSource.current === source) {
+      if (autoplay) player.play();
+      breadcrumb('video source active', route.name, { load: 'initial' });
+      return;
+    }
+
+    let cancelled = false;
+    void player.replaceAsync(source).then(() => {
+      if (cancelled) return;
+      attachedSource.current = source;
+      activeVideoSources += 1;
+      if (autoplay) player.play();
+      breadcrumb('video source loaded', route.name);
+    }).catch((error) => {
+      if (!cancelled) {
+        Sentry.captureException(error, { tags: { subsystem: 'video-lifecycle', screen: route.name } });
+      }
+    });
+
+    // Cleanup only cancels bookkeeping. expo-video owns final SharedObject
+    // release; the next effect pass handles blur/background suspension.
+    return () => { cancelled = true; };
+  }, [appActive, appState, autoplay, enabled, focused, player, route.name, source]);
+
+  React.useEffect(() => () => {
+    if (attachedSource.current != null) {
+      attachedSource.current = null;
+      activeVideoSources = Math.max(0, activeVideoSources - 1);
+    }
+  }, []);
 
   return player;
 }
