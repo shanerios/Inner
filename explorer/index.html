@@ -6,6 +6,8 @@
   <meta name="theme-color" content="#0b0b20" />
   <meta name="description" content="Continue your Little Explorer adventure with Inner." />
   <title>Continue the Adventure | Inner</title>
+  <link rel="canonical" href="https://inner.chottu.link/explorer" />
+  <meta http-equiv="refresh" content="0; url=https://inner.chottu.link/explorer" />
 
   <style>
     :root {
@@ -32,120 +34,45 @@
     }
 
     main {
-      width: min(100%, 36rem);
+      width: min(100%, 32rem);
     }
 
     .spark {
-      width: min(370px, 76vw);
-      height: min(370px, 76vw);
-      margin: 0 auto -4.5rem;
+      width: min(280px, 64vw);
+      height: min(280px, 64vw);
+      margin: 0 auto 1.5rem;
       display: block;
       object-fit: contain;
       filter: drop-shadow(0 0 1.75rem rgba(151, 133, 255, 0.4));
     }
 
-    h1 {
-      margin: 0;
-      font-size: clamp(2.25rem, 8vw, 4rem);
-      line-height: 1.05;
-      letter-spacing: -0.04em;
-    }
-
     p {
-      max-width: 31rem;
-      margin: 1.15rem auto 0;
-      color: rgba(239, 235, 255, 0.76);
-      font-size: 1.05rem;
-      line-height: 1.65;
+      margin: 0 auto;
+      color: rgba(239, 235, 255, 0.7);
+      font-size: 1rem;
+      line-height: 1.6;
     }
 
-    .store-links {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      gap: 0.8rem;
-      margin-top: 2rem;
-    }
-
-    .store-link {
-      min-width: 13rem;
-      padding: 0.95rem 1.25rem;
-      border: 1px solid rgba(196, 186, 255, 0.3);
-      border-radius: 0.9rem;
-      background: rgba(130, 112, 225, 0.2);
-      color: #fff;
-      font-weight: 650;
-      text-decoration: none;
-      transition: transform 160ms ease, background 160ms ease, border-color 160ms ease;
-    }
-
-    .store-link:hover {
-      transform: translateY(-2px);
-      border-color: rgba(215, 208, 255, 0.55);
-      background: rgba(145, 127, 239, 0.3);
-    }
-
-    .store-link:focus-visible {
-      outline: 3px solid #c8beff;
-      outline-offset: 4px;
-    }
-
-    @media (max-width: 32rem) {
-      .spark {
-        width: 74vw;
-        height: 74vw;
-        margin-bottom: -3.5rem;
-      }
-
-      .store-links {
-        flex-direction: column;
-      }
-
-      .store-link {
-        width: 100%;
-      }
-    }
-
-    @media (prefers-reduced-motion: reduce) {
-      .store-link {
-        transition: none;
-      }
+    a {
+      color: #c8beff;
     }
   </style>
 
   <script>
+    // Forward the full path/query/hash so any ChottuLink attribution
+    // params (click id, campaign, etc.) survive the redirect.
     (function () {
-      var IOS_URL = "https://apps.apple.com/us/app/inner-official/id6755213270";
-      var ANDROID_URL = "https://play.google.com/store/apps/details?id=com.getinner.app";
-      var userAgent = navigator.userAgent || navigator.vendor || "";
-      var isAndroid = /android/i.test(userAgent);
-      var isIOS = /iPad|iPhone|iPod/i.test(userAgent) ||
-        (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-
-      if (isAndroid) {
-        window.location.replace(ANDROID_URL);
-      } else if (isIOS) {
-        window.location.replace(IOS_URL);
-      }
+      var dest = "https://inner.chottu.link/explorer" + window.location.search + window.location.hash;
+      window.location.replace(dest);
     }());
   </script>
 </head>
 <body>
   <main>
     <img class="spark" src="../inner_orb.png" alt="" aria-hidden="true" />
-    <h1>Continue the Adventure</h1>
-    <p>
-      The story doesn't end here. Continue your <i>Littlest Explorer</i> bedtime adventure with <b>Inner</b>, the official sleep companion app.<br><br><i>Visit</i> <b>The Garden</b> <i>and explore soundscapes that help you sleep and</i> <b>explore</b> <i>further.</i>
+    <p>Continuing your Littlest Explorer adventure&hellip;<br />
+      <a href="https://inner.chottu.link/explorer">Tap here if you're not redirected.</a>
     </p>
-
-    <nav class="store-links" aria-label="Download Inner">
-      <a class="store-link" href="https://apps.apple.com/us/app/inner-official/id6755213270">
-        Download on the App Store
-      </a>
-      <a class="store-link" href="https://play.google.com/store/apps/details?id=com.getinner.app">
-        Get it on Google Play
-      </a>
-    </nav>
   </main>
 </body>
 </html>
