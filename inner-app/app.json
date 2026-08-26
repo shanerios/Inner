@@ -2,7 +2,7 @@
   "expo": {
     "name": "Inner",
     "slug": "inner",
-    "version": "2.2",
+    "version": "2.3",
     "runtimeVersion": {
       "policy": "appVersion"
     },
@@ -37,7 +37,7 @@
         "com.android.vending.BILLING"
       ],
       "package": "com.getinner.app",
-      "versionCode": 51,
+      "versionCode": 52,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#1f233a"
