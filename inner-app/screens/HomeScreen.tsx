@@ -1612,7 +1612,7 @@ const pan = useMemo(
     if (isGuardianOrbRef.current) {
       flipDefaultFnRef.current?.();
     }
-    return () => { bgPlayer.pause(); };
+    return () => { try { bgPlayer.pause(); } catch {} };
   }, [bgPlayer]));
 
   const SIGIL_JOURNAL = require('../assets/sigils/journal_button.png');

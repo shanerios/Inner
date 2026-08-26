@@ -33,6 +33,8 @@ import { useNavigation } from '@react-navigation/native';
 import { useBreath } from '../core/BreathProvider';
 import { Typography, Body as _Body } from '../core/typography';
 import { useScale } from '../utils/scale';
+import { openPaywall } from '../src/core/subscriptions/paywallController';
+import { setWakeTime } from '../utils/notifications';
 
 // Safe fallback so hot reloads never break Body usage
 const Body = _Body ?? ({
@@ -63,7 +65,7 @@ export default function EssenceScreen() {
   useFocusEffect(
     useCallback(() => {
       bgPlayer.play();
-      return () => { bgPlayer.pause(); };
+      return () => { try { bgPlayer.pause(); } catch {} };
     }, [bgPlayer])
   );
   const namePromptLift = verticalScale(6);
@@ -451,7 +453,9 @@ export default function EssenceScreen() {
     const timeToSave = selectedWakeChip === 'Other' ? customWakeTime.trim() : selectedWakeChip;
     if (timeToSave && timeToSave.length > 0) {
       try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-      try { await AsyncStorage.setItem('wakeTime', timeToSave); } catch {}
+      // Persists the time AND requests permission + schedules the notification —
+      // this used to only save the value, so the reminder never actually fired.
+      await setWakeTime(timeToSave);
     }
     dismissWakePrompt();
   };
@@ -697,9 +701,10 @@ export default function EssenceScreen() {
               (globalThis as any).__fog?.boost(0.12, 900);
             }, 950);
             setTimeout(() => {
-              console.log('[FOG] Essence: navigating → Home(fogStart)');
-              // @ts-ignore
-              navigation.replace('Home', { fogStart: true });
+              console.log('[FOG] Essence: navigating → Paywall(onboarding)');
+              // The 7-day-trial paywall gates entry to the dashboard; PaywallScreen
+              // itself routes to Home (with fogStart) on purchase, restore, or skip.
+              openPaywall(undefined, undefined, 'onboarding');
             }, 1900);
           }}
           style={styles.primaryButton}

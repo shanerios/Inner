@@ -62,6 +62,7 @@ export default function IntentionScreen() {
 
   const route = useRoute<any>();
   const fromSettings = route?.params?.fromSettings === true;
+  const returnTo = route?.params?.returnTo as 'Home' | undefined;
 
   const [retuneNudge, setRetuneNudge] = useState<string | null>(null);
 
@@ -84,7 +85,7 @@ export default function IntentionScreen() {
   useFocusEffect(
     useCallback(() => {
       bgPlayer.play();
-      return () => { bgPlayer.pause(); };
+      return () => { try { bgPlayer.pause(); } catch {} };
     }, [bgPlayer])
   );
 
@@ -364,6 +365,14 @@ export default function IntentionScreen() {
   const handleContinue = async () => {
     await setIntentions(selectedIntentions);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    // Returning users re-tuning a stale intention (see SplashScreen) land back
+    // on Home instead of re-entering the first-run Essence/paywall chain.
+    if (returnTo === 'Home') {
+      (navigation as any).reset({ index: 0, routes: [{ name: 'Home' }] });
+      return;
+    }
+
     const preload = ensureEssenceAssets();
     await Promise.race([
       preload,
@@ -419,12 +428,7 @@ export default function IntentionScreen() {
                 transform: [{ translateY: returnHeaderTranslateY }],
                 marginTop: verticalScale(10),
                 marginBottom: verticalScale(12),
-                paddingVertical: verticalScale(12),
                 paddingHorizontal: scale(14),
-                borderRadius: scale(14),
-                backgroundColor: 'rgba(15, 12, 36, 0.96)',
-                borderWidth: 1,
-                borderColor: 'rgba(207,195,224,0.45)',
                 maxWidth: scale(340),
                 alignSelf: 'center',
               }}

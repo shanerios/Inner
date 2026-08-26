@@ -7,10 +7,12 @@ import { NavigationContainer, DarkTheme } from "@react-navigation/native";
 import { IntentionProvider } from './core/IntentionProvider';
 import { BreathProvider } from './core/BreathProvider';
 import { createStackNavigator, CardStyleInterpolators } from "@react-navigation/stack";
-import TrackPlayer from "react-native-track-player";
 
 import SplashScreen from "./screens/SplashScreen";
 import IntroScreen from "./screens/IntroScreen";
+import ValueCaptureScreen from "./screens/onboarding/ValueCaptureScreen";
+import ValueHookScreen from "./screens/onboarding/ValueHookScreen";
+import AccountCreateScreen from "./screens/AccountCreateScreen";
 import IntentionScreen from "./screens/IntentionScreen";
 import EssenceScreen from "./screens/EssenceScreen";
 import ChambersScreen from "./screens/ChambersScreen";
@@ -39,7 +41,9 @@ import * as Notifications from 'expo-notifications';
 import { InteractionManager, AppState, Easing } from 'react-native';
 // import NetInfo from '@react-native-community/netinfo';
 import { initAudioOnce } from './core/initAudio';
-import { initRevenueCatOnce } from './utils/revenueCat';
+import { scheduleReengagementNotification } from './utils/notifications';
+import { createEntry } from './core/journalRepo';
+import { initChottuLinkOnce } from './src/core/deeplinking/chottuLink';
 // import { TRACKS, getTrackUrl } from './data/tracks';
 // import { cacheRemoteOnce } from './utils/audioCache';
 
@@ -52,12 +56,6 @@ Notifications.setNotificationHandler({
     shouldSetBadge: false,
   }),
 });
-
-// Register background playback service for lock screen / BT controls (guarded)
-if (!(globalThis as any).__tp_service_registered) {
-  (globalThis as any).__tp_service_registered = true;
-  TrackPlayer.registerPlaybackService(() => require('./service.js'));
-}
 
 // Preload specific long-form tracks so first play is instant
 const TRACKS_TO_PRELOAD: Array<{ id: string; module: number }> = [
@@ -86,6 +84,7 @@ import { navigationRef } from './src/navigation/navigationRef';
 import * as Sentry from '@sentry/react-native';
 import { initializeMemoryTelemetry } from './core/memorySafeVideo';
 import { PostHogProvider, usePostHog } from 'posthog-react-native';
+import { sanitizeSentryEvent } from './core/sentrySanitizer';
 
 Sentry.init({
   dsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
@@ -100,22 +99,7 @@ Sentry.init({
   // uncomment the line below to enable Spotlight (https://spotlightjs.com)
   // spotlight: __DEV__,
 
-  beforeSend(event) {
-    if (Array.isArray(event.breadcrumbs)) {
-      event.breadcrumbs = event.breadcrumbs.map((b) => {
-        const safeLifecycleData =
-          b.category === 'media.lifecycle' || b.category === 'navigation.lifecycle'
-            ? b.data
-            : undefined;
-        return {
-          ...b,
-          data: safeLifecycleData,
-          message: b.message?.replace(/journal|entry|dream|intention/gi, '[redacted]'),
-        };
-      });
-    }
-    return event;
-  },
+  beforeSend: sanitizeSentryEvent,
 });
 
 initializeMemoryTelemetry();
@@ -123,6 +107,8 @@ initializeMemoryTelemetry();
 type RootStackParamList = {
   Splash: undefined;
   Intro: undefined;
+  ValueCapture: undefined;
+  ValueHook: undefined;
   Intention: undefined;
   EssenceScreen: undefined;
   Home: undefined;
@@ -130,7 +116,7 @@ type RootStackParamList = {
   LessonList: { trackId: 'lucid' | 'obe' };
   LessonReader: { trackId: 'lucid' | 'obe'; lessonId: string };
   Chambers: undefined;
-  Soundscapes: undefined;
+  Soundscapes: { category?: string; showExplorerWelcome?: boolean } | undefined;
   JourneyPicker: undefined;
   JourneyPlayer: { trackId?: string; chamber?: string } | undefined;
   Glossary: { trackId: 'lucid' | 'obe' };
@@ -144,12 +130,10 @@ type RootStackParamList = {
   DailyRitual: undefined;
   Aeris: undefined;
   Paywall: undefined;
+  AccountCreate: undefined;
 };
 
 const Stack = createStackNavigator<RootStackParamList>();
-
-// Kick off ASAP at module load (helps prevent "no singleton" on fast taps)
-initRevenueCatOnce().catch(() => {});
 
 // Soft “veil lift” transition: gentle fade-in + stronger upward settle + more noticeable dark veil overlay
 const veilLiftInterpolator = ({ current }: any) => {
@@ -196,6 +180,34 @@ const InnerTheme = {
   },
 };
 
+// Deep-links a notification tap into the right screen. "wake" creates a
+// fresh entry and drops the user straight into writing — the notification's
+// whole point is capturing a dream before it fades, so skip the list.
+// "reengagement" is generic ("come back"), so it lands on Home like a plain
+// orb tap would for a returning user.
+async function handleNotificationResponse(response: Notifications.NotificationResponse | null) {
+  if (!response) return;
+  const type = response.notification.request.content.data?.type;
+  if (!navigationRef.isReady()) return;
+
+  if (type === 'wake') {
+    try {
+      const entry = await createEntry({});
+      // Home sits beneath JournalEntry so the entry's own back button has
+      // somewhere to go — a bare single-route reset leaves goBack() with
+      // nothing and RETURN throws "action not handled".
+      // @ts-ignore
+      navigationRef.reset({
+        index: 1,
+        routes: [{ name: 'Home' }, { name: 'JournalEntry', params: { id: entry.id, isNew: true } }],
+      });
+    } catch {}
+  } else if (type === 'reengagement') {
+    // @ts-ignore
+    navigationRef.reset({ index: 0, routes: [{ name: 'Home' }] });
+  }
+}
+
 function JourneyPicker() {
   return (
     <View style={{ flex: 1, backgroundColor: '#0d0d1a', justifyContent: 'center', alignItems: 'center' }}>
@@ -229,11 +241,6 @@ export default Sentry.wrap(function App() {
   const [fogVisible, setFogVisible] = React.useState(false);
   const [sealBoost, setSealBoost] = React.useState(0);
 
-  const [rcReady, setRcReady] = React.useState(false);
-
-
-
-
   // Expose global controls so screens can trigger the shared fog without remounting
   React.useEffect(() => {
     (globalThis as any).__fog = {
@@ -248,9 +255,18 @@ export default Sentry.wrap(function App() {
   }, []);
 
 
-  // Ensure RevenueCat is configured before any paywall work
+  // Start deferred deep-link resolution after React's first render instead of
+  // during module evaluation. Paywall entry points initialize RevenueCat when needed.
   useEffect(() => {
-    initRevenueCatOnce().then((ok) => setRcReady(!!ok));
+    initChottuLinkOnce();
+  }, []);
+
+  // Notification tap deep-linking: covers both the app already running
+  // (live listener) and a cold launch triggered by the tap itself (checked
+  // once navigation is ready, via onReady below).
+  useEffect(() => {
+    const sub = Notifications.addNotificationResponseReceivedListener(handleNotificationResponse);
+    return () => sub.remove();
   }, []);
 
   // paywallController now uses navigationRef directly — no registration needed here.
@@ -262,41 +278,27 @@ export default Sentry.wrap(function App() {
     return () => clearTimeout(t);
   }, [fogVisible]);
 
-  // Global one-time asset preloader
-  useEffect(() => {
-    (async () => {
-      try {
-        await Asset.loadAsync([
-          require('./assets/audio/Homepage_Hum.mp3'),
-        ]);
-        await preloadTracks();
-        // Preload fog overlay asset for smooth transitions
-        await Asset.fromModule(require('./assets/fx/fog.webp')).downloadAsync().catch(() => {});
-        console.log('[PRELOAD] Audio assets cached.');
-        console.log('[PRELOAD] Chamber One cached. ');
-      } catch (e) {
-        console.log('[PRELOAD] Error preloading audio', e);
-      }
-    })();
-
-    return () => {
-      // optional cleanup if you ever create preloaded Audio.Sound objects globally
-    };
-  }, []);
-
   // Initialize audio engine and background warmups
   useEffect(() => {
     initAudioOnce().catch(() => {});
 
     InteractionManager.runAfterInteractions(() => {
+      preloadStartupAssets().catch(() => {});
       warmStaticAssets().catch(() => {});
       warmCdnHead().catch(() => {});
       cleanAudioCache().catch(() => {});
     });
 
+    // Every open/foreground pushes the "come back" reminder further out —
+    // an active user keeps deferring it forever; a lapsed one leaves the
+    // last-scheduled one to actually fire. No-ops if permission was never
+    // granted (this never prompts on its own — see utils/notifications.ts).
+    scheduleReengagementNotification().catch(() => {});
+
     const sub = AppState.addEventListener('change', (st) => {
       if (st === 'active') {
         cleanAudioCache().catch(() => {});
+        scheduleReengagementNotification().catch(() => {});
       }
     });
     return () => { sub.remove(); };
@@ -322,6 +324,9 @@ export default Sentry.wrap(function App() {
               ref={navigationRef}
               onReady={() => {
                 previousRouteName.current = (navigationRef.getCurrentRoute() as any)?.name;
+                // Cold launch via a notification tap — the live listener above
+                // only catches taps while already running.
+                Notifications.getLastNotificationResponseAsync().then(handleNotificationResponse);
               }}
               onStateChange={() => {
                 const current = (navigationRef.getCurrentRoute() as any)?.name as string | undefined;
@@ -352,6 +357,8 @@ export default Sentry.wrap(function App() {
               >
                 <Stack.Screen name="Splash" component={SplashScreen} />
                 <Stack.Screen name="Intro" component={IntroScreen} />
+                <Stack.Screen name="ValueCapture" component={ValueCaptureScreen} />
+                <Stack.Screen name="ValueHook" component={ValueHookScreen} />
                 <Stack.Screen
                   name="Intention"
                   component={IntentionScreen}
@@ -491,6 +498,11 @@ export default Sentry.wrap(function App() {
                   component={PaywallScreen}
                   options={{ headerShown: false, presentation: 'modal' }}
                 />
+                <Stack.Screen
+                  name="AccountCreate"
+                  component={AccountCreateScreen}
+                  options={{ headerShown: false, presentation: 'modal' }}
+                />
               </Stack.Navigator>
               <FogTransitionOverlay
                 visible={fogVisible}
@@ -514,6 +526,14 @@ async function warmStaticAssets() {
   } catch {}
 }
 
+async function preloadStartupAssets() {
+  try {
+    await Asset.loadAsync([require('./assets/audio/Homepage_Hum.mp3')]);
+    await preloadTracks();
+    await Asset.fromModule(require('./assets/fx/fog.webp')).downloadAsync().catch(() => {});
+  } catch {}
+}
+
 async function warmCdnHead() {
   try {
     await fetch('https://f005.backblazeb2.com/file/inner-audio/ping.txt', { method: 'HEAD' });
@@ -532,8 +552,18 @@ async function cleanAudioCache() {
     const AUDIO_EXTS = ['.m4a', '.aac', '.mp3', '.m4b', '.wav', '.ogg'];
     const MAX_BYTES = 300 * 1024 * 1024; // 300 MB safety cap
     const MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
-    
+    const CLEANUP_KEY = 'inner.audioCache.lastCleanup.v1';
+    const CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000;
+    const CACHE_DIR = `${FileSystem.cacheDirectory}inner_audio/`;
     const now = Date.now();
+    const lastCleanup = Number(await AsyncStorage.getItem(CLEANUP_KEY)) || 0;
+    if (now - lastCleanup < CLEANUP_INTERVAL_MS) return;
+
+    const cacheInfo = await FileSystem.getInfoAsync(CACHE_DIR);
+    if (!cacheInfo.exists || !cacheInfo.isDirectory) {
+      await AsyncStorage.setItem(CLEANUP_KEY, String(now));
+      return;
+    }
     const candidates: { uri: string; size: number; mtime: number }[] = [];
 
     // Helper to scan a directory shallowly and collect audio-like files
@@ -545,14 +575,7 @@ async function cleanAudioCache() {
         let info;
         try { info = await FileSystem.getInfoAsync(uri); } catch { continue; }
         if (!info || !info.exists) continue;
-        if (info.isDirectory) {
-          // Shallow-scan only likely audio subfolders to keep things light
-          const lower = name.toLowerCase();
-          if (lower.includes('audio') || lower.includes('av') || lower.includes('inner')) {
-            await scanDir(uri);
-          }
-          continue;
-        }
+        if (info.isDirectory) continue;
         const lower = name.toLowerCase();
         if (AUDIO_EXTS.some(ext => lower.endsWith(ext))) {
           const mtime = (info.modificationTime ?? now / 1000) * 1000; // Expo returns seconds
@@ -561,10 +584,13 @@ async function cleanAudioCache() {
       }
     };
 
-    // Start at cache root, scan shallowly
-    await scanDir(FileSystem.cacheDirectory!);
+    // Scan only the app-owned offline-audio cache.
+    await scanDir(CACHE_DIR);
 
-    if (!candidates.length) return;
+    if (!candidates.length) {
+      await AsyncStorage.setItem(CLEANUP_KEY, String(now));
+      return;
+    }
 
     // 1) Purge by age
     const tooOld = candidates.filter(f => now - f.mtime > MAX_AGE_MS);
@@ -586,6 +612,7 @@ async function cleanAudioCache() {
         } catch {}
       }
     }
+    await AsyncStorage.setItem(CLEANUP_KEY, String(now));
   } catch {
     // Swallow errors; cleanup is best-effort only
   }

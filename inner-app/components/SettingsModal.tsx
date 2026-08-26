@@ -19,7 +19,7 @@ import * as FileSystem from 'expo-file-system';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Typography } from '../core/typography';
 import { Typography as _Typography, Body as _Body } from '../core/typography';
-import { scheduleDailyWakeNotification } from '../utils/notifications';
+import { setWakeTime } from '../utils/notifications';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { clearPrivateUserData } from '../core/privacyData';
 import { reportError } from '../core/logger';
@@ -215,12 +215,9 @@ export default function SettingsModal({
       try { await AsyncStorage.removeItem('profileName'); } catch {}
       onProfileNameSaved(null);
     }
-    if (trimmedWake.length > 0) {
-      try { await AsyncStorage.setItem('wakeTime', trimmedWake); } catch {}
-      await scheduleDailyWakeNotification(trimmedWake);
-    } else {
-      try { await AsyncStorage.removeItem('wakeTime'); } catch {}
-    }
+    // setWakeTime keeps storage and the scheduled notification in sync in
+    // both directions — clearing the field now actually cancels the reminder.
+    await setWakeTime(trimmedWake.length > 0 ? trimmedWake : null);
     onClose();
   }, [tempName, tempWakeTime, onProfileNameSaved, onClose]);
 

@@ -6,7 +6,7 @@ const REVIEW_SCORE_KEY = 'review_score';
 const REVIEW_PROMPT_DATE_KEY = 'last_review_prompt_date';
 const REVIEW_PROMPT_COUNT_KEY = 'review_prompt_count';
 
-const SCORE_THRESHOLD = 6;
+export const REVIEW_SCORE_THRESHOLD = 6;
 const MAX_PROMPTS = 3;
 const COOLDOWN_DAYS = 7;
 
@@ -38,7 +38,7 @@ export function useReviewScore() {
 
       const scoreRaw = await AsyncStorage.getItem(REVIEW_SCORE_KEY);
       const score = parseInt(scoreRaw ?? '0', 10) || 0;
-      if (score < SCORE_THRESHOLD) return false;
+      if (score < REVIEW_SCORE_THRESHOLD) return false;
 
       // Record show: store date, bump count, reset score
       await AsyncStorage.multiSet([

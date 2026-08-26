@@ -17,6 +17,7 @@ import { useVideoPlayer, VideoView } from '../core/memorySafeVideo';
 
 import { Typography, Body as _Body } from '../core/typography';
 import { useScale } from '../utils/scale';
+import { hasCompletedValueCapture, hasSeenValueHook } from '../core/onboardingPrefs';
 
 const Body = _Body ?? ({
   regular: { ...Typography.body },
@@ -129,7 +130,9 @@ export default function IntroScreen() {
   useFocusEffect(
     React.useCallback(() => {
       bgPlayer.play();
-      return () => { bgPlayer.pause(); };
+      // Player may already be torn down by the time this fires (e.g. fast
+      // navigation away during unmount) — pause is best-effort only.
+      return () => { try { bgPlayer.pause(); } catch {} };
     }, [bgPlayer])
   );
 
@@ -139,7 +142,14 @@ export default function IntroScreen() {
       await soundRef.current.unloadAsync();
       soundRef.current = null;
     }
-    (navigation as any).navigate('Intention');
+    // Survey and value-hook carousel are both first-use-only — returning
+    // users who've already been through them skip straight to Intention.
+    const [alreadyAnswered, alreadySeenHook] = await Promise.all([
+      hasCompletedValueCapture(),
+      hasSeenValueHook(),
+    ]);
+    const nextRoute = !alreadyAnswered ? 'ValueCapture' : !alreadySeenHook ? 'ValueHook' : 'Intention';
+    (navigation as any).navigate(nextRoute);
   };
 
   const playVoice = async () => {

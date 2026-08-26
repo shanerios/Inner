@@ -115,6 +115,19 @@ export async function getIntentionSetAt(): Promise<number | null> {
   }
 }
 
+const INTENTION_RECHECK_MS = 48 * 60 * 60 * 1000;
+
+/**
+ * True once intentions were set at least once and it's been 48+ hours since.
+ * Gates the Splash orb's returning-user routing (Home vs. Intention re-tune) —
+ * distinct from the 7-day nudge-banner cooldown used inside Settings.
+ */
+export async function isIntentionRecheckDue(): Promise<boolean> {
+  const setAt = await getIntentionSetAt();
+  if (setAt == null) return false;
+  return Date.now() - setAt > INTENTION_RECHECK_MS;
+}
+
 /** Persist the last time we actually *showed* a nudge (cooldown control). */
 export async function setLastNudgeShownAt(tsMs: number) {
   try {

@@ -17,6 +17,7 @@ import Purchases, { PurchasesPackage } from 'react-native-purchases';
 import { usePostHog } from 'posthog-react-native';
 import { initRevenueCatOnce } from '../utils/revenueCat';
 import { consumePendingCallbacks, PaywallTrigger } from '../src/core/subscriptions/paywallController';
+import { getPrimaryGoal, PrimaryGoal } from '../core/onboardingPrefs';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -29,6 +30,21 @@ const FEATURE_LINES = [
   'Root Deep — threshold soundscapes for sleep and lucid dreaming',
   'Aeris with full pattern recognition',
 ];
+
+// Goal-aware overrides — set during onboarding's Value & Intent Capture step.
+// Only the middle feature line and headline are personalized; the outer two
+// stay generic so the pitch doesn't feel narrower than the product actually is.
+const GOAL_HEADLINES: Record<PrimaryGoal, string> = {
+  lucid_dreaming: 'Your first lucid dream awaits.',
+  obe: 'Cross the threshold, fully aware.',
+  deep_focus: 'Sharpen the mind that carries you inward.',
+};
+
+const GOAL_FEATURE_LINE: Record<PrimaryGoal, string> = {
+  lucid_dreaming: 'Root Deep — threshold soundscapes for sleep and lucid dreaming',
+  obe: 'Threshold soundscapes built for the exit point',
+  deep_focus: 'Root Deep — focus soundscapes for a sharper waking mind',
+};
 
 const RC_NOT_CONFIGURED_RE = /no singleton instance|configure purchases|default instance/i;
 const RC_NETWORK_RE = /network|timed?\s*out|offline|connection|could not connect|internet/i;
@@ -51,6 +67,18 @@ interface PackageOption {
   priceLabel: string;
   badge?: string;
   identifier: string;
+  trialDays: number | null;
+}
+
+function trialDaysFor(pkg: PurchasesPackage): number | null {
+  const intro = pkg.product.introPrice;
+  if (!intro || intro.price !== 0) return null;
+  const unit = String(intro.periodUnit || '').toUpperCase();
+  const n = intro.periodNumberOfUnits || 0;
+  if (unit === 'DAY') return n;
+  if (unit === 'WEEK') return n * 7;
+  if (unit === 'MONTH') return n * 30;
+  return n;
 }
 
 // ─── Headline copy per trigger ────────────────────────────────────────────────
@@ -59,6 +87,7 @@ const HEADLINES: Record<PaywallTrigger, string> = {
   chamber: 'Turn the key.',
   garden:  'The field goes further.',
   settings: 'Continue with Inner',
+  onboarding: 'Your first descent awaits.',
 };
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -77,6 +106,7 @@ export default function PaywallScreen() {
   const [loading, setLoading] = useState(true);
   const [purchasing, setPurchasing] = useState(false);
   const [restoring, setRestoring] = useState(false);
+  const [primaryGoal, setPrimaryGoal] = useState<PrimaryGoal | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
 
@@ -98,16 +128,27 @@ export default function PaywallScreen() {
   useFocusEffect(
     useCallback(() => {
       bgPlayer.play();
-      return () => { bgPlayer.pause(); };
+      return () => { try { bgPlayer.pause(); } catch {} };
     }, [bgPlayer])
   );
 
   // ── Dismiss ───────────────────────────────────────────────────────────────
+  // Onboarding presents this screen as a forward step (not a modal opened from
+  // elsewhere), so both dismiss and purchase-success must land the user on
+  // Home and clear the onboarding stack rather than going back into it.
+
+  const exitToHome = useCallback(() => {
+    (navigation as any).reset({ index: 0, routes: [{ name: 'Home', params: { fogStart: true } }] });
+  }, [navigation]);
 
   const dismiss = useCallback(() => {
     onDismiss?.();
-    navigation.goBack();
-  }, [onDismiss, navigation]);
+    if (trigger === 'onboarding') {
+      exitToHome();
+    } else {
+      navigation.goBack();
+    }
+  }, [onDismiss, navigation, trigger, exitToHome]);
 
   // ── Load offerings ────────────────────────────────────────────────────────
 
@@ -152,19 +193,22 @@ export default function PaywallScreen() {
         let badge: string | undefined;
 
         const idLower = pkg.identifier.toLowerCase();
+        const trialDays = trialDaysFor(pkg);
+
         if (id === 'ANNUAL' || idLower.includes('annual') || idLower.includes('year')) {
           label = 'Yearly';
           priceLabel = `${product.priceString}/yr`;
-          badge = 'Best Value';
+          badge = trialDays ? `${trialDays}-Day Free Trial` : 'Best Value';
         } else if (id === 'MONTHLY' || idLower.includes('month')) {
           label = 'Monthly';
           priceLabel = `${product.priceString}/mo`;
+          badge = trialDays ? `${trialDays}-Day Free Trial` : undefined;
         } else if (id === 'LIFETIME' || idLower.includes('lifetime')) {
           label = 'Lifetime';
           priceLabel = product.priceString;
         }
 
-        return { pkg, label, priceLabel, badge, identifier: pkg.identifier };
+        return { pkg, label, priceLabel, badge, identifier: pkg.identifier, trialDays };
       });
 
       const order = ['yearly', 'annual', 'monthly', 'lifetime'];
@@ -200,6 +244,8 @@ export default function PaywallScreen() {
       paywallViewTrackedRef.current = true;
     }
 
+    getPrimaryGoal().then(setPrimaryGoal);
+
     (async () => {
       await sleep(50);
       await fetchOfferings();
@@ -230,7 +276,11 @@ export default function PaywallScreen() {
           package_identifier: selected.identifier,
         });
         onPurchaseSuccess?.();
-        navigation.goBack();
+        if (trigger === 'onboarding') {
+          exitToHome();
+        } else {
+          navigation.goBack();
+        }
         return;
       }
 
@@ -270,7 +320,11 @@ export default function PaywallScreen() {
       const entitlements = customerInfo.entitlements.active;
       if (entitlements && entitlements[ENTITLEMENT_ID]) {
         onPurchaseSuccess?.();
-        navigation.goBack();
+        if (trigger === 'onboarding') {
+          exitToHome();
+        } else {
+          navigation.goBack();
+        }
       } else {
         setError('No active subscription found for this Apple ID.');
       }
@@ -286,8 +340,16 @@ export default function PaywallScreen() {
     await fetchOfferings();
   };
 
-  const headline = HEADLINES[trigger] ?? HEADLINES.chamber;
+  const headline = primaryGoal ? GOAL_HEADLINES[primaryGoal] : (HEADLINES[trigger] ?? HEADLINES.chamber);
+  const featureLines = primaryGoal
+    ? [FEATURE_LINES[0], GOAL_FEATURE_LINE[primaryGoal], FEATURE_LINES[2]]
+    : FEATURE_LINES;
   const isCtaDisabled = purchasing || loading || packages.length === 0;
+  const selectedTrialDays = packages[selectedIndex]?.trialDays ?? null;
+  const continueLabel = selectedTrialDays ? `Start ${selectedTrialDays}-Day Free Trial` : 'Continue';
+  const legalCopy = selectedTrialDays
+    ? `Try free for ${selectedTrialDays} days, then ${packages[selectedIndex]?.priceLabel ?? 'the plan price'} unless canceled at least 24 hours before the trial ends. Cancel anytime in your App Store or Google Play account settings.`
+    : 'Continuing with Inner is an auto-renewable subscription. Subscriptions will renew until canceled. Cancel anytime.';
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -342,7 +404,7 @@ export default function PaywallScreen() {
           </View>
 
           <View style={styles.features}>
-            {FEATURE_LINES.map((line, i) => (
+            {featureLines.map((line, i) => (
               <Text key={i} style={styles.featureLine}>{line}</Text>
             ))}
           </View>
@@ -409,13 +471,13 @@ export default function PaywallScreen() {
             {purchasing ? (
               <ActivityIndicator color="#000" />
             ) : (
-              <Text style={styles.continueButtonText}>Continue</Text>
+              <Text style={styles.continueButtonText}>{continueLabel}</Text>
             )}
           </TouchableOpacity>
 
           {/* Maybe Later */}
           <TouchableOpacity onPress={dismiss} activeOpacity={0.7} style={styles.maybeLater}>
-            <Text style={styles.maybeLaterText}>Maybe Later</Text>
+            <Text style={styles.maybeLaterText}>{trigger === 'onboarding' ? 'Not Right Now' : 'Maybe Later'}</Text>
           </TouchableOpacity>
 
           {/* Footer: restore + legal links */}
@@ -433,9 +495,7 @@ export default function PaywallScreen() {
             </TouchableOpacity>
           </View>
 
-          <Text style={styles.legalText}>
-            Continuing with Inner is an auto-renewable subscription. Subscriptions will renew until canceled. Cancel anytime.
-          </Text>
+          <Text style={styles.legalText}>{legalCopy}</Text>
         </View>
       </ScrollView>
     </View>

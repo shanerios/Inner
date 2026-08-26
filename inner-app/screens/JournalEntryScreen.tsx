@@ -8,9 +8,11 @@ import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { usePostHog } from 'posthog-react-native';
 import { getEntry, saveEntry, deleteEntry, JournalEntry } from '../core/journalRepo';
-import { requestNotificationPermission, scheduleDailyWakeNotification } from '../utils/notifications';
-import { addReviewScore } from '../hooks/useReviewScore';
+import { requestNotificationPermission, scheduleDailyWakeNotification, hasWakeNotificationScheduled, WAKE_TIME_KEY, parseWakeTime } from '../utils/notifications';
+import { addReviewScore, REVIEW_SCORE_THRESHOLD } from '../hooks/useReviewScore';
 import { useBreath } from '../core/BreathProvider';
+import SoftAccountPrompt from '../components/onboarding/SoftAccountPrompt';
+import { hasSeenAccountPrompt, markAccountPromptSeen } from '../core/onboardingPrefs';
 import { Typography, Body as _Body } from '../core/typography';
 const Body = _Body ?? ({ regular: { ...Typography.body }, subtle: { ...Typography.caption } } as const);
 
@@ -38,8 +40,6 @@ const DREAM_SIGNS = [
   'Shadow Presence',
 ];
 
-const WAKE_TIME_STORAGE_KEY = 'preferredWakeTime';
-
 function formatCaptureLabel(minutesFromWake?: number | null) {
   if (typeof minutesFromWake !== 'number') return null;
   const minutes = Math.abs(minutesFromWake);
@@ -49,13 +49,10 @@ function formatCaptureLabel(minutesFromWake?: number | null) {
 }
 
 function computeMinutesFromWake(entryTimestamp: number, wakeTime: string): number | null {
-  if (!wakeTime || typeof wakeTime !== 'string' || !wakeTime.includes(':')) return null;
-
-  const [hoursRaw, minutesRaw] = wakeTime.split(':');
-  const hours = Number(hoursRaw);
-  const minutes = Number(minutesRaw);
-
-  if (Number.isNaN(hours) || Number.isNaN(minutes)) return null;
+  // Stored wake times are 12-hour strings like "7am" / "6:30am", not "HH:MM".
+  const parsed = parseWakeTime(wakeTime || '');
+  if (!parsed) return null;
+  const { hour: hours, minute: minutes } = parsed;
 
   const recorded = new Date(entryTimestamp);
   const wake = new Date(entryTimestamp);
@@ -119,6 +116,7 @@ export default function JournalEntryScreen({ route, navigation }: Props) {
   const isPrefillActiveRef = useRef(false);
   const [prefillActive, setPrefillActive] = useState(false);
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [showAccountPrompt, setShowAccountPrompt] = useState(false);
   const saveStateOpacity = useRef(new Animated.Value(0)).current;
   const bodyInputRef = useRef<TextInput | null>(null);
 
@@ -159,7 +157,7 @@ export default function JournalEntryScreen({ route, navigation }: Props) {
 
       if (hydrated.captureMinutesFromWake == null) {
         try {
-          const storedWakeTime = await AsyncStorage.getItem(WAKE_TIME_STORAGE_KEY);
+          const storedWakeTime = await AsyncStorage.getItem(WAKE_TIME_KEY);
           const computed = computeMinutesFromWake(hydrated.createdAt, storedWakeTime || '');
 
           if (computed != null) {
@@ -248,16 +246,27 @@ export default function JournalEntryScreen({ route, navigation }: Props) {
             const raw = await AsyncStorage.getItem('journalSaveCount');
             const count = (parseInt(raw ?? '0', 10) || 0) + 1;
             await AsyncStorage.setItem('journalSaveCount', String(count));
+            if (count === 1 && !(await hasSeenAccountPrompt())) {
+              await markAccountPromptSeen();
+              setShowAccountPrompt(true);
+            }
             if (count >= 2) {
               notifAttemptedRef.current = true;
-              const existingNotifId = await AsyncStorage.getItem('wakeNotificationId');
-              if (!existingNotifId) {
-                const wakeTime = await AsyncStorage.getItem('wakeTime');
+              const alreadyScheduled = await hasWakeNotificationScheduled();
+              if (!alreadyScheduled) {
+                const wakeTime = await AsyncStorage.getItem(WAKE_TIME_KEY);
                 if (wakeTime) {
                   const granted = await requestNotificationPermission();
                   if (granted) await scheduleDailyWakeNotification(wakeTime);
                 }
               }
+            }
+            // On their 2nd distinct saved entry, guarantee the existing
+            // score-based review gate clears next time they land on Home —
+            // asked there (after they've stepped away from writing) rather
+            // than interrupting the entry they're mid-way through.
+            if (count === 2) {
+              addReviewScore(REVIEW_SCORE_THRESHOLD).catch(() => {});
             }
           }
         } catch {}
@@ -530,6 +539,15 @@ export default function JournalEntryScreen({ route, navigation }: Props) {
           })}
         </View>
       </ScrollView>
+
+      <SoftAccountPrompt
+        visible={showAccountPrompt}
+        onDismiss={() => setShowAccountPrompt(false)}
+        onCreateAccount={() => {
+          setShowAccountPrompt(false);
+          navigation.navigate('AccountCreate');
+        }}
+      />
     </KeyboardAvoidingView>
   );
 }

@@ -5,7 +5,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'react-native';
 import { Gesture, GestureDetector, Directions, GestureHandlerRootView } from 'react-native-gesture-handler';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
+import ExplorerWelcomeModal from '../components/ExplorerWelcomeModal';
 import { useVideoPlayer, VideoView } from '../core/memorySafeVideo';
 import * as Haptics from 'expo-haptics';
 import { TRACKS, Track } from '../data/tracks';
@@ -126,27 +127,6 @@ const CATEGORY_LABELS: Record<CategoryKey, string> = {
   sanctuary: 'Sanctuary',
 };
 
-const EXPLORERS_GROVE_TRACKS = [
-  {
-    id: 'fireflies_in_a_dreamscape',
-    title: 'Fireflies in a Dreamscape',
-    description: 'A quiet meadow where tiny lights drift beneath the evening sky.',
-    category: 'explorers_grove',
-  },
-  {
-    id: 'the_sleeping_tree',
-    title: 'The Sleeping Tree',
-    description: 'Rest beneath an ancient canopy where the whole forest seems to breathe.',
-    category: 'explorers_grove',
-  },
-  {
-    id: 'rain_on_the_roof',
-    title: 'Rain on the Roof',
-    description: 'A warm wooden shelter while gentle rain settles over the grove.',
-    category: 'explorers_grove',
-  },
-] as const;
-
 function ExplorersGroveAmbient({ visible }: { visible: boolean }) {
   if (!visible) return null;
 
@@ -163,70 +143,6 @@ function ExplorersGroveAmbient({ visible }: { visible: boolean }) {
     </View>
   );
 }
-
-const ExplorersGroveTrackRow = React.memo(function ExplorersGroveTrackRow({
-  item,
-  isLast,
-}: {
-  item: (typeof EXPLORERS_GROVE_TRACKS)[number];
-  isLast: boolean;
-}) {
-  const { scale, verticalScale } = useScale();
-
-  return (
-    <View
-      accessible
-      accessibilityLabel={`${item.title}. ${item.description} Coming soon.`}
-      style={{ paddingVertical: verticalScale(12), paddingHorizontal: scale(4) }}
-    >
-      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-        <Text
-          style={{
-            flex: 1,
-            fontFamily: 'CalSans-SemiBold',
-            fontSize: scale(15),
-            color: '#EDE8FA',
-            letterSpacing: 0.2,
-          }}
-        >
-          {item.title}
-        </Text>
-        <Text
-          style={{
-            marginLeft: scale(12),
-            fontFamily: 'Inter-ExtraLight',
-            fontSize: scale(10),
-            color: 'rgba(237,232,250,0.42)',
-            letterSpacing: 0.5,
-          }}
-        >
-          Coming soon
-        </Text>
-      </View>
-      <Text
-        style={{
-          marginTop: verticalScale(3),
-          paddingRight: scale(28),
-          fontFamily: 'Inter-ExtraLight',
-          fontSize: scale(11),
-          lineHeight: scale(16),
-          color: 'rgba(203,198,217,0.72)',
-        }}
-      >
-        {item.description}
-      </Text>
-      {!isLast && (
-        <View
-          style={{
-            height: StyleSheet.hairlineWidth,
-            marginTop: verticalScale(12),
-            backgroundColor: 'rgba(255,255,255,0.10)',
-          }}
-        />
-      )}
-    </View>
-  );
-});
 
 // Dimensions used for track list max height
 const { height: SCREEN_H } = Dimensions.get('window');
@@ -352,6 +268,7 @@ export default function SoundscapesScreen() {
   const insets = useSafeAreaInsets();
   const { scale, verticalScale, height: windowHeight, width: SCREEN_W, matchesCompactLayout } = useScale();
   const navigation = useNavigation();
+  const route = useRoute<any>();
   const posthog = usePostHog();
 
   const bgPlayer = useVideoPlayer(require('../assets/videos/garden_bg.mp4'), player => {
@@ -415,7 +332,17 @@ export default function SoundscapesScreen() {
   // Pre-cache first few soundscapes quietly for instant start
   usePrecacheTracks({ kind: ['soundscape'], limit: 6 });
 
-  const [activeCategory, setActiveCategory] = React.useState<CategoryKey | null>('stillness');
+  const initialCategory = (route.params?.category as CategoryKey | undefined) ?? 'stillness';
+  const [activeCategory, setActiveCategory] = React.useState<CategoryKey | null>(initialCategory);
+
+  // Explorer QR deferred-link welcome — shown once, then the param is
+  // cleared so revisiting this screen normally doesn't re-trigger it.
+  const [showExplorerWelcome, setShowExplorerWelcome] = React.useState(!!route.params?.showExplorerWelcome);
+  useEffect(() => {
+    if (route.params?.showExplorerWelcome) {
+      navigation.setParams({ showExplorerWelcome: undefined } as any);
+    }
+  }, []);
 
   const tracks = React.useMemo<Track[]>(() => {
     if (!activeCategory) return [];
@@ -423,9 +350,6 @@ export default function SoundscapesScreen() {
   }, [activeCategory]);
 
   const specialItems = React.useMemo(() => {
-    if (activeCategory === 'explorers_grove') {
-      return [...EXPLORERS_GROVE_TRACKS];
-    }
     if (activeCategory === 'noise' && tracks.length === 0) {
       return [
         { id: 'noise_white', title: 'White Noise' },
@@ -781,15 +705,6 @@ export default function SoundscapesScreen() {
                   </Text>
                 ) : (
                   filteredTracks.map((item: any, idx: number) => {
-                    if (activeCategory === 'explorers_grove') {
-                      return (
-                        <ExplorersGroveTrackRow
-                          key={item.id}
-                          item={item}
-                          isLast={idx === filteredTracks.length - 1}
-                        />
-                      );
-                    }
                     const policyTrack: any = {
                       id: item.id,
                       category: (item as any).category,
@@ -977,6 +892,11 @@ export default function SoundscapesScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      <ExplorerWelcomeModal
+        visible={showExplorerWelcome}
+        onClose={() => setShowExplorerWelcome(false)}
+      />
     </GestureHandlerRootView>
   );
 }

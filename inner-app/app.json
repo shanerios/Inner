@@ -74,7 +74,17 @@
         }
       ],
       "expo-localization",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 36,
+            "targetSdkVersion": 36,
+            "buildToolsVersion": "36.1.0"
+          }
+        }
+      ]
     ],
     "web": {
       "favicon": "./assets/favicon.png"

@@ -12,6 +12,7 @@ import { initAudioOnce } from '../core/initAudio';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Crypto from 'expo-crypto';
 import { usePostHog } from 'posthog-react-native';
+import { isIntentionRecheckDue } from '../core/session';
 
 const Body = _Body ?? ({
   regular: { ...Typography.body },
@@ -48,9 +49,13 @@ export default function SplashScreen() {
   const whooshSound = useRef<Audio.Sound | null>(null);
   const ambientSound = useRef<Audio.Sound | null>(null);
 
-  const [canReturnHome, setCanReturnHome] = useState(false);
+  // True once the user has completed onboarding at least once — gates the
+  // orb's default destination (Home) and the long-press "replay ritual" pill.
+  const [onboardingComplete, setOnboardingComplete] = useState(false);
+  // True when intentions were set 48+ hours ago — routes the orb through a
+  // quick re-tune instead of straight to Home.
+  const [intentionRecheckDue, setIntentionRecheckDue] = useState(false);
   const [showReturnHome, setShowReturnHome] = useState(false);
-  const [hasUsedReturnHome, setHasUsedReturnHome] = useState(false);
   const returnHomeOpacity = useRef(new Animated.Value(0)).current;
   const returnHomeTranslateY = useRef(new Animated.Value(6)).current;
   const returnHomeHideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -71,8 +76,6 @@ export default function SplashScreen() {
     'inner.onboarding.complete.v1',
     'hasCompletedOnboarding',
   ] as const;
-
-  const RETURN_HOME_USED_KEY = 'inner.splash.returnHome.used.v1';
 
   const [orbSource, setOrbSource] = useState(
     Platform.OS === 'android'
@@ -175,8 +178,9 @@ export default function SplashScreen() {
 
       // Timestamp check
       try {
-        const raw = await AsyncStorage.getItem(SPLASH_TIMESTAMP_KEY);
-        const skippedRaw = await AsyncStorage.getItem(SPLASH_SKIPPED_TIMESTAMP_KEY);
+        const values = new Map(await AsyncStorage.multiGet([SPLASH_TIMESTAMP_KEY, SPLASH_SKIPPED_TIMESTAMP_KEY]));
+        const raw = values.get(SPLASH_TIMESTAMP_KEY);
+        const skippedRaw = values.get(SPLASH_SKIPPED_TIMESTAMP_KEY);
         await AsyncStorage.setItem(SPLASH_TIMESTAMP_KEY, String(now));
         const last = raw ? parseInt(raw, 10) : 0;
         const lastSkipped = skippedRaw ? parseInt(skippedRaw, 10) : 0;
@@ -308,14 +312,13 @@ export default function SplashScreen() {
     let mounted = true;
     (async () => {
       try {
-        const used = await AsyncStorage.getItem(RETURN_HOME_USED_KEY);
-        if (mounted) setHasUsedReturnHome(used === 'true' || used === '1');
-        for (const k of ONBOARDING_KEYS) {
-          const v = await AsyncStorage.getItem(k);
-          if (v === 'true' || v === '1') {
-            if (mounted) setCanReturnHome(true);
-            return;
-          }
+        const onboardingValues = await AsyncStorage.multiGet([...ONBOARDING_KEYS]);
+        const complete = onboardingValues.some(([, value]) => value === 'true' || value === '1');
+        if (!mounted) return;
+        setOnboardingComplete(complete);
+        if (complete) {
+          const due = await isIntentionRecheckDue();
+          if (mounted) setIntentionRecheckDue(due);
         }
       } catch {}
     })();
@@ -323,18 +326,6 @@ export default function SplashScreen() {
       mounted = false;
     };
   }, []);
-
-  useEffect(() => {
-    if (!canReturnHome) return;
-    if (!hasUsedReturnHome) return;
-    if (!uiReady) return;
-
-    const t = setTimeout(() => {
-      revealReturnHome();
-    }, 2600);
-
-    return () => clearTimeout(t);
-  }, [canReturnHome, hasUsedReturnHome, uiReady]);
 
   const hideReturnHome = () => {
     if (!showReturnHome) return;
@@ -361,7 +352,7 @@ export default function SplashScreen() {
   };
 
   const revealReturnHome = () => {
-    if (!canReturnHome) return;
+    if (!onboardingComplete) return;
     if (showReturnHome) return;
 
     setShowReturnHome(true);
@@ -392,64 +383,71 @@ export default function SplashScreen() {
     }, 5000);
   };
 
-  const handlePress = () => {
-    if (navigating.current) return;
-    navigating.current = true;
-    if (showReturnHome) hideReturnHome();
+  // Shared "orb engulfs the screen" transition — both a plain tap and the
+  // long-press ritual replay use the same physical gesture, only the
+  // destination decided in `onDone` differs.
+  const playEngulfThen = (onDone: () => void) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     if (whooshSound.current) {
       whooshSound.current.replayAsync();
     }
     Animated.parallel([
-      Animated.timing(orbScale, { 
-        toValue: ENGULF_SCALE, 
-        duration: 1400, 
-        useNativeDriver: true 
+      Animated.timing(orbScale, {
+        toValue: ENGULF_SCALE,
+        duration: 1400,
+        useNativeDriver: true
       }),
-      Animated.timing(subtitleOpacity, { 
-        toValue: 0, 
-        duration: 300, 
-        useNativeDriver: true 
+      Animated.timing(subtitleOpacity, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true
       }),
-      Animated.timing(titleOpacity, { 
-        toValue: 0, 
-        duration: 300, 
-        useNativeDriver: true 
+      Animated.timing(titleOpacity, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true
       }),
-      Animated.timing(overlayOpacity, { 
-        toValue: 1, 
-        duration: 450, 
+      Animated.timing(overlayOpacity, {
+        toValue: 1,
+        duration: 450,
         delay: 1250,
-        useNativeDriver: true 
+        useNativeDriver: true
       }),
       // No fade-out for orbOpacity here; orb remains visible while scaling.
     ]).start(() => {
-      // @ts-ignore
-      navigation.navigate('Intro');
       navigating.current = false;
+      onDone();
     });
   };
 
-  const handleReturnHome = () => {
+  const handlePress = () => {
     if (navigating.current) return;
     navigating.current = true;
-
-    if (returnHomeHideTimer.current) {
-      clearTimeout(returnHomeHideTimer.current);
-      returnHomeHideTimer.current = null;
-    }
-
-    AsyncStorage.setItem(RETURN_HOME_USED_KEY, 'true').catch(() => {});
-
-    // @ts-ignore
-    (navigation as any).reset({
-      index: 0,
-      routes: [{ name: 'Home' }],
+    if (showReturnHome) hideReturnHome();
+    playEngulfThen(() => {
+      if (!onboardingComplete) {
+        // First run — full ritual.
+        // @ts-ignore
+        navigation.navigate('Intro');
+      } else if (intentionRecheckDue) {
+        // Returning, but it's been 48+ hours — a quick re-tune before Home.
+        // @ts-ignore
+        navigation.reset({ index: 0, routes: [{ name: 'Intention', params: { fromSettings: true, returnTo: 'Home' } }] });
+      } else {
+        // @ts-ignore
+        navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
+      }
     });
+  };
 
-    setTimeout(() => {
-      navigating.current = false;
-    }, 400);
+  const handleReplayRitual = () => {
+    if (navigating.current) return;
+    navigating.current = true;
+    hideReturnHome();
+    playEngulfThen(() => {
+      // @ts-ignore
+      navigation.navigate('Intro');
+    });
   };
 
   return (
@@ -501,7 +499,7 @@ export default function SplashScreen() {
         delayLongPress={850}
         hitSlop={20}
         accessibilityRole="button"
-        accessibilityLabel={canReturnHome ? 'Inner orb. Tap to begin. Long press to return home.' : 'Inner orb. Tap to begin.'}
+        accessibilityLabel={onboardingComplete ? 'Inner orb. Tap to enter. Long press to replay the intro ritual.' : 'Inner orb. Tap to begin.'}
         style={[
           styles.orbPressable,
           { pointerEvents: showVideo ? 'none' : 'auto' } as any,
@@ -565,7 +563,7 @@ export default function SplashScreen() {
         </Animated.Text>
       </Animated.View>
 
-      {/* Return Home — absolutely positioned so it never shifts the orb */}
+      {/* Replay ritual — absolutely positioned so it never shifts the orb */}
       {showReturnHome && (
         <Pressable
           onPress={hideReturnHome}
@@ -579,7 +577,7 @@ export default function SplashScreen() {
             }}
           >
             <Pressable
-              onPress={handleReturnHome}
+              onPress={handleReplayRitual}
               style={({ pressed }) => [
                 {
                   paddingVertical: 10,
@@ -591,7 +589,7 @@ export default function SplashScreen() {
                 },
               ]}
               accessibilityRole="button"
-              accessibilityLabel="Return Home"
+              accessibilityLabel="Replay the intro ritual"
             >
               <Animated.Text
                 style={{
@@ -602,7 +600,7 @@ export default function SplashScreen() {
                   textAlign: 'center',
                 }}
               >
-                Return Home
+                Replay the Ritual
               </Animated.Text>
             </Pressable>
           </Animated.View>

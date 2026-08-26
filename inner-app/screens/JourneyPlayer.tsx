@@ -34,6 +34,7 @@ import { useSleepTimerCountdown } from '../hooks/useSleepTimerCountdown';
 import { addReviewScore } from '../hooks/useReviewScore';
 import { useScale } from '../utils/scale';
 import { usePostHog } from 'posthog-react-native';
+import LottieView from 'lottie-react-native';
 
 type RouteParams = { id?: string; chamber?: string; trackId?: string };
 
@@ -128,6 +129,7 @@ export default function JourneyPlayer() {
 
   // --- Garden video background (soundscapes) ---
   const trackKindEarly = (selectedTrack as any)?.kind || (meta as any)?.kind;
+  const isExplorersGrove = ((selectedTrack as any)?.category || (meta as any)?.category) === 'explorers_grove';
   const gardenVideoSource = trackKindEarly === 'soundscape' ? require('../assets/videos/garden_player.mp4') : null;
   const gardenPlayer = useVideoPlayer(gardenVideoSource, player => {
     player.loop = true;
@@ -1394,6 +1396,21 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
     mandalaBlurExtraScale,
   } = orbGeometry;
 
+  // Keep the Garden orb proportional on modern tall phones. The existing
+  // compact-phone geometry may already be smaller, so this only ever caps it.
+  const soundscapeOrbSize = useMemo(() => {
+    const usableHeight = Math.max(0, windowHeight - insets.top - insets.bottom);
+    return Math.round(Math.min(
+      ORB_VISUAL_SIZE * 0.5,
+      windowWidth * 0.31,
+      usableHeight * 0.15,
+    ));
+  }, [ORB_VISUAL_SIZE, windowWidth, windowHeight, insets.top, insets.bottom]);
+  const soundscapeOrbOffsetY = useMemo(() => {
+    const usableHeight = Math.max(0, windowHeight - insets.top - insets.bottom);
+    return -Math.round(Math.min(24, Math.max(16, usableHeight * 0.023)));
+  }, [windowHeight, insets.top, insets.bottom]);
+
   const MANDALA_EDGE_MASK_COLOR = 'rgba(8,6,12,0.78)'; // matches the app veil/space tone
 
   const orbGeomRef = useRef(orbGeometry);
@@ -1765,7 +1782,7 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
   const soundscapeOrbInterior = (
     <>
       <OrbPortal
-        size={ORB_VISUAL_SIZE}
+        size={soundscapeOrbSize}
         imageSource={require('../assets/splash.webp')}
       />
     </>
@@ -1774,9 +1791,9 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
   const soundscapeOrbStack = useOrbInteriorClip ? (
     <View
       style={{
-        width: ORB_VISUAL_SIZE,
-        height: ORB_VISUAL_SIZE,
-        borderRadius: ORB_VISUAL_SIZE / 2,
+        width: soundscapeOrbSize,
+        height: soundscapeOrbSize,
+        borderRadius: soundscapeOrbSize / 2,
         overflow: 'hidden',
         alignItems: 'center',
         justifyContent: 'center',
@@ -1814,6 +1831,20 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
             nativeControls={false}
             allowsFullscreen={false}
             allowsPictureInPicture={false}
+          />
+        </View>
+      )}
+
+      {/* Explorer's Grove ambience — mounted only for the three Grove tracks. */}
+      {isExplorersGrove && (
+        <View pointerEvents="none" accessible={false} style={StyleSheet.absoluteFill}>
+          <LottieView
+            source={require('../assets/animations/explorers-grove-fireflies.json')}
+            autoPlay
+            loop
+            speed={1}
+            resizeMode="cover"
+            style={[StyleSheet.absoluteFill, { opacity: 0.9 }]}
           />
         </View>
       )}
@@ -1883,7 +1914,16 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
       {isSoundscape && (
         <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 2 }}>
           {/* Orb — at top 10%, 50% smaller, 100% opaque, tap to play/pause */}
-          <View style={{ position: 'absolute', top: '2.5%', left: 0, right: 0, alignItems: 'center' }}>
+          <View
+            style={{
+              position: 'absolute',
+              top: '2.5%',
+              left: 0,
+              right: 0,
+              alignItems: 'center',
+              transform: [{ translateY: soundscapeOrbOffsetY }],
+            }}
+          >
             <TouchableOpacity
               onPress={toggle}
               activeOpacity={0.85}
@@ -1891,7 +1931,16 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
               accessibilityLabel={isPlayingUI ? 'Pause' : 'Play'}
               accessibilityHint={isPlayingUI ? 'Pauses playback' : 'Starts playback'}
             >
-              <Animated.View style={{ transform: [{ scale: Animated.multiply(orbScale, 0.5) }], opacity: 0.8 }}>
+              <Animated.View
+                style={{
+                  width: ORB_VISUAL_SIZE,
+                  height: ORB_VISUAL_SIZE,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  transform: [{ scale: orbScale }],
+                  opacity: 0.8,
+                }}
+              >
                 {soundscapeOrbStack}
               </Animated.View>
             </TouchableOpacity>
