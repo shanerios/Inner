@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React from 'react';
 import {
   View,
   Text,
@@ -7,7 +7,6 @@ import {
   StyleSheet,
 } from 'react-native';
 import { useVideoPlayer, VideoView } from '../core/memorySafeVideo';
-import { useFocusEffect } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -30,13 +29,6 @@ export default function Guardian1Screen({ navigation }: any) {
     player.audioMixingMode = 'mixWithOthers';
     player.play();
   });
-
-  useFocusEffect(
-    useCallback(() => {
-      bgPlayer.play();
-      return () => { bgPlayer.pause(); };
-    }, [bgPlayer])
-  );
 
   const handleReturn = async () => {
     try { await Haptics.selectionAsync(); } catch {}

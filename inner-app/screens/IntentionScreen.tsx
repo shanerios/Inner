@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -8,18 +8,18 @@ import {
   Animated,
   Easing,
   Platform,
-  useWindowDimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useVideoPlayer, VideoView } from '../core/memorySafeVideo';
 import { useIntention } from '../core/IntentionProvider';
 import { Typography, Body as _Body } from '../core/typography';
 import * as Haptics from 'expo-haptics';
-import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { Asset } from 'expo-asset';
 import { getNudge } from '../src/core/language/nudgeLibrary';
 import { getIntentions, getIntentionSetAt, getLastNudgeShownAt, setLastNudgeShownAt } from '../core/session';
 import { useScale } from '../utils/scale';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const Body = _Body ?? ({
   regular: { ...Typography.body },
@@ -57,8 +57,8 @@ const AURA_BORDERS: Record<string, string> = {
 export default function IntentionScreen() {
   const navigation = useNavigation();
   const { setIntentions } = useIntention();
-  const { width: windowWidth } = useWindowDimensions();
-  const { scale, verticalScale } = useScale();
+  const { scale, verticalScale, width: viewportWidth } = useScale();
+  const insets = useSafeAreaInsets();
 
   const route = useRoute<any>();
   const fromSettings = route?.params?.fromSettings === true;
@@ -81,13 +81,6 @@ export default function IntentionScreen() {
     player.audioMixingMode = 'mixWithOthers';
     player.play();
   });
-
-  useFocusEffect(
-    useCallback(() => {
-      bgPlayer.play();
-      return () => { try { bgPlayer.pause(); } catch {} };
-    }, [bgPlayer])
-  );
 
   const styles = useMemo(
     () =>
@@ -134,9 +127,9 @@ export default function IntentionScreen() {
           paddingHorizontal: scale(4),
         },
         card: {
-          width: windowWidth * 0.32,
+          width: viewportWidth * 0.3,
           paddingVertical: verticalScale(8),
-          paddingHorizontal: 8,
+          paddingHorizontal: scale(6),
           backgroundColor: 'rgba(0,0,0,0.25)',
           borderRadius: 8,
           borderWidth: 1,
@@ -217,10 +210,10 @@ export default function IntentionScreen() {
           alignItems: 'center',
           paddingHorizontal: scale(20),
           paddingTop: verticalScale(8),
-          paddingBottom: verticalScale(20),
+          paddingBottom: insets.bottom + 15,
         },
       }),
-    [scale, verticalScale, windowWidth],
+    [scale, verticalScale, viewportWidth, insets.bottom],
   );
 
   const [selectedIntentions, setSelectedIntentions] = useState<string[]>([]);

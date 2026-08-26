@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { usePostHog } from 'posthog-react-native';
 import {
   View,
@@ -10,7 +10,6 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useVideoPlayer, VideoView } from '../core/memorySafeVideo';
-import { useFocusEffect } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 import { Audio } from 'expo-av';
 import LottieView from 'lottie-react-native';
@@ -87,13 +86,6 @@ export default function InnerFlameScreen({ navigation }: InnerFlameScreenProps) 
     player.audioMixingMode = 'mixWithOthers';
     player.play();
   });
-
-  useFocusEffect(
-    useCallback(() => {
-      bgPlayer.play();
-      return () => { bgPlayer.pause(); };
-    }, [bgPlayer])
-  );
 
   const logRitualCompletionOnce = () => {
     if (hasLoggedPracticeRef.current) return;

@@ -2,7 +2,6 @@
 import React, { useEffect, useRef, useState, useCallback, useLayoutEffect } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, Image, Pressable, TextInput, Animated, Easing } from 'react-native';
 import { useVideoPlayer, VideoView } from '../core/memorySafeVideo';
-import { useFocusEffect } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useHeaderHeight } from '@react-navigation/elements';
@@ -149,13 +148,6 @@ export default function JournalListScreen({ navigation }: Props) {
     player.audioMixingMode = 'mixWithOthers';
     player.play();
   });
-
-  useFocusEffect(
-    useCallback(() => {
-      bgPlayer.play();
-      return () => { bgPlayer.pause(); };
-    }, [bgPlayer])
-  );
 
   return (
     <View style={[styles.container, { paddingTop: headerHeight + 12, paddingBottom: insets.bottom + 16 }]}>

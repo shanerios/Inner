@@ -37,6 +37,7 @@ const ENGULF_SCALE = Math.ceil(
 if (__DEV__) console.log('[Engulf] ENGULF_SCALE:', ENGULF_SCALE, 'ORB_EFFECTIVE_RADIUS:', ORB_EFFECTIVE_RADIUS);
 
 export default function SplashScreen() {
+  const [viewport, setViewport] = useState({ width: SCREEN_W, height: SCREEN_H });
   const navigation = useNavigation();
   const posthog = usePostHog();
   const titleOpacity = useRef(new Animated.Value(0)).current;
@@ -451,7 +452,14 @@ export default function SplashScreen() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#0d0d1a' }}>
+    <View
+      style={{ flex: 1, backgroundColor: '#0d0d1a' }}
+      onLayout={({ nativeEvent: { layout } }) => {
+        if (layout.width !== viewport.width || layout.height !== viewport.height) {
+          setViewport({ width: layout.width, height: layout.height });
+        }
+      }}
+    >
       <StatusBar style="light" backgroundColor="#0d0d1a" translucent={false} />
 
       {/* Static final frame — shown after video ends and on 2h throttle path */}
@@ -502,6 +510,10 @@ export default function SplashScreen() {
         accessibilityLabel={onboardingComplete ? 'Inner orb. Tap to enter. Long press to replay the intro ritual.' : 'Inner orb. Tap to begin.'}
         style={[
           styles.orbPressable,
+          {
+            left: viewport.width / 2 - ORB_SIZE / 2 + 5,
+            top: viewport.height * 0.37 - ORB_SIZE / 2,
+          },
           { pointerEvents: showVideo ? 'none' : 'auto' } as any,
         ]}
       >
@@ -528,14 +540,14 @@ export default function SplashScreen() {
       </Pressable>
 
       {/* Wordmark — absolutely positioned, independent of everything */}
-      <Animated.View style={[styles.wordmarkWrapper, { opacity: titleOpacity }]}>
+      <Animated.View style={[styles.wordmarkWrapper, { bottom: viewport.height * 0.44, opacity: titleOpacity }]}>
         <View style={{ width: 650, height: 160 }}>
           <WordmarkSvg width="100%" height="100%" preserveAspectRatio="xMidYMid meet" />
         </View>
       </Animated.View>
 
       {/* Tagline — absolutely positioned, independent of wordmark and orb */}
-      <Animated.View style={[styles.taglineWrapper, { opacity: titleOpacity }]}>
+      <Animated.View style={[styles.taglineWrapper, { bottom: viewport.height * 0.22, opacity: titleOpacity }]}>
         <Animated.Text
           style={{
             ...Typography.body,
@@ -568,7 +580,7 @@ export default function SplashScreen() {
         <Pressable
           onPress={hideReturnHome}
           hitSlop={10}
-          style={styles.returnHomeWrapper}
+          style={[styles.returnHomeWrapper, { bottom: viewport.height * 0.16 }]}
         >
           <Animated.View
             style={{
@@ -621,26 +633,21 @@ export default function SplashScreen() {
 const styles = StyleSheet.create({
   orbPressable: {
     position: 'absolute',
-    left: SCREEN_W / 2 - ORB_SIZE / 2 + 5,
-    top: SCREEN_H * 0.37 - ORB_SIZE / 2,
   },
   wordmarkWrapper: {
     position: 'absolute',
-    bottom: SCREEN_H * 0.44,
     left: 0,
     right: 0,
     alignItems: 'center',
   },
   taglineWrapper: {
     position: 'absolute',
-    bottom: SCREEN_H * 0.22,
     left: 0,
     right: 0,
     alignItems: 'center',
   },
   returnHomeWrapper: {
     position: 'absolute',
-    bottom: SCREEN_H * 0.16,
     left: 0,
     right: 0,
     alignItems: 'center',

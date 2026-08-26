@@ -23,7 +23,7 @@
       "supportsTablet": true,
       "requireFullScreen": true,
       "bundleIdentifier": "com.getinner.app",
-      "buildNumber": "2067",
+      "buildNumber": "2069",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "UIBackgroundModes": [
@@ -37,7 +37,7 @@
         "com.android.vending.BILLING"
       ],
       "package": "com.getinner.app",
-      "versionCode": 52,
+      "versionCode": 56,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#1f233a"
@@ -50,6 +50,15 @@
       "color": "#FFFFFF"
     },
     "plugins": [
+      [
+        "react-native-edge-to-edge",
+        {
+          "android": {
+            "parentTheme": "Default",
+            "enforceNavigationBarContrast": false
+          }
+        }
+      ],
       [
         "./plugins/withTrackPlayerNotificationIcon",
         {
@@ -74,17 +83,7 @@
         }
       ],
       "expo-localization",
-      "expo-secure-store",
-      [
-        "expo-build-properties",
-        {
-          "android": {
-            "compileSdkVersion": 36,
-            "targetSdkVersion": 36,
-            "buildToolsVersion": "36.1.0"
-          }
-        }
-      ]
+      "expo-secure-store"
     ],
     "web": {
       "favicon": "./assets/favicon.png"

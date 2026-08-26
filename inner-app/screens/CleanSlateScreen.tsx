@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -10,7 +10,6 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useVideoPlayer, VideoView } from '../core/memorySafeVideo';
-import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Audio } from 'expo-av';
 import * as Haptics from 'expo-haptics';
@@ -382,13 +381,6 @@ export default function CleanSlateScreen({ navigation }: any) {
     player.audioMixingMode = 'mixWithOthers';
     player.play();
   });
-
-  useFocusEffect(
-    useCallback(() => {
-      bgPlayer.play();
-      return () => { bgPlayer.pause(); };
-    }, [bgPlayer])
-  );
 
   // -----------------------------
   // RENDER

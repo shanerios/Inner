@@ -1,8 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useIntention } from '../core/IntentionProvider';
 import { useVideoPlayer, VideoView } from '../core/memorySafeVideo';
-import { useFocusEffect } from '@react-navigation/native';
 const affirmationMap: { [key: string]: string } = {
   calm: 'You are embracing calm and inviting peace into your being.',
   clarity: 'Clarity guides your every step as your path becomes illuminated.',
@@ -62,12 +61,6 @@ export default function EssenceScreen() {
     player.play();
   });
 
-  useFocusEffect(
-    useCallback(() => {
-      bgPlayer.play();
-      return () => { try { bgPlayer.pause(); } catch {} };
-    }, [bgPlayer])
-  );
   const namePromptLift = verticalScale(6);
   const namePromptDismissShift = verticalScale(4);
   const journeyPromptDrift = verticalScale(10);

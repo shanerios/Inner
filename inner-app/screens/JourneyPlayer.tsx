@@ -35,6 +35,7 @@ import { addReviewScore } from '../hooks/useReviewScore';
 import { useScale } from '../utils/scale';
 import { usePostHog } from 'posthog-react-native';
 import LottieView from 'lottie-react-native';
+import { explorersGroveFireflies } from '../core/explorersGroveFireflies';
 
 type RouteParams = { id?: string; chamber?: string; trackId?: string };
 
@@ -1839,7 +1840,7 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
       {isExplorersGrove && (
         <View pointerEvents="none" accessible={false} style={StyleSheet.absoluteFill}>
           <LottieView
-            source={require('../assets/animations/explorers-grove-fireflies.json')}
+            source={explorersGroveFireflies}
             autoPlay
             loop
             speed={1}

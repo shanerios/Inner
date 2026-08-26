@@ -8,6 +8,7 @@ import React from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet, ImageBackground } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import LottieView from 'lottie-react-native';
+import { explorersGroveFireflies } from '../core/explorersGroveFireflies';
 
 type Props = {
   visible: boolean;
@@ -55,7 +56,7 @@ export default function ExplorerWelcomeModal({ visible, onClose }: Props) {
         {/* Rendered after the tablet so fireflies drift in front, not lost behind it */}
         <View style={StyleSheet.absoluteFill} pointerEvents="none" accessible={false}>
           <LottieView
-            source={require('../assets/animations/explorers-grove-fireflies.json')}
+            source={explorersGroveFireflies}
             autoPlay
             loop
             speed={1}

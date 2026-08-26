@@ -71,13 +71,6 @@ export default function GuardianScreen({ navigation }: any) {
     player.play();
   });
 
-  useFocusEffect(
-    useCallback(() => {
-      bgPlayer.play();
-      return () => { bgPlayer.pause(); };
-    }, [bgPlayer])
-  );
-
   // --- Hardware back ---
   useFocusEffect(
     useCallback(() => {

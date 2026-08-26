@@ -284,6 +284,8 @@ export default function SettingsModal({
       <Modal
         visible={visible}
         transparent
+        statusBarTranslucent
+        navigationBarTranslucent
         animationType="fade"
         onDismiss={() => {
           // Fires once iOS has fully finished the dismiss animation.

@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useVideoPlayer, VideoView } from '../core/memorySafeVideo';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Purchases, { PurchasesPackage } from 'react-native-purchases';
 import { usePostHog } from 'posthog-react-native';
@@ -124,13 +124,6 @@ export default function PaywallScreen() {
     player.audioMixingMode = 'mixWithOthers';
     player.play();
   });
-
-  useFocusEffect(
-    useCallback(() => {
-      bgPlayer.play();
-      return () => { try { bgPlayer.pause(); } catch {} };
-    }, [bgPlayer])
-  );
 
   // ── Dismiss ───────────────────────────────────────────────────────────────
   // Onboarding presents this screen as a forward step (not a modal opened from

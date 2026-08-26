@@ -19,6 +19,7 @@ const GIB = 1024 * 1024 * 1024;
  */
 export const usesStaticBackgrounds =
   Platform.OS === 'android' &&
+  Device.isDevice &&
   ((Device.totalMemory != null && Device.totalMemory <= 6 * GIB) ||
     (Device.deviceYearClass != null && Device.deviceYearClass <= 2021));
 

@@ -5,7 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'react-native';
 import { Gesture, GestureDetector, Directions, GestureHandlerRootView } from 'react-native-gesture-handler';
-import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import ExplorerWelcomeModal from '../components/ExplorerWelcomeModal';
 import { useVideoPlayer, VideoView } from '../core/memorySafeVideo';
 import * as Haptics from 'expo-haptics';
@@ -19,6 +19,7 @@ import Purchases from 'react-native-purchases';
 import { isLockedTrack } from '../src/core/subscriptions/accessPolicy';
 import { safePresentPaywall } from '../src/core/subscriptions/safePresentPaywall';
 import LottieView from 'lottie-react-native';
+import { explorersGroveFireflies } from '../core/explorersGroveFireflies';
 
 const Body = _Body ?? ({
   regular: { ...Typography.body },
@@ -133,7 +134,7 @@ function ExplorersGroveAmbient({ visible }: { visible: boolean }) {
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none" accessible={false}>
       <LottieView
-        source={require('../assets/animations/explorers-grove-fireflies.json')}
+        source={explorersGroveFireflies}
         autoPlay
         loop
         speed={1}
@@ -279,11 +280,6 @@ export default function SoundscapesScreen() {
     player.audioMixingMode = 'mixWithOthers';
     try { player.play(); } catch {}
   });
-
-  useFocusEffect(React.useCallback(() => {
-    try { bgPlayer.play(); } catch {}
-    return () => { try { bgPlayer.pause(); } catch {} };
-  }, [bgPlayer]));
 
   const [hasContinuing, setHasContinuing] = useState(false);
 

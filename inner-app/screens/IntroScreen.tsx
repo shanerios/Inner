@@ -12,7 +12,7 @@ import {
 import { Audio } from 'expo-av';
 import * as Haptics from 'expo-haptics';
 import { StatusBar } from 'expo-status-bar';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 import { useVideoPlayer, VideoView } from '../core/memorySafeVideo';
 
 import { Typography, Body as _Body } from '../core/typography';
@@ -126,15 +126,6 @@ export default function IntroScreen() {
     player.audioMixingMode = 'mixWithOthers';
     player.play();
   });
-
-  useFocusEffect(
-    React.useCallback(() => {
-      bgPlayer.play();
-      // Player may already be torn down by the time this fires (e.g. fast
-      // navigation away during unmount) — pause is best-effort only.
-      return () => { try { bgPlayer.pause(); } catch {} };
-    }, [bgPlayer])
-  );
 
   const stopAudioAndNavigate = async () => {
     if (soundRef.current) {

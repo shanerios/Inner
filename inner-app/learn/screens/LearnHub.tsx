@@ -263,13 +263,6 @@ const recentIntentions: string[] = Array.isArray(selectedIntentions) ? selectedI
     }, [])
   );
 
-  useFocusEffect(
-    React.useCallback(() => {
-      bgPlayer.play();
-      return () => { bgPlayer.pause(); };
-    }, [bgPlayer])
-  );
-
   const selectFilter = (next: TrackFilter) => {
     if (filter !== next) {
       // Subtle, platform-consistent tick

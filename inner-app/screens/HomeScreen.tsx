@@ -2,7 +2,7 @@ import { Asset } from 'expo-asset';
 import { useVideoPlayer, VideoView } from '../core/memorySafeVideo';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useMemo, useRef } from 'react';
-import { Animated, AppState, Dimensions, Easing, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
+import { Animated, AppState, Easing, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Directions, Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Purchases from 'react-native-purchases';
 import { safePresentPaywall } from '../src/core/subscriptions/safePresentPaywall';
@@ -306,10 +306,13 @@ export default function HomeScreen({ navigation, route }: any) {
   // Shared breath (0 → exhale, 1 → inhale)
   const breath = useBreath();
   const posthog = usePostHog();
-  const { width: SCREEN_W, height: SCREEN_H } = useWindowDimensions();
-  const DEVICE_SCREEN_H = Dimensions.get('screen').height;
-  const DEVICE_SCREEN_W = Dimensions.get('screen').width;
-  const { scale, verticalScale, matchesCompactLayout } = useScale();
+  const {
+    width: SCREEN_W,
+    height: SCREEN_H,
+    scale,
+    verticalScale,
+    matchesCompactLayout,
+  } = useScale();
   const ORB_HIT_OFFSET_X = 0; // tweak to nudge hit-area horizontally
   const ORB_HIT_OFFSET_Y = verticalScale(-30); // tweak to nudge hit-area vertically
   const scrollDepthFull = verticalScale(240);
@@ -1580,9 +1583,10 @@ const pan = useMemo(
   () => Gesture.Race(pan, Gesture.Exclusive(flingLeft, flingRight, flingDown), flingUp),
   [pan, flingLeft, flingRight, flingDown, flingUp]
 );
+  const navControlsGesture = useMemo(() => Gesture.Native(), []);
   // Some Android devices (gesture nav, certain emulators) report a smaller `window` height than the full
   // device screen. Use `screen` height to compute any extra space below the window and bleed the BG into it.
-  const NAV_FUDGE = Math.max(0, DEVICE_SCREEN_H - SCREEN_H);
+  const NAV_FUDGE = 0;
   // Aspect profile — treat wide (short AR) devices slightly differently for orb sizing/placement
   const AR = SCREEN_H / SCREEN_W;
   const isWide = AR < 1.95;       // e.g., Galaxy Ultra–class, custom wide emulators
@@ -1607,13 +1611,11 @@ const pan = useMemo(
   });
 
   useFocusEffect(useCallback(() => {
-    bgPlayer.play();
     // Flip guardian orb back to default when returning from Guardian screen
     if (isGuardianOrbRef.current) {
       flipDefaultFnRef.current?.();
     }
-    return () => { try { bgPlayer.pause(); } catch {} };
-  }, [bgPlayer]));
+  }, []));
 
   const SIGIL_JOURNAL = require('../assets/sigils/journal_button.png');
   const SIGIL_COMMUNITY = require('../assets/sigils/community_button.png');
@@ -1754,10 +1756,17 @@ const ORB_Y_OFFSET_TABLET = verticalScale(-90);
 // Apply device-appropriate offset
 const ORB_Y_OFFSET = isTablet ? ORB_Y_OFFSET_TABLET : ORB_Y_OFFSET_PHONE;
 
+// The foreground artwork was tuned against the old inset video box. Now that
+// the MP4 fills the physical root, keep the orb and sigils aligned as one group
+// with the portal in that full-root cover crop. Android gains more vertical
+// frame than iOS, so it needs the larger correction.
+const PORTAL_GROUP_Y_ADJUST = verticalScale(Platform.OS === 'android' ? 40 : 15);
+
 const ORB_WIDTH = BG_BOX_W * ORB_SIZE_PCT;
 const ORB_LEFT  = BG_BOX_LEFT + BG_BOX_W * 0.499 - ORB_WIDTH / 2;
 const ORB_TOP =
-  BG_BOX_TOP + BG_BOX_H * 0.461 - ORB_WIDTH / 2 + ORB_Y_OFFSET - verticalScale(10);
+  BG_BOX_TOP + BG_BOX_H * 0.461 - ORB_WIDTH / 2 + ORB_Y_OFFSET - verticalScale(10)
+  + PORTAL_GROUP_Y_ADJUST;
 
   const ORB_HIT_DIAMETER = Math.min(
     scale(isCompactPhone ? 135 : 150),
@@ -1785,7 +1794,7 @@ const ORB_TOP =
   // Convert centers to top-left for absolute positioning
   const SIGIL_LEFT_LEFT  = SIGIL_LEFT_CENTER_X  - SIGIL_SIZE / 2 - scale(15);
   const SIGIL_RIGHT_LEFT = SIGIL_RIGHT_CENTER_X - SIGIL_SIZE / 2 + scale(15);
-  const SIGIL_TOP = SCREEN_H * 0.50 - SIGIL_SIZE / 2;
+  const SIGIL_TOP = SCREEN_H * 0.50 - SIGIL_SIZE / 2 + PORTAL_GROUP_Y_ADJUST;
   const SIGIL_LEFT_TOP  = SIGIL_TOP;
   const SIGIL_RIGHT_TOP = SIGIL_TOP;
 
@@ -2492,7 +2501,7 @@ const openInnerFlame = useCallback(async () => {
   const isInnerFlameRecommended = ritualTargetId === 'innerFlame';
 
   return (
-  <View style={{ position: 'absolute', top: 0, left: 0, width: DEVICE_SCREEN_W, height: DEVICE_SCREEN_H }}>
+  <View style={{ flex: 1 }}>
   <SpotlightTourProvider
     ref={tourRef}
     steps={HOME_TOUR_STEPS}
@@ -2507,16 +2516,9 @@ const openInnerFlame = useCallback(async () => {
   >
   <GestureDetector gesture={rootGesture}>
     <View style={styles.container}>
-      {/* Background — looping video rendered in a computed fit box (cover) */}
+      {/* Background — full-root like every other full-screen video screen. */}
       <View
-        style={{
-          position: 'absolute',
-          left: BG_BOX_LEFT,
-          top: BG_BOX_TOP,
-          width: BG_BOX_W,
-          height: BG_BOX_H,
-          overflow: 'hidden',
-        }}
+        style={StyleSheet.absoluteFillObject}
       >
         <VideoView
           player={bgPlayer}
@@ -3499,17 +3501,18 @@ const openInnerFlame = useCallback(async () => {
       </View>
 
       {/* --- NAV ARROWS OVERLAY (absolute, high zIndex/elevation) --- */}
-      <View
-        pointerEvents="box-none"
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          zIndex: 100,
-        }}
-      >
+      <GestureDetector gesture={navControlsGesture}>
+        <View
+          pointerEvents="box-none"
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 100,
+          }}
+        >
         {/* Left: Soundscapes */}
         {/* Spotlight targets for left/right nav labels */}
         <AttachStep
@@ -3564,7 +3567,7 @@ const openInnerFlame = useCallback(async () => {
             onPress={goToLearnHub}
             accessibilityRole="button"
             accessibilityLabel="Open The Archives"
-            style={{ width: '100%', bottom: -20, elevation: 101 }}
+            style={{ width: '100%', elevation: 101 }}
           >
             <Image
               source={require('../assets/images/archive_nav.png')}
@@ -3573,7 +3576,8 @@ const openInnerFlame = useCallback(async () => {
             />
           </Pressable>
         </AttachStep>
-      </View>
+        </View>
+      </GestureDetector>
       <LunarWhisperModal
         visible={showLunarModal}
         phase={orbPhase}

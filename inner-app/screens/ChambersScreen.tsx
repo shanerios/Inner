@@ -12,7 +12,6 @@ import {
   Animated,
   Easing,
   FlatList,
-  Dimensions,
   Modal,
   Platform,
   StyleSheet,
@@ -38,13 +37,12 @@ import { chamberReleaseManifest } from '../src/content/chamberReleaseManifest';
 import { getReleaseCountdownLabel } from '../src/content/releaseUtils';
 import { safePresentPaywall } from '../src/core/subscriptions/safePresentPaywall';
 import { TRACKS, TrackMeta } from '../data/tracks';
+import { useScale } from '../utils/scale';
 
 const Body = _Body ?? ({
   regular: { fontFamily: 'Inter-ExtraLight', fontSize: 14 },
   subtle: { fontFamily: 'Inter-ExtraLight', fontSize: 10 },
 } as const);
-
-const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 
 const ENTITLEMENT_ID = 'continuing_with_inner';
 
@@ -172,9 +170,11 @@ type EntryPageProps = {
   onInfo: () => void;
   onGoHome: () => void;
   insets: { top: number; bottom: number; left: number; right: number };
+  pageWidth: number;
+  pageHeight: number;
 };
 
-const EntryPage = React.memo(function EntryPage({ isActive, screenFocused, onInfo, onGoHome, insets }: EntryPageProps) {
+const EntryPage = React.memo(function EntryPage({ isActive, screenFocused, onInfo, onGoHome, insets, pageWidth, pageHeight }: EntryPageProps) {
   const videoPlayer = useVideoPlayer(
     require('../assets/images/chamber_revamp.mp4'),
     player => {
@@ -190,14 +190,6 @@ const EntryPage = React.memo(function EntryPage({ isActive, screenFocused, onInf
   const returnOpacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    if (isActive && screenFocused) {
-      videoPlayer.play();
-    } else {
-      videoPlayer.pause();
-    }
-  }, [isActive, screenFocused]);
-
-  useEffect(() => {
     Animated.sequence([
       Animated.timing(returnOpacity, { toValue: 1.0, duration: 400, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
       Animated.delay(1200),
@@ -208,7 +200,7 @@ const EntryPage = React.memo(function EntryPage({ isActive, screenFocused, onInf
   }, []);
 
   return (
-    <View style={{ width: SCREEN_W, height: SCREEN_H }}>
+    <View style={{ width: pageWidth, height: pageHeight }}>
       {/* Video background */}
       <VideoView
         player={videoPlayer}
@@ -319,9 +311,11 @@ type ChamberPageProps = {
   onPaywall: (label: string) => void;
   onGoHome: () => void;
   insets: { top: number; bottom: number; left: number; right: number };
+  pageWidth: number;
+  pageHeight: number;
 };
 
-const ChamberPage = React.memo(function ChamberPage({ item, isActive, screenFocused, isLocked, onEnter, onPaywall, onGoHome, insets }: ChamberPageProps) {
+const ChamberPage = React.memo(function ChamberPage({ item, isActive, screenFocused, isLocked, onEnter, onPaywall, onGoHome, insets, pageWidth, pageHeight }: ChamberPageProps) {
   const env = CHAMBER_ENVIRONMENTS[item.id];
   const { isCached, isWorking, progress, download, remove } = useOfflineAsset(item.id, 'chamber');
 
@@ -332,15 +326,6 @@ const ChamberPage = React.memo(function ChamberPage({ item, isActive, screenFocu
     // the default 'doNotMix' mode fights TrackPlayer's session on background/lock.
     player.audioMixingMode = 'mixWithOthers';
   }, { enabled: isActive && screenFocused });
-
-  // Play only when this page is the active visible one AND the screen is focused
-  useEffect(() => {
-    if (isActive && screenFocused) {
-      videoPlayer.play();
-    } else {
-      videoPlayer.pause();
-    }
-  }, [isActive, screenFocused]);
 
   const handleEnter = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
@@ -355,7 +340,7 @@ const ChamberPage = React.memo(function ChamberPage({ item, isActive, screenFocu
   const locked = isLocked || item.comingSoon;
 
   return (
-    <View style={{ width: SCREEN_W, height: SCREEN_H }}>
+    <View style={{ width: pageWidth, height: pageHeight }}>
       {/* Video background */}
       <VideoView
         player={videoPlayer}
@@ -635,6 +620,7 @@ function PageIndicator({
 
 export default function ChambersScreen() {
   const insets = useSafeAreaInsets();
+  const { frameWidth: pageWidth, frameHeight: pageHeight } = useScale();
   const navigation = useNavigation();
   const posthog = usePostHog();
 
@@ -785,6 +771,8 @@ export default function ChambersScreen() {
           onInfo={openInfo}
           onGoHome={goHome}
           insets={insets}
+          pageWidth={pageWidth}
+          pageHeight={pageHeight}
         />
       );
     }
@@ -798,9 +786,11 @@ export default function ChambersScreen() {
         onPaywall={openPaywall}
         onGoHome={goHome}
         insets={insets}
+        pageWidth={pageWidth}
+        pageHeight={pageHeight}
       />
     );
-  }, [currentIndex, screenFocused, isLockedForIndex, enterChamber, openPaywall, goHome, openInfo, insets]);
+  }, [currentIndex, screenFocused, isLockedForIndex, enterChamber, openPaywall, goHome, openInfo, insets, pageWidth, pageHeight]);
 
   const keyExtractor = useCallback((item: PagerItem) => item.id, []);
 
@@ -822,8 +812,8 @@ export default function ChambersScreen() {
         maxToRenderPerBatch={2}
         windowSize={3}
         getItemLayout={(_data, index) => ({
-          length: SCREEN_H,
-          offset: SCREEN_H * index,
+          length: pageHeight,
+          offset: pageHeight * index,
           index,
         })}
       />
@@ -869,7 +859,7 @@ export default function ChambersScreen() {
               }}
             >
               <ScrollView
-                style={{ maxHeight: SCREEN_H * 0.58 }}
+                style={{ maxHeight: pageHeight * 0.58 }}
                 contentContainerStyle={{ paddingBottom: 6, flexGrow: 1 }}
                 showsVerticalScrollIndicator={false}
               >

@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
-import { useWindowDimensions } from 'react-native';
+import { Platform } from 'react-native';
+import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 /** Design reference: iPhone 15 Pro logical width (pt) */
 export const BASE_WIDTH = 393;
@@ -57,7 +58,16 @@ export function moderateScale(size, factor = 0.5, width = BASE_WIDTH) {
  * Use inside React components; for static snapshots use the plain functions with explicit width/height.
  */
 export function useScale() {
-  const { width, height } = useWindowDimensions();
+  const frame = useSafeAreaFrame();
+  const insets = useSafeAreaInsets();
+  // Android backgrounds remain full-bleed, while responsive foreground geometry
+  // uses the area between the enforced edge-to-edge system bars.
+  const width = Platform.OS === 'android'
+    ? frame.width - insets.left - insets.right
+    : frame.width;
+  const height = Platform.OS === 'android'
+    ? frame.height - insets.top - insets.bottom
+    : frame.height;
   const longestEdge = getLongestLogicalEdge(width, height);
   const matchesCompact = matchesCompactLayout(width, height);
 
@@ -70,11 +80,14 @@ export function useScale() {
       width,
       /** Current window height (pt) */
       height,
+      /** Full root frame for full-bleed backgrounds and pagers. */
+      frameWidth: frame.width,
+      frameHeight: frame.height,
       /** max(width, height) — use for short-phone breakpoints */
       longestEdge,
       /** True when longest edge is below COMPACT_LAYOUT_MAX_LONG_EDGE; combine with !isTablet on full-screen layouts */
       matchesCompactLayout: matchesCompact,
     }),
-    [width, height, longestEdge, matchesCompact],
+    [width, height, frame.width, frame.height, longestEdge, matchesCompact],
   );
 }
