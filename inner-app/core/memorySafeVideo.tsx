@@ -1,5 +1,5 @@
 import React from 'react';
-import { AppState, Image, Platform, StyleSheet, View, type ImageStyle } from 'react-native';
+import { AppState, Image, Platform, StyleSheet, View } from 'react-native';
 import * as Device from 'expo-device';
 import {
   VideoView as ExpoVideoView,
@@ -20,8 +20,9 @@ const GIB = 1024 * 1024 * 1024;
 export const usesStaticBackgrounds =
   Platform.OS === 'android' &&
   Device.isDevice &&
-  ((Device.totalMemory != null && Device.totalMemory <= 6 * GIB) ||
-    (Device.deviceYearClass != null && Device.deviceYearClass <= 2021));
+  (Device.totalMemory != null
+    ? Device.totalMemory <= 6 * GIB
+    : Device.deviceYearClass != null && Device.deviceYearClass <= 2021);
 
 type StaticSource = React.ComponentProps<typeof Image>['source'];
 
@@ -177,7 +178,18 @@ export function VideoView(props: React.ComponentProps<typeof ExpoVideoView>) {
   }
 
   if (usesStaticBackgrounds && metadata?.staticSource) {
-    return <Image source={metadata.staticSource} style={props.style as ImageStyle} resizeMode="cover" />;
+    // Keep the same measured/clipped outer frame as ExpoVideoView. Applying the
+    // caller's layout style directly to Image can let Android size the drawable
+    // from its intrinsic pixels, producing an oversized, top-left crop.
+    return (
+      <View style={[props.style, styles.staticFrame]} pointerEvents="none">
+        <Image
+          source={metadata.staticSource}
+          style={StyleSheet.absoluteFillObject}
+          resizeMode="cover"
+        />
+      </View>
+    );
   }
 
   return <ExpoVideoView {...props} />;
@@ -185,6 +197,10 @@ export function VideoView(props: React.ComponentProps<typeof ExpoVideoView>) {
 
 const styles = StyleSheet.create({
   empty: { backgroundColor: '#0d0d1a' },
+  staticFrame: {
+    overflow: 'hidden',
+    backgroundColor: '#0d0d1a',
+  },
 });
 
 export function initializeMemoryTelemetry() {
