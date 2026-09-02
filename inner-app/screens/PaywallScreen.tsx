@@ -28,8 +28,9 @@ const ENTITLEMENT_ID = 'continuing_with_inner';
 
 const FEATURE_LINES = [
   'Nine chambers of guided descent',
-  'Root Deep — threshold soundscapes for sleep and lucid dreaming',
+  'Root Deep: Lucid Dream thresholds',
   'Aeris with full pattern recognition',
+  'Guardian journeys as they unfold',
 ];
 
 // Goal-aware overrides — set during onboarding's Value & Intent Capture step.
@@ -42,9 +43,9 @@ const GOAL_HEADLINES: Record<PrimaryGoal, string> = {
 };
 
 const GOAL_FEATURE_LINE: Record<PrimaryGoal, string> = {
-  lucid_dreaming: 'Root Deep — threshold soundscapes for sleep and lucid dreaming',
+  lucid_dreaming: 'Root Deep: Lucid Dream thresholds',
   obe: 'Threshold soundscapes built for the exit point',
-  deep_focus: 'Root Deep — focus soundscapes for a sharper waking mind',
+  deep_focus: 'Root Deep: deeper focus thresholds',
 };
 
 const RC_NOT_CONFIGURED_RE = /no singleton instance|configure purchases|default instance/i;
@@ -341,7 +342,7 @@ export default function PaywallScreen() {
 
   const headline = primaryGoal ? GOAL_HEADLINES[primaryGoal] : (HEADLINES[trigger] ?? HEADLINES.chamber);
   const featureLines = primaryGoal
-    ? [FEATURE_LINES[0], GOAL_FEATURE_LINE[primaryGoal], FEATURE_LINES[2]]
+    ? [FEATURE_LINES[0], GOAL_FEATURE_LINE[primaryGoal], FEATURE_LINES[2], FEATURE_LINES[3]]
     : FEATURE_LINES;
   const isCtaDisabled = purchasing || loading || packages.length === 0;
   const selectedTrialDays = packages[selectedIndex]?.trialDays ?? null;
@@ -516,8 +517,13 @@ const styles = StyleSheet.create({
   },
 
   // Top zone
+  // minHeight grown by 30px (and middleZone shrunk by the same amount below)
+  // so space-between pushes the feature list 30px further from the headline
+  // without moving anything in the pricing/CTA zone underneath. Trimmed back
+  // from 50 — the full amount pushed the last feature line down far enough
+  // to crowd the door's keyhole artwork in the video background.
   topZone: {
-    minHeight: SCREEN_H * 0.42,
+    minHeight: SCREEN_H * 0.42 + 30,
     justifyContent: 'space-between',
   },
   headerGroup: {
@@ -530,7 +536,7 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-ExtraLight',
     textTransform: 'uppercase',
     alignSelf: 'center',
-    marginBottom: 100,
+    marginBottom: 90,
   },
   headline: {
     fontSize: 32,
@@ -565,19 +571,25 @@ const styles = StyleSheet.create({
   },
   features: {
     gap: 20,
-    maxWidth: 280,
+    maxWidth: 240,
     alignSelf: 'center',
   },
   featureLine: {
     fontSize: 14,
+    fontWeight: '600',
     color: 'rgba(255,255,255,0.75)',
     lineHeight: 20,
     textAlign: 'center',
+    textShadowColor: 'rgba(0,0,0,0.8)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 3,
   },
 
   // Middle zone — intentionally empty
+  // Shrunk by the same 30px the feature list gained above, so the pricing/
+  // CTA/legal zone below doesn't shift down.
   middleZone: {
-    height: SCREEN_H * 0.13,
+    height: SCREEN_H * 0.13 - 30,
   },
 
   // Bottom zone
