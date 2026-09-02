@@ -7,8 +7,14 @@ const DAILY_MICRO_DATE_KEY = 'inner_daily_micro_date';
 const DAILY_MICRO_EMOTION_KEY = 'inner_daily_micro_emotion';
 
 function getTodayKey(): string {
-  // Simple YYYY-MM-DD string; good enough for v1
-  return new Date().toISOString().slice(0, 10);
+  // Local calendar date (not UTC) — the day boundary should match the
+  // device's midnight, and this also matches learningStreak.ts's dayKey so
+  // useDailyPracticeSnapshot's "activeToday" compares like with like.
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = `${now.getMonth() + 1}`.padStart(2, '0');
+  const day = `${now.getDate()}`.padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 export async function shouldShowDailyMicroRitual(): Promise<boolean> {

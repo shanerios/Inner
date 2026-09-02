@@ -17,7 +17,7 @@ import * as Haptics from 'expo-haptics';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Asset } from 'expo-asset';
 import { getNudge } from '../src/core/language/nudgeLibrary';
-import { getIntentions, getIntentionSetAt, getLastNudgeShownAt, setLastNudgeShownAt } from '../core/session';
+import { getIntentions, getIntentionSetAt, getLastNudgeShownAt, setLastNudgeShownAt, touchIntentionSetAt } from '../core/session';
 import { useScale } from '../utils/scale';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -217,6 +217,9 @@ export default function IntentionScreen() {
   );
 
   const [selectedIntentions, setSelectedIntentions] = useState<string[]>([]);
+  // Snapshot of what's currently saved, used to pre-select on a re-tune arrival
+  // and to tell whether the user has changed anything (drives the Keep/Update label).
+  const [savedIntentionsSnapshot, setSavedIntentionsSnapshot] = useState<string[] | null>(null);
   const scaleAnimRefs = useRef<{ [key: string]: Animated.Value }>({});
   if (Object.keys(scaleAnimRefs.current).length === 0) {
     intentions.forEach(({ id }) => {
@@ -285,6 +288,13 @@ export default function IntentionScreen() {
           getIntentionSetAt(),
           getLastNudgeShownAt(),
         ]);
+
+        if (!cancelled) {
+          const saved = (savedIntentions as string[]) ?? [];
+          setSavedIntentionsSnapshot(saved);
+          setSelectedIntentions(saved);
+          if (saved.length > 0) ctaEnabledAnim.setValue(1);
+        }
 
         const DEV_DAYS_OVERRIDE = __DEV__ ? 8 : null;
 
@@ -355,16 +365,29 @@ export default function IntentionScreen() {
     }
   };
 
+  // True once the re-tune snapshot has loaded and nothing has changed since —
+  // drives the "Keep" vs "Update" CTA label.
+  const isUnchangedFromSaved =
+    fromSettings &&
+    savedIntentionsSnapshot !== null &&
+    savedIntentionsSnapshot.length === selectedIntentions.length &&
+    savedIntentionsSnapshot.every((id) => selectedIntentions.includes(id));
+
   const handleContinue = async () => {
     await setIntentions(selectedIntentions);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     // Returning users re-tuning a stale intention (see SplashScreen) land back
     // on Home instead of re-entering the first-run Essence/paywall chain.
     if (returnTo === 'Home') {
+      // setIntentions() only bumps the "set at" timestamp when the selection
+      // actually changes — a plain "Keep" needs to restart the 48h clock too.
+      await touchIntentionSetAt();
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       (navigation as any).reset({ index: 0, routes: [{ name: 'Home' }] });
       return;
     }
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     const preload = ensureEssenceAssets();
     await Promise.race([
@@ -513,11 +536,17 @@ export default function IntentionScreen() {
                 styles.primaryButton,
                 selectedIntentions.length === 0 && styles.disabledButton,
               ]}
-              accessibilityLabel="Continue"
-              accessibilityHint="Double tap to continue once you've selected your intentions"
+              accessibilityLabel={isUnchangedFromSaved ? 'Keep' : 'Continue'}
+              accessibilityHint={
+                isUnchangedFromSaved
+                  ? 'Double tap to keep your current intentions and continue'
+                  : "Double tap to continue once you've selected your intentions"
+              }
               accessibilityRole="button"
             >
-              <Text style={styles.primaryText}>Move Inward</Text>
+              <Text style={styles.primaryText}>
+                {isUnchangedFromSaved ? 'Keep' : fromSettings ? 'Update' : 'Move Inward'}
+              </Text>
             </TouchableOpacity>
           </Animated.View>
         </View>

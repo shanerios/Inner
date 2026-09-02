@@ -12,6 +12,7 @@ const LAST_NUDGE_SHOWN_AT_KEY = 'inner.nudges.lastShownAt.v1';
 // User may select up to two intentions
 export type IntentionKey =
   | 'calm'
+  | 'lucidity'
   | 'clarity'
   | 'grounding'
   | 'healing'
@@ -25,6 +26,7 @@ function normalizeIntentions(input: string[] | null | undefined): Intentions {
   // Dedupe, lowercase, filter to allowed set, clamp length to 2
   const allowed: Record<string, true> = {
     calm: true,
+    lucidity: true,
     clarity: true,
     grounding: true,
     healing: true,
@@ -128,6 +130,16 @@ export async function isIntentionRecheckDue(): Promise<boolean> {
   return Date.now() - setAt > INTENTION_RECHECK_MS;
 }
 
+/**
+ * Restart the 48h re-tune clock without changing the stored intentions.
+ * Used when a user confirms/keeps their existing intentions during a
+ * periodic re-tune — setIntentions() only bumps the timestamp when the
+ * selection actually changes, so an unchanged "Keep" needs this instead.
+ */
+export async function touchIntentionSetAt() {
+  try { await AsyncStorage.setItem(INTENTION_SET_AT_KEY, String(Date.now())); } catch {}
+}
+
 /** Persist the last time we actually *showed* a nudge (cooldown control). */
 export async function setLastNudgeShownAt(tsMs: number) {
   try {
@@ -178,6 +190,7 @@ export function hasIntention(keys: Intentions, target: IntentionKey): boolean {
 /** Optional theme map for subtle tinting across the app */
 export const INTENTION_THEME: Record<IntentionKey, { tint: string; glow: string }> = {
   calm:        { tint: '#7BD1C8', glow: '#2C4B47' },
+  lucidity:    { tint: '#B4D2FF', glow: '#233A5C' },
   clarity:     { tint: '#FFC979', glow: '#4B3A1F' },
   grounding:   { tint: '#A78B6D', glow: '#3A2D22' },
   healing:     { tint: '#FF9DB6', glow: '#4B2633' },

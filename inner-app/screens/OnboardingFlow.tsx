@@ -4,7 +4,6 @@ import { View, Text, StyleSheet, Animated, Easing, TextInput, TouchableOpacity }
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
-import { Audio } from 'expo-av';
 import { LinearGradient } from 'expo-linear-gradient';
 import LottieView from 'lottie-react-native';
 
@@ -21,22 +20,6 @@ export default function OnboardingFlow({ navigation, onComplete }: Props) {
   const fogOpacity = useRef(new Animated.Value(1)).current; // start under veil
   const orbScale   = useRef(new Animated.Value(0.92)).current;
   const textOpacity= useRef(new Animated.Value(0)).current;
-
-  const toneRef = useRef<Audio.Sound | null>(null);
-
-  useEffect(() => {
-    // prepare ambient tone (quiet)
-    (async () => {
-      try {
-        toneRef.current = new Audio.Sound();
-        await toneRef.current.loadAsync(require('../assets/audio/Homepage_Hum.mp3'));
-        await toneRef.current.setIsLoopingAsync(true);
-        await toneRef.current.setVolumeAsync(0.12);
-        await toneRef.current.playAsync();
-      } catch {}
-    })();
-    return () => { toneRef.current?.unloadAsync().catch(() => {}); };
-  }, []);
 
   useEffect(() => {
     // PHASE 1: “The Call” — slow reveal from black → fog → orb idle

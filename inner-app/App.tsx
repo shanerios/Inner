@@ -528,7 +528,6 @@ async function warmStaticAssets() {
 
 async function preloadStartupAssets() {
   try {
-    await Asset.loadAsync([require('./assets/audio/Homepage_Hum.mp3')]);
     await preloadTracks();
     await Asset.fromModule(require('./assets/fx/fog.webp')).downloadAsync().catch(() => {});
   } catch {}

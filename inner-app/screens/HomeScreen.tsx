@@ -2,10 +2,12 @@ import { Asset } from 'expo-asset';
 import { useVideoPlayer, VideoView } from '../core/memorySafeVideo';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useMemo, useRef } from 'react';
-import { Animated, AppState, Easing, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Animated, Easing, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Directions, Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Purchases from 'react-native-purchases';
 import { safePresentPaywall } from '../src/core/subscriptions/safePresentPaywall';
+import { hasInnerAccess } from '../src/core/subscriptions/revenueCat';
+import { isAerisLimitReached } from '../src/core/aeris/aerisUsage';
 import FogPulse from '../components/FogPulse';
 import HomeAuraContinuity from '../components/HomeAuraContinuity';
 import SettingsModal from '../components/SettingsModal';
@@ -16,7 +18,6 @@ import * as ThresholdEngine from '../src/core/thresholds/ThresholdEngine';
 
 import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { Audio } from 'expo-av';
-import TrackPlayer, { RepeatMode, State } from 'react-native-track-player';
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -105,20 +106,6 @@ function normalizeChamberName(v?: string) {
   return (v || '').trim().toLowerCase();
 }
 
-// IDs we should never "resume" (ambient/background)
-const AMBIENT_IDS = new Set(['home_hum', 'homepage_hum', 'ambient_hum']);
-const isAmbient = (id?: string) => !!id && AMBIENT_IDS.has(id);
-
-// --- Ambient hum (TrackPlayer) ---
-const HUM_TRACK_ID = 'homepage_hum';
-const HUM_TRACK = {
-  id: HUM_TRACK_ID,
-  url: require('../assets/audio/Homepage_Hum.mp3'),
-  title: 'Inner',
-  artist: '',
-};
-const HUM_BASE_VOL = 0.35;
-
 // ─── Spotlight Tour ──────────────────────────────────────────────────────────
 
 function TourTooltip({
@@ -128,6 +115,7 @@ function TourTooltip({
   total,
   onNext,
   onStop,
+  onMount,
 }: {
   title: string;
   body: string;
@@ -135,7 +123,9 @@ function TourTooltip({
   total: number;
   onNext: () => void;
   onStop: () => void;
+  onMount?: () => void;
 }) {
+  useEffect(() => { onMount?.(); }, []);
   return (
     <View style={tourStyles.card}>
       <Text style={tourStyles.label}>{stepNum} of {total}</Text>
@@ -162,9 +152,9 @@ const tourStyles = StyleSheet.create({
     padding: 14,
     borderWidth: 1,
     borderColor: 'rgba(180,140,80,0.2)',
-    maxWidth: 480,
+    maxWidth: 420,
     maxHeight: 260,
-    width: '90%',
+    width: '65%',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.4,
@@ -218,86 +208,10 @@ const tourStyles = StyleSheet.create({
   },
 });
 
-const HOME_TOUR_STEPS = [
-  {
-    floatingProps: { middleware: [offset(12), shift(), flip()], placement: 'bottom' },
-    render: ({ next, stop }: any) => (
-      <TourTooltip
-        title="The Orb"
-        body="Your entry point. Press to begin a session or resume where you left off."
-        stepNum={1}
-        total={6}
-        onNext={next}
-        onStop={stop}
-      />
-    ),
-  },
-  {
-    floatingProps: { middleware: [offset(12), shift()], placement: 'top' },
-    render: ({ next, stop }: any) => (
-      <TourTooltip
-        title="The Garden"
-        body={"Press or swipe right to left for looping psychoacoustic environments — crafted for deep rest and induction."}
-        stepNum={2}
-        total={6}
-        onNext={next}
-        onStop={stop}
-      />
-    ),
-  },
-  {
-    floatingProps: { middleware: [offset(12), shift()], placement: 'top' },
-    render: ({ next, stop }: any) => (
-      <TourTooltip
-        title="The Chambers"
-        body={"Press or swipe left from right side for guided descent — structured experiences from beginning to end."}
-        stepNum={3}
-        total={6}
-        onNext={next}
-        onStop={stop}
-      />
-    ),
-  },
-  {
-    floatingProps: { middleware: [offset(12), shift(), flip()], placement: 'right' },
-    render: ({ next, stop }: any) => (
-      <TourTooltip
-        title="Dream Journal"
-        body="The quill sigil opens your dream journal — log what you experienced, set intentions, and track your inner journey."
-        stepNum={4}
-        total={6}
-        onNext={next}
-        onStop={stop}
-      />
-    ),
-  },
-  {
-    floatingProps: { middleware: [offset(12), shift(), flip()], placement: 'left' },
-    render: ({ next, stop }: any) => (
-      <TourTooltip
-        title="Aeris"
-        body="The orb sigil opens Aeris — your AI guide for reflection, pattern recognition, and deeper understanding of your practice."
-        stepNum={5}
-        total={6}
-        onNext={next}
-        onStop={stop}
-      />
-    ),
-  },
-  {
-    floatingProps: { middleware: [offset(12), shift(), flip()], placement: 'top' },
-    render: ({ next, stop }: any) => (
-      <TourTooltip
-        title="The Archive"
-        body="Press below for the science and practice behind Inner — lessons, techniques, and deeper context."
-        stepNum={6}
-        total={6}
-        onNext={next}
-        onStop={stop}
-      />
-    ),
-  },
-] as unknown as TourStep[];
+// Tour step indices where the orb is the spotlight target and a real gesture
+// (not just "Next") is the intended way through. Kept as constants so the
+// gesture handlers and the tap handler agree on which steps they gate.
+const GUARDIAN_SWIPE_STEP_INDEX = 1;
 
 export default function HomeScreen({ navigation, route }: any) {
   // --- DEBUG: visualize/tune orb hit area ---
@@ -903,54 +817,6 @@ const loop = Animated.loop(
   };
 }, [innerPulseEnabled, innerPulseUnlocked, isFocused, innerPulseValue]);
 
-// When Inner Pulse is active and Home is focused, force-duck the hum so we can clearly hear its audio.
-React.useEffect(() => {
-  if (innerPulseEnabled && innerPulseUnlocked && isFocused) {
-    __DEV__ && console.log('[InnerPulse] state-active → ducking hum from state effect');
-    TrackPlayer.setVolume(0).catch(() => {});
-  }
-}, [innerPulseEnabled, innerPulseUnlocked, isFocused]);
-  
-  const appStateRef = useRef<'active' | 'inactive' | 'background'>('active');
-
-  const maybeStartHum = useCallback(async () => {
-    if (!isFocused || appStateRef.current !== 'active') return;
-    try {
-      const active = await TrackPlayer.getActiveTrack();
-      if (active?.id === HUM_TRACK_ID) {
-        // Already queued — just ensure it's playing
-        const pb = await TrackPlayer.getPlaybackState();
-        if (pb.state !== State.Playing) {
-          await TrackPlayer.setVolume(HUM_BASE_VOL);
-          await TrackPlayer.play();
-        }
-        return;
-      }
-      // Load the hum fresh into TrackPlayer
-      await TrackPlayer.reset();
-      await TrackPlayer.add(HUM_TRACK as any);
-      await TrackPlayer.setRepeatMode(RepeatMode.Track);
-      await TrackPlayer.setVolume(HUM_BASE_VOL);
-      await TrackPlayer.play();
-    } catch (e) {
-      __DEV__ && console.log('[Hum] start error', e);
-    }
-  }, [isFocused]);
-
-  useEffect(() => {
-    const sub = AppState.addEventListener('change', (s) => {
-      appStateRef.current = s as any;
-      if (s !== 'active') {
-        TrackPlayer.getActiveTrack().then(active => {
-          if (active?.id === HUM_TRACK_ID) TrackPlayer.pause().catch(() => {});
-        }).catch(() => {});
-      } else if (isFocused) {
-        maybeStartHum();
-      }
-    });
-    return () => sub.remove();
-  }, [isFocused, maybeStartHum]);
-
   // Hint pulse anim for side arrows
   const leftHint = useRef(new Animated.Value(0)).current;
   const rightHint = useRef(new Animated.Value(0)).current;
@@ -1030,21 +896,18 @@ React.useEffect(() => {
   const goToChambers = useCallback(async () => {
     if (tourRunning) return;
     try { await Haptics.selectionAsync(); } catch {}
-    try { await fadeOutHum(); } catch {}
     navigation.navigate('Chambers');
   }, [tourRunning, navigation]);
 
   const goToSoundscapes = useCallback(async () => {
     if (tourRunning) return;
     try { await Haptics.selectionAsync(); } catch {}
-    try { await fadeOutHum(); } catch {}
     navigation.navigate('Soundscapes');
   }, [tourRunning, navigation]);
 
   const goToLearnHub = useCallback(async () => {
     if (tourRunning) return;
     try { await Haptics.selectionAsync(); } catch {}
-    try { await fadeOutHum(); } catch {}
     navigation.navigate('LearnHub');
   }, [tourRunning, navigation]);
 
@@ -1237,9 +1100,6 @@ React.useEffect(() => {
     // gentle haptic tick on start
     try { await Haptics.selectionAsync(); } catch {}
 
-    // fade background hum first
-    try { await fadeOutHum(); } catch {}
-
     // Fade the card out more slowly, then pause briefly so the fade is actually perceived before navigation kicks in
     Animated.parallel([
       Animated.timing(suggOpacity, { toValue: 0, duration: 800, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
@@ -1270,6 +1130,10 @@ React.useEffect(() => {
     calm: [
       'The tide of stillness carries you inward.',
       'All is quiet within the sanctum of your being.',
+    ],
+    lucidity: [
+      'Awareness rises even within the dream.',
+      'You wake inside the dream, and the veil grows thin.',
     ],
     clarity: [
       'Your inner sky clears—truth shines without distortion.',
@@ -1333,7 +1197,7 @@ React.useEffect(() => {
         'focused=', isFocused
       );
 
-      // If we can't or shouldn't hear it right now, pause and restore hum, then bail
+      // If we can't or shouldn't hear it right now, pause and bail
       if (!innerPulseUnlocked || !innerPulseEnabled || !isFocused) {
         if (innerPulseSoundRef.current) {
           __DEV__ && console.log('[InnerPulse] pausing heartbeat loop (not unlocked / not enabled / not focused)');
@@ -1341,9 +1205,6 @@ React.useEffect(() => {
             await innerPulseSoundRef.current.pauseAsync();
           } catch {}
         }
-        try {
-          await TrackPlayer.setVolume(HUM_BASE_VOL);
-        } catch {}
         return;
       }
 
@@ -1401,11 +1262,6 @@ React.useEffect(() => {
           const afterPlay = await innerPulseSoundRef.current.getStatusAsync();
           __DEV__ && console.log('[InnerPulse] status after play =', afterPlay);
         } catch {}
-
-        // Drop the hum while the heartbeat is active so it can be clearly heard
-        try {
-          await TrackPlayer.setVolume(0);
-        } catch {}
       } catch (e: any) {
         const msg = String(e?.message || e);
         if (msg.includes('already loading')) {
@@ -1431,6 +1287,10 @@ React.useEffect(() => {
   // Disable swipes while any modal/overlay is visible (including the Home walkthrough)
   const gesturesDisabled =
     showSettings || showPicker || showLunarModal || tourRunning;
+  // The upward fling that reveals the Guardian orb stays enabled during the tour
+  // (unlike every other swipe) so the dedicated tour step can be completed by
+  // actually performing the gesture — see flingUp below.
+  const flingUpEnabled = !(showSettings || showPicker || showLunarModal);
 
     // Prevent double-firing when we trigger during update
     const panHandledRef = useRef(false);
@@ -1540,7 +1400,7 @@ const pan = useMemo(
   const flingUp = useMemo(
   () =>
     Gesture.Fling()
-      .enabled(!gesturesDisabled)
+      .enabled(flingUpEnabled)
       .runOnJS(true)
       .direction(Directions.UP)
       .numberOfPointers(1)
@@ -1551,12 +1411,18 @@ const pan = useMemo(
         const { cx, cy, hitDiameter } = orbBoundsRef.current;
         const dist = Math.sqrt((absX - cx) ** 2 + (absY - cy) ** 2);
         if (dist < hitDiameter * 1.2) {
-          if (!isGuardianOrbRef.current) flipGuardianFnRef.current?.();
+          if (!isGuardianOrbRef.current) {
+            // Mid-tour, this gesture only "counts" on its dedicated step — a stray
+            // swipe-up while a different tooltip is showing shouldn't skip ahead.
+            if (tourRunning && tourRef.current?.current !== GUARDIAN_SWIPE_STEP_INDEX) return;
+            flipGuardianFnRef.current?.();
+            if (tourRunning) tourRef.current?.next();
+          }
           return;
         }
         goToLearnHub();
       }),
-  [gesturesDisabled, goToLearnHub]
+  [flingUpEnabled, goToLearnHub, tourRunning]
 );
 
   const flingDown = useMemo(
@@ -1683,6 +1549,135 @@ const QUICKCALM_BREATH = require('../assets/audio/quickcalm_breath_v1_mastered.m
   // Keep fling gesture refs in sync each render
   flipGuardianFnRef.current = flipToGuardian;
   flipDefaultFnRef.current = flipToDefault;
+
+  // Tour steps live inside the component (rather than module scope) because the
+  // two Guardian steps below close over orb state/refs to gate on a real
+  // gesture instead of just a "Next" tap. flipToGuardian/flipToDefault and
+  // tourRef are stable across renders, so this only needs to build once.
+  // Keeps every tooltip clear of the screen edges — the extra bottom margin
+  // (beyond the safe-area inset) stops it from ever crowding the home indicator.
+  const tourShiftInsets = useSafeAreaInsets();
+  const tourShiftPadding = React.useMemo(() => ({
+    top: 8,
+    left: 8,
+    right: 8,
+    bottom: tourShiftInsets.bottom + 20,
+  }), [tourShiftInsets.bottom]);
+  const HOME_TOUR_STEPS = React.useMemo(() => ([
+    {
+      floatingProps: { middleware: [offset(12), shift({ padding: tourShiftPadding }), flip()], placement: 'bottom' },
+      render: ({ next, stop }: any) => (
+        <TourTooltip
+          title="The Orb"
+          body="Your entry point. Press to begin a daily ritual, take a moment, check the moon phase, or to continue where you left off."
+          stepNum={1}
+          total={8}
+          onNext={next}
+          onStop={stop}
+        />
+      ),
+    },
+    {
+      floatingProps: { middleware: [offset(12), shift({ padding: tourShiftPadding }), flip()], placement: 'bottom' },
+      render: ({ next, stop }: any) => (
+        <TourTooltip
+          title="The Guardians"
+          body="Swipe up on the orb to reveal the Guardian Hall."
+          stepNum={2}
+          total={8}
+          onNext={next}
+          onStop={stop}
+        />
+      ),
+    },
+    {
+      floatingProps: { middleware: [offset(12), shift({ padding: tourShiftPadding }), flip()], placement: 'bottom' },
+      render: ({ next, stop }: any) => (
+        <TourTooltip
+          title="Guardian Hall"
+          body="Tap the orb when it's in its Guardian state to step into where the five Guardians reside."
+          stepNum={3}
+          total={8}
+          onNext={() => {
+            if (isGuardianOrbRef.current) flipDefaultFnRef.current?.();
+            next();
+          }}
+          onStop={stop}
+          onMount={() => {
+            // Copy above only makes sense with a guardian orb on screen — if the
+            // user pressed Next through the swipe step instead of swiping, reveal
+            // it for them so the tap still has something to demonstrate.
+            if (!isGuardianOrbRef.current) flipGuardianFnRef.current?.();
+          }}
+        />
+      ),
+    },
+    {
+      floatingProps: { middleware: [offset(12), shift({ padding: tourShiftPadding })], placement: 'top' },
+      render: ({ next, stop }: any) => (
+        <TourTooltip
+          title="The Garden"
+          body={"Press or swipe right to left for looping psychoacoustic environments."}
+          stepNum={4}
+          total={8}
+          onNext={next}
+          onStop={stop}
+        />
+      ),
+    },
+    {
+      floatingProps: { middleware: [offset(12), shift({ padding: tourShiftPadding })], placement: 'top' },
+      render: ({ next, stop }: any) => (
+        <TourTooltip
+          title="The Chambers"
+          body={"Press or swipe left from right side for guided descent. Structured experiences from beginning to end."}
+          stepNum={5}
+          total={8}
+          onNext={next}
+          onStop={stop}
+        />
+      ),
+    },
+    {
+      floatingProps: { middleware: [offset(12), shift({ padding: tourShiftPadding }), flip()], placement: 'right' },
+      render: ({ next, stop }: any) => (
+        <TourTooltip
+          title="Dream Journal"
+          body="The quill sigil opens your dream journal. Log what you've experienced, set intentions, and track your inner journey."
+          stepNum={6}
+          total={8}
+          onNext={next}
+          onStop={stop}
+        />
+      ),
+    },
+    {
+      floatingProps: { middleware: [offset(12), shift({ padding: tourShiftPadding }), flip()], placement: 'left' },
+      render: ({ next, stop }: any) => (
+        <TourTooltip
+          title="Aeris"
+          body="The orb sigil opens Aeris: your AI guide for reflection, pattern recognition, and deeper understanding of your practice."
+          stepNum={7}
+          total={8}
+          onNext={next}
+          onStop={stop}
+        />
+      ),
+    },
+    {
+      floatingProps: { middleware: [offset(12), shift({ padding: tourShiftPadding }), flip()], placement: 'top' },
+      render: ({ next, stop }: any) => (
+        <TourTooltip
+          title="The Archive"
+          body="Press below for the science and practice behind Inner including lessons, techniques, and deeper context."
+          stepNum={8}
+          total={8}
+          onNext={next}
+          onStop={stop}
+        />
+      ),
+    },
+  ] as unknown as TourStep[]), [tourShiftPadding]);
 
   // --- Threshold Moment (post-chamber / ritual acknowledgment) ---
   const [thresholdLine, setThresholdLine] = React.useState<string | null>(null);
@@ -1859,24 +1854,6 @@ const ORB_TOP =
   // Dedicated nav-tap scale for the Aeris sigil (1 → 1.15 → 1 on press)
   const aerisNavSigilScale = useRef(new Animated.Value(1)).current;
 
-  // Smoothly reduce hum volume as user descends (depth 0->1 maps 0.50 -> 0.35),
-// but keep it dropped when Inner Pulse is active so the heartbeat can be heard.
-useEffect(() => {
-  const listenerId = scrollY.addListener(({ value }) => {
-    // If Inner Pulse is currently active and can be heard,
-    // don't touch the hum volume here.
-    if (innerPulseEnabled && innerPulseUnlocked && isFocused) {
-      return;
-    }
-
-    const d = Math.max(0, Math.min(1, scrollDepthFull > 0 ? value / scrollDepthFull : 0));
-    const vol = HUM_BASE_VOL - 0.10 * d;
-    TrackPlayer.setVolume(vol).catch(() => {});
-  });
-
-  return () => scrollY.removeListener(listenerId);
-}, [scrollY, innerPulseEnabled, innerPulseUnlocked, isFocused, scrollDepthFull]);
-
   // Preload key imagery to avoid first-frame delay
   useEffect(() => {
     Asset.fromModule(SIGIL_JOURNAL).downloadAsync();
@@ -2028,22 +2005,15 @@ useEffect(() => {
           } catch (e) {
             __DEV__ && console.log('[Threshold] home display error', e);
           }
-          if (!cancelled && appStateRef.current === 'active') {
-            await maybeStartHum();
-          }
         } catch (e) {
-          __DEV__ && console.log('Hum load/play error', e);
+          __DEV__ && console.log('Threshold effect error', e);
         }
       })();
 
       return () => {
         cancelled = true;
-        // Pause hum on blur only if it's still the active track (don't interrupt journeys)
-        TrackPlayer.getActiveTrack().then(active => {
-          if (active?.id === HUM_TRACK_ID) TrackPlayer.pause().catch(() => {});
-        }).catch(() => {});
       };
-    }, [maybeStartHum])
+    }, [])
   );
 
   useFocusEffect(
@@ -2055,8 +2025,6 @@ useEffect(() => {
         try {
           const show = await shouldShowDailyMicroRitual();
           if (!cancelled && show) {
-            // fade out Home hum before jumping into the ritual
-            try { await fadeOutHum(); } catch {}
             navigation.navigate('DailyRitual');
           } else if (!cancelled) {
             setDailyChecked(true);
@@ -2151,19 +2119,6 @@ useEffect(() => {
   }, [intentions, topAffOpacity, topAffTranslate, topAffLift]);
 
 
-  // Fade the ambient hum before navigating away (only acts when hum is the active track)
-  const fadeOutHum = useCallback(async () => {
-    try {
-      const active = await TrackPlayer.getActiveTrack();
-      if (active?.id === HUM_TRACK_ID) {
-        await TrackPlayer.setVolume(0);
-        await TrackPlayer.pause();
-      }
-    } catch (e) {
-      __DEV__ && console.log('[Hum] fadeOut error', e);
-    }
-  }, []);
-
   const handleChangeIntentions = useCallback(async () => {
   // Soft tick to confirm the tap
   try {
@@ -2174,16 +2129,12 @@ useEffect(() => {
   setShowSettings(false);
 
   // Tiny delay so the modal has time to dismiss before we move screens
-  setTimeout(async () => {
-    try {
-      await fadeOutHum(); // keep things consistent with other nav
-    } catch {}
-
+  setTimeout(() => {
     // ⬇️ Use whatever route name you actually use for your intentions flow
     // e.g. 'Essence', 'Intentions', 'OnboardingIntentions', etc.
     navigation.navigate('Intention', { fromSettings: true });
   }, 220);
-}, [fadeOutHum, navigation, setShowSettings]);
+}, [navigation, setShowSettings]);
 
   const getLastJourney = async () => {
     try {
@@ -2201,11 +2152,20 @@ useEffect(() => {
 
 const handleOrbTap = async () => {
   __DEV__ && console.log('[HOME] Orb tapped');
-  if (tourRunning) return;
+  if (tourRunning) {
+    // Mid-tour, tapping the revealed Guardian orb teaches the gesture without
+    // actually taking the user to the Guardian screen — it just satisfies the
+    // step and moves the tour along.
+    if (isGuardianOrbRef.current) {
+      try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
+      flipDefaultFnRef.current?.();
+      tourRef.current?.next();
+    }
+    return;
+  }
 
   if (isGuardianOrbRef.current) {
     try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
-    try { await fadeOutHum(); } catch {}
     navigation.navigate('Guardian');
     return;
   }
@@ -2269,17 +2229,17 @@ const handleOrbLongPress = async () => {
 
   const loadResumeInfo = useCallback(async () => {
     try {
-      // Prefer last *content* snapshot (excludes ambient)
+      // Prefer last *content* snapshot
       const rawContent = await AsyncStorage.getItem('player:lastContent'); // { trackId, positionMs, durationMs, chamber? }
       const content = rawContent ? JSON.parse(rawContent) : null;
 
       let base = content;
 
-      // Fallback to generic last snapshot (filter ambient)
+      // Fallback to generic last snapshot
       if (!base) {
-        const rawLast = await AsyncStorage.getItem('player:last'); // may include ambient
+        const rawLast = await AsyncStorage.getItem('player:last');
         const fallback = rawLast ? JSON.parse(rawLast) : null;
-        if (fallback && !isAmbient(fallback.trackId)) base = fallback;
+        if (fallback) base = fallback;
       }
 
       const last = await getLastSession();
@@ -2288,8 +2248,8 @@ const handleOrbLongPress = async () => {
       const id = base?.trackId || (last ? last.id : undefined);
       const chamber = base?.chamber; // session doesn't carry a chamber label
 
-      // If nothing valid or ambient, reset to "My Journey"
-      if (!id || isAmbient(id)) {
+      // If nothing valid, reset to "My Journey"
+      if (!id) {
         setResumeLabel('My Journey');
         setResumeSub('');
         setResumePct(0);
@@ -2336,7 +2296,6 @@ const handleOrbLongPress = async () => {
   const startJourney = async (id: string, chamber?: string) => {
     await saveLastJourney({ id, chamber });              // keep existing fallback for now
     await setLastSession({ type: 'journey', id });       // <-- add this
-    await fadeOutHum();
     navigation.navigate('JourneyPlayer', { id, chamber });
     setShowPicker(false);
   };
@@ -2344,23 +2303,20 @@ const handleOrbLongPress = async () => {
   // Helper to get the best resume target (lastJourney or player:last)
   const getResumeTarget = useCallback(async (): Promise<{ id: string; chamber?: string } | null> => {
     try {
-      // 1) Prefer last *content* (never ambient)
+      // 1) Prefer last *content*
       const rawContent = await AsyncStorage.getItem('player:lastContent');
       const lastContent = rawContent ? JSON.parse(rawContent) : null;
-      if (lastContent?.trackId && !isAmbient(lastContent.trackId)) {
+      if (lastContent?.trackId) {
         return { id: lastContent.trackId, chamber: lastContent.chamber };
       }
 
       // 2) Fallbacks
-      const rawLast = await AsyncStorage.getItem('player:last'); // may be ambient; filter
+      const rawLast = await AsyncStorage.getItem('player:last');
       const playerLast = rawLast ? JSON.parse(rawLast) : null;
       const lastJourney = await getLastJourney();
 
       let id: string | undefined = playerLast?.trackId || lastJourney?.id;
       let chamber: string | undefined = lastJourney?.chamber || playerLast?.chamber;
-
-      // Filter ambient
-      if (isAmbient(id)) id = undefined;
 
       // Map from chamber label if needed
       if (!id && chamber) {
@@ -2379,7 +2335,6 @@ const handleOrbLongPress = async () => {
   try {
     const last = await getLastSession();
     if (last) {
-      await fadeOutHum();
       if (last.type === 'journey') {
         navigation.navigate('JourneyPlayer', { id: last.id });
       } else {
@@ -2387,7 +2342,6 @@ const handleOrbLongPress = async () => {
       }
     } else {
   // no last session → begin at Outer Sanctum by default
-  await fadeOutHum();
   navigation.navigate('JourneyPlayer', { id: 'outer_sanctum', chamber: 'Chamber 1' });
 }
   } finally {
@@ -2398,24 +2352,21 @@ const handleOrbLongPress = async () => {
 // --- Ritual quick-start handlers ---
 const openPointZero = useCallback(async () => {
   try { await Haptics.selectionAsync(); } catch {}
-  await fadeOutHum();
   navigation.navigate('PointZero');
   setShowPicker(false);
 }, [navigation]);
 
 const openCleanSlate = useCallback(async () => {
   try { await Haptics.selectionAsync(); } catch {}
-  await fadeOutHum();
   navigation.navigate('CleanSlate');
   setShowPicker(false);
-}, [fadeOutHum, navigation]);
+}, [navigation]);
 
 const openInnerFlame = useCallback(async () => {
   try { await Haptics.selectionAsync(); } catch {}
-  await fadeOutHum();
   navigation.navigate('InnerFlame');
   setShowPicker(false);
-}, [fadeOutHum, navigation]);
+}, [navigation]);
 
   // Journey Threading – surface last step inside Ritual Modal
   const { suggestion: threadSuggestion } = useThreadSuggestion();
@@ -2430,7 +2381,6 @@ const openInnerFlame = useCallback(async () => {
     if (!targetType || !targetId) return;
 
     try { await Haptics.selectionAsync(); } catch {}
-    try { await fadeOutHum(); } catch {}
 
     if (targetType === 'ritual') {
       if (targetId === 'pointZero') {
@@ -2450,7 +2400,7 @@ const openInnerFlame = useCallback(async () => {
     }
 
     setShowPicker(false);
-  }, [threadSuggestion, fadeOutHum, navigation]);
+  }, [threadSuggestion, navigation]);
 
   const threadLine = React.useMemo(() => {
     if (!threadSuggestion) return '';
@@ -2510,6 +2460,9 @@ const openInnerFlame = useCallback(async () => {
     onBackdropPress="continue"
     onStop={() => {
       setTourRunning(false);
+      // Skip can land while the orb is mid-demonstration (guardian state) —
+      // leave the home screen the way the user found it.
+      if (isGuardianOrbRef.current) flipDefaultFnRef.current?.();
       markHomeHelperSeen();
     }}
     nativeDriver={false}
@@ -3070,9 +3023,10 @@ const openInnerFlame = useCallback(async () => {
         </Animated.View>
 
 
-        {/* Orb spotlight beacon — sized to visual orb bounds, not the hit area */}
+        {/* Orb spotlight beacon — sized to visual orb bounds, not the hit area.
+            Covers steps 0-2: the intro, the swipe-to-reveal step, and the tap step. */}
         <AttachStep
-          index={0}
+          index={[0, 1, 2]}
           style={{ position: 'absolute', left: ORB_LEFT, top: ORB_TOP, width: ORB_WIDTH, height: ORB_WIDTH }}
         >
           <View pointerEvents="none" style={{ width: ORB_WIDTH, height: ORB_WIDTH }} />
@@ -3080,7 +3034,7 @@ const openInnerFlame = useCallback(async () => {
 
         {/* Journal sigil spotlight target */}
         <AttachStep
-          index={3}
+          index={5}
           style={{ position: 'absolute', left: SIGIL_LEFT_LEFT, top: SIGIL_LEFT_TOP, width: SIGIL_SIZE, height: SIGIL_SIZE }}
         >
           <View pointerEvents="none" style={{ width: SIGIL_SIZE, height: SIGIL_SIZE }} />
@@ -3088,7 +3042,7 @@ const openInnerFlame = useCallback(async () => {
 
         {/* Aeris sigil spotlight target */}
         <AttachStep
-          index={4}
+          index={6}
           style={{ position: 'absolute', left: SIGIL_RIGHT_LEFT, top: SIGIL_RIGHT_TOP, width: SIGIL_SIZE, height: SIGIL_SIZE }}
         >
           <View pointerEvents="none" style={{ width: SIGIL_SIZE, height: SIGIL_SIZE }} />
@@ -3329,7 +3283,17 @@ const openInnerFlame = useCallback(async () => {
                   Animated.timing(portalPress, { toValue: -0.625, duration: 300, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
                   Animated.timing(portalPress, { toValue: 0, duration: 420, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
                 ]),
-              ]).start(() => {
+              ]).start(async () => {
+                const [hasAccess, limitReached] = await Promise.all([
+                  hasInnerAccess(),
+                  isAerisLimitReached(),
+                ]);
+                if (!hasAccess && limitReached) {
+                  safePresentPaywall(() => {
+                    try { navigation.navigate('Aeris'); } catch {}
+                  }, 'aeris');
+                  return;
+                }
                 try { navigation.navigate('Aeris'); } catch {}
               });
             }}
@@ -3412,7 +3376,6 @@ const openInnerFlame = useCallback(async () => {
                     try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
                     const last = await getLastSession();
                     if (last) {
-                        await fadeOutHum();
                         if (last.type === 'journey') {
                             navigation.navigate('JourneyPlayer', { id: last.id });
                     } else {
@@ -3420,7 +3383,6 @@ const openInnerFlame = useCallback(async () => {
                         }
                     } else {
                     // no last session → let user choose their path
-                    await fadeOutHum();
                     setShowPicker(true);
                     }
                 } finally {
@@ -3516,13 +3478,13 @@ const openInnerFlame = useCallback(async () => {
         {/* Left: Soundscapes */}
         {/* Spotlight targets for left/right nav labels */}
         <AttachStep
-          index={1}
+          index={3}
           style={{ position: 'absolute', left: 0, top: '53%', width: 60, height: 200 }}
         >
           <View pointerEvents="none" style={{ width: 60, height: 210 }} />
         </AttachStep>
         <AttachStep
-          index={2}
+          index={4}
           style={{ position: 'absolute', right: 0, top: '53%', width: 60, height: 200 }}
         >
           <View pointerEvents="none" style={{ width: 20, height: 130 }} />
@@ -3560,7 +3522,7 @@ const openInnerFlame = useCallback(async () => {
 
         {/* Bottom: The Archives */}
         <AttachStep
-          index={5}
+          index={7}
           style={{ position: 'absolute', bottom: 0, alignSelf: 'center', width: '50%', elevation: 101 }}
         >
           <Pressable
@@ -3585,7 +3547,6 @@ const openInnerFlame = useCallback(async () => {
         onReflect={() => {
           setShowLunarModal(false);
           try { Haptics.selectionAsync(); } catch {}
-          try { fadeOutHum(); } catch {}
           navigation.navigate('Journal');
         }}
       />

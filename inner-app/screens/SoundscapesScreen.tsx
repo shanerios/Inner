@@ -102,16 +102,17 @@ const LOCK_ICON = require('../assets/images/locked_gate.png');
 // Lock pulse (slow "breath")
 const LOCK_PULSE_MS = 2800;
 
-// Category definitions with new Garden names mapping to existing data keys
+// Category definitions with new Garden names mapping to existing data keys.
+// "Tuning" merges the old Resonance (tones) and Natural (noise) tabs into one,
+// kept last so the pill row stays as short as possible.
 const GARDEN_CATEGORIES = [
   { key: 'stillness' as const, label: 'Still Water' },
   { key: 'clarity'   as const, label: 'Clear Air'  },
   { key: 'renewal'   as const, label: 'New Growth'  },
   { key: 'explorers_grove' as const, label: 'Explorers' },
   { key: 'deeper'    as const, label: 'Root Deep'  },
-  { key: 'tones'     as const, label: 'Resonance'   },
-  { key: 'noise'     as const, label: 'Natural'     },
   { key: 'sanctuary' as const, label: 'Sanctuary'   },
+  { key: 'tuning'    as const, label: 'Tuning'      },
 ] as const;
 
 type CategoryKey = typeof GARDEN_CATEGORIES[number]['key'];
@@ -123,10 +124,15 @@ const CATEGORY_LABELS: Record<CategoryKey, string> = {
   renewal:   'New Growth',
   explorers_grove: "Explorer's Grove",
   deeper:    'Root Deep',
-  tones:     'Resonance',
-  noise:     'Natural',
   sanctuary: 'Sanctuary',
+  tuning:    'Tuning',
 };
+
+// Sub-sections within the merged "Tuning" tab, in display order.
+const TUNING_SECTIONS = [
+  { key: 'tones' as const, label: 'Resonance' },
+  { key: 'noise' as const, label: 'Natural'    },
+] as const;
 
 function ExplorersGroveAmbient({ visible }: { visible: boolean }) {
   if (!visible) return null;
@@ -342,20 +348,27 @@ export default function SoundscapesScreen() {
 
   const tracks = React.useMemo<Track[]>(() => {
     if (!activeCategory) return [];
+    if (activeCategory === 'tuning') {
+      return TRACKS.filter(t => t.category === 'tones' || t.category === 'noise');
+    }
     return TRACKS.filter(t => t.category === activeCategory);
   }, [activeCategory]);
 
-  const specialItems = React.useMemo(() => {
-    if (activeCategory === 'noise' && tracks.length === 0) {
-      return [
-        { id: 'noise_white', title: 'White Noise' },
-        { id: 'noise_pink',  title: 'Pink Noise'  },
-        { id: 'noise_brown', title: 'Brown Noise' },
-        { id: 'noise_grey',  title: 'Grey Noise'  },
-      ];
-    }
-    return [];
-  }, [activeCategory, tracks.length]);
+  // "Tuning" holds two sub-sections, kept visually separate: Resonance (tones) and Natural (noise).
+  const tuningResonanceTracks = React.useMemo<Track[]>(
+    () => TRACKS.filter(t => t.category === 'tones'),
+    []
+  );
+  const tuningNaturalTracks = React.useMemo(() => {
+    const noiseTracks = TRACKS.filter(t => t.category === 'noise');
+    if (noiseTracks.length > 0) return noiseTracks;
+    return [
+      { id: 'noise_white', title: 'White Noise' },
+      { id: 'noise_pink',  title: 'Pink Noise'  },
+      { id: 'noise_brown', title: 'Brown Noise' },
+      { id: 'noise_grey',  title: 'Grey Noise'  },
+    ];
+  }, []);
 
   // Soundscapes Info modal state
   const [showInfo, setShowInfo] = React.useState(false);
@@ -370,9 +383,10 @@ export default function SoundscapesScreen() {
   const normalizedQuery = searchQuery.trim().toLowerCase();
 
   const baseTracks = React.useMemo(() => {
-    if (activeCategory) return specialItems.length ? specialItems : tracks;
+    if (activeCategory === 'tuning') return [...tuningResonanceTracks, ...tuningNaturalTracks];
+    if (activeCategory) return tracks;
     return TRACKS.filter((t) => (t as any).kind === 'soundscape');
-  }, [activeCategory, specialItems, tracks]);
+  }, [activeCategory, tracks, tuningResonanceTracks, tuningNaturalTracks]);
 
   const filteredTracks = React.useMemo(() => {
     if (!normalizedQuery) return baseTracks;
@@ -391,6 +405,28 @@ export default function SoundscapesScreen() {
   }, [normalizedQuery, baseTracks]);
 
   const [selectedTrack, setSelectedTrack] = React.useState<any | null>(null);
+
+  const renderTrackRows = React.useCallback((items: any[]) => items.map((item: any, idx: number) => {
+    const policyTrack: any = {
+      id: item.id,
+      category: (item as any).category,
+      isPremium: !!(item as any).isPremium,
+      kind: (item as any).kind,
+    };
+    const isLocked = isLockedTrack(policyTrack, hasContinuing);
+    return (
+      <GardenTrackRow
+        key={item.id}
+        item={item}
+        navigation={navigation}
+        isLocked={isLocked}
+        onLockedPress={handleLockedPress}
+        onStart={handleSoundscapeStart}
+        onLongPress={setSelectedTrack}
+        isLast={idx === items.length - 1}
+      />
+    );
+  }), [navigation, hasContinuing, handleLockedPress, handleSoundscapeStart]);
 
   // Gesture: swipe LEFT → Home
   const SWIPE_THRESHOLD = Math.max(36, SCREEN_W * 0.08);
@@ -666,21 +702,23 @@ export default function SoundscapesScreen() {
           {/* Track list */}
           {showTrackList && (
             <View style={{ marginTop: verticalScale(8) }}>
-              {/* Section label */}
-              <Text
-                style={{
-                  fontFamily: 'Inter-ExtraLight',
-                  fontSize: scale(11),
-                  letterSpacing: scale(1.8),
-                  textTransform: 'uppercase',
-                  color: 'rgba(237,232,250,0.45)',
-                  marginBottom: verticalScale(4),
-                }}
-              >
-                {!activeCategory
-                  ? 'Search results'
-                  : CATEGORY_LABELS[activeCategory]}
-              </Text>
+              {/* Section label — omitted for Tuning's browse view, which uses its own two sub-labels instead */}
+              {!(activeCategory === 'tuning' && !normalizedQuery) && (
+                <Text
+                  style={{
+                    fontFamily: 'Inter-ExtraLight',
+                    fontSize: scale(11),
+                    letterSpacing: scale(1.8),
+                    textTransform: 'uppercase',
+                    color: 'rgba(237,232,250,0.45)',
+                    marginBottom: verticalScale(4),
+                  }}
+                >
+                  {!activeCategory
+                    ? 'Search results'
+                    : CATEGORY_LABELS[activeCategory]}
+                </Text>
+              )}
 
               <ScrollView
                 style={{ maxHeight: windowHeight * 0.45 }}
@@ -688,7 +726,41 @@ export default function SoundscapesScreen() {
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
               >
-                {filteredTracks.length === 0 ? (
+                {activeCategory === 'tuning' && !normalizedQuery ? (
+                  TUNING_SECTIONS.map(({ key: sectionKey, label: sectionLabel }, sectionIdx) => {
+                    const sectionTracks = sectionKey === 'tones' ? tuningResonanceTracks : tuningNaturalTracks;
+                    return (
+                      <View key={sectionKey} style={sectionIdx > 0 ? { marginTop: verticalScale(16) } : undefined}>
+                        <Text
+                          style={{
+                            fontFamily: 'Inter-ExtraLight',
+                            fontSize: scale(11),
+                            letterSpacing: scale(1.8),
+                            textTransform: 'uppercase',
+                            color: 'rgba(237,232,250,0.45)',
+                            marginBottom: verticalScale(4),
+                          }}
+                        >
+                          {sectionLabel}
+                        </Text>
+                        {sectionTracks.length === 0 ? (
+                          <Text
+                            style={[Body.subtle, {
+                              color: 'rgba(237,232,250,0.7)',
+                              fontFamily: 'Inter-ExtraLight',
+                              fontSize: scale(12),
+                              paddingTop: verticalScale(4),
+                            }]}
+                          >
+                            No soundscapes available yet.
+                          </Text>
+                        ) : (
+                          renderTrackRows(sectionTracks)
+                        )}
+                      </View>
+                    );
+                  })
+                ) : filteredTracks.length === 0 ? (
                   <Text
                     style={[Body.subtle, {
                       color: 'rgba(237,232,250,0.7)',
@@ -700,27 +772,7 @@ export default function SoundscapesScreen() {
                     {searchQuery ? 'No soundscapes found for your search.' : 'No soundscapes available yet.'}
                   </Text>
                 ) : (
-                  filteredTracks.map((item: any, idx: number) => {
-                    const policyTrack: any = {
-                      id: item.id,
-                      category: (item as any).category,
-                      isPremium: !!(item as any).isPremium,
-                      kind: (item as any).kind,
-                    };
-                    const isLocked = isLockedTrack(policyTrack, hasContinuing);
-                    return (
-                      <GardenTrackRow
-                        key={item.id}
-                        item={item}
-                        navigation={navigation}
-                        isLocked={isLocked}
-                        onLockedPress={handleLockedPress}
-                        onStart={handleSoundscapeStart}
-                        onLongPress={setSelectedTrack}
-                        isLast={idx === filteredTracks.length - 1}
-                      />
-                    );
-                  })
+                  renderTrackRows(filteredTracks)
                 )}
               </ScrollView>
             </View>
