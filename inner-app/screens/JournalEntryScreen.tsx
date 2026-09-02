@@ -13,6 +13,9 @@ import { addReviewScore, REVIEW_SCORE_THRESHOLD } from '../hooks/useReviewScore'
 import { useBreath } from '../core/BreathProvider';
 import SoftAccountPrompt from '../components/onboarding/SoftAccountPrompt';
 import { hasSeenAccountPrompt, markAccountPromptSeen } from '../core/onboardingPrefs';
+import { hasInnerAccess } from '../src/core/subscriptions/revenueCat';
+import { safePresentPaywall } from '../src/core/subscriptions/safePresentPaywall';
+import { isAerisLimitReached } from '../src/core/aeris/aerisUsage';
 import { Typography, Body as _Body } from '../core/typography';
 const Body = _Body ?? ({ regular: { ...Typography.body }, subtle: { ...Typography.caption } } as const);
 
@@ -499,6 +502,17 @@ export default function JournalEntryScreen({ route, navigation }: Props) {
               posthog.capture('aeris_journal_entry_analyzed', {
                 entry_id: entry?.id ?? id,
               });
+
+              const [hasAccess, limitReached] = await Promise.all([
+                hasInnerAccess(),
+                isAerisLimitReached(),
+              ]);
+              if (!hasAccess && limitReached) {
+                safePresentPaywall(() => {
+                  navigation.navigate('Aeris', { dreamContext });
+                }, 'aeris');
+                return;
+              }
               navigation.navigate('Aeris', { dreamContext });
             }}
             activeOpacity={0.7}

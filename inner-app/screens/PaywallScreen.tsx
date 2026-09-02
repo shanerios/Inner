@@ -8,6 +8,7 @@ import {
   Linking,
   ActivityIndicator,
   Dimensions,
+  Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useVideoPlayer, VideoView } from '../core/memorySafeVideo';
@@ -88,6 +89,7 @@ const HEADLINES: Record<PaywallTrigger, string> = {
   garden:  'The field goes further.',
   settings: 'Continue with Inner',
   onboarding: 'Your first descent awaits.',
+  aeris: 'Aeris, unlimited.',
 };
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -319,7 +321,11 @@ export default function PaywallScreen() {
           navigation.goBack();
         }
       } else {
-        setError('No active subscription found for this Apple ID.');
+        setError(
+          Platform.OS === 'android'
+            ? 'No previous purchase was found for this Google Play account.'
+            : 'No previous purchase was found for this Apple ID.'
+        );
       }
     } catch (e: any) {
       setError(toUserFacingPaywallError(e));

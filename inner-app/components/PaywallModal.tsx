@@ -320,7 +320,11 @@ export default function PaywallModal({
         onPurchaseSuccess?.();
         onClose();
       } else {
-        setError('No active subscription found for this Apple ID.');
+        setError(
+          Platform.OS === 'android'
+            ? 'No previous purchase was found for this Google Play account.'
+            : 'No previous purchase was found for this Apple ID.'
+        );
       }
     } catch (e: any) {
       setError(toUserFacingPaywallError(e));

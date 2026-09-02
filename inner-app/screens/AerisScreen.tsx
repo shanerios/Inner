@@ -20,6 +20,12 @@ import * as Haptics from 'expo-haptics';
 import { usePostHog } from 'posthog-react-native';
 import Purchases from 'react-native-purchases';
 import { safePresentPaywall } from '../src/core/subscriptions/safePresentPaywall';
+import { hasInnerAccess } from '../src/core/subscriptions/revenueCat';
+import {
+  isAerisLimitReached,
+  recordAerisUsageToday,
+  getAerisUserId,
+} from '../src/core/aeris/aerisUsage';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -42,6 +48,22 @@ type DisplayMessage = {
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const AERIS_API = 'https://aeris.getinner.app/api/aeris';
+
+// Thrown when the backend rejects a request for having hit the free day
+// limit (server-side gate, independent of — and a backstop for — the
+// client-side check in sendMessage/the dream-context effect below).
+class AerisGateError extends Error {}
+
+// Reads the {reason} the backend sends on a 402 so callers can tell a real
+// gate rejection apart from any other non-2xx response.
+async function readAerisGateReason(res: Response): Promise<string | undefined> {
+  try {
+    const body = await res.json();
+    return body?.reason;
+  } catch {
+    return undefined;
+  }
+}
 
 const INITIAL_MESSAGE: Message = {
   id: 'aeris-init',
@@ -291,6 +313,11 @@ export default function AerisScreen({ route }: { route: any }) {
   const returnOpacity = useRef(new Animated.Value(0)).current;
   const historyLoaded = useRef(false);
   const segmentTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  // Stable RevenueCat identifier forwarded with every Aeris request — lets the
+  // aeris.getinner.app backend key its own usage tracking off the same id the
+  // client already uses for entitlement checks.
+  const aerisUserIdRef = useRef<string | null>(null);
+  useEffect(() => { getAerisUserId().then((id) => { aerisUserIdRef.current = id; }); }, []);
   const navigationRef = useRef(navigation);
   useEffect(() => { navigationRef.current = navigation; }, [navigation]);
 
@@ -390,6 +417,12 @@ export default function AerisScreen({ route }: { route: any }) {
       // Auto-send dream context injected from JournalEntryScreen
       if (!dreamContext) return;
 
+      // Defense in depth — JournalEntryScreen already gates the tap that gets
+      // here, but skip the auto-send rather than surprise the user with a
+      // paywall mid-effect if that check was somehow bypassed.
+      const [hasAccess, limitReached] = await Promise.all([hasInnerAccess(), isAerisLimitReached()]);
+      if (!hasAccess && limitReached) return;
+
       const storedName = await AsyncStorage.getItem('profileName').catch(() => null);
       const namePrefix = storedName
         ? `[The person I am speaking with is named ${storedName}.]\n\n`
@@ -405,6 +438,7 @@ export default function AerisScreen({ route }: { route: any }) {
       setMessages(nextHistory);
       setDisplayMessages((prev) => [...prev, toDisplayMessage(dreamUserMsg, true)]);
       setLoading(true);
+      if (!hasAccess) recordAerisUsageToday().catch(() => {});
 
       try {
         const apiMessages = nextHistory.map((m, i) => {
@@ -419,9 +453,14 @@ export default function AerisScreen({ route }: { route: any }) {
         const res = await fetch(AERIS_API, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ messages: apiMessages }),
+          body: JSON.stringify({ messages: apiMessages, userId: aerisUserIdRef.current }),
         });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) {
+          if (res.status === 402 && (await readAerisGateReason(res)) === 'free_limit_reached') {
+            throw new AerisGateError();
+          }
+          throw new Error(`HTTP ${res.status}`);
+        }
         const data = await res.json();
 
         const aerisId = (Date.now() + 1).toString();
@@ -442,7 +481,11 @@ export default function AerisScreen({ route }: { route: any }) {
           }, (i + 1) * 600);
           segmentTimersRef.current.push(timer);
         });
-      } catch {
+      } catch (e) {
+        if (e instanceof AerisGateError) {
+          safePresentPaywall(undefined, 'aeris');
+          return;
+        }
         const errId = (Date.now() + 1).toString();
         const errMsg: Message = {
           id: errId,
@@ -552,6 +595,16 @@ export default function AerisScreen({ route }: { route: any }) {
     const text = input.trim();
     if (!text || loading) return;
 
+    // Defense in depth — HomeScreen/JournalEntryScreen already gate the tap
+    // that opens Aeris, but re-check here since this is the actual point of
+    // content access (e.g. a day could tip over the limit mid-conversation
+    // if the app was left open past midnight).
+    const [hasAccess, limitReached] = await Promise.all([hasInnerAccess(), isAerisLimitReached()]);
+    if (!hasAccess && limitReached) {
+      safePresentPaywall(undefined, 'aeris');
+      return;
+    }
+
     try { await Haptics.selectionAsync(); } catch {}
 
     const userMsg: Message = {
@@ -570,15 +623,21 @@ export default function AerisScreen({ route }: { route: any }) {
     setMessages(nextHistory);
     setDisplayMessages((prev) => [...prev, toDisplayMessage(userMsg, true)]);
     setLoading(true);
+    if (!hasAccess) recordAerisUsageToday().catch(() => {});
 
     try {
       const res = await fetch(AERIS_API, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: buildApiMessages(nextHistory) }),
+        body: JSON.stringify({ messages: buildApiMessages(nextHistory), userId: aerisUserIdRef.current }),
       });
 
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        if (res.status === 402 && (await readAerisGateReason(res)) === 'free_limit_reached') {
+          throw new AerisGateError();
+        }
+        throw new Error(`HTTP ${res.status}`);
+      }
       const data = await res.json();
 
       const aerisId = (Date.now() + 1).toString();
@@ -613,7 +672,15 @@ export default function AerisScreen({ route }: { route: any }) {
         }, (i + 1) * 600);
         segmentTimersRef.current.push(timer);
       });
-    } catch {
+    } catch (e) {
+      if (e instanceof AerisGateError) {
+        // Restore the drafted text — this rejection happens server-side, after
+        // input has already been cleared, so give it back rather than making
+        // the user retype it if they subscribe and come back to send it.
+        setInput(text);
+        safePresentPaywall(undefined, 'aeris');
+        return;
+      }
       const errId = (Date.now() + 1).toString();
       const errMsg: Message = {
         id: errId,

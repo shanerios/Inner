@@ -11,7 +11,7 @@
 
 import { navigationRef } from '../../navigation/navigationRef';
 
-export type PaywallTrigger = 'chamber' | 'garden' | 'settings' | 'onboarding';
+export type PaywallTrigger = 'chamber' | 'garden' | 'settings' | 'onboarding' | 'aeris';
 
 // ── Pending callback store ───────────────────────────────────────────────────
 // Since React Navigation params can't carry functions, we stash callbacks here
