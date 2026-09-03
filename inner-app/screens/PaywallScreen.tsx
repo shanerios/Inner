@@ -713,7 +713,7 @@ const styles = StyleSheet.create({
   },
   maybeLaterText: {
     fontSize: 13,
-    color: 'rgba(255,255,255,0.4)',
+    color: 'rgba(255,255,255,0.7)',
   },
 
   // Footer
@@ -734,7 +734,7 @@ const styles = StyleSheet.create({
   },
   legalText: {
     fontSize: 11,
-    color: 'rgba(255,255,255,0.3)',
+    color: 'rgba(255,255,255,0.5)',
     textAlign: 'center',
     lineHeight: 16,
   },
