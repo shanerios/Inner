@@ -2177,8 +2177,7 @@ const handleOrbTap = async () => {
     __DEV__ && console.log('[HOME] Haptics error on orb tap:', e);
   }
 
-  // Open the orb menu (ritual modal)
-  setShowPicker(true);
+  navigation.navigate('LucidJourneys');
 };
 
 // Track last orb tap + pending timer for Quick Calm double-tap detection

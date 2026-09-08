@@ -16,7 +16,6 @@ import TrackPlayer, {
   State,
   Event,
   IOSCategory,
-  IOSCategoryOptions,
   RepeatMode,
 } from 'react-native-track-player';
 import { Ionicons } from '@expo/vector-icons';
@@ -103,14 +102,10 @@ export default function GuardianPlayerScreen({ route, navigation }: any) {
       try {
         try {
           await TrackPlayer.setupPlayer({
-            waitForBuffer: true,
-            autoHandleInterruptions: true,
-            iosCategory: IOSCategory.Playback,
-            iosCategoryOptions: [
-              IOSCategoryOptions.AllowBluetooth,
-              IOSCategoryOptions.AllowBluetoothA2DP,
-            ],
-          });
+          waitForBuffer: true,
+          autoHandleInterruptions: true,
+          iosCategory: IOSCategory.Playback,
+        });
         } catch (e: any) {
           if (!String(e).toLowerCase().includes('already')) throw e;
         }

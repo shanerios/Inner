@@ -217,3 +217,78 @@ export async function cancelReengagementNotification(): Promise<void> {
     }
   } catch {}
 }
+
+// ── Lucidity cue reactivation ────────────────────────────────────────────────
+//
+// The Lucid Signal journey trains the same fixed tone bundled here as
+// "lucidity_cue.wav" (see app.json's expo-notifications plugin config) while
+// the user is awake. There's no way to detect REM sleep on-device, so instead
+// of one precisely-timed cue this schedules a few notifications at the
+// offsets published home-use studies used: fired later in the night, where
+// REM windows are longer and more frequent, at decreasing intervals to give
+// several independent chances of landing inside one.
+export const LUCIDITY_CUE_NOTIFICATION_TYPE = 'lucidityCue';
+const LUCIDITY_CUE_NOTIFICATION_IDS_KEY = 'lucidityCueNotificationIds';
+const LUCIDITY_CUE_OFFSETS_MS = [4.5, 6, 7.5].map(hours => hours * 60 * 60 * 1000);
+// Android notification channels are immutable once created — a channel's
+// sound can't be changed later, so the cue needs its own channel rather than
+// sharing the app's default one (which has no custom sound configured).
+const LUCIDITY_CUE_CHANNEL_ID = 'lucidity-cue';
+
+/**
+ * Schedules the reactivation cues relative to `sleepOnsetAtMs` (typically the
+ * moment the Lucid Signal training practice finishes). Cancels any cues from
+ * a previous night first. Returns false if notification permission is denied.
+ */
+export async function scheduleLucidityCueNotifications(sleepOnsetAtMs: number): Promise<boolean> {
+  try {
+    const granted = await requestNotificationPermission();
+    if (!granted) return false;
+
+    await cancelLucidityCueNotifications();
+    await Notifications.setNotificationChannelAsync(LUCIDITY_CUE_CHANNEL_ID, {
+      name: 'Lucidity Cue',
+      importance: Notifications.AndroidImportance.HIGH,
+      sound: 'lucidity_cue.wav',
+    });
+
+    const now = Date.now();
+    const ids = await Promise.all(
+      LUCIDITY_CUE_OFFSETS_MS
+        .map(offset => sleepOnsetAtMs + offset)
+        .filter(fireAt => fireAt > now)
+        .map(fireAt => Notifications.scheduleNotificationAsync({
+          content: {
+            title: 'The Signal',
+            body: 'This is the tone. You are dreaming.',
+            sound: 'lucidity_cue.wav',
+            data: { type: LUCIDITY_CUE_NOTIFICATION_TYPE },
+          },
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.DATE,
+            date: new Date(fireAt),
+            channelId: LUCIDITY_CUE_CHANNEL_ID,
+          },
+        }))
+    );
+
+    await AsyncStorage.setItem(LUCIDITY_CUE_NOTIFICATION_IDS_KEY, JSON.stringify(ids));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Cancels any pending reactivation cues — call once the user has clearly
+ * woken (e.g. they tapped one of the cue notifications), so a light sleeper
+ * isn't paged again later the same night.
+ */
+export async function cancelLucidityCueNotifications(): Promise<void> {
+  try {
+    const raw = await AsyncStorage.getItem(LUCIDITY_CUE_NOTIFICATION_IDS_KEY);
+    const ids: string[] = raw ? JSON.parse(raw) : [];
+    await Promise.all(ids.map(id => Notifications.cancelScheduledNotificationAsync(id).catch(() => {})));
+    await AsyncStorage.removeItem(LUCIDITY_CUE_NOTIFICATION_IDS_KEY);
+  } catch {}
+}

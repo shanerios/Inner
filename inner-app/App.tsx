@@ -20,6 +20,10 @@ import SoundscapesScreen from "./screens/SoundscapesScreen";
 import { useFonts } from "expo-font";
 import { StatusBar } from 'expo-status-bar';
 import JourneyPlayer from './screens/JourneyPlayer';
+import LucidJourneysScreen from './screens/LucidJourneysScreen';
+import LucidJourneyPlayerScreen from './screens/LucidJourneyPlayerScreen';
+import CreateLucidJourneyScreen from './screens/CreateLucidJourneyScreen';
+import LiveMixScreen from './screens/LiveMixScreen';
 import LearnHub from './learn/screens/LearnHub';
 import LessonList from './learn/screens/LessonList';
 import LessonReader from './learn/screens/LessonReader';
@@ -41,7 +45,7 @@ import * as Notifications from 'expo-notifications';
 import { InteractionManager, AppState, Easing } from 'react-native';
 // import NetInfo from '@react-native-community/netinfo';
 import { initAudioOnce } from './core/initAudio';
-import { scheduleReengagementNotification } from './utils/notifications';
+import { cancelLucidityCueNotifications, LUCIDITY_CUE_NOTIFICATION_TYPE, scheduleReengagementNotification } from './utils/notifications';
 import { createEntry } from './core/journalRepo';
 import { initChottuLinkOnce } from './src/core/deeplinking/chottuLink';
 // import { TRACKS, getTrackUrl } from './data/tracks';
@@ -118,7 +122,11 @@ type RootStackParamList = {
   Chambers: undefined;
   Soundscapes: { category?: string; showExplorerWelcome?: boolean } | undefined;
   JourneyPicker: undefined;
-  JourneyPlayer: { trackId?: string; chamber?: string } | undefined;
+  LucidJourneys: undefined;
+  CreateLucidJourney: undefined;
+  LiveMix: undefined;
+  LucidJourneyPlayer: { journeyId?: string; journey?: import('./core/audio').FactoryAudioJourney };
+  JourneyPlayer: { trackId?: string; chamber?: string; proceduralJourneyId?: string; openLiveMix?: boolean } | undefined;
   Glossary: { trackId: 'lucid' | 'obe' };
   Journal: undefined;
   JournalEntry: { id: string; isNew?: boolean };
@@ -203,6 +211,12 @@ async function handleNotificationResponse(response: Notifications.NotificationRe
       });
     } catch {}
   } else if (type === 'reengagement') {
+    // @ts-ignore
+    navigationRef.reset({ index: 0, routes: [{ name: 'Home' }] });
+  } else if (type === LUCIDITY_CUE_NOTIFICATION_TYPE) {
+    // Tapping the cue means they're awake and looking at the phone — cancel
+    // any later cues so the rest of the night isn't interrupted again.
+    void cancelLucidityCueNotifications();
     // @ts-ignore
     navigationRef.reset({ index: 0, routes: [{ name: 'Home' }] });
   }
@@ -414,6 +428,10 @@ export default Sentry.wrap(function App() {
                 <Stack.Screen name="Chambers" component={ChambersScreen} options={{ headerShown: false }} />
                 <Stack.Screen name="Soundscapes" component={SoundscapesScreen} options={{ headerShown: false }} />
                 <Stack.Screen name="JourneyPicker" component={JourneyPicker} />
+                <Stack.Screen name="LucidJourneys" component={LucidJourneysScreen} options={{ headerShown: false }} />
+                <Stack.Screen name="CreateLucidJourney" component={CreateLucidJourneyScreen} options={{ headerShown: false }} />
+                <Stack.Screen name="LiveMix" component={LiveMixScreen} options={{ headerShown: false }} />
+                <Stack.Screen name="LucidJourneyPlayer" component={LucidJourneyPlayerScreen} options={{ headerShown: false }} />
                 <Stack.Screen name="JourneyPlayer" component={JourneyPlayer} options={{ headerShown: false, presentation: 'transparentModal' }} />
                 <Stack.Screen name="Glossary" component={require('./learn/screens/GlossaryScreen').default} options={{ headerShown: false }} />
                 <Stack.Screen

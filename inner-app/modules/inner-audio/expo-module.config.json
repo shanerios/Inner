@@ -1,0 +1,5 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": { "modules": ["InnerAudioModule"] },
+  "android": { "modules": ["expo.modules.inneraudio.InnerAudioModule"] }
+}

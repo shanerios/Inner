@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import SleepIcon from '../assets/images/sleep.svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Slider from '@react-native-community/slider';
-import TrackPlayer, { RepeatMode, State, Event, Capability, IOSCategory, IOSCategoryOptions } from 'react-native-track-player';
+import TrackPlayer, { RepeatMode, State, Event, Capability, IOSCategory } from 'react-native-track-player';
 import Purchases from 'react-native-purchases';
 import { Asset } from 'expo-asset';
 import * as Haptics from 'expo-haptics';
@@ -14,6 +14,7 @@ import { useVideoPlayer, VideoView } from '../core/memorySafeVideo';
 import { sanitizeResumePosition, shouldCacheBeforePlayback } from '../core/mediaPolicy';
 import OrbPortal from '../components/OrbPortal';
 import AuraOverlay from '../components/AuraOverlay';
+import ProceduralMixerPanel from '../components/ProceduralMixerPanel';
 import { TRACKS, TRACK_INDEX, getTrackUrl, getPreferredQuality, setPreferredQuality } from '../data/tracks';
 import { cacheRemoteOnce } from '../utils/audioCache';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -36,8 +37,17 @@ import { useScale } from '../utils/scale';
 import { usePostHog } from 'posthog-react-native';
 import LottieView from 'lottie-react-native';
 import { explorersGroveFireflies } from '../core/explorersGroveFireflies';
+import {
+  PROCEDURAL_AUDIO_ENABLED,
+  ProceduralPlaybackSession,
+  proceduralAudioEngine,
+  selectAudioRoute,
+  compileAudioJourneyTimeline,
+  FACTORY_AUDIO_JOURNEYS,
+} from '../core/audio';
+import type { AudioJourneyTimeline, ProceduralAudioConfig, ProceduralAudioPatch } from '../core/audio';
 
-type RouteParams = { id?: string; chamber?: string; trackId?: string };
+type RouteParams = { id?: string; chamber?: string; trackId?: string; proceduralJourneyId?: string; openLiveMix?: boolean };
 
 const FADE_MS = 600;               // fade in/out duration
 const SAVE_INTERVAL_MS = 4000;     // how often we save position
@@ -80,7 +90,7 @@ export default function JourneyPlayer() {
   const route = useRoute();
   const navigation = useNavigation();
   const posthog = usePostHog();
-  const { id: legacyId, chamber = 'Chamber 1', trackId } = (route.params || {}) as RouteParams;
+  const { id: legacyId, chamber = 'Chamber 1', trackId, proceduralJourneyId, openLiveMix } = (route.params || {}) as RouteParams;
   const meta = (legacyId && TRACK_INDEX ? TRACK_INDEX[legacyId] : undefined);
 
   const normalize = (s?: string) => (s || '').toString().trim().toLowerCase()
@@ -108,12 +118,16 @@ export default function JourneyPlayer() {
   const selectedTrack = React.useMemo(() => {
     return findTrack(trackId) || findTrack(legacyId);
   }, [trackId, legacyId]);
+  const requestedProceduralJourney = React.useMemo(
+    () => FACTORY_AUDIO_JOURNEYS.find(item => item.id === proceduralJourneyId) ?? null,
+    [proceduralJourneyId],
+  );
   if (DEBUG_AUDIO) console.log('[PLAYER] route trackId=', trackId, 'legacyId=', legacyId, '→ selected =', selectedTrack?.id || meta?.id || 'fallback');
-  const displayTitle = (selectedTrack?.title && String(selectedTrack.title).trim().length > 0)
+  const displayTitle = requestedProceduralJourney?.title ?? ((selectedTrack?.title && String(selectedTrack.title).trim().length > 0)
     ? (selectedTrack.title as string)
     : (meta?.title && String(meta.title).trim().length > 0)
       ? (meta.title as string)
-      : (chamber || 'Journey');
+      : (chamber || 'Journey'));
   const env = chamberEnvForTrack(selectedTrack?.id || legacyId || '');
   const accent = env?.accent || '#8E7CFF';
   const insets = useSafeAreaInsets();
@@ -131,7 +145,7 @@ export default function JourneyPlayer() {
   // --- Garden video background (soundscapes) ---
   const trackKindEarly = (selectedTrack as any)?.kind || (meta as any)?.kind;
   const isExplorersGrove = ((selectedTrack as any)?.category || (meta as any)?.category) === 'explorers_grove';
-  const gardenVideoSource = trackKindEarly === 'soundscape' ? require('../assets/videos/garden_player.mp4') : null;
+  const gardenVideoSource = trackKindEarly === 'soundscape' && !requestedProceduralJourney ? require('../assets/videos/garden_player.mp4') : null;
   const gardenPlayer = useVideoPlayer(gardenVideoSource, player => {
     player.loop = true;
     player.muted = true;
@@ -139,6 +153,15 @@ export default function JourneyPlayer() {
     // the default 'doNotMix' mode fights TrackPlayer's session on background/lock.
     player.audioMixingMode = 'mixWithOthers';
   });
+  const lucidJourneyPlayer = useVideoPlayer(
+    requestedProceduralJourney ? require('../assets/videos/lucidscreen.mp4') : null,
+    player => {
+      player.loop = true;
+      player.muted = true;
+      player.audioMixingMode = 'mixWithOthers';
+      player.play();
+    },
+  );
 
   const saveTimer = useRef<NodeJS.Timeout | null>(null);
 
@@ -186,13 +209,70 @@ export default function JourneyPlayer() {
   }, [selectedTrack, meta, legacyId, getHasMembership, navigation]);
 
   const [isPlaying, setIsPlaying] = useState(false);
-  const [engineLabel, setEngineLabel] = useState<'TP' | '—'>('—');
+  const [engineLabel, setEngineLabel] = useState<'TP' | 'PROC' | '—'>('—');
   const [position, setPosition] = useState(0);     // ms
   const [duration, setDuration] = useState(0);     // ms
   const [seeking, setSeeking] = useState(false);
   const [volume, setVolume] = useState(DEFAULT_VOL);
   const [sleepMinutes, setSleepMinutes] = useState<number | null>(null);
   const [showTimerMenu, setShowTimerMenu] = useState(false);
+  const [showProceduralMixer, setShowProceduralMixer] = useState(false);
+  const [proceduralConfig, setProceduralConfig] = useState<ProceduralAudioConfig | null>(null);
+  const [activeProceduralJourney, setActiveProceduralJourney] = useState<AudioJourneyTimeline | null>(null);
+  const proceduralSessionRef = useRef(new ProceduralPlaybackSession(proceduralAudioEngine));
+  const proceduralActiveRef = useRef(false);
+
+  const applyProceduralPatch = useCallback(async (patch: ProceduralAudioPatch) => {
+    if (!proceduralActiveRef.current) return;
+    try {
+      await proceduralSessionRef.current.update(patch);
+      const next = proceduralSessionRef.current.getConfig();
+      if (next) setProceduralConfig(next);
+    } catch (error) {
+      console.log('[AUDIO][PROC] mixer update error', error);
+    }
+  }, []);
+
+  const auditionJourneyTimeline = useCallback(async (definition: AudioJourneyTimeline) => {
+    if (!proceduralActiveRef.current) return;
+    const initial = proceduralSessionRef.current.getConfig();
+    if (!initial) return;
+    try {
+      const timeline = compileAudioJourneyTimeline(definition, initial);
+      await proceduralSessionRef.current.startTimeline(initial, timeline);
+      setActiveProceduralJourney(definition);
+      durationRef.current = timeline.totalDurationMs;
+      setDuration(timeline.totalDurationMs);
+      setPosition(0);
+    } catch (error) {
+      console.log('[AUDIO][PROC] timeline audition error', error);
+    }
+  }, []);
+
+  const auditionProceduralTimeline = useCallback(async () => {
+    await auditionJourneyTimeline({
+        id: 'dev-40-second-flow',
+        title: 'Inner Timeline Audition',
+        stages: [
+          {
+            id: 'arrive', label: 'Arrive', durationMs: 8_000, transitionMs: 2_000,
+            target: { binauralCarrierHz: 220, binauralDeltaHz: 10, binauralGain: 0.34, noiseColor: 'pink', noiseGain: 0.12 },
+          },
+          {
+            id: 'settle', label: 'Settle', durationMs: 10_000, transitionMs: 8_000,
+            target: { binauralCarrierHz: 205, binauralDeltaHz: 6, binauralGain: 0.4, noiseColor: 'pink', noiseGain: 0.22 },
+          },
+          {
+            id: 'deepen', label: 'Deepen', durationMs: 10_000, transitionMs: 8_000,
+            target: { binauralCarrierHz: 190, binauralDeltaHz: 3, toneGain: 0.22, binauralGain: 0.42, noiseColor: 'brown', noiseGain: 0.2 },
+          },
+          {
+            id: 'return', label: 'Return', durationMs: 12_000, transitionMs: 9_000,
+            target: { binauralCarrierHz: 220, binauralDeltaHz: 10, toneGain: 0.28, binauralGain: 0.3, noiseColor: 'pink', noiseGain: 0.1 },
+          },
+        ],
+      });
+  }, [auditionJourneyTimeline]);
   // --- TrackPlayer UI state smoothing ---
 const [tpState, setTpState] = useState<State | null>(null);
 const uiHoldUntilRef = useRef(0);
@@ -221,8 +301,10 @@ useEffect(() => {
 
 // Treat Buffering/Connecting as Playing for UI; honor brief hold after seeks/toggles
 const isPlayingUI =
-  (tpState === State.Playing || tpState === State.Buffering || tpState === State.Connecting) ||
-  now() < uiHoldUntilRef.current;
+  proceduralActiveRef.current ? isPlaying : (
+    (tpState === State.Playing || tpState === State.Buffering || tpState === State.Connecting) ||
+    now() < uiHoldUntilRef.current
+  );
 // Canonical play-state for VISUALS (animations).
 // Keep this tied to TrackPlayer UI truth so the mandala still breathes while buffering/connecting.
 const playingForVisuals = isPlayingUI;
@@ -282,6 +364,14 @@ const playingForVisuals = isPlayingUI;
   useSleepTimer(sleepMinutes);
   const { countdownLabel, isActive: sleepTimerActive } = useSleepTimerCountdown();
 
+  useEffect(() => {
+    if (!proceduralActiveRef.current) return;
+    const endAtMs = sleepMinutes ? Date.now() + sleepMinutes * 60 * 1000 : null;
+    proceduralSessionRef.current.setSleepTimer(endAtMs).catch(error => {
+      console.log('[AUDIO][PROC] sleep timer error', error);
+    });
+  }, [sleepMinutes]);
+
   const durationRef = useRef<number>(0);
   const tpCompletedRef = useRef(false);
   const loopGuardTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -292,6 +382,8 @@ const playingForVisuals = isPlayingUI;
 
   const hotSwapQualityIfNeeded = useCallback(async () => {
     try {
+      // Procedural sources have no encoded quality variant to swap.
+      if (proceduralActiveRef.current) return;
       const currentPref = getPreferredQuality();
       if (currentPref === appliedQualityRef.current || qualitySwapInProgressRef.current) return;
       qualitySwapInProgressRef.current = true;
@@ -423,10 +515,6 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
           waitForBuffer: true,
           autoHandleInterruptions: true,
           iosCategory: IOSCategory.Playback,
-          iosCategoryOptions: [
-            IOSCategoryOptions.AllowBluetooth,
-            IOSCategoryOptions.AllowBluetoothA2DP,
-          ],
         });
       } catch (e: any) {
         if (!String(e).toLowerCase().includes('already')) {
@@ -774,10 +862,66 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
       setEngineLabel('TP');
       suppressCompleteRef.current = true;
       startedAtRef.current = 0;
+      proceduralActiveRef.current = false;
+      setProceduralConfig(null);
+      setActiveProceduralJourney(null);
+      setShowProceduralMixer(false);
       // Track which quality is currently applied
       appliedQualityRef.current = getPreferredQuality();
 
       try {
+        const routeMeta = (selectedTrack ?? meta);
+        const audioRoute = routeMeta ? selectAudioRoute(routeMeta, {
+          proceduralEnabled: PROCEDURAL_AUDIO_ENABLED,
+          proceduralEngineAvailable: proceduralSessionRef.current.isAvailable(),
+        }) : { backend: 'legacy' as const, reason: 'unsupported-track' as const };
+
+        if (audioRoute.backend === 'procedural') {
+          try {
+            // A procedural session owns native playback for this track. Clear
+            // TrackPlayer first so two engines can never sound simultaneously.
+            await TrackPlayer.reset();
+            await proceduralSessionRef.current.start(audioRoute.config, displayTitle);
+            await proceduralSessionRef.current.setVolume(volume);
+            if (!mounted) {
+              await proceduralSessionRef.current.stop();
+              return;
+            }
+            proceduralActiveRef.current = true;
+            setProceduralConfig(proceduralSessionRef.current.getConfig());
+            let proceduralDuration = SOUNDSCAPE_DEFAULT_MS;
+            if (requestedProceduralJourney) {
+              const initial = proceduralSessionRef.current.getConfig();
+              if (initial) {
+                const timeline = compileAudioJourneyTimeline(requestedProceduralJourney.timeline, initial);
+                await proceduralSessionRef.current.startTimeline(initial, timeline);
+                setActiveProceduralJourney(requestedProceduralJourney.timeline);
+                proceduralDuration = timeline.totalDurationMs;
+              }
+            }
+            durationRef.current = proceduralDuration;
+            setDuration(proceduralDuration);
+            setPosition(0);
+            setIsPlaying(true);
+            setIsPrimed(true);
+            isPrimedRef.current = true;
+            setEngineLabel('PROC');
+            setTpState(null);
+            if (openLiveMix) setShowProceduralMixer(true);
+            suppressCompleteRef.current = false;
+            (saveNow as any).__procInt = setInterval(() => {
+              if (!mounted || seeking) return;
+              setPosition(Math.floor(proceduralSessionRef.current.getPositionMs()));
+            }, 250);
+            return;
+          } catch (error) {
+            proceduralActiveRef.current = false;
+            setProceduralConfig(null);
+            try { await proceduralSessionRef.current.stop(); } catch {}
+            console.log('[AUDIO][PROC] startup failed; using legacy playback', error);
+          }
+        }
+
         // --- TrackPlayer path (now always used) ---
         if (useTP) { tpCompletedRef.current = false;
           await setupTrackPlayerOnce();
@@ -1188,6 +1332,11 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
       if (saveTimer.current) clearInterval(saveTimer.current);
       // Clear TrackPlayer poller if set
       if ((saveNow as any).__tpInt) { clearInterval((saveNow as any).__tpInt); (saveNow as any).__tpInt = null; }
+      if ((saveNow as any).__procInt) { clearInterval((saveNow as any).__procInt); (saveNow as any).__procInt = null; }
+      if (proceduralActiveRef.current) {
+        proceduralActiveRef.current = false;
+        proceduralSessionRef.current.stop().catch(() => {});
+      }
       setIsPrimed(false);
       isPrimedRef.current = false;
       veilOpacity.setValue(1);
@@ -1200,7 +1349,7 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
       try { (saveNow as any).__tpEndSub?.remove?.(); (saveNow as any).__tpEndSub = null; } catch {}
       presentingGateRef.current = false;
     };
-  }, [selectedTrack?.id, legacyId, isSoundscape]);
+  }, [selectedTrack?.id, legacyId, isSoundscape, proceduralJourneyId, openLiveMix]);
 
   // Periodically persist position
   useEffect(() => {
@@ -1212,6 +1361,21 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
   }, [position, seeking]);
 
   const toggle = useCallback(async () => {
+    if (proceduralActiveRef.current) {
+      try {
+        if (proceduralSessionRef.current.isPlaying()) {
+          await proceduralSessionRef.current.pause();
+          await savePosition(Math.floor(proceduralSessionRef.current.getPositionMs()));
+          setIsPlaying(false);
+        } else {
+          await proceduralSessionRef.current.play();
+          setIsPlaying(true);
+        }
+      } catch (error) {
+        console.log('[AUDIO][PROC] toggle error', error);
+      }
+      return;
+    }
     // TrackPlayer only
     try {
       const durWarm = durationRef.current || (await TrackPlayer.getDuration()) || 0;
@@ -1252,7 +1416,10 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
 
   const handleClose = async () => {
     try {
-      const pos = await TrackPlayer.getPosition();
+      const usingProcedural = proceduralActiveRef.current;
+      const pos = usingProcedural
+        ? proceduralSessionRef.current.getPositionMs() / 1000
+        : await TrackPlayer.getPosition();
       const posMs = Math.floor(pos * 1000);
       await savePosition(posMs);
 
@@ -1260,7 +1427,7 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
       const chamberId = selectedTrack?.id || legacyId || 'default';
       if (!isSoundscape) {
         try {
-          const dur = (await TrackPlayer.getDuration()) || 0;
+          const dur = usingProcedural ? SOUNDSCAPE_DEFAULT_MS / 1000 : (await TrackPlayer.getDuration()) || 0;
           const durMs = Math.floor(dur * 1000);
           if (durMs > 0 && posMs < durMs * CHAMBER_COMPLETION_THRESHOLD) {
             posthog.capture('chamber_abandoned', {
@@ -1285,7 +1452,7 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
 
       // Save snapshot
       try {
-        const dur = (await TrackPlayer.getDuration()) || 0;
+        const dur = usingProcedural ? SOUNDSCAPE_DEFAULT_MS / 1000 : (await TrackPlayer.getDuration()) || 0;
         await saveNow({
           trackId: selectedTrack?.id || legacyId || 'default',
           title: displayTitle,
@@ -1317,7 +1484,8 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
       } catch (e) {
         console.log('[Threshold] soundscape threshold error', e);
       }
-      await TrackPlayer.pause();
+      if (usingProcedural) await proceduralSessionRef.current.pause();
+      else await TrackPlayer.pause();
     } catch {}
     navigation.goBack();
   };
@@ -1563,7 +1731,7 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
         // While scrubbing, suppress accidental "complete" and pause engines as needed
         suppressCompleteRef.current = true;
 
-        if (useTP) {
+        if (useTP && !proceduralActiveRef.current) {
           tpWasPlayingRef.current = false;
           tpPausedDuringScrubRef.current = false;
           try {
@@ -1615,7 +1783,7 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
         } catch {}
 
         // Resume TrackPlayer playback only if we paused during this scrub
-        if (useTP && tpPausedDuringScrubRef.current) {
+        if (useTP && !proceduralActiveRef.current && tpPausedDuringScrubRef.current) {
           try { await TrackPlayer.play(); uiHoldUntilRef.current = Date.now() + 600; } catch {}
           tpPausedDuringScrubRef.current = false;
           tpWasPlayingRef.current = false;
@@ -1643,6 +1811,15 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
       onPanResponderGrant: async () => {
         suppressCompleteRef.current = true;
         scrubPausedRef.current = false;
+        if (proceduralActiveRef.current) {
+          scrubStartPosRef.current = Math.floor(proceduralSessionRef.current.getPositionMs());
+          if (proceduralSessionRef.current.isPlaying()) {
+            await proceduralSessionRef.current.pause();
+            scrubPausedRef.current = true;
+          }
+          setSeeking(true);
+          return;
+        }
         try {
           const posSec = await TrackPlayer.getPosition();
           scrubStartPosRef.current = Math.floor((posSec || 0) * 1000);
@@ -1676,7 +1853,10 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
           await Haptics.selectionAsync();
         } catch {}
         if (scrubPausedRef.current) {
-          try { await TrackPlayer.play(); uiHoldUntilRef.current = Date.now() + 600; } catch {}
+          try {
+            if (proceduralActiveRef.current) await proceduralSessionRef.current.play();
+            else { await TrackPlayer.play(); uiHoldUntilRef.current = Date.now() + 600; }
+          } catch {}
           scrubPausedRef.current = false;
         }
         setSeeking(false);
@@ -1693,6 +1873,15 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
   // Loop toggle removed: expo-av only (TrackPlayer loop is set on load)
 
   const skipBy = useCallback(async (deltaMs: number) => {
+    if (proceduralActiveRef.current) {
+      const curMs = Math.floor(proceduralSessionRef.current.getPositionMs());
+      const target = Math.max(0, Math.min(SOUNDSCAPE_DEFAULT_MS - 1, curMs + deltaMs));
+      await proceduralSessionRef.current.seekToMs(target);
+      setPosition(target);
+      await savePosition(target);
+      await Haptics.selectionAsync();
+      return;
+    }
     try {
       const posSec = await TrackPlayer.getPosition();
       const durSec = (await TrackPlayer.getDuration()) || 0;
@@ -1716,6 +1905,11 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
       ? durationRef.current - 1
       : Number.MAX_SAFE_INTEGER;
     const clamped = Math.max(0, Math.min(maxDur, ms));
+    if (proceduralActiveRef.current) {
+      proceduralSessionRef.current.seekToMs(clamped);
+      setPosition(clamped);
+      return;
+    }
     try {
       await TrackPlayer.seekTo(clamped / 1000);
       setPosition(clamped);
@@ -1806,6 +2000,10 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
     soundscapeOrbInterior
   );
 
+  const activeJourneyGuidance = activeProceduralJourney?.guidance
+    ?.filter(cue => cue.atMs <= position)
+    .at(-1);
+
   return (
     <View style={styles.container}>
       {/* Chamber environment background (MP4 video) */}
@@ -1827,6 +2025,19 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
         <View pointerEvents="none" style={StyleSheet.absoluteFill}>
           <VideoView
             player={gardenPlayer}
+            contentFit="cover"
+            style={StyleSheet.absoluteFill}
+            nativeControls={false}
+            allowsFullscreen={false}
+            allowsPictureInPicture={false}
+          />
+        </View>
+      )}
+
+      {!!requestedProceduralJourney && (
+        <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+          <VideoView
+            player={lucidJourneyPlayer}
             contentFit="cover"
             style={StyleSheet.absoluteFill}
             nativeControls={false}
@@ -1986,8 +2197,59 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
               <Text style={[styles.qualityText, { opacity: 0.6 }]}>
                 {getPreferredQuality() === 'hq' ? 'High Quality Audio' : 'Low Data Mode'}
               </Text>
+              {activeJourneyGuidance ? (
+                <View style={styles.journeyGuidance} accessibilityLiveRegion="polite">
+                  <Text style={styles.journeyGuidanceHeading}>{activeJourneyGuidance.heading}</Text>
+                  <Text style={styles.journeyGuidancePrompt}>{activeJourneyGuidance.prompt}</Text>
+                </View>
+              ) : null}
             </LinearGradient>
           </View>
+
+          {engineLabel === 'PROC' && proceduralConfig && !requestedProceduralJourney && (
+            <View
+              style={{
+                position: 'absolute',
+                top: showProceduralMixer ? '38%' : '48%',
+                left: showProceduralMixer ? 18 : 0,
+                right: showProceduralMixer ? 18 : 0,
+                alignItems: 'center',
+                zIndex: 20,
+              }}
+            >
+              {showProceduralMixer ? (
+                <View style={{ width: '100%', maxWidth: 430 }}>
+                  <ProceduralMixerPanel
+                    config={proceduralConfig}
+                    onPatch={applyProceduralPatch}
+                    onAuditionTimeline={auditionProceduralTimeline}
+                    onAuditionJourney={auditionJourneyTimeline}
+                    activeJourney={activeProceduralJourney}
+                    playbackPositionMs={position}
+                    isPlaying={isPlayingUI}
+                    onClose={() => setShowProceduralMixer(false)}
+                  />
+                </View>
+              ) : (
+                <TouchableOpacity
+                  onPress={() => setShowProceduralMixer(true)}
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                  accessibilityLabel="Open live procedural mixer"
+                  style={{
+                    borderRadius: 16,
+                    borderWidth: 1,
+                    borderColor: 'rgba(202,188,255,0.35)',
+                    backgroundColor: 'rgba(14,10,24,0.72)',
+                    paddingHorizontal: 18,
+                    paddingVertical: 9,
+                  }}
+                >
+                  <Text style={[Typography.caption, { color: '#D8CEFF', letterSpacing: 0.8 }]}>INNER MIX</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
 
           {/* Sleep timer + Close — pinned to bottom */}
           <View style={{ position: 'absolute', bottom: Math.max(insets.bottom + 24, 40), left: 0, right: 0, alignItems: 'center' }}>
@@ -2327,4 +2589,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     color: 'rgba(255,255,255,0.6)',
   },
+  journeyGuidance: { marginTop: 14, marginHorizontal: 24, paddingHorizontal: 15, paddingVertical: 13, borderRadius: 15, backgroundColor: 'rgba(5,7,17,0.72)', borderWidth: 1, borderColor: 'rgba(205,194,255,0.2)' },
+  journeyGuidanceHeading: { color: '#BDAEFF', fontFamily: 'Inter-Medium', fontSize: 9, letterSpacing: 1.4, textTransform: 'uppercase', textAlign: 'center' },
+  journeyGuidancePrompt: { color: '#EEEAF8', fontFamily: 'Inter-Light', fontSize: 14, lineHeight: 20, textAlign: 'center', marginTop: 6 },
 });

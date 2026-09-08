@@ -63,9 +63,10 @@ inner-playapi-*.json
 # mac
 .DS_Store
 
-# native folders (don’t track in managed Expo)
-android/
-ios/
+# Generated app-native folders (local Expo modules under modules/* remain tracked)
+/android/
+/ios/
+modules/*/android/build/
 
 # adobe metadata + temp
 *.xmp

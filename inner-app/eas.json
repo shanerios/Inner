@@ -4,7 +4,7 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
-      "android": { "buildType": "apk" },
+      "android": { "buildType": "apk", "gradleCommand": ":app:assembleProdDebug" },
       "ios": {
         "simulator": true
       },
@@ -20,11 +20,11 @@
     },
     "apk": {
       "channel": "preview",
-      "android": { "buildType": "apk" }
+      "android": { "buildType": "apk", "gradleCommand": ":app:assembleProdRelease" }
     },
     "internal": {
       "channel": "internal",
-      "android": { "buildType": "app-bundle" },
+      "android": { "buildType": "app-bundle", "gradleCommand": ":app:bundleProdRelease" },
       "ios": {
         "simulator": false,
         "image": "macos-sequoia-15.6-xcode-26.0"
@@ -37,7 +37,7 @@
     "preview": {
       "distribution": "store",
       "channel": "preview",
-      "android": { "buildType": "app-bundle" },
+      "android": { "buildType": "app-bundle", "gradleCommand": ":app:bundleProdRelease" },
       "ios": {
         "simulator": false,
         "image": "macos-sequoia-15.6-xcode-26.0"
@@ -51,7 +51,7 @@
       "distribution": "store",
       "channel": "production",
       "environment": "production",
-      "android": { "buildType": "app-bundle" },
+      "android": { "buildType": "app-bundle", "gradleCommand": ":app:bundleProdRelease" },
       "ios": {
         "simulator": false,
         "image": "macos-sequoia-15.6-xcode-26.0"

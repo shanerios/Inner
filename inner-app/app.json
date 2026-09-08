@@ -65,10 +65,12 @@
           "icon": "./assets/images/inner_orb_icon.png"
         }
       ],
+      "./plugins/withProceduralDevFlavor",
       [
         "expo-notifications",
         {
-          "icon": "./assets/images/inner_orb_icon.png"
+          "icon": "./assets/images/inner_orb_icon.png",
+          "sounds": ["./assets/sounds/lucidity_cue.wav"]
         }
       ],
       "expo-font",

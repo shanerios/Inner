@@ -1,5 +1,5 @@
 import { Audio } from 'expo-av';
-import TrackPlayer, { Capability, IOSCategory, IOSCategoryOptions } from 'react-native-track-player';
+import TrackPlayer, { Capability, IOSCategory } from 'react-native-track-player';
 
 let initPromise: Promise<void> | null = null;
 
@@ -15,10 +15,11 @@ export function initAudioOnce(): Promise<void> {
           waitForBuffer: true,
           autoHandleInterruptions: true,
           iosCategory: IOSCategory.Playback,
-          iosCategoryOptions: [IOSCategoryOptions.AllowBluetooth, IOSCategoryOptions.AllowBluetoothA2DP],
         });
+        console.log('[AUDIO][INIT] TrackPlayer setup complete');
       } catch (e: any) {
         if (!String(e).toLowerCase().includes('already')) throw e;
+        console.log('[AUDIO][INIT] TrackPlayer already initialized');
       }
       await TrackPlayer.updateOptions({
         capabilities: [Capability.Play, Capability.Pause, Capability.SeekTo, Capability.Stop],
@@ -27,7 +28,10 @@ export function initAudioOnce(): Promise<void> {
         progressUpdateEventInterval: 1,
         icon: require('../assets/images/inner_orb_icon.png'),
       });
-    } catch {}
+      console.log('[AUDIO][INIT] system media controls enabled');
+    } catch (error) {
+      console.log('[AUDIO][INIT] TrackPlayer initialization failed', error);
+    }
 
     try {
       await Audio.setIsEnabledAsync(true);
@@ -36,7 +40,9 @@ export function initAudioOnce(): Promise<void> {
         staysActiveInBackground: true,
         shouldDuckAndroid: false,
       });
-    } catch {}
+    } catch (error) {
+      console.log('[AUDIO][INIT] Expo audio mode failed', error);
+    }
   })();
 
   return initPromise;

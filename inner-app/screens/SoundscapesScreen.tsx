@@ -572,7 +572,13 @@ export default function SoundscapesScreen() {
           }}
         >
           {/* Title */}
-          <View style={{ marginBottom: verticalScale(6) }}>
+          <View
+            style={{
+              marginBottom: verticalScale(6),
+              paddingRight: scale(60),
+              paddingBottom: verticalScale(20),
+            }}
+          >
               <Text
                 accessibilityRole="header"
                 style={[
@@ -599,6 +605,36 @@ export default function SoundscapesScreen() {
                   ? 'Where curiosity rests before sleep.'
                   : 'A place to breathe. A place to return to.'}
               </Text>
+
+              {/* Kept in the heading flow so its touch target can never overlap the pills. */}
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Back to Home"
+                onPress={() => { Haptics.selectionAsync(); (navigation as any).popTo('Home'); }}
+                style={{
+                  position: 'absolute',
+                  right: 0,
+                  bottom: verticalScale(20),
+                  width: scale(48),
+                  height: scale(48),
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                }}
+                hitSlop={scale(8)}
+              >
+                <Text
+                  style={{
+                    color: '#EDE8FA',
+                    fontSize: scale(32),
+                    opacity: 0.6,
+                    textShadowColor: 'rgba(0,0,0,0.35)',
+                    textShadowOffset: { width: 0, height: verticalScale(1) },
+                    textShadowRadius: scale(3),
+                  }}
+                >
+                  ›
+                </Text>
+              </Pressable>
           </View>
 
           {/* Category pills — horizontal scroll */}
@@ -780,35 +816,6 @@ export default function SoundscapesScreen() {
         </View>
         </KeyboardAvoidingView>
 
-        {/* Right arrow to return Home */}
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Back to Home"
-          onPress={() => { Haptics.selectionAsync(); (navigation as any).popTo('Home'); }}
-          style={{
-            position: 'absolute',
-            right: scale(16),
-            top: '47%',
-            width: scale(48),
-            height: scale(48),
-            justifyContent: 'center',
-            alignItems: 'center',
-          }}
-          hitSlop={scale(12)}
-        >
-          <Text
-            style={{
-              color: '#EDE8FA',
-              fontSize: scale(32),
-              opacity: 0.6,
-              textShadowColor: 'rgba(0,0,0,0.35)',
-              textShadowOffset: { width: 0, height: verticalScale(1) },
-              textShadowRadius: scale(3),
-            }}
-          >
-            ›
-          </Text>
-        </Pressable>
       </View>
 
       {/* Soundscapes Info Modal */}
