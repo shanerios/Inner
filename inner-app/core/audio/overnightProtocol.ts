@@ -216,3 +216,40 @@ export function createRecognitionOvernightProtocol(options: RecognitionOvernight
     phases,
   };
 }
+
+/**
+ * Development-only clock compression for exercising a complete overnight
+ * lifecycle without waiting through a real night. Callers remain responsible
+ * for guarding access with __DEV__.
+ */
+export function createAcceleratedOvernightProtocol(protocol: OvernightProtocol): OvernightProtocol {
+  const durationFor = (phase: OvernightProtocolPhase): number => {
+    if (phase.kind === 'preparation') return 3 * 60_000;
+    if (phase.kind === 'descent') return 60_000;
+    if (phase.kind === 'recognitionWindow') return 40_000;
+    if (phase.kind === 'return') return 30_000;
+    return 25_000;
+  };
+
+  return {
+    ...protocol,
+    id: `dev-test-${protocol.id}`,
+    title: `${protocol.title} · Accelerated Test`,
+    phases: protocol.phases.map(phase => {
+      const durationMs = durationFor(phase);
+      const scaleElapsed = (atMs: number) => Math.min(durationMs, Math.max(0, Math.round((atMs / phase.durationMs) * durationMs)));
+      return {
+        ...phase,
+        durationMs,
+        events: phase.events?.map(event => ({
+          ...event,
+          trigger: event.trigger.kind === 'elapsed'
+            ? { kind: 'elapsed' as const, atMs: scaleElapsed(event.trigger.atMs) }
+            : event.trigger.kind === 'phaseEnd'
+              ? { kind: 'phaseEnd' as const, beforeMs: scaleElapsed(event.trigger.beforeMs ?? 0) }
+              : event.trigger,
+        })),
+      };
+    }),
+  };
+}

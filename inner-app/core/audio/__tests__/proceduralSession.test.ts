@@ -15,6 +15,8 @@ function engine(): jest.Mocked<InnerAudioEngine> {
     seekTimeline: jest.fn(async () => {}),
     setNowPlaying: jest.fn(async () => {}),
     setSleepTimer: jest.fn(async () => {}),
+      getLastTimerCompletionAtMs: jest.fn(async () => null),
+      drainDiagnosticEvents: jest.fn(async () => []),
     triggerCue: jest.fn(async () => {}),
     play: jest.fn(async () => {}),
     pause: jest.fn(async () => {}),

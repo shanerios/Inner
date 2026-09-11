@@ -137,6 +137,8 @@ private fun combFeedbackForRt60(delaySamples: Int, rt60: Double, sampleRate: Dou
 
 object ProceduralAudioEngine {
   private val lock = ReentrantLock()
+  private val diagnosticLock = ReentrantLock()
+  private val diagnosticEvents = mutableListOf<Map<String, Any>>()
   private var parameters = AudioParameters()
   private var timeline: AudioTimelineState? = null
   private var timelineElapsedFrames = 0.0
@@ -231,12 +233,28 @@ object ProceduralAudioEngine {
   private var renderedSpatialDistance = 1.0
   private var renderElapsedFrames = 0.0
   @Volatile private var sleepStopScheduled = false
+  @Volatile var lastTimerCompletionAtMs: Double? = null
+    private set
 
   /** Set by the playback service; invoked (off the lock) once the sleep timer fade completes. */
   @Volatile var onSleepTimerElapsed: (() -> Unit)? = null
 
   private fun buildRainPockets(seed: Long = XORSHIFT_SEED) =
     Array(5) { index -> RainPocket(seed + (index + 1).toLong() * 0x100000001b3L) }
+
+  fun recordDiagnostic(type: String, reason: String? = null, route: String? = null) {
+    val event = mutableMapOf<String, Any>("type" to type, "atMs" to System.currentTimeMillis().toDouble())
+    reason?.let { event["reason"] = it }
+    route?.let { event["route"] = it }
+    diagnosticLock.withLock {
+      diagnosticEvents.add(event)
+      while (diagnosticEvents.size > 100) diagnosticEvents.removeAt(0)
+    }
+  }
+
+  fun drainDiagnosticEvents(): List<Map<String, Any>> = diagnosticLock.withLock {
+    diagnosticEvents.toList().also { diagnosticEvents.clear() }
+  }
 
   fun configure(raw: AudioConfigRecord) {
     lock.withLock {
@@ -306,6 +324,7 @@ object ProceduralAudioEngine {
     lock.withLock {
       parameters.sleepEndMs = endAtMs
       sleepStopScheduled = false
+      lastTimerCompletionAtMs = null
     }
   }
 
@@ -617,6 +636,7 @@ object ProceduralAudioEngine {
     val endMs = baseTarget.sleepEndMs
     if (endMs != null && bufferStartMs >= endMs && !sleepStopScheduled) {
       sleepStopScheduled = true
+      lastTimerCompletionAtMs = System.currentTimeMillis().toDouble()
       onSleepTimerElapsed?.invoke()
     }
   }

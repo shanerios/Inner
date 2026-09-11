@@ -7,6 +7,7 @@ import type {
   InnerAudioEngine,
   ProceduralAudioConfig,
   ProceduralAudioPatch,
+  NativeAudioDiagnosticEvent,
 } from './types';
 
 type NativeInnerAudio = {
@@ -16,6 +17,8 @@ type NativeInnerAudio = {
   seekTimeline(positionMs: number): Promise<void>;
   setNowPlaying(title: string): Promise<void>;
   setSleepTimer(endAtMs: number | null): Promise<void>;
+  getLastTimerCompletionAtMs(): number | null;
+  drainDiagnosticEvents(): NativeAudioDiagnosticEvent[];
   triggerCue(): Promise<void>;
   play(): Promise<void>;
   pause(): Promise<void>;
@@ -63,6 +66,14 @@ class NativeProceduralAudioEngine implements InnerAudioEngine {
 
   async setSleepTimer(endAtMs: number | null) {
     await this.getNativeModule().setSleepTimer(endAtMs);
+  }
+
+  async getLastTimerCompletionAtMs() {
+    return this.getNativeModule().getLastTimerCompletionAtMs();
+  }
+
+  async drainDiagnosticEvents() {
+    return this.getNativeModule().drainDiagnosticEvents();
   }
 
   async triggerCue() {

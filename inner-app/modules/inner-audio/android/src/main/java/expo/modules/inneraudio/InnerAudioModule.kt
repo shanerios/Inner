@@ -38,6 +38,14 @@ class InnerAudioModule : Module() {
       ProceduralAudioEngine.setSleepTimer(endAtMs)
     }
 
+    Function("getLastTimerCompletionAtMs") {
+      ProceduralAudioEngine.lastTimerCompletionAtMs
+    }
+
+    Function("drainDiagnosticEvents") {
+      ProceduralAudioEngine.drainDiagnosticEvents()
+    }
+
     AsyncFunction("triggerCue") {
       ProceduralAudioEngine.triggerCue()
     }

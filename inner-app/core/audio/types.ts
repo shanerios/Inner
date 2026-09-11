@@ -2,6 +2,7 @@ export type NoiseColor = 'white' | 'pink' | 'brown' | 'grey';
 export type ProceduralEnvironment = 'none' | 'ocean' | 'wind' | 'fire' | 'cosmic' | 'forest';
 export type SpatialMovementMode = 'still' | 'drift' | 'pendulum' | 'swoosh' | 'rain' | 'orbit' | 'vortex' | 'channelTest';
 export type SpatialMovementTarget = 'noise' | 'tone' | 'both';
+export type AudioSessionEndPolicy = 'fadeAndStop' | 'protocolControlled' | 'userControlled';
 
 export type AudioSwooshEvent = {
   id: string;
@@ -68,6 +69,10 @@ export type AudioJourneyTimeline = {
   seed?: number;
   loop?: boolean;
   fadeInMs?: number;
+  /** Describes who owns the endpoint; finite journeys default to fadeAndStop. */
+  endPolicy?: Exclude<AudioSessionEndPolicy, 'userControlled'>;
+  /** Increment when authored protocol behavior changes in a material way. */
+  protocolVersion?: number;
   stages: AudioJourneyStage[];
   guidance?: AudioJourneyGuidanceCue[];
 };
@@ -87,6 +92,8 @@ export type CompiledAudioJourneyTimeline = {
   seed: number;
   loop: boolean;
   fadeInMs: number;
+  endPolicy: Exclude<AudioSessionEndPolicy, 'userControlled'>;
+  protocolVersion: number;
   totalDurationMs: number;
   stages: CompiledAudioJourneyStage[];
 };
@@ -107,6 +114,13 @@ export type AudioEngineSnapshot = {
 
 export type AudioEngineListener = (snapshot: AudioEngineSnapshot) => void;
 
+export type NativeAudioDiagnosticEvent = {
+  type: 'playback_resumed' | 'playback_paused' | 'audio_route_changed' | 'interruption_began' | 'interruption_ended';
+  atMs: number;
+  reason?: string;
+  route?: string;
+};
+
 export interface InnerAudioEngine {
   readonly kind: 'procedural';
   isAvailable(): boolean;
@@ -117,6 +131,8 @@ export interface InnerAudioEngine {
   seekTimeline(positionMs: number): Promise<void>;
   setNowPlaying(title: string): Promise<void>;
   setSleepTimer(endAtMs: number | null): Promise<void>;
+  getLastTimerCompletionAtMs(): Promise<number | null>;
+  drainDiagnosticEvents(): Promise<NativeAudioDiagnosticEvent[]>;
   triggerCue(): Promise<void>;
   play(): Promise<void>;
   pause(): Promise<void>;

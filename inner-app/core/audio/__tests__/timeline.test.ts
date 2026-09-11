@@ -24,7 +24,18 @@ describe('audio journey timeline compiler', () => {
       ],
     }, DEFAULT_PROCEDURAL_AUDIO_CONFIG);
     expect(result).toEqual(expect.objectContaining({ id: 'descent', title: 'Evening Descent', totalDurationMs: 180_000 }));
+    expect(result).toEqual(expect.objectContaining({ endPolicy: 'fadeAndStop', protocolVersion: 1 }));
     expect(result.stages[1].config).toEqual(expect.objectContaining({ carrierHz: 528, binauralDeltaHz: 6, noiseColor: 'pink' }));
+  });
+
+  it('preserves explicit overnight end semantics', () => {
+    const result = compileAudioJourneyTimeline({
+      id: 'night-001', title: 'Night 001', endPolicy: 'protocolControlled', protocolVersion: 2,
+      stages: [{ id: 'night', label: 'Night', durationMs: 10_000, target: {} }],
+    }, DEFAULT_PROCEDURAL_AUDIO_CONFIG);
+    expect(result).toEqual(expect.objectContaining({
+      endPolicy: 'protocolControlled', protocolVersion: 2, totalDurationMs: 10_000,
+    }));
   });
 
   it('clamps spatial movement to conservative engine limits', () => {

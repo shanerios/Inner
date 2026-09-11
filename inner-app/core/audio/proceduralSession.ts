@@ -82,6 +82,14 @@ export class ProceduralPlaybackSession {
     await this.engine.setSleepTimer(endAtMs);
   }
 
+  async getLastTimerCompletionAtMs() {
+    return this.engine.getLastTimerCompletionAtMs();
+  }
+
+  async drainDiagnosticEvents() {
+    return this.engine.drainDiagnosticEvents();
+  }
+
   getPositionMs() {
     return this.accumulatedMs + (this.playing && this.startedAtMs !== null
       ? Math.max(0, this.now() - this.startedAtMs)

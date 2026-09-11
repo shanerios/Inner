@@ -47,6 +47,11 @@ import {
   RecognitionSignalId,
   setRecognitionSignalId,
 } from '../core/recognitionSignals';
+import {
+  deriveJourneyMemoryProfile,
+  JourneyMemoryProfile,
+  loadJourneyMemory,
+} from '../core/journeyMemory';
 import type { Audio } from 'expo-av';
 
 export default function LucidJourneysScreen() {
@@ -66,6 +71,8 @@ export default function LucidJourneysScreen() {
   const [historyExpanded, setHistoryExpanded] = useState(false);
   const [dreamSeedExpanded, setDreamSeedExpanded] = useState(false);
   const [innerReflectionsVisible, setInnerReflectionsVisible] = useState(false);
+  const [journeyPatternsExpanded, setJourneyPatternsExpanded] = useState(false);
+  const [journeyMemoryProfile, setJourneyMemoryProfile] = useState<JourneyMemoryProfile | null>(null);
   const [dreamSeed, setDreamSeed] = useState<DreamSeed | null>(null);
   const [dreamSeedDraft, setDreamSeedDraft] = useState('');
   const [recognitionSignalId, setRecognitionSignalIdState] = useState<RecognitionSignalId>('ascending');
@@ -205,7 +212,8 @@ export default function LucidJourneysScreen() {
       getLucidSignalCuePlan(),
       loadDreamSeed(),
       getRecognitionSignalId(),
-    ]).then(([journeys, hasCues, reflection, learning, selectedCuePlan, savedDreamSeed, selectedSignalId]) => {
+      loadJourneyMemory(),
+    ]).then(([journeys, hasCues, reflection, learning, selectedCuePlan, savedDreamSeed, selectedSignalId, journeyMemory]) => {
       if (!active) return;
       setSavedJourneys(journeys);
       setCueScheduled(hasCues);
@@ -217,6 +225,7 @@ export default function LucidJourneysScreen() {
       setDreamSeed(savedDreamSeed);
       setDreamSeedDraft(savedDreamSeed?.text ?? '');
       setRecognitionSignalIdState(selectedSignalId);
+      setJourneyMemoryProfile(deriveJourneyMemoryProfile(journeyMemory));
     });
     return () => { active = false; };
   }, []));
@@ -265,6 +274,19 @@ export default function LucidJourneysScreen() {
 
   const recommendation = lucidSignalRecommendation(learningNights, cuePlan);
   const completedNights = learningNights.filter(night => night.reflection);
+  const rememberedJourneyTitle = journeyMemoryProfile?.mostRepeatedJourneyId
+    ? [...FACTORY_AUDIO_JOURNEYS, ...savedJourneys]
+      .find(item => item.id === journeyMemoryProfile.mostRepeatedJourneyId)?.title ?? null
+    : null;
+  const typicalJourneyMinutes = journeyMemoryProfile?.typicalCompletedDurationMs
+    ? Math.round(journeyMemoryProfile.typicalCompletedDurationMs / 60_000)
+    : null;
+  const environmentName = journeyMemoryProfile?.preferredEnvironment
+    ? journeyMemoryProfile.preferredEnvironment[0].toUpperCase() + journeyMemoryProfile.preferredEnvironment.slice(1)
+    : null;
+  const noiseName = journeyMemoryProfile?.preferredNoiseColor
+    ? journeyMemoryProfile.preferredNoiseColor[0].toUpperCase() + journeyMemoryProfile.preferredNoiseColor.slice(1)
+    : null;
 
   const keepDreamSeed = async () => {
     const saved = await saveDreamSeed(dreamSeedDraft);
@@ -807,6 +829,55 @@ export default function LucidJourneysScreen() {
                 <Text style={styles.noPatternCopy}>Your Lucid Signal reflections will begin forming a pattern here.</Text>
               )}
 
+              {journeyMemoryProfile ? (
+                <View style={styles.listeningPatternCard}>
+                  <Pressable
+                    onPress={() => setJourneyPatternsExpanded(expanded => !expanded)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${journeyPatternsExpanded ? 'Hide' : 'Show'} listening patterns`}
+                    accessibilityState={{ expanded: journeyPatternsExpanded }}
+                    style={styles.insightHeader}
+                  >
+                    <View style={styles.insightHeadingCopy}>
+                      <Text style={styles.reflectionEyebrow}>
+                        {journeyMemoryProfile.sessionsObserved} {journeyMemoryProfile.sessionsObserved === 1 ? 'JOURNEY' : 'JOURNEYS'} OBSERVED
+                      </Text>
+                      <Text style={[Typography.display, styles.insightTitle]}>Listening Patterns</Text>
+                    </View>
+                    <Ionicons name={journeyPatternsExpanded ? 'chevron-up' : 'chevron-down'} size={14} color="#CFC5F2" />
+                  </Pressable>
+                  {journeyPatternsExpanded ? (
+                    <View style={styles.listeningPatternDetails}>
+                      <Text style={styles.insightCopy}>
+                        {journeyMemoryProfile.confidence === 'forming'
+                          ? 'Inner is beginning to learn how you move through a journey. More listening will make this pattern clearer.'
+                          : journeyMemoryProfile.confidence === 'early'
+                            ? 'An early listening pattern is taking shape. Inner will keep observing before suggesting a change.'
+                            : 'Your listening pattern is becoming consistent enough to guide future suggestions.'}
+                      </Text>
+                      <View style={styles.listeningFacts}>
+                        <Text style={styles.listeningFact}>
+                          {journeyMemoryProfile.completedSessions} of {journeyMemoryProfile.sessionsObserved} recent journeys completed
+                        </Text>
+                        {typicalJourneyMinutes ? (
+                          <Text style={styles.listeningFact}>Typical completed length · {typicalJourneyMinutes} min</Text>
+                        ) : null}
+                        {rememberedJourneyTitle ? (
+                          <Text style={styles.listeningFact}>Returned to most · {rememberedJourneyTitle}</Text>
+                        ) : null}
+                        {environmentName ? (
+                          <Text style={styles.listeningFact}>Most present environment · {environmentName}</Text>
+                        ) : null}
+                        {noiseName ? (
+                          <Text style={styles.listeningFact}>Most present noise · {noiseName}</Text>
+                        ) : null}
+                      </View>
+                      <Text style={styles.listeningPrivacy}>Private on this device · No automatic changes</Text>
+                    </View>
+                  ) : null}
+                </View>
+              ) : null}
+
               <View style={styles.dreamSeedCard}>
                 <Pressable
                   onPress={() => setDreamSeedExpanded(expanded => !expanded)}
@@ -949,6 +1020,11 @@ const styles = StyleSheet.create({
   insightTitle: { color: '#EEE9F5', fontSize: 15, textAlign: 'left', marginTop: 4 },
   insightCopy: { color: '#D5CEDF', fontFamily: 'Inter-ExtraLight', fontSize: 11, lineHeight: 17, textAlign: 'center', marginTop: 7 },
   insightDetails: { alignItems: 'center' },
+  listeningPatternCard: { alignSelf: 'center', width: '92%', maxWidth: 220, paddingHorizontal: 17, paddingVertical: 8, borderRadius: 17, borderWidth: 1, borderColor: 'rgba(185,167,255,0.24)', backgroundColor: 'rgba(7,9,19,0.7)' },
+  listeningPatternDetails: { alignItems: 'center', width: '100%' },
+  listeningFacts: { width: '100%', marginTop: 11, borderTopWidth: 1, borderTopColor: 'rgba(205,194,255,0.12)' },
+  listeningFact: { color: '#BDB5C8', fontFamily: 'Inter-ExtraLight', fontSize: 9, lineHeight: 14, textAlign: 'center', paddingTop: 8 },
+  listeningPrivacy: { color: '#80798B', fontFamily: 'Inter-ExtraLight', fontSize: 7, textAlign: 'center', marginTop: 11 },
   recommendationCard: { width: '100%', alignItems: 'center', marginTop: 13, paddingTop: 13, borderTopWidth: 1, borderTopColor: 'rgba(205,194,255,0.14)' },
   recommendationEyebrow: { color: '#A999DE', fontFamily: 'Inter-Medium', fontSize: 7, letterSpacing: 1.35 },
   recommendationTitle: { color: '#EEE9F5', fontSize: 14, textAlign: 'center', marginTop: 5 },

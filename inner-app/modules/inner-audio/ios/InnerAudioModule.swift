@@ -64,6 +64,8 @@ public final class InnerAudioModule: Module {
     AsyncFunction("seekTimeline") { (positionMs: Double) in self.engine.seekTimeline(positionMs) }
     AsyncFunction("setNowPlaying") { (title: String) in self.engine.setNowPlaying(title) }
     AsyncFunction("setSleepTimer") { (endAtMs: Double?) in self.engine.setSleepTimer(endAtMs) }
+    Function("getLastTimerCompletionAtMs") { self.engine.getLastTimerCompletionAtMs() }
+    Function("drainDiagnosticEvents") { self.engine.drainDiagnosticEvents() }
     AsyncFunction("triggerCue") { self.engine.triggerCue() }
     AsyncFunction("play") { try self.engine.play() }
     AsyncFunction("pause") { self.engine.pause() }
@@ -259,9 +261,12 @@ private final class ProceduralAudioEngine: NSObject {
   private var nowPlayingTitle = "Inner"
   private var desiredPlaying = false
   private var sleepStopScheduled = false
+  private var lastTimerCompletionAtMs: Double?
   private var remoteTargets: [(MPRemoteCommand, Any)] = []
   private var nowPlayingRefreshTimer: DispatchSourceTimer?
   private var isSystemInterrupted = false
+  private let diagnosticLock = NSLock()
+  private var diagnosticEvents: [[String: Any]] = []
 
   override init() {
     super.init()
@@ -366,6 +371,7 @@ private final class ProceduralAudioEngine: NSObject {
     installRemoteCommandsIfNeeded()
     updateNowPlaying(rate: 1)
     startNowPlayingRefresh()
+    recordDiagnostic("playback_resumed", reason: "play_request")
   }
 
   // react-native-track-player's underlying SwiftAudioEx player reacts to its queue
@@ -420,6 +426,7 @@ private final class ProceduralAudioEngine: NSObject {
     desiredPlaying = false
     engine.pause()
     updateNowPlaying(rate: 0)
+    recordDiagnostic("playback_paused", reason: "pause_request")
   }
 
   func stop() {
@@ -523,7 +530,32 @@ private final class ProceduralAudioEngine: NSObject {
     lock.lock()
     parameters.sleepEndMs = endAtMs
     sleepStopScheduled = false
+    lastTimerCompletionAtMs = nil
     lock.unlock()
+  }
+
+  func getLastTimerCompletionAtMs() -> Double? {
+    lock.lock()
+    defer { lock.unlock() }
+    return lastTimerCompletionAtMs
+  }
+
+  func drainDiagnosticEvents() -> [[String: Any]] {
+    diagnosticLock.lock()
+    defer { diagnosticLock.unlock() }
+    let events = diagnosticEvents
+    diagnosticEvents.removeAll(keepingCapacity: true)
+    return events
+  }
+
+  private func recordDiagnostic(_ type: String, reason: String? = nil, route: String? = nil) {
+    var event: [String: Any] = ["type": type, "atMs": Date().timeIntervalSince1970 * 1_000]
+    if let reason { event["reason"] = reason }
+    if let route { event["route"] = route }
+    diagnosticLock.lock()
+    diagnosticEvents.append(event)
+    if diagnosticEvents.count > 100 { diagnosticEvents.removeFirst(diagnosticEvents.count - 100) }
+    diagnosticLock.unlock()
   }
 
   /// Fires the fixed lucidity cue once. Safe to call at any time; a call
@@ -785,7 +817,10 @@ private final class ProceduralAudioEngine: NSObject {
     renderElapsedFrames += Double(frameCount)
 
     if let endMs = baseTarget.sleepEndMs, bufferStartMs >= endMs, !sleepStopScheduled {
+      lock.lock()
       sleepStopScheduled = true
+      lastTimerCompletionAtMs = Date().timeIntervalSince1970 * 1_000
+      lock.unlock()
       DispatchQueue.main.async { [weak self] in self?.stop() }
     }
   }
@@ -1502,6 +1537,7 @@ private final class ProceduralAudioEngine: NSObject {
           let type = AVAudioSession.InterruptionType(rawValue: raw) else { return }
     if type == .began {
       isSystemInterrupted = true
+      recordDiagnostic("interruption_began", reason: "system")
       engine.pause()
       updateNowPlaying(rate: 0)
       return
@@ -1509,6 +1545,7 @@ private final class ProceduralAudioEngine: NSObject {
     isSystemInterrupted = false
     let optionsRaw = notification.userInfo?[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0
     let options = AVAudioSession.InterruptionOptions(rawValue: optionsRaw)
+    recordDiagnostic("interruption_ended", reason: options.contains(.shouldResume) ? "should_resume" : "no_resume")
     if desiredPlaying && options.contains(.shouldResume) { try? play() }
   }
 
@@ -1534,6 +1571,8 @@ private final class ProceduralAudioEngine: NSObject {
     let previousRoute = notification.userInfo?[AVAudioSessionRouteChangePreviousRouteKey] as? AVAudioSessionRouteDescription
     let reasonRaw = notification.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt ?? 0
     let reason = AVAudioSession.RouteChangeReason(rawValue: reasonRaw)
+    let route = session.currentRoute.outputs.map { $0.portType.rawValue }.joined(separator: ",")
+    recordDiagnostic("audio_route_changed", reason: String(reasonRaw), route: route.isEmpty ? "none" : route)
     let lostPrivateOutput = reason == .oldDeviceUnavailable
       && previousRoute.map(isPrivateOutput) == true
       && !isPrivateOutput(session.currentRoute)

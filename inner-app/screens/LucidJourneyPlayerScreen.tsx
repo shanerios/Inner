@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, PanResponder, Platform, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
+import { Alert, AppState, PanResponder, Platform, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useVideoPlayer, VideoView } from '../core/memorySafeVideo';
@@ -15,6 +15,11 @@ import { Typography } from '../core/typography';
 import { cancelLucidityCueNotifications, scheduleLucidityCueNotifications } from '../utils/notifications';
 import { abandonPendingLucidSignalNight } from '../core/lucidSignalLearning';
 import { createRecognitionSignalSound, getRecognitionSignalId, recognitionSignalById } from '../core/recognitionSignals';
+import {
+  beginJourneyMemorySession,
+  finishJourneyMemorySession,
+  recordJourneyMemoryEvent,
+} from '../core/journeyMemory';
 import type { Audio } from 'expo-av';
 
 const LUCIDITY_CUE_TRAINING_JOURNEY_ID = 'lucid-signal';
@@ -43,6 +48,11 @@ export default function LucidJourneyPlayerScreen() {
   const recognitionSoundRef = useRef<Audio.Sound | null>(null);
   const recognitionCueTimesRef = useRef<number[]>([]);
   const lastRecognitionPositionRef = useRef(0);
+  const memorySessionIdRef = useRef<string | null>(null);
+  const memoryFinishedRef = useRef(false);
+  const lastMemoryStageIdRef = useRef<string | null>(null);
+  const lastMemoryCuePositionRef = useRef(0);
+  const lastNativeCompletionCheckRef = useRef(0);
   const [positionMs, setPositionMs] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
@@ -64,13 +74,43 @@ export default function LucidJourneyPlayerScreen() {
     }
     let mounted = true;
     let timer: ReturnType<typeof setInterval> | null = null;
+    let previousAppState = AppState.currentState;
     const session = sessionRef.current;
+
+    memorySessionIdRef.current = null;
+    memoryFinishedRef.current = false;
+    lastMemoryStageIdRef.current = null;
+    lastMemoryCuePositionRef.current = 0;
+
+    const finishMemory = (outcome: 'completed' | 'left_early' | 'failed', message?: string, positionOverrideMs?: number) => {
+      const memorySessionId = memorySessionIdRef.current;
+      if (!memorySessionId || memoryFinishedRef.current) return;
+      memoryFinishedRef.current = true;
+      void finishJourneyMemorySession(
+        memorySessionId,
+        outcome,
+        positionOverrideMs ?? currentPositionRef.current,
+        message,
+      );
+    };
 
     const start = async () => {
       try {
         if (!session.isAvailable()) throw new Error('Procedural audio is unavailable in this build.');
         const timeline = compileAudioJourneyTimeline(journey.timeline, DEFAULT_PROCEDURAL_AUDIO_CONFIG);
         let playbackTimeline = timeline;
+        const cueMoments: Array<{ id: string; atMs: number; stageId: string }> = [];
+        let cueStageStartMs = 0;
+        for (const stage of timeline.stages) {
+          for (const event of stage.spatialEvents) {
+            if (event.type === 'cue') cueMoments.push({
+              id: event.id,
+              atMs: cueStageStartMs + event.atMs,
+              stageId: stage.id,
+            });
+          }
+          cueStageStartMs += stage.durationMs;
+        }
         let signalName = 'the signal';
         if (journey.id === LUCIDITY_CUE_TRAINING_JOURNEY_ID) {
           const signalId = await getRecognitionSignalId();
@@ -95,6 +135,16 @@ export default function LucidJourneyPlayerScreen() {
               spatialEvents: stage.spatialEvents.filter(event => event.type !== 'cue'),
             })),
           };
+        }
+        const memorySession = await beginJourneyMemorySession(
+          journey.id,
+          playbackTimeline,
+          DEFAULT_PROCEDURAL_AUDIO_CONFIG,
+        );
+        memorySessionIdRef.current = memorySession.id;
+        if (!mounted) {
+          finishMemory('left_early');
+          return;
         }
         await session.startTimeline(DEFAULT_PROCEDURAL_AUDIO_CONFIG, playbackTimeline);
         // The native timer keeps the ending dependable while the screen is
@@ -123,6 +173,52 @@ export default function LucidJourneyPlayerScreen() {
         timer = setInterval(() => {
           if (!mounted || seekingRef.current) return;
           const nextPositionMs = Math.min(session.getPositionMs(), timeline.totalDurationMs);
+          currentPositionRef.current = nextPositionMs;
+          let stageStartMs = 0;
+          const activeStage = timeline.stages.find(stage => {
+            const isActive = nextPositionMs < stageStartMs + stage.durationMs;
+            if (!isActive) stageStartMs += stage.durationMs;
+            return isActive;
+          }) ?? timeline.stages.at(-1);
+          if (activeStage && activeStage.id !== lastMemoryStageIdRef.current) {
+            lastMemoryStageIdRef.current = activeStage.id;
+            const memorySessionId = memorySessionIdRef.current;
+            if (memorySessionId) void recordJourneyMemoryEvent(memorySessionId, {
+              type: 'stage_changed',
+              positionMs: nextPositionMs,
+              stageId: activeStage.id,
+            });
+          }
+          for (const cue of cueMoments) {
+            if (cue.atMs > lastMemoryCuePositionRef.current && cue.atMs <= nextPositionMs) {
+              const memorySessionId = memorySessionIdRef.current;
+              if (memorySessionId) void recordJourneyMemoryEvent(memorySessionId, {
+                type: 'cue_played',
+                positionMs: cue.atMs,
+                cueId: cue.id,
+                stageId: cue.stageId,
+              });
+            }
+          }
+          lastMemoryCuePositionRef.current = nextPositionMs;
+          const now = Date.now();
+          if (now - lastNativeCompletionCheckRef.current >= 1_000) {
+            lastNativeCompletionCheckRef.current = now;
+            void session.drainDiagnosticEvents().then(events => {
+              const memorySessionId = memorySessionIdRef.current;
+              if (!memorySessionId) return;
+              for (const event of events) void recordJourneyMemoryEvent(memorySessionId, {
+                type: event.type,
+                at: event.atMs,
+                positionMs: currentPositionRef.current,
+                reason: event.reason,
+                route: event.route,
+              });
+            }).catch(() => {});
+            void session.getLastTimerCompletionAtMs().then(completedAtMs => {
+              if (completedAtMs !== null) finishMemory('completed', undefined, timeline.totalDurationMs);
+            }).catch(() => {});
+          }
           if (journey.id === LUCIDITY_CUE_TRAINING_JOURNEY_ID) {
             const previousPositionMs = lastRecognitionPositionRef.current;
             const crossedCue = recognitionCueTimesRef.current.find(cueAtMs => cueAtMs > previousPositionMs && cueAtMs <= nextPositionMs);
@@ -134,16 +230,29 @@ export default function LucidJourneyPlayerScreen() {
             && nextPositionMs >= cueTrainingEndMs - 500) {
             cueTrainingCompletedRef.current = true;
           }
+          if (nextPositionMs >= timeline.totalDurationMs - 500) finishMemory('completed');
           setPositionMs(nextPositionMs);
         }, 200);
       } catch (startError) {
+        finishMemory('failed', startError instanceof Error ? startError.message : String(startError));
         if (mounted) setError(startError instanceof Error ? startError.message : String(startError));
       }
     };
 
+    const appStateSubscription = AppState.addEventListener('change', nextAppState => {
+      const memorySessionId = memorySessionIdRef.current;
+      if (memorySessionId && nextAppState !== previousAppState) void recordJourneyMemoryEvent(memorySessionId, {
+        type: 'app_state_changed',
+        positionMs: currentPositionRef.current,
+        appState: nextAppState,
+        reason: `${previousAppState}_to_${nextAppState}`,
+      });
+      previousAppState = nextAppState;
+    });
     void start();
     return () => {
       mounted = false;
+      appStateSubscription.remove();
       if (timer) clearInterval(timer);
       if (cueScheduleStartedRef.current && !cueTrainingCompletedRef.current) {
         // Wait for scheduling to finish before cancelling so a quick RETURN
@@ -157,12 +266,20 @@ export default function LucidJourneyPlayerScreen() {
       const recognitionSound = recognitionSoundRef.current;
       recognitionSoundRef.current = null;
       if (recognitionSound) void recognitionSound.unloadAsync().catch(() => {});
+      finishMemory('left_early');
       void session.stop();
     };
   }, [journey]);
 
-  const returnToJourneys = async () => {
-    await sessionRef.current.stop().catch(() => {});
+  const returnToJourneys = () => {
+    const memorySessionId = memorySessionIdRef.current;
+    if (memorySessionId && !memoryFinishedRef.current) {
+      memoryFinishedRef.current = true;
+      void finishJourneyMemorySession(memorySessionId, 'left_early', currentPositionRef.current);
+    }
+    // Navigation must never wait on native audio teardown. The screen cleanup
+    // issues the same idempotent stop, while this request begins immediately.
+    void sessionRef.current.stop().catch(() => {});
     navigation.goBack();
   };
 
@@ -175,12 +292,27 @@ export default function LucidJourneyPlayerScreen() {
 
   const finishSeeking = async (nextPositionMs: number) => {
     const bounded = Math.max(0, Math.min(nextPositionMs, durationMs));
+    const fromPositionMs = scrubStartPositionRef.current;
     try {
       await sessionRef.current.seekToMs(bounded);
       await sessionRef.current.setSleepTimer(Date.now() + Math.max(0, durationMs - bounded));
       lastRecognitionPositionRef.current = bounded;
+      lastMemoryCuePositionRef.current = bounded;
+      lastMemoryStageIdRef.current = null;
+      const memorySessionId = memorySessionIdRef.current;
+      if (memorySessionId) void recordJourneyMemoryEvent(memorySessionId, {
+        type: 'seeked',
+        positionMs: bounded,
+        fromPositionMs,
+      });
       setPositionMs(bounded);
     } catch (seekError) {
+      const memorySessionId = memorySessionIdRef.current;
+      if (memorySessionId) void recordJourneyMemoryEvent(memorySessionId, {
+        type: 'error',
+        positionMs: currentPositionRef.current,
+        message: seekError instanceof Error ? seekError.message : String(seekError),
+      });
       setError(seekError instanceof Error ? seekError.message : String(seekError));
     } finally {
       seekingRef.current = false;

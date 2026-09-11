@@ -78,6 +78,7 @@ class InnerAudioPlaybackService : Service() {
 
   private val deviceCallback = object : AudioDeviceCallback() {
     override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>) {
+      ProceduralAudioEngine.recordDiagnostic("audio_route_changed", "device_added", if (addedDevices.any(::isPrivateOutput)) "private" else "speaker")
       mainHandler.postDelayed({ if (isPlaying()) refreshActivePrivateDevice() }, 350L)
       mainHandler.postDelayed({ if (isPlaying()) refreshActivePrivateDevice() }, 1_500L)
     }
@@ -85,6 +86,7 @@ class InnerAudioPlaybackService : Service() {
     override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>) {
       val activeId = activePrivateDeviceId ?: return
       if (removedDevices.any { it.id == activeId }) {
+        ProceduralAudioEngine.recordDiagnostic("audio_route_changed", "private_device_removed", "speaker")
         desiredPlaying = false
         pause()
       }
@@ -94,12 +96,17 @@ class InnerAudioPlaybackService : Service() {
   private val focusChangeListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
     when (focusChange) {
       AudioManager.AUDIOFOCUS_LOSS -> {
+        ProceduralAudioEngine.recordDiagnostic("interruption_began", "focus_loss")
         desiredPlaying = false
         pause()
       }
-      AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> pause()
+      AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
+        ProceduralAudioEngine.recordDiagnostic("interruption_began", "focus_loss_transient")
+        pause()
+      }
       AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> audioTrack?.setVolume(0.35f)
       AudioManager.AUDIOFOCUS_GAIN -> {
+        ProceduralAudioEngine.recordDiagnostic("interruption_ended", "focus_gain")
         audioTrack?.setVolume(1.0f)
         if (desiredPlaying) play()
       }
@@ -174,12 +181,14 @@ class InnerAudioPlaybackService : Service() {
     mainHandler.postDelayed({ if (isPlaying()) refreshActivePrivateDevice() }, 3_000L)
     startForegroundCompat(buildNotification(isPlaying = true))
     updateNowPlaying(isPlaying = true)
+    ProceduralAudioEngine.recordDiagnostic("playback_resumed", "play_request")
   }
 
   private fun pause() {
     renderThreadPaused.set(true)
     audioTrack?.pause()
     updateNowPlaying(isPlaying = false)
+    ProceduralAudioEngine.recordDiagnostic("playback_paused", "pause_request")
   }
 
   private fun stop() {

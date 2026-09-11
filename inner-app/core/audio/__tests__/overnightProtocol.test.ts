@@ -1,6 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 import { DEFAULT_PROCEDURAL_AUDIO_CONFIG } from '../config';
-import { compileOvernightProtocol, createRecognitionOvernightProtocol } from '../overnightProtocol';
+import { compileOvernightProtocol, createAcceleratedOvernightProtocol, createRecognitionOvernightProtocol } from '../overnightProtocol';
 
 describe('overnight protocol', () => {
   it('builds an eight-hour recognition night with explicit phases and signal events', () => {
@@ -29,6 +29,26 @@ describe('overnight protocol', () => {
       cuePlan: 'gentle',
     }), DEFAULT_PROCEDURAL_AUDIO_CONFIG);
     expect(result.events.filter(event => event.id.startsWith('signal-'))).toHaveLength(2);
+  });
+
+  it('compresses a complete standard night below ten minutes without losing signal events', () => {
+    const source = createRecognitionOvernightProtocol({
+      sleepDurationMinutes: 8 * 60,
+      environment: 'ocean',
+      signalId: 'chimes',
+      cuePlan: 'standard',
+    });
+    const result = compileOvernightProtocol(
+      createAcceleratedOvernightProtocol(source),
+      DEFAULT_PROCEDURAL_AUDIO_CONFIG,
+    );
+
+    expect(result.id).toBe('dev-test-overnight-recognition-ocean-standard');
+    expect(result.totalDurationMs).toBeLessThan(10 * 60_000);
+    expect(result.events.filter(event => event.actions.some(action => action.kind === 'playRecognitionSignal'))).toHaveLength(3);
+    expect(result.phases.map(phase => phase.kind)).toEqual(expect.arrayContaining([
+      'preparation', 'descent', 'sleepProtection', 'recognitionWindow', 'return',
+    ]));
   });
 
   it('supports conditions without hard-wiring future events to timestamps', () => {

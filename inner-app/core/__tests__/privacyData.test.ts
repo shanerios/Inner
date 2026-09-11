@@ -28,6 +28,7 @@ describe('clearPrivateUserData', () => {
       ['inner.lucid-signal.plan.v1', 'gentle'],
       ['inner.dream-incubation.seed.v1', '{"text":"A red door","createdAt":1}'],
       ['inner.recognition-signal.v1', 'droplets'],
+      ['inner.journey-memory.v1', '{"schemaVersion":1,"sessions":[]}'],
       ['profileName', 'preserved'],
     ]);
 
@@ -40,6 +41,7 @@ describe('clearPrivateUserData', () => {
     await expect(AsyncStorage.getItem('inner.lucid-signal.plan.v1')).resolves.toBeNull();
     await expect(AsyncStorage.getItem('inner.dream-incubation.seed.v1')).resolves.toBeNull();
     await expect(AsyncStorage.getItem('inner.recognition-signal.v1')).resolves.toBeNull();
+    await expect(AsyncStorage.getItem('inner.journey-memory.v1')).resolves.toBeNull();
     await expect(AsyncStorage.getItem('profileName')).resolves.toBe('preserved');
   });
 });

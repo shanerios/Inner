@@ -72,5 +72,9 @@ export function compileAudioJourneyTimeline(
   const seed = Number.isFinite(timeline.seed)
     ? Math.max(1, Math.trunc(timeline.seed!) >>> 0)
     : Math.max(1, fallbackSeed);
-  return { id, title, seed, loop: timeline.loop === true, fadeInMs, totalDurationMs, stages };
+  const protocolVersion = Number.isInteger(timeline.protocolVersion) && timeline.protocolVersion! > 0
+    ? timeline.protocolVersion!
+    : 1;
+  const endPolicy = timeline.endPolicy === 'protocolControlled' ? 'protocolControlled' : 'fadeAndStop';
+  return { id, title, seed, loop: timeline.loop === true, fadeInMs, endPolicy, protocolVersion, totalDurationMs, stages };
 }
