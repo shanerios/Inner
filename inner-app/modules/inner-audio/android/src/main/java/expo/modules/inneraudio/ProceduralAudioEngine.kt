@@ -101,8 +101,10 @@ private fun clamp(value: Double, low: Double, high: Double) = min(high, max(low,
 // literal range — parse it as an unsigned value to get the identical bit pattern instead.
 private val XORSHIFT_SEED: Long = java.lang.Long.parseUnsignedLong("9e3779b97f4a7c15", 16)
 
-private const val CAVE_DELAY_SECONDS = 0.3
-private const val CAVE_FEEDBACK = 0.42
+private const val COSMIC_NEAR_DELAY_SECONDS = 0.23
+private const val COSMIC_MID_DELAY_SECONDS = 0.41
+private const val COSMIC_FAR_DELAY_SECONDS = 0.67
+private const val COSMIC_FEEDBACK = 0.24
 private const val FOREST_NOISE_MIX = 0.3
 
 // The lucidity cue: a fixed, non-seeded ascending three-note motif (the same
@@ -180,19 +182,21 @@ object ProceduralAudioEngine {
   private var fireHiss = 0.0
   private var firePopLeft = 0.0
   private var firePopRight = 0.0
-  private var caveEnvelope = 0.0
-  private var caveRandom = XORSHIFT_SEED xor 0x8f1bbcdcL
-  private var caveRumble = 0.0
-  private var caveDripFramesRemaining = 0.0
-  private var caveDripPhase = 0.0
-  private var caveDripFreq = 0.0
-  private var caveDripAmp = 0.0
-  private var caveDripPan = 0.0
-  private var caveDripEnvelope = 0.0
-  private var caveDripDecay = 0.0
-  private val caveDelay = DoubleArray(48_000)
+  private var cosmicEnvelope = 0.0
+  private var cosmicRandom = XORSHIFT_SEED xor 0x8f1bbcdcL
+  private var cosmicRumble = 0.0
+  private var cosmicAirLeft = 0.0
+  private var cosmicAirRight = 0.0
+  private var cosmicSparkFramesRemaining = 0.0
+  private var cosmicSparkPhase = 0.0
+  private var cosmicSparkFreq = 0.0
+  private var cosmicSparkAmp = 0.0
+  private var cosmicSparkPan = 0.0
+  private var cosmicSparkAgeFrames = 0.0
+  private var cosmicSparkDurationFrames = 0.0
+  private val cosmicDelay = DoubleArray(48_000)
   private val silentStereo = Pair(0.0, 0.0)
-  private var caveDelayIndex = 0
+  private var cosmicDelayIndex = 0
   private var forestEnvelope = 0.0
   private var forestRandom = XORSHIFT_SEED xor 0xc2b2ae35L
   private var forestCanopy = 0.0
@@ -346,18 +350,20 @@ object ProceduralAudioEngine {
     fireHiss = 0.0
     firePopLeft = 0.0
     firePopRight = 0.0
-    caveEnvelope = 0.0
-    caveRandom = XORSHIFT_SEED xor 0x8f1bbcdcL
-    caveRumble = 0.0
-    caveDripFramesRemaining = 0.0
-    caveDripPhase = 0.0
-    caveDripFreq = 0.0
-    caveDripAmp = 0.0
-    caveDripPan = 0.0
-    caveDripEnvelope = 0.0
-    caveDripDecay = 0.0
-    caveDelay.fill(0.0)
-    caveDelayIndex = 0
+    cosmicEnvelope = 0.0
+    cosmicRandom = XORSHIFT_SEED xor 0x8f1bbcdcL
+    cosmicRumble = 0.0
+    cosmicAirLeft = 0.0
+    cosmicAirRight = 0.0
+    cosmicSparkFramesRemaining = 0.0
+    cosmicSparkPhase = 0.0
+    cosmicSparkFreq = 0.0
+    cosmicSparkAmp = 0.0
+    cosmicSparkPan = 0.0
+    cosmicSparkAgeFrames = 0.0
+    cosmicSparkDurationFrames = 0.0
+    cosmicDelay.fill(0.0)
+    cosmicDelayIndex = 0
     cueTimelineThresholdMs = -1.0
     forestEnvelope = 0.0
     forestRandom = XORSHIFT_SEED xor 0xc2b2ae35L
@@ -421,16 +427,20 @@ object ProceduralAudioEngine {
       oceanRandom = activeTimeline.seed xor 0x51ed2705L
       windRandom = activeTimeline.seed xor 0x7f4a7c15L
       fireRandom = activeTimeline.seed xor 0x2c1b3c6dL
-      caveRandom = activeTimeline.seed xor 0x8f1bbcdcL
+      cosmicRandom = activeTimeline.seed xor 0x8f1bbcdcL
+      cosmicRumble = 0.0
+      cosmicAirLeft = 0.0
+      cosmicAirRight = 0.0
       templeRandom = activeTimeline.seed xor 0x9c2f5a31L
       rainPockets = buildRainPockets(activeTimeline.seed)
       pink.fill(0.0)
       brown = 0.0
       greyLow = 0.0
-      caveDelay.fill(0.0)
-      caveDelayIndex = 0
-      caveDripFramesRemaining = 0.0
-      caveDripEnvelope = 0.0
+      cosmicDelay.fill(0.0)
+      cosmicDelayIndex = 0
+      cosmicSparkFramesRemaining = 0.0
+      cosmicSparkAgeFrames = 0.0
+      cosmicSparkDurationFrames = 0.0
       forestRandom = activeTimeline.seed xor 0xc2b2ae35L
       forestBirdActive = false
       forestBirdFramesRemaining = 0.0
@@ -524,9 +534,9 @@ object ProceduralAudioEngine {
       val fireTarget = if (target.environment == "fire" && target.environmentGain > 0.0001) 1.0 else 0.0
       val fireStep = 1 / max(1.0, sampleRate * 4.5)
       fireEnvelope += clamp(fireTarget - fireEnvelope, -fireStep, fireStep)
-      val caveTarget = if (target.environment == "cave" && target.environmentGain > 0.0001) 1.0 else 0.0
-      val caveStep = 1 / max(1.0, sampleRate * 4.5)
-      caveEnvelope += clamp(caveTarget - caveEnvelope, -caveStep, caveStep)
+      val cosmicTarget = if (target.environment == "cosmic" && target.environmentGain > 0.0001) 1.0 else 0.0
+      val cosmicStep = 1 / max(1.0, sampleRate * 4.5)
+      cosmicEnvelope += clamp(cosmicTarget - cosmicEnvelope, -cosmicStep, cosmicStep)
       val forestTarget = if (target.environment == "forest" && target.environmentGain > 0.0001) 1.0 else 0.0
       val forestStep = 1 / max(1.0, sampleRate * 4.5)
       forestEnvelope += clamp(forestTarget - forestEnvelope, -forestStep, forestStep)
@@ -571,8 +581,8 @@ object ProceduralAudioEngine {
       val windGain = target.environmentGain * windEnvelope
       val fire = if (fireEnvelope > 0.0001) nextFire(spatialSeconds, target.environmentIntensity) else silentStereo
       val fireGain = target.environmentGain * fireEnvelope
-      val cave = if (caveEnvelope > 0.0001) nextCave(spatialSeconds, target.environmentIntensity) else silentStereo
-      val caveGain = target.environmentGain * caveEnvelope
+      val cosmic = if (cosmicEnvelope > 0.0001) nextCosmic(spatialSeconds, target.environmentIntensity) else silentStereo
+      val cosmicGain = target.environmentGain * cosmicEnvelope
       val forest = if (forestEnvelope > 0.0001) nextForest(spatialSeconds, target.environmentIntensity) else silentStereo
       val forestGain = target.environmentGain * forestEnvelope
       val temple = if (templeEnvelope > 0.0001) nextTemple(spatialSeconds, target.templeIntensity) else silentStereo
@@ -584,8 +594,8 @@ object ProceduralAudioEngine {
       val speakerPulse = sin(phases[5]) * pulseEnvelope * gains[1] * spatialRoom
       val leftEntrainment = sin(phases[1]) * gains[1] * spatialRoom * privateOutputMix + speakerPulse * (1 - privateOutputMix)
       val rightEntrainment = sin(phases[2]) * gains[1] * spatialRoom * privateOutputMix + speakerPulse * (1 - privateOutputMix)
-      val leftMix = (leftCarrier + leftEntrainment + leftNoise + ocean.first * oceanGain + wind.first * windGain + fire.first * fireGain + cave.first * caveGain + forest.first * forestGain + temple.first * templeLevel + cue.first) * gains[3] * journeyFade * sleepGain * 0.32
-      val rightMix = (rightCarrier + rightEntrainment + rightNoise + ocean.second * oceanGain + wind.second * windGain + fire.second * fireGain + cave.second * caveGain + forest.second * forestGain + temple.second * templeLevel + cue.second) * gains[3] * journeyFade * sleepGain * 0.32
+      val leftMix = (leftCarrier + leftEntrainment + leftNoise + ocean.first * oceanGain + wind.first * windGain + fire.first * fireGain + cosmic.first * cosmicGain + forest.first * forestGain + temple.first * templeLevel + cue.first) * gains[3] * journeyFade * sleepGain * 0.32
+      val rightMix = (rightCarrier + rightEntrainment + rightNoise + ocean.second * oceanGain + wind.second * windGain + fire.second * fireGain + cosmic.second * cosmicGain + forest.second * forestGain + temple.second * templeLevel + cue.second) * gains[3] * journeyFade * sleepGain * 0.32
       output[frame * 2] = softLimit(leftMix).toFloat()
       output[frame * 2 + 1] = softLimit(rightMix).toFloat()
       phases[0] = (phases[0] + tau * target.carrierHz / sampleRate) % tau
@@ -895,54 +905,71 @@ object ProceduralAudioEngine {
     return (fireRandom and 0x00ff_ffffL).toDouble() / 0x007f_ffffL.toDouble() - 1
   }
 
-  // A deep, heavily smoothed noise floor stands in for a cavern's vast air mass,
-  // while sparse seeded water drips feed a feedback delay line — the same "echo
-  // of itself, decaying" structure a real hollow space produces — so the drips
-  // trail off into the rumble instead of ending abruptly.
-  private fun nextCave(elapsedSeconds: Double, intensity: Double): Pair<Double, Double> {
-    val shared = nextCaveWhite()
-    caveRumble += 0.0025 * (shared - caveRumble)
-    val breathe = 0.6 + 0.4 * sin(elapsedSeconds * Math.PI * 2 / 26.0 + 0.9 * sin(elapsedSeconds * Math.PI * 2 / 41.0))
-    val rumbleBody = caveRumble * (2.6 + intensity * 2.2) * breathe
+  // A low harmonic field and filtered stellar air move independently across the
+  // channels. Sparse particles bloom slowly, then leave staggered reflections;
+  // no transient begins sharply enough to resemble a droplet or notification.
+  private fun nextCosmic(elapsedSeconds: Double, intensity: Double): Pair<Double, Double> {
+    val shared = nextCosmicWhite()
+    cosmicRumble += 0.0016 * (shared - cosmicRumble)
+    cosmicAirLeft += 0.015 * (nextCosmicWhite() - cosmicAirLeft)
+    cosmicAirRight += 0.015 * (nextCosmicWhite() - cosmicAirRight)
+    val breathe = 0.72 + 0.28 * sin(elapsedSeconds * Math.PI * 2 / 31.0 + 0.7 * sin(elapsedSeconds * Math.PI * 2 / 47.0))
+    val rumbleBody = cosmicRumble * (1.7 + intensity * 1.1) * breathe
+    val airLevel = 0.11 + intensity * 0.08
+    val fundamental = 38 + intensity * 10
+    val slowDrift = sin(elapsedSeconds * Math.PI * 2 / 37.0) * 0.45
+    val leftField = sin(elapsedSeconds * Math.PI * 2 * fundamental + slowDrift) * 0.075 +
+      sin(elapsedSeconds * Math.PI * 2 * fundamental * 1.5 + 1.2) * 0.028
+    val rightField = sin(elapsedSeconds * Math.PI * 2 * fundamental - slowDrift + 0.24) * 0.075 +
+      sin(elapsedSeconds * Math.PI * 2 * fundamental * 1.5 + 2.0) * 0.028
 
-    if (caveDripFramesRemaining <= 0) {
-      val gapSeconds = (8.5 - intensity * 6.0) * (0.4 + Math.abs(nextCaveWhite()) * 1.3)
-      caveDripFramesRemaining = sampleRate * max(0.9, gapSeconds)
-      caveDripFreq = 620 + Math.abs(nextCaveWhite()) * 780
-      caveDripAmp = 0.4 + Math.abs(nextCaveWhite()) * 0.5
-      caveDripPan = clamp(nextCaveWhite() * 0.7, -0.7, 0.7)
-      caveDripPhase = 0.0
-      caveDripEnvelope = 1.0
-      caveDripDecay = Math.exp(-1.0 / (sampleRate * (0.16 + Math.abs(nextCaveWhite()) * 0.16)))
+    if (cosmicSparkFramesRemaining <= 0) {
+      val gapSeconds = (12.0 - intensity * 5.5) * (0.75 + Math.abs(nextCosmicWhite()) * 1.35)
+      cosmicSparkFramesRemaining = sampleRate * max(3.0, gapSeconds)
+      cosmicSparkDurationFrames = sampleRate * (1.6 + Math.abs(nextCosmicWhite()) * 1.8)
+      cosmicSparkAgeFrames = 0.0
+      cosmicSparkFreq = 980 + Math.abs(nextCosmicWhite()) * 1_650
+      cosmicSparkAmp = 0.065 + Math.abs(nextCosmicWhite()) * 0.09
+      cosmicSparkPan = clamp(nextCosmicWhite() * 0.78, -0.78, 0.78)
+      cosmicSparkPhase = 0.0
     }
-    caveDripFramesRemaining -= 1
-    val dripMono = sin(caveDripPhase) * caveDripEnvelope * caveDripAmp * (0.5 + intensity * 0.6)
-    caveDripEnvelope *= caveDripDecay
-    caveDripFreq *= 0.99992
-    caveDripPhase = (caveDripPhase + Math.PI * 2 * caveDripFreq / sampleRate) % (Math.PI * 2)
+    cosmicSparkFramesRemaining -= 1
+    val sparkProgress = if (cosmicSparkDurationFrames > 0) cosmicSparkAgeFrames / cosmicSparkDurationFrames else 1.0
+    val sparkWindow = if (sparkProgress < 1) sin(Math.PI * sparkProgress).let { it * it } else 0.0
+    val sparkTone = sin(cosmicSparkPhase) + 0.18 * sin(cosmicSparkPhase * 2)
+    val sparkMono = sparkTone * sparkWindow * cosmicSparkAmp * (0.7 + intensity * 0.3)
+    cosmicSparkAgeFrames += 1
+    cosmicSparkFreq *= 0.999997
+    cosmicSparkPhase = (cosmicSparkPhase + Math.PI * 2 * cosmicSparkFreq / sampleRate) % (Math.PI * 2)
 
-    val delayFrames = min(caveDelay.size - 1, max(1, (CAVE_DELAY_SECONDS * sampleRate).toInt()))
-    val readIndex = (caveDelayIndex - delayFrames + caveDelay.size) % caveDelay.size
-    val delayed = caveDelay[readIndex]
-    caveDelay[caveDelayIndex] = dripMono + delayed * CAVE_FEEDBACK
-    caveDelayIndex = (caveDelayIndex + 1) % caveDelay.size
+    val nearFrames = min(cosmicDelay.size - 1, max(1, (COSMIC_NEAR_DELAY_SECONDS * sampleRate).toInt()))
+    val midFrames = min(cosmicDelay.size - 1, max(1, (COSMIC_MID_DELAY_SECONDS * sampleRate).toInt()))
+    val farFrames = min(cosmicDelay.size - 1, max(1, (COSMIC_FAR_DELAY_SECONDS * sampleRate).toInt()))
+    val nearReflection = cosmicDelay[(cosmicDelayIndex - nearFrames + cosmicDelay.size) % cosmicDelay.size]
+    val midReflection = cosmicDelay[(cosmicDelayIndex - midFrames + cosmicDelay.size) % cosmicDelay.size]
+    val farReflection = cosmicDelay[(cosmicDelayIndex - farFrames + cosmicDelay.size) % cosmicDelay.size]
+    cosmicDelay[cosmicDelayIndex] = sparkMono + (nearReflection * 0.5 + midReflection * 0.3 + farReflection * 0.2) * COSMIC_FEEDBACK
+    cosmicDelayIndex = (cosmicDelayIndex + 1) % cosmicDelay.size
 
-    // Rotating the echo tail's pan (independently of the drip's own fixed
-    // position) reads as reflections arriving from many directions at once.
-    val echoPan = sin(elapsedSeconds * Math.PI * 2 / 6.7) * 0.55
-    val dripLeft = dripMono * (1 - caveDripPan)
-    val dripRight = dripMono * (1 + caveDripPan)
-    val echoLeft = delayed * (1 - echoPan) * 0.6
-    val echoRight = delayed * (1 + echoPan) * 0.6
+    val sparkLeft = sparkMono * (1 - cosmicSparkPan)
+    val sparkRight = sparkMono * (1 + cosmicSparkPan)
+    val reflectionDrift = sin(elapsedSeconds * Math.PI * 2 / 9.7) * 0.34
+    val echoLeft = nearReflection * (1 + cosmicSparkPan * 0.55) * 0.34 +
+      midReflection * (1 - reflectionDrift) * 0.24 + farReflection * 0.14
+    val echoRight = nearReflection * (1 - cosmicSparkPan * 0.55) * 0.34 +
+      midReflection * (1 + reflectionDrift) * 0.24 + farReflection * 0.14
 
-    return Pair(rumbleBody + dripLeft * 0.55 + echoLeft, rumbleBody + dripRight * 0.55 + echoRight)
+    return Pair(
+      rumbleBody + leftField + cosmicAirLeft * airLevel + sparkLeft * 0.42 + echoLeft,
+      rumbleBody + rightField + cosmicAirRight * airLevel + sparkRight * 0.42 + echoRight,
+    )
   }
 
-  private fun nextCaveWhite(): Double {
-    caveRandom = caveRandom xor (caveRandom shl 13)
-    caveRandom = caveRandom xor (caveRandom ushr 7)
-    caveRandom = caveRandom xor (caveRandom shl 17)
-    return (caveRandom and 0x00ff_ffffL).toDouble() / 0x007f_ffffL.toDouble() - 1
+  private fun nextCosmicWhite(): Double {
+    cosmicRandom = cosmicRandom xor (cosmicRandom shl 13)
+    cosmicRandom = cosmicRandom xor (cosmicRandom ushr 7)
+    cosmicRandom = cosmicRandom xor (cosmicRandom shl 17)
+    return (cosmicRandom and 0x00ff_ffffL).toDouble() / 0x007f_ffffL.toDouble() - 1
   }
 
   // A canopy rustle bed (smoothed noise breathing on a light breeze cycle, plus a
@@ -1120,7 +1147,7 @@ object ProceduralAudioEngine {
       binauralGain = clamp(raw.binauralGain, 0.0, 1.0),
       noiseColor = noiseColor,
       noiseGain = clamp(raw.noiseGain, 0.0, 1.0),
-      environment = raw.environment.takeIf { it == "ocean" || it == "wind" || it == "fire" || it == "cave" || it == "forest" } ?: "none",
+      environment = if (raw.environment == "cave") "cosmic" else raw.environment.takeIf { it == "ocean" || it == "wind" || it == "fire" || it == "cosmic" || it == "forest" } ?: "none",
       environmentGain = clamp(raw.environmentGain, 0.0, 1.0),
       environmentIntensity = clamp(raw.environmentIntensity, 0.0, 1.0),
       templeGain = clamp(raw.templeGain, 0.0, 1.0),

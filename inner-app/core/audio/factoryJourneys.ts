@@ -6,6 +6,8 @@ export type FactoryAudioJourney = {
   durationLabel: string;
   summary: string;
   timeline: AudioJourneyTimeline;
+  /** Marks the waking-conditioning boundary inside a longer overnight timeline. */
+  overnight?: { sleepOnsetDelayMs: number };
 };
 
 export type PersonalizedLucidJourneyAnswers = {
@@ -209,6 +211,63 @@ export const FACTORY_AUDIO_JOURNEYS: FactoryAudioJourney[] = [
     },
   },
 ];
+
+export function createDreamIncubationJourney(dreamSeed: string): FactoryAudioJourney {
+  const seedText = dreamSeed.trim().replace(/\s+/g, ' ').slice(0, 120);
+  if (!seedText) throw new Error('A Dream Seed is required to begin incubation.');
+  const id = `dream-incubation-${Math.floor(Date.now() / 1000)}`;
+  return {
+    id,
+    title: 'Dream Incubation',
+    durationLabel: '10 min · Dream Seed',
+    summary: `A quiet visualization practice shaped around “${seedText}”.`,
+    timeline: {
+      id,
+      title: 'Dream Incubation',
+      fadeInMs: 5_000,
+      stages: [
+        stage('incubation-settle', 'Settle', 90_000, 35_000, {
+          carrierHz: 432, toneGain: 0.08, binauralCarrierHz: 216, binauralDeltaHz: 8,
+          binauralGain: 0.2, noiseColor: 'pink', noiseGain: 0.13, masterGain: 0.6,
+          spatialMode: 'drift', spatialTarget: 'noise', spatialDepth: 0.25, spatialRate: 0.2,
+        }),
+        stage('incubation-form', 'Form the Seed', 150_000, 60_000, {
+          carrierHz: 639, toneGain: 0.11, binauralCarrierHz: 212, binauralDeltaHz: 7,
+          binauralGain: 0.24, noiseColor: 'pink', noiseGain: 0.15, environment: 'cosmic',
+          environmentGain: 0.08, environmentIntensity: 0.28, masterGain: 0.62,
+          spatialMode: 'orbit', spatialTarget: 'both', spatialDepth: 0.42, spatialRate: 0.32,
+        }),
+        stage('incubation-enter', 'Enter the Image', 150_000, 60_000, {
+          carrierHz: 639, toneGain: 0.13, binauralCarrierHz: 208, binauralDeltaHz: 6,
+          binauralGain: 0.27, noiseColor: 'pink', noiseGain: 0.16, environment: 'cosmic',
+          environmentGain: 0.1, environmentIntensity: 0.35, masterGain: 0.62,
+          spatialMode: 'orbit', spatialTarget: 'both', spatialDepth: 0.55, spatialRate: 0.42,
+        }),
+        stage('incubation-recognize', 'Recognize', 90_000, 35_000, {
+          carrierHz: 639, toneGain: 0.15, binauralCarrierHz: 204, binauralDeltaHz: 5.5,
+          binauralGain: 0.27, noiseColor: 'pink', noiseGain: 0.13, environment: 'cosmic',
+          environmentGain: 0.07, environmentIntensity: 0.25, masterGain: 0.58,
+          spatialMode: 'pendulum', spatialTarget: 'both', spatialDepth: 0.6, spatialRate: 0.65,
+        }, [{ id: 'incubation-recognition-swoosh', atMs: 30_000, type: 'swoosh', direction: 'right', durationMs: 2_400, depth: 0.75 }]),
+        stage('incubation-release', 'Release to Sleep', 120_000, 105_000, {
+          carrierHz: 432, toneGain: 0.03, binauralCarrierHz: 194, binauralDeltaHz: 4,
+          binauralGain: 0.13, noiseColor: 'brown', noiseGain: 0.13, environment: 'none',
+          environmentGain: 0, masterGain: 0.36, spatialMode: 'drift', spatialTarget: 'noise',
+          spatialDepth: 0.16, spatialRate: 0.16,
+        }),
+      ],
+      guidance: [
+        { id: 'incubation-arrive', atMs: 0, heading: 'Arrive', prompt: 'Let the day loosen its hold. Nothing needs to be forced into view.' },
+        { id: 'incubation-seed', atMs: 90_000, heading: 'Hold the seed', prompt: `Bring this gently to mind: “${seedText}”` },
+        { id: 'incubation-senses', atMs: 180_000, heading: 'Give it form', prompt: 'Let one color, texture, sound, or feeling gather around it.' },
+        { id: 'incubation-enter', atMs: 300_000, heading: 'Enter', prompt: 'Imagine meeting it from within the dream, as though the scene is already around you.' },
+        { id: 'incubation-recognize', atMs: 390_000, heading: 'Recognize', prompt: `If “${seedText}” appears, let it become a quiet sign that you are dreaming.` },
+        { id: 'incubation-remember', atMs: 480_000, heading: 'Remember', prompt: 'I will notice what comes. I will remember what I meet.' },
+        { id: 'incubation-release', atMs: 540_000, heading: 'Release', prompt: 'Let the image continue without effort. The seed can travel without your attention.' },
+      ],
+    },
+  };
+}
 
 export function createJourneyPreview(
   journey: FactoryAudioJourney,

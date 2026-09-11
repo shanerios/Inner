@@ -1,12 +1,53 @@
-import React, { useCallback, useState } from 'react';
-import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Alert, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useVideoPlayer, VideoView } from '../core/memorySafeVideo';
-import { deletePersonalizedJourney, FACTORY_AUDIO_JOURNEYS, loadPersonalizedJourneys, SavedPersonalizedJourney } from '../core/audio';
+import {
+  DEFAULT_PROCEDURAL_AUDIO_CONFIG,
+  createDreamIncubationJourney,
+  deletePersonalizedJourney,
+  FACTORY_AUDIO_JOURNEYS,
+  loadPersonalizedJourneys,
+  proceduralAudioEngine,
+  ProceduralPlaybackSession,
+  SavedPersonalizedJourney,
+} from '../core/audio';
 import { Typography } from '../core/typography';
+import {
+  cancelLucidityCueNotifications,
+  hasLucidityCueNotificationsScheduled,
+  scheduleRecognitionSignalTestNotification,
+} from '../utils/notifications';
+import {
+  abandonPendingLucidSignalNight,
+  getPendingLucidSignalReflection,
+  getLucidSignalCuePlan,
+  loadLucidSignalLearning,
+  lucidSignalLearningSummary,
+  lucidSignalRecommendation,
+  LucidSignalCuePlan,
+  LucidSignalLearningSummary,
+  LucidSignalNight,
+  recordLucidSignalNight,
+  resetLucidSignalLearning,
+  saveLucidSignalReflection,
+  setLucidSignalCuePlan,
+  SignalNotice,
+  SleepImpact,
+} from '../core/lucidSignalLearning';
+import { clearDreamSeed, DreamSeed, loadDreamSeed, saveDreamSeed } from '../core/dreamIncubation';
+import {
+  createRecognitionSignalSound,
+  getRecognitionSignalId,
+  recognitionSignalById,
+  RECOGNITION_SIGNALS,
+  RecognitionSignalId,
+  setRecognitionSignalId,
+} from '../core/recognitionSignals';
+import type { Audio } from 'expo-av';
 
 export default function LucidJourneysScreen() {
   const navigation = useNavigation<any>();
@@ -14,6 +55,26 @@ export default function LucidJourneysScreen() {
   const [expandedJourneyId, setExpandedJourneyId] = useState<string | null>(null);
   const [savedJourneys, setSavedJourneys] = useState<SavedPersonalizedJourney[]>([]);
   const [savedJourneysVisible, setSavedJourneysVisible] = useState(false);
+  const [cueScheduled, setCueScheduled] = useState(false);
+  const [previewingSignal, setPreviewingSignal] = useState(false);
+  const [pendingReflection, setPendingReflection] = useState<LucidSignalNight | null>(null);
+  const [morningReflectionVisible, setMorningReflectionVisible] = useState(false);
+  const [learningSummary, setLearningSummary] = useState<LucidSignalLearningSummary | null>(null);
+  const [learningNights, setLearningNights] = useState<LucidSignalNight[]>([]);
+  const [cuePlan, setCuePlan] = useState<LucidSignalCuePlan>('standard');
+  const [insightExpanded, setInsightExpanded] = useState(false);
+  const [historyExpanded, setHistoryExpanded] = useState(false);
+  const [dreamSeedExpanded, setDreamSeedExpanded] = useState(false);
+  const [innerReflectionsVisible, setInnerReflectionsVisible] = useState(false);
+  const [dreamSeed, setDreamSeed] = useState<DreamSeed | null>(null);
+  const [dreamSeedDraft, setDreamSeedDraft] = useState('');
+  const [recognitionSignalId, setRecognitionSignalIdState] = useState<RecognitionSignalId>('ascending');
+  const [noticed, setNoticed] = useState<SignalNotice | null>(null);
+  const [lucid, setLucid] = useState<boolean | null>(null);
+  const [sleepImpact, setSleepImpact] = useState<SleepImpact | null>(null);
+  const previewSessionRef = useRef(new ProceduralPlaybackSession(proceduralAudioEngine));
+  const recognitionSoundRef = useRef<Audio.Sound | null>(null);
+  const previewStopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const background = useVideoPlayer(require('../assets/videos/lucidscreen.mp4'), player => {
     player.loop = true;
     player.muted = true;
@@ -25,12 +86,138 @@ export default function LucidJourneysScreen() {
   const lucidThreshold = FACTORY_AUDIO_JOURNEYS.find(item => item.id === 'lucid-threshold')!;
   const lucidSignal = FACTORY_AUDIO_JOURNEYS.find(item => item.id === 'lucid-signal')!;
 
-  const begin = (journeyId: string) => navigation.navigate('LucidJourneyPlayer', { journeyId });
+  const stopSignalPreview = useCallback(async () => {
+    if (previewStopTimerRef.current) clearTimeout(previewStopTimerRef.current);
+    previewStopTimerRef.current = null;
+    const signalSound = recognitionSoundRef.current;
+    recognitionSoundRef.current = null;
+    if (signalSound) {
+      await signalSound.stopAsync().catch(() => {});
+      await signalSound.unloadAsync().catch(() => {});
+    }
+    await previewSessionRef.current.stop().catch(() => {});
+    setPreviewingSignal(false);
+  }, []);
+
+  const begin = async (journeyId: string) => {
+    if (previewingSignal) await stopSignalPreview();
+    navigation.navigate('LucidJourneyPlayer', { journeyId });
+  };
   const beginSaved = (journey: SavedPersonalizedJourney) => navigation.navigate('LucidJourneyPlayer', { journey });
+
+  const previewSignal = useCallback(async () => {
+    try {
+      if (!previewSessionRef.current.isAvailable()) throw new Error('The procedural audio engine is unavailable in this build.');
+      await stopSignalPreview();
+      await previewSessionRef.current.start({
+        ...DEFAULT_PROCEDURAL_AUDIO_CONFIG,
+        toneGain: 0,
+        binauralGain: 0,
+        noiseColor: null,
+        noiseGain: 0,
+        environment: 'none',
+        environmentGain: 0,
+        templeGain: 0,
+        masterGain: 0.8,
+      }, 'Lucid Signal Preview');
+      setPreviewingSignal(true);
+      const sound = await createRecognitionSignalSound(recognitionSignalId);
+      recognitionSoundRef.current = sound;
+      await sound.playAsync();
+      previewStopTimerRef.current = setTimeout(
+        () => { void stopSignalPreview(); },
+        recognitionSignalById(recognitionSignalId).durationMs + 500,
+      );
+    } catch (previewError) {
+      setPreviewingSignal(false);
+      Alert.alert('Preview unavailable', previewError instanceof Error ? previewError.message : String(previewError));
+    }
+  }, [recognitionSignalId, stopSignalPreview]);
+
+  const testSignalNotification = useCallback(async () => {
+    const scheduled = await scheduleRecognitionSignalTestNotification();
+    if (!scheduled) {
+      Alert.alert('Test unavailable', 'Allow notifications for Inner Lab in Settings, then try again.');
+      return;
+    }
+    Alert.alert(
+      'Signal scheduled',
+      `${recognitionSignalById(recognitionSignalId).name} will arrive in about 8 seconds. Go to the simulator Home Screen now.`,
+    );
+  }, [recognitionSignalId]);
+
+  const chooseRecognitionSignal = useCallback(async (id: RecognitionSignalId) => {
+    await stopSignalPreview();
+    await setRecognitionSignalId(id);
+    setRecognitionSignalIdState(id);
+  }, [stopSignalPreview]);
+
+  const cancelTonight = useCallback(async () => {
+    await cancelLucidityCueNotifications();
+    await abandonPendingLucidSignalNight();
+    setCueScheduled(false);
+  }, []);
+
+  const submitReflection = useCallback(async () => {
+    if (!pendingReflection || !noticed || lucid === null || !sleepImpact) return;
+    const learning = await saveLucidSignalReflection(pendingReflection.id, { noticed, lucid, sleepImpact });
+    setPendingReflection(null);
+    setMorningReflectionVisible(false);
+    setLearningNights(learning.nights);
+    setLearningSummary(lucidSignalLearningSummary(learning.nights));
+    setNoticed(null);
+    setLucid(null);
+    setSleepImpact(null);
+  }, [lucid, noticed, pendingReflection, sleepImpact]);
+
+  const previewMorningReflection = useCallback(async () => {
+    const learning = await loadLucidSignalLearning();
+    const existing = learning.nights.find(night => !night.reflection);
+    if (existing) {
+      setPendingReflection(existing);
+      setMorningReflectionVisible(true);
+      return;
+    }
+    // Existing scheduled notifications may predate the learning-loop build.
+    // Development builds create one elapsed test night so the UI can still be
+    // reviewed immediately; this path is never included in production UI.
+    const now = Date.now();
+    const testNight = await recordLucidSignalNight(
+      now - 9 * 60 * 60 * 1000,
+      [now - 4.5 * 60 * 60 * 1000, now - 3 * 60 * 60 * 1000, now - 1.5 * 60 * 60 * 1000],
+    );
+    setPendingReflection(testNight);
+    setMorningReflectionVisible(true);
+  }, []);
+
+  useEffect(() => () => {
+    if (previewStopTimerRef.current) clearTimeout(previewStopTimerRef.current);
+    void previewSessionRef.current.stop();
+  }, []);
 
   useFocusEffect(useCallback(() => {
     let active = true;
-    void loadPersonalizedJourneys().then(journeys => { if (active) setSavedJourneys(journeys); });
+    void Promise.all([
+      loadPersonalizedJourneys(),
+      hasLucidityCueNotificationsScheduled(),
+      getPendingLucidSignalReflection(),
+      loadLucidSignalLearning(),
+      getLucidSignalCuePlan(),
+      loadDreamSeed(),
+      getRecognitionSignalId(),
+    ]).then(([journeys, hasCues, reflection, learning, selectedCuePlan, savedDreamSeed, selectedSignalId]) => {
+      if (!active) return;
+      setSavedJourneys(journeys);
+      setCueScheduled(hasCues);
+      setPendingReflection(reflection);
+      if (reflection) setMorningReflectionVisible(true);
+      setLearningNights(learning.nights);
+      setLearningSummary(lucidSignalLearningSummary(learning.nights));
+      setCuePlan(selectedCuePlan);
+      setDreamSeed(savedDreamSeed);
+      setDreamSeedDraft(savedDreamSeed?.text ?? '');
+      setRecognitionSignalIdState(selectedSignalId);
+    });
     return () => { active = false; };
   }, []));
 
@@ -44,6 +231,61 @@ export default function LucidJourneysScreen() {
         },
       },
     ]);
+  };
+
+  const useRecommendedPlan = async (plan: LucidSignalCuePlan) => {
+    await setLucidSignalCuePlan(plan);
+    setCuePlan(plan);
+  };
+
+  const resetLearning = () => {
+    Alert.alert(
+      'Reset Lucid Signal learning?',
+      'This removes your private reflection history and returns future cue plans to the standard schedule. Cues already scheduled for tonight will remain.',
+      [
+        { text: 'Keep Learning', style: 'cancel' },
+        {
+          text: 'Reset',
+          style: 'destructive',
+          onPress: () => {
+            void resetLucidSignalLearning().then(() => {
+              setLearningNights([]);
+              setLearningSummary(null);
+              setPendingReflection(null);
+              setMorningReflectionVisible(false);
+              setCuePlan('standard');
+              setInsightExpanded(false);
+              setHistoryExpanded(false);
+            });
+          },
+        },
+      ],
+    );
+  };
+
+  const recommendation = lucidSignalRecommendation(learningNights, cuePlan);
+  const completedNights = learningNights.filter(night => night.reflection);
+
+  const keepDreamSeed = async () => {
+    const saved = await saveDreamSeed(dreamSeedDraft);
+    if (!saved) return;
+    setDreamSeed(saved);
+    setDreamSeedDraft(saved.text);
+    setDreamSeedExpanded(false);
+  };
+
+  const releaseDreamSeed = async () => {
+    await clearDreamSeed();
+    setDreamSeed(null);
+    setDreamSeedDraft('');
+    setDreamSeedExpanded(false);
+  };
+
+  const beginDreamIncubation = () => {
+    if (!dreamSeed) return;
+    const journey = createDreamIncubationJourney(dreamSeed.text);
+    setInnerReflectionsVisible(false);
+    navigation.navigate('LucidJourneyPlayer', { journey });
   };
 
   return (
@@ -63,17 +305,36 @@ export default function LucidJourneysScreen() {
         pointerEvents="none"
       />
 
-      <ScrollView
-        contentContainerStyle={[styles.content, { paddingTop: insets.top + 102, paddingBottom: insets.bottom + 28 }]}
-        showsVerticalScrollIndicator={false}
+      <View
+        pointerEvents="none"
+        style={[
+          styles.fixedIntro,
+          { top: insets.top + 102 },
+          Platform.OS === 'android' && styles.androidTitleOffset,
+        ]}
       >
-        <View style={[styles.intro, Platform.OS === 'android' && styles.androidTitleOffset]}>
-          <Text style={[Typography.display, styles.title]}>Lucid Journeys</Text>
-          <Text style={[Typography.body, styles.subtitle]}>
-            Practices for carrying awareness across the threshold of sleep.
-          </Text>
-        </View>
+        <Text style={[Typography.display, styles.title]}>Lucid Journeys</Text>
+        <Text style={[Typography.body, styles.subtitle]}>
+          Practices for carrying awareness across the threshold of sleep.
+        </Text>
+      </View>
 
+      <Pressable
+        onPress={() => setInnerReflectionsVisible(true)}
+        accessibilityRole="button"
+        accessibilityLabel="Open Inner reflections and Dream Seed"
+        style={[styles.reflectionsLauncher, { top: insets.top + 18 }]}
+      >
+        <Ionicons name="sparkles-outline" size={16} color="#D8CFF1" />
+        {(learningSummary || dreamSeed) ? <View style={styles.reflectionsDot} /> : null}
+      </Pressable>
+
+      <ScrollView
+        style={[styles.scrollViewport, { marginTop: insets.top + (Platform.OS === 'android' ? 218 : 188) }]}
+        contentContainerStyle={[styles.content, { paddingTop: 18, paddingBottom: insets.bottom + 28 }]}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
         <View style={[styles.cards, Platform.OS === 'android' && styles.androidCards]}>
           {[lucidReturn, lucidThreshold, lucidSignal].map(journey => {
             const expanded = expandedJourneyId === journey.id;
@@ -100,11 +361,179 @@ export default function LucidJourneysScreen() {
                   </Pressable>
                 </View>
                 {expanded ? (
-                  <Text style={[Typography.body, styles.summary]}>{journey.summary}</Text>
+                  <View style={styles.journeyDetails}>
+                    <Text style={[Typography.body, styles.summary]}>{journey.summary}</Text>
+                    {journey.id === 'lucid-signal' ? (
+                      <View style={styles.signalCalibration}>
+                        <Text style={styles.signalCalibrationCopy}>
+                          Preview the exact recognition signal, then set your device and notification volume to a level you would be comfortable hearing during sleep.
+                        </Text>
+                        <Pressable
+                          onPress={() => { void previewSignal(); }}
+                          accessibilityRole="button"
+                          accessibilityLabel="Preview the lucid signal"
+                          style={styles.signalButton}
+                        >
+                          <Text style={styles.signalButtonText}>{previewingSignal ? 'PLAYING SIGNAL' : 'PREVIEW SIGNAL'}</Text>
+                        </Pressable>
+                      </View>
+                    ) : null}
+                  </View>
                 ) : null}
               </View>
             );
           })}
+          {cueScheduled ? (
+            <View style={styles.tonightCueStatus}>
+              <View>
+                <Text style={styles.tonightCueLabel}>TONIGHT’S SIGNALS ARE SCHEDULED</Text>
+                <Text style={styles.tonightCueHint}>Three later-night notification cues</Text>
+              </View>
+              <Pressable
+                onPress={() => { void cancelTonight(); }}
+                accessibilityRole="button"
+                accessibilityLabel="Cancel tonight’s lucid signals"
+                style={styles.cancelCueButton}
+              >
+                <Text style={styles.cancelCueText}>CANCEL TONIGHT</Text>
+              </Pressable>
+              {__DEV__ ? (
+                <Pressable
+                  onPress={() => { void previewMorningReflection(); }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Preview tomorrow morning's reflection"
+                  style={styles.testReflectionButton}
+                >
+                  <Text style={styles.testReflectionText}>TEST REFLECTION</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          ) : null}
+          {learningSummary ? (
+            <View style={[styles.insightCard, styles.mainHiddenUtility]}>
+              <Pressable
+                onPress={() => setInsightExpanded(expanded => !expanded)}
+                accessibilityRole="button"
+                accessibilityLabel={`${insightExpanded ? 'Hide' : 'Show'} what Inner is noticing`}
+                accessibilityState={{ expanded: insightExpanded }}
+                style={styles.insightHeader}
+              >
+                <View style={styles.insightHeadingCopy}>
+                  <Text style={styles.reflectionEyebrow}>{learningSummary.label}</Text>
+                  <Text style={[Typography.display, styles.insightTitle]}>What Inner is noticing</Text>
+                </View>
+                <Ionicons name={insightExpanded ? 'chevron-up' : 'chevron-down'} size={14} color="#CFC5F2" />
+              </Pressable>
+              {insightExpanded ? (
+                <View style={styles.insightDetails}>
+                  <Text style={styles.insightCopy}>{learningSummary.text}</Text>
+                  {recommendation ? (
+                    <View style={styles.recommendationCard}>
+                      <Text style={styles.recommendationEyebrow}>TONIGHT’S SIGNAL</Text>
+                      <Text style={[Typography.display, styles.recommendationTitle]}>{recommendation.title}</Text>
+                      <Text style={styles.recommendationCopy}>{recommendation.reason}</Text>
+                      <Text style={styles.planCopy}>
+                        {recommendation.plan === 'gentle' ? '2 later cues · 5.5 and 7 hours' : '3 cues · 4.5, 6, and 7.5 hours'}
+                      </Text>
+                      {recommendation.volumeGuidance ? <Text style={styles.volumeGuidance}>{recommendation.volumeGuidance}</Text> : null}
+                      <Pressable
+                        onPress={() => { void useRecommendedPlan(recommendation.plan); }}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${cuePlan === recommendation.plan ? 'Selected' : 'Use'} recommended cue plan`}
+                        style={[styles.usePlanButton, cuePlan === recommendation.plan && styles.usePlanButtonSelected]}
+                      >
+                        <Text style={styles.usePlanText}>
+                          {cuePlan === recommendation.plan ? 'SELECTED' : cueScheduled ? 'USE NEXT NIGHT' : 'USE TONIGHT'}
+                        </Text>
+                      </Pressable>
+                    </View>
+                  ) : null}
+                  <Pressable
+                    onPress={() => setHistoryExpanded(expanded => !expanded)}
+                    accessibilityRole="button"
+                    accessibilityState={{ expanded: historyExpanded }}
+                    style={styles.historyHeader}
+                  >
+                    <Text style={styles.historyHeaderText}>VIEW MY PATTERN</Text>
+                    <Ionicons name={historyExpanded ? 'chevron-up' : 'chevron-down'} size={12} color="#AFA5C2" />
+                  </Pressable>
+                  {historyExpanded ? (
+                    <View style={styles.historyList}>
+                      {completedNights.slice(0, 7).map(night => (
+                        <View key={night.id} style={styles.historyRow}>
+                          <Text style={styles.historyDate}>{new Date(night.sleepOnsetAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</Text>
+                          <Text style={styles.historyResult}>
+                            {night.reflection?.noticed === 'yes' ? 'Signal noticed' : night.reflection?.noticed === 'unsure' ? 'Signal unclear' : 'Not noticed'}
+                            {' · '}{night.reflection?.lucid ? 'Lucid' : 'Not lucid'}
+                            {' · '}{night.reflection?.sleepImpact === 'woke' ? 'Woke me' : night.reflection?.sleepImpact === 'gentle' ? 'Gentle' : 'Undisturbed'}
+                          </Text>
+                        </View>
+                      ))}
+                      <Pressable onPress={resetLearning} accessibilityRole="button" style={styles.resetLearningButton}>
+                        <Text style={styles.resetLearningText}>RESET LEARNING</Text>
+                      </Pressable>
+                    </View>
+                  ) : null}
+                </View>
+              ) : null}
+            </View>
+          ) : null}
+          <View style={[styles.dreamSeedCard, styles.mainHiddenUtility]}>
+            <Pressable
+              onPress={() => setDreamSeedExpanded(expanded => !expanded)}
+              accessibilityRole="button"
+              accessibilityState={{ expanded: dreamSeedExpanded }}
+              accessibilityLabel={`${dreamSeedExpanded ? 'Hide' : 'Open'} Dream Seed`}
+              style={styles.dreamSeedHeader}
+            >
+              <View style={styles.dreamSeedHeading}>
+                <Text style={styles.dreamSeedEyebrow}>{dreamSeed ? 'SEED HELD FOR TONIGHT' : 'DREAM INCUBATION'}</Text>
+                <Text style={[Typography.display, styles.dreamSeedTitle]}>Dream Seed</Text>
+              </View>
+              <Ionicons name={dreamSeedExpanded ? 'chevron-up' : 'chevron-down'} size={13} color="#CFC5F2" />
+            </Pressable>
+            {!dreamSeedExpanded && dreamSeed ? <Text numberOfLines={1} style={styles.dreamSeedPreview}>“{dreamSeed.text}”</Text> : null}
+            {dreamSeedExpanded ? (
+              <View style={styles.dreamSeedDetails}>
+                <Text style={styles.dreamSeedPrompt}>What would you like to meet in a dream?</Text>
+                <TextInput
+                  value={dreamSeedDraft}
+                  onChangeText={setDreamSeedDraft}
+                  maxLength={120}
+                  multiline
+                  placeholder="A place, question, person, or feeling…"
+                  placeholderTextColor="#746D80"
+                  accessibilityLabel="Dream Seed"
+                  style={styles.dreamSeedInput}
+                />
+                <View style={styles.dreamSeedActions}>
+                  {dreamSeed ? (
+                    <Pressable onPress={() => { void releaseDreamSeed(); }} accessibilityRole="button" style={styles.releaseSeedButton}>
+                      <Text style={styles.releaseSeedText}>RELEASE</Text>
+                    </Pressable>
+                  ) : null}
+                  <Pressable
+                    onPress={() => { void keepDreamSeed(); }}
+                    disabled={!dreamSeedDraft.trim()}
+                    accessibilityRole="button"
+                    style={[styles.keepSeedButton, !dreamSeedDraft.trim() && styles.disabledReflection]}
+                  >
+                    <Text style={styles.keepSeedText}>{dreamSeed ? 'UPDATE SEED' : 'HOLD THIS SEED'}</Text>
+                  </Pressable>
+                </View>
+                <Text style={styles.privateCopy}>Private to this device.</Text>
+              </View>
+            ) : null}
+          </View>
+          <Pressable
+            onPress={() => navigation.navigate('OvernightJourney')}
+            accessibilityRole="button"
+            accessibilityLabel="Create an overnight journey"
+            style={styles.overnightJourney}
+          >
+            <Text style={[Typography.display, styles.cardTitle]}>Overnight Journey</Text>
+            <Text style={styles.createJourneyHint}>INNER CONSTRUCTS THE NIGHT</Text>
+          </Pressable>
           <Pressable
             onPress={() => navigation.navigate('CreateLucidJourney')}
             accessibilityRole="button"
@@ -185,14 +614,293 @@ export default function LucidJourneysScreen() {
           <Text style={styles.returnText}>RETURN</Text>
         </Pressable>
       </ScrollView>
+
+      <Modal
+        visible={Boolean(pendingReflection) && morningReflectionVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setMorningReflectionVisible(false)}
+      >
+        <View style={styles.morningModalRoot}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => setMorningReflectionVisible(false)}
+            accessibilityRole="button"
+            accessibilityLabel="Close morning reflection"
+          />
+          <View style={[styles.morningModalPanel, { paddingBottom: insets.bottom + 18 }]}>
+            <Pressable
+              onPress={() => setMorningReflectionVisible(false)}
+              accessibilityRole="button"
+              accessibilityLabel="Close morning reflection"
+              style={styles.morningModalClose}
+            >
+              <Ionicons name="close" size={18} color="#CFC5DA" />
+            </Pressable>
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.morningModalContent}>
+              <Text style={styles.reflectionEyebrow}>MORNING REFLECTION</Text>
+              <Text style={[Typography.display, styles.reflectionTitle]}>What stayed with you?</Text>
+              <ReflectionQuestion
+                prompt="Did you notice the signal?"
+                options={[
+                  { label: 'YES', value: 'yes' }, { label: 'UNSURE', value: 'unsure' }, { label: 'NO', value: 'no' },
+                ]}
+                value={noticed}
+                onChange={value => setNoticed(value as SignalNotice)}
+              />
+              <ReflectionQuestion
+                prompt="Did you become lucid?"
+                options={[{ label: 'YES', value: 'yes' }, { label: 'NO', value: 'no' }]}
+                value={lucid === null ? null : lucid ? 'yes' : 'no'}
+                onChange={value => setLucid(value === 'yes')}
+              />
+              <ReflectionQuestion
+                prompt="How did it affect your sleep?"
+                options={[
+                  { label: 'NOT AT ALL', value: 'none' }, { label: 'GENTLY', value: 'gentle' }, { label: 'WOKE ME', value: 'woke' },
+                ]}
+                value={sleepImpact}
+                onChange={value => setSleepImpact(value as SleepImpact)}
+              />
+              <Pressable
+                onPress={() => { void submitReflection(); }}
+                disabled={!noticed || lucid === null || !sleepImpact}
+                accessibilityRole="button"
+                accessibilityLabel="Save morning reflection"
+                style={[styles.saveReflection, (!noticed || lucid === null || !sleepImpact) && styles.disabledReflection]}
+              >
+                <Text style={styles.saveReflectionText}>SAVE REFLECTION</Text>
+              </Pressable>
+              <Text style={styles.privateCopy}>Stored privately on this device.</Text>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={innerReflectionsVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setInnerReflectionsVisible(false)}
+      >
+        <View style={styles.reflectionsModalRoot}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => setInnerReflectionsVisible(false)}
+            accessibilityRole="button"
+            accessibilityLabel="Close Inner reflections"
+          />
+          <View style={[styles.reflectionsPanel, { paddingTop: 20, paddingBottom: insets.bottom + 18 }]}>
+            <View style={styles.reflectionsPanelHeader}>
+              <Text style={styles.reflectionsPanelEyebrow}>INNER REFLECTIONS</Text>
+              <Pressable onPress={() => setInnerReflectionsVisible(false)} accessibilityRole="button" accessibilityLabel="Close">
+                <Ionicons name="close" size={18} color="#CFC5DA" />
+              </Pressable>
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.reflectionsPanelContent}>
+              <View style={styles.yourSignalCard}>
+                <Text style={styles.dreamSeedEyebrow}>RECOGNITION</Text>
+                <Text style={[Typography.display, styles.yourSignalTitle]}>Your Signal</Text>
+                <Text style={styles.yourSignalCopy}>Choose the sound you want to recognize.</Text>
+                <View style={styles.signalChoices}>
+                  {RECOGNITION_SIGNALS.map(signal => {
+                    const selected = recognitionSignalId === signal.id;
+                    return (
+                      <Pressable
+                        key={signal.id}
+                        onPress={() => { void chooseRecognitionSignal(signal.id); }}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected }}
+                        style={[styles.signalChoice, selected && styles.signalChoiceSelected]}
+                      >
+                        <Text style={[styles.signalChoiceName, selected && styles.signalChoiceNameSelected]}>{signal.name}</Text>
+                        <Text style={styles.signalChoiceDescription}>{signal.description}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+                <Pressable
+                  onPress={() => { void previewSignal(); }}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Preview ${recognitionSignalById(recognitionSignalId).name}`}
+                  style={styles.previewYourSignalButton}
+                >
+                  <Text style={styles.previewYourSignalText}>{previewingSignal ? 'PLAYING SIGNAL' : 'PREVIEW SIGNAL'}</Text>
+                </Pressable>
+                {__DEV__ ? (
+                  <Pressable
+                    onPress={() => { void testSignalNotification(); }}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Test ${recognitionSignalById(recognitionSignalId).name} notification`}
+                    style={styles.testSignalNotificationButton}
+                  >
+                    <Text style={styles.testSignalNotificationText}>TEST NOTIFICATION · 8 SEC</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+              {learningSummary ? (
+                <View style={styles.insightCard}>
+                  <Pressable
+                    onPress={() => setInsightExpanded(expanded => !expanded)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${insightExpanded ? 'Hide' : 'Show'} what Inner is noticing`}
+                    accessibilityState={{ expanded: insightExpanded }}
+                    style={styles.insightHeader}
+                  >
+                    <View style={styles.insightHeadingCopy}>
+                      <Text style={styles.reflectionEyebrow}>{learningSummary.label}</Text>
+                      <Text style={[Typography.display, styles.insightTitle]}>What Inner is noticing</Text>
+                    </View>
+                    <Ionicons name={insightExpanded ? 'chevron-up' : 'chevron-down'} size={14} color="#CFC5F2" />
+                  </Pressable>
+                  {insightExpanded ? (
+                    <View style={styles.insightDetails}>
+                      <Text style={styles.insightCopy}>{learningSummary.text}</Text>
+                      {recommendation ? (
+                        <View style={styles.recommendationCard}>
+                          <Text style={styles.recommendationEyebrow}>TONIGHT’S SIGNAL</Text>
+                          <Text style={[Typography.display, styles.recommendationTitle]}>{recommendation.title}</Text>
+                          <Text style={styles.recommendationCopy}>{recommendation.reason}</Text>
+                          <Text style={styles.planCopy}>
+                            {recommendation.plan === 'gentle' ? '2 later cues · 5.5 and 7 hours' : '3 cues · 4.5, 6, and 7.5 hours'}
+                          </Text>
+                          {recommendation.volumeGuidance ? <Text style={styles.volumeGuidance}>{recommendation.volumeGuidance}</Text> : null}
+                          <Pressable
+                            onPress={() => { void useRecommendedPlan(recommendation.plan); }}
+                            accessibilityRole="button"
+                            style={[styles.usePlanButton, cuePlan === recommendation.plan && styles.usePlanButtonSelected]}
+                          >
+                            <Text style={styles.usePlanText}>{cuePlan === recommendation.plan ? 'SELECTED' : cueScheduled ? 'USE NEXT NIGHT' : 'USE TONIGHT'}</Text>
+                          </Pressable>
+                        </View>
+                      ) : null}
+                      <Pressable
+                        onPress={() => setHistoryExpanded(expanded => !expanded)}
+                        accessibilityRole="button"
+                        accessibilityState={{ expanded: historyExpanded }}
+                        style={styles.historyHeader}
+                      >
+                        <Text style={styles.historyHeaderText}>VIEW MY PATTERN</Text>
+                        <Ionicons name={historyExpanded ? 'chevron-up' : 'chevron-down'} size={12} color="#AFA5C2" />
+                      </Pressable>
+                      {historyExpanded ? (
+                        <View style={styles.historyList}>
+                          {completedNights.slice(0, 7).map(night => (
+                            <View key={night.id} style={styles.historyRow}>
+                              <Text style={styles.historyDate}>{new Date(night.sleepOnsetAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</Text>
+                              <Text style={styles.historyResult}>
+                                {night.reflection?.noticed === 'yes' ? 'Signal noticed' : night.reflection?.noticed === 'unsure' ? 'Signal unclear' : 'Not noticed'}
+                                {' · '}{night.reflection?.lucid ? 'Lucid' : 'Not lucid'}
+                                {' · '}{night.reflection?.sleepImpact === 'woke' ? 'Woke me' : night.reflection?.sleepImpact === 'gentle' ? 'Gentle' : 'Undisturbed'}
+                              </Text>
+                            </View>
+                          ))}
+                          <Pressable onPress={resetLearning} accessibilityRole="button" style={styles.resetLearningButton}>
+                            <Text style={styles.resetLearningText}>RESET LEARNING</Text>
+                          </Pressable>
+                        </View>
+                      ) : null}
+                    </View>
+                  ) : null}
+                </View>
+              ) : (
+                <Text style={styles.noPatternCopy}>Your Lucid Signal reflections will begin forming a pattern here.</Text>
+              )}
+
+              <View style={styles.dreamSeedCard}>
+                <Pressable
+                  onPress={() => setDreamSeedExpanded(expanded => !expanded)}
+                  accessibilityRole="button"
+                  accessibilityState={{ expanded: dreamSeedExpanded }}
+                  style={styles.dreamSeedHeader}
+                >
+                  <View style={styles.dreamSeedHeading}>
+                    <Text style={styles.dreamSeedEyebrow}>{dreamSeed ? 'SEED HELD FOR TONIGHT' : 'DREAM INCUBATION'}</Text>
+                    <Text style={[Typography.display, styles.dreamSeedTitle]}>Dream Seed</Text>
+                  </View>
+                  <Ionicons name={dreamSeedExpanded ? 'chevron-up' : 'chevron-down'} size={13} color="#CFC5F2" />
+                </Pressable>
+                {!dreamSeedExpanded && dreamSeed ? (
+                  <>
+                    <Text numberOfLines={2} style={styles.dreamSeedPreview}>“{dreamSeed.text}”</Text>
+                    <Pressable
+                      onPress={beginDreamIncubation}
+                      accessibilityRole="button"
+                      accessibilityLabel="Begin Dream Incubation"
+                      style={styles.beginIncubationButton}
+                    >
+                      <Text style={styles.beginIncubationText}>BEGIN INCUBATION · 10 MIN</Text>
+                    </Pressable>
+                  </>
+                ) : null}
+                {dreamSeedExpanded ? (
+                  <View style={styles.dreamSeedDetails}>
+                    <Text style={styles.dreamSeedPrompt}>What would you like to meet in a dream?</Text>
+                    <TextInput
+                      value={dreamSeedDraft}
+                      onChangeText={setDreamSeedDraft}
+                      maxLength={120}
+                      multiline
+                      placeholder="A place, question, person, or feeling…"
+                      placeholderTextColor="#746D80"
+                      accessibilityLabel="Dream Seed"
+                      style={styles.dreamSeedInput}
+                    />
+                    <View style={styles.dreamSeedActions}>
+                      {dreamSeed ? (
+                        <Pressable onPress={() => { void releaseDreamSeed(); }} accessibilityRole="button" style={styles.releaseSeedButton}>
+                          <Text style={styles.releaseSeedText}>RELEASE</Text>
+                        </Pressable>
+                      ) : null}
+                      <Pressable
+                        onPress={() => { void keepDreamSeed(); }}
+                        disabled={!dreamSeedDraft.trim()}
+                        accessibilityRole="button"
+                        style={[styles.keepSeedButton, !dreamSeedDraft.trim() && styles.disabledReflection]}
+                      >
+                        <Text style={styles.keepSeedText}>{dreamSeed ? 'UPDATE SEED' : 'HOLD THIS SEED'}</Text>
+                      </Pressable>
+                    </View>
+                    <Text style={styles.privateCopy}>Private to this device.</Text>
+                  </View>
+                ) : null}
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#03050D' },
+  scrollViewport: { flex: 1, overflow: 'hidden' },
   content: { flexGrow: 1, paddingHorizontal: 22, justifyContent: 'space-between' },
-  intro: { alignItems: 'center', paddingHorizontal: 18 },
+  fixedIntro: { position: 'absolute', left: 22, right: 22, zIndex: 2, alignItems: 'center', paddingHorizontal: 18 },
+  reflectionsLauncher: { position: 'absolute', right: 19, zIndex: 4, width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(205,194,255,0.24)', backgroundColor: 'rgba(5,7,16,0.62)' },
+  reflectionsDot: { position: 'absolute', right: 6, top: 6, width: 5, height: 5, borderRadius: 3, backgroundColor: '#B8A7EE' },
+  mainHiddenUtility: { display: 'none' },
+  reflectionsModalRoot: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 22, backgroundColor: 'rgba(1,2,7,0.76)' },
+  reflectionsPanel: { width: '100%', maxWidth: 340, maxHeight: '78%', paddingHorizontal: 18, borderRadius: 24, borderWidth: 1, borderColor: 'rgba(205,194,255,0.25)', backgroundColor: 'rgba(5,7,16,0.97)', shadowColor: '#000', shadowOpacity: 0.6, shadowRadius: 24, elevation: 18 },
+  reflectionsPanelHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 2, paddingBottom: 13 },
+  reflectionsPanelEyebrow: { color: '#B8A7EE', fontFamily: 'Inter-Medium', fontSize: 8, letterSpacing: 1.6 },
+  reflectionsPanelContent: { alignItems: 'center', gap: 16, paddingBottom: 4 },
+  noPatternCopy: { maxWidth: 240, color: '#AAA2B5', fontFamily: 'Inter-ExtraLight', fontSize: 10, lineHeight: 15, textAlign: 'center', paddingVertical: 8 },
+  yourSignalCard: { width: '100%', maxWidth: 260, alignItems: 'center', paddingHorizontal: 15, paddingVertical: 14, borderRadius: 18, borderWidth: 1, borderColor: 'rgba(190,174,238,0.24)', backgroundColor: 'rgba(10,11,24,0.72)' },
+  yourSignalTitle: { color: '#F0ECF7', fontSize: 17, marginTop: 4 },
+  yourSignalCopy: { color: '#AAA2B5', fontFamily: 'Inter-ExtraLight', fontSize: 10, textAlign: 'center', marginTop: 5 },
+  signalChoices: { width: '100%', flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 7, marginTop: 12 },
+  signalChoice: { width: '47%', minHeight: 46, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 7, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(205,194,255,0.18)', backgroundColor: 'rgba(3,5,13,0.46)' },
+  signalChoiceSelected: { borderColor: 'rgba(205,194,255,0.62)', backgroundColor: 'rgba(105,83,171,0.34)' },
+  signalChoiceName: { color: '#BDB5C8', fontFamily: 'Inter-Medium', fontSize: 9, textAlign: 'center' },
+  signalChoiceNameSelected: { color: '#F0EAFB' },
+  signalChoiceDescription: { color: '#80798B', fontFamily: 'Inter-ExtraLight', fontSize: 7, marginTop: 3 },
+  previewYourSignalButton: { minHeight: 34, justifyContent: 'center', marginTop: 11, paddingHorizontal: 14, borderRadius: 17, borderWidth: 1, borderColor: 'rgba(205,194,255,0.34)' },
+  previewYourSignalText: { color: '#DED5F3', fontFamily: 'Inter-Medium', fontSize: 7, letterSpacing: 1.15 },
+  overnightJourney: { alignItems: 'center', alignSelf: 'center', minWidth: 230, paddingVertical: 8, marginTop: 8 },
+  testSignalNotificationButton: { minHeight: 30, justifyContent: 'center', marginTop: 7, paddingHorizontal: 12, borderRadius: 15, backgroundColor: 'rgba(105,83,171,0.28)' },
+  testSignalNotificationText: { color: '#C8BCE8', fontFamily: 'Inter-Medium', fontSize: 6.5, letterSpacing: 1.05 },
   androidTitleOffset: { transform: [{ translateY: 30 }] },
   title: { color: '#F5F2FC', fontSize: 24, textAlign: 'center', textShadowColor: 'rgba(0,0,0,0.9)', textShadowRadius: 12 },
   subtitle: { color: '#D6D0DF', fontFamily: 'Inter-ExtraLight', fontSize: 14, lineHeight: 20, textAlign: 'center', marginTop: 8, maxWidth: 220, textShadowColor: 'rgba(0,0,0,0.95)', textShadowRadius: 10 },
@@ -205,6 +913,75 @@ const styles = StyleSheet.create({
   detailsPill: { minHeight: 27, paddingHorizontal: 9, borderRadius: 14, flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(7,9,19,0.58)', borderWidth: 1, borderColor: 'rgba(205,194,255,0.2)' },
   detailsPillText: { color: '#CFC5F2', fontFamily: 'Inter-Medium', fontSize: 9, letterSpacing: 0.4 },
   summary: { color: '#D0CAD8', fontSize: 12, lineHeight: 18, textAlign: 'center', marginTop: 9, maxWidth: 315, textShadowColor: 'rgba(0,0,0,0.95)', textShadowRadius: 8 },
+  journeyDetails: { alignItems: 'center' },
+  signalCalibration: { alignItems: 'center', marginTop: 10, maxWidth: 300 },
+  signalCalibrationCopy: { color: '#BDB6C9', fontFamily: 'Inter-ExtraLight', fontSize: 11, lineHeight: 16, textAlign: 'center' },
+  signalButton: { marginTop: 9, minHeight: 36, justifyContent: 'center', paddingHorizontal: 16, borderRadius: 18, borderWidth: 1, borderColor: 'rgba(205,194,255,0.3)', backgroundColor: 'rgba(7,9,19,0.58)' },
+  signalButtonText: { color: '#DCD3FA', fontFamily: 'Inter-Medium', fontSize: 8, letterSpacing: 1.35 },
+  tonightCueStatus: { alignSelf: 'center', width: '92%', maxWidth: 340, paddingHorizontal: 13, paddingVertical: 11, borderRadius: 15, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 10, borderWidth: 1, borderColor: 'rgba(185,167,255,0.25)', backgroundColor: 'rgba(7,9,19,0.66)' },
+  tonightCueLabel: { color: '#DCD3FA', fontFamily: 'Inter-Medium', fontSize: 8, letterSpacing: 1.05 },
+  tonightCueHint: { color: '#A9A1B5', fontFamily: 'Inter-ExtraLight', fontSize: 9, marginTop: 3 },
+  cancelCueButton: { minHeight: 34, justifyContent: 'center', paddingHorizontal: 10, borderRadius: 17, borderWidth: 1, borderColor: 'rgba(226,191,205,0.27)' },
+  cancelCueText: { color: '#D8BBC7', fontFamily: 'Inter-Medium', fontSize: 7, letterSpacing: 0.9 },
+  testReflectionButton: { width: '100%', alignItems: 'center', paddingTop: 3 },
+  testReflectionText: { color: '#807892', fontFamily: 'Inter-Medium', fontSize: 7, letterSpacing: 1.05 },
+  morningModalRoot: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 22, backgroundColor: 'rgba(1,2,7,0.78)' },
+  morningModalPanel: { width: '100%', maxWidth: 350, maxHeight: '82%', paddingTop: 18, paddingHorizontal: 18, borderRadius: 24, borderWidth: 1, borderColor: 'rgba(185,167,255,0.34)', backgroundColor: 'rgba(5,7,17,0.97)', shadowColor: '#000', shadowOpacity: 0.62, shadowRadius: 24, elevation: 18 },
+  morningModalClose: { position: 'absolute', right: 12, top: 10, zIndex: 2, width: 34, height: 34, alignItems: 'center', justifyContent: 'center' },
+  morningModalContent: { alignItems: 'center', paddingTop: 12, paddingBottom: 2 },
+  reflectionCard: { alignSelf: 'center', width: '96%', maxWidth: 350, paddingHorizontal: 18, paddingVertical: 17, borderRadius: 20, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(185,167,255,0.3)', backgroundColor: 'rgba(5,7,17,0.84)' },
+  reflectionEyebrow: { color: '#B8A7EE', fontFamily: 'Inter-Medium', fontSize: 8, letterSpacing: 1.55, textAlign: 'center' },
+  reflectionTitle: { color: '#F1EDF8', fontSize: 17, textAlign: 'center', marginTop: 7, marginBottom: 5 },
+  reflectionQuestion: { alignItems: 'center', marginTop: 12 },
+  reflectionPrompt: { color: '#D7D0E0', fontFamily: 'Inter-Light', fontSize: 11, textAlign: 'center', marginBottom: 7 },
+  reflectionOptions: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 6 },
+  reflectionOption: { minHeight: 29, justifyContent: 'center', paddingHorizontal: 10, borderRadius: 15, borderWidth: 1, borderColor: 'rgba(205,194,255,0.2)', backgroundColor: 'rgba(15,16,31,0.55)' },
+  reflectionOptionSelected: { borderColor: 'rgba(205,194,255,0.65)', backgroundColor: 'rgba(105,83,171,0.38)' },
+  reflectionOptionText: { color: '#AFA7BB', fontFamily: 'Inter-Medium', fontSize: 7, letterSpacing: 0.9 },
+  reflectionOptionTextSelected: { color: '#F0EAFB' },
+  saveReflection: { minHeight: 36, justifyContent: 'center', marginTop: 16, paddingHorizontal: 17, borderRadius: 18, borderWidth: 1, borderColor: 'rgba(205,194,255,0.38)' },
+  disabledReflection: { opacity: 0.35 },
+  saveReflectionText: { color: '#E2D9F7', fontFamily: 'Inter-Medium', fontSize: 8, letterSpacing: 1.35 },
+  privateCopy: { color: '#8F879B', fontFamily: 'Inter-ExtraLight', fontSize: 8, marginTop: 8 },
+  insightCard: { alignSelf: 'center', width: '92%', maxWidth: 220, paddingHorizontal: 17, paddingVertical: 8, borderRadius: 17, borderWidth: 1, borderColor: 'rgba(185,167,255,0.24)', backgroundColor: 'rgba(7,9,19,0.7)' },
+  insightHeader: { minHeight: 37, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  insightHeadingCopy: { flex: 1, alignItems: 'flex-start' },
+  insightTitle: { color: '#EEE9F5', fontSize: 15, textAlign: 'left', marginTop: 4 },
+  insightCopy: { color: '#D5CEDF', fontFamily: 'Inter-ExtraLight', fontSize: 11, lineHeight: 17, textAlign: 'center', marginTop: 7 },
+  insightDetails: { alignItems: 'center' },
+  recommendationCard: { width: '100%', alignItems: 'center', marginTop: 13, paddingTop: 13, borderTopWidth: 1, borderTopColor: 'rgba(205,194,255,0.14)' },
+  recommendationEyebrow: { color: '#A999DE', fontFamily: 'Inter-Medium', fontSize: 7, letterSpacing: 1.35 },
+  recommendationTitle: { color: '#EEE9F5', fontSize: 14, textAlign: 'center', marginTop: 5 },
+  recommendationCopy: { color: '#C9C1D2', fontFamily: 'Inter-ExtraLight', fontSize: 10, lineHeight: 15, textAlign: 'center', marginTop: 7 },
+  planCopy: { color: '#BDB0E4', fontFamily: 'Inter-Medium', fontSize: 8, lineHeight: 13, textAlign: 'center', marginTop: 8 },
+  volumeGuidance: { color: '#958CA3', fontFamily: 'Inter-ExtraLight', fontSize: 8, lineHeight: 12, textAlign: 'center', marginTop: 5 },
+  usePlanButton: { minHeight: 32, justifyContent: 'center', marginTop: 10, paddingHorizontal: 13, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(205,194,255,0.4)' },
+  usePlanButtonSelected: { backgroundColor: 'rgba(105,83,171,0.3)' },
+  usePlanText: { color: '#E1D8F5', fontFamily: 'Inter-Medium', fontSize: 7, letterSpacing: 1.15 },
+  historyHeader: { width: '100%', minHeight: 36, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6, marginTop: 8 },
+  historyHeaderText: { color: '#AAA0BA', fontFamily: 'Inter-Medium', fontSize: 7, letterSpacing: 1.2 },
+  historyList: { width: '100%', paddingBottom: 2 },
+  historyRow: { paddingVertical: 8, borderTopWidth: 1, borderTopColor: 'rgba(205,194,255,0.1)' },
+  historyDate: { color: '#B7AAD8', fontFamily: 'Inter-Medium', fontSize: 8, letterSpacing: 0.5 },
+  historyResult: { color: '#A69EAF', fontFamily: 'Inter-ExtraLight', fontSize: 8, lineHeight: 12, marginTop: 3 },
+  resetLearningButton: { alignSelf: 'center', paddingHorizontal: 10, paddingVertical: 9, marginTop: 2 },
+  resetLearningText: { color: '#B993A2', fontFamily: 'Inter-Medium', fontSize: 7, letterSpacing: 1.05 },
+  dreamSeedCard: { alignSelf: 'center', width: '92%', maxWidth: 220, paddingHorizontal: 15, paddingVertical: 11, borderRadius: 17, borderWidth: 1, borderColor: 'rgba(190,174,238,0.22)', backgroundColor: 'rgba(7,9,19,0.68)' },
+  dreamSeedHeader: { minHeight: 38, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  dreamSeedHeading: { flex: 1 },
+  dreamSeedEyebrow: { color: '#A999DE', fontFamily: 'Inter-Medium', fontSize: 7, letterSpacing: 1.25 },
+  dreamSeedTitle: { color: '#EEE9F5', fontSize: 16, marginTop: 3 },
+  dreamSeedPreview: { color: '#BEB5CA', fontFamily: 'Inter-ExtraLight', fontSize: 10, fontStyle: 'italic', marginTop: 4, marginBottom: 3 },
+  dreamSeedDetails: { alignItems: 'center', paddingTop: 8 },
+  dreamSeedPrompt: { color: '#D3CBDD', fontFamily: 'Inter-Light', fontSize: 11, textAlign: 'center', marginBottom: 9 },
+  dreamSeedInput: { width: '100%', minHeight: 68, maxHeight: 100, color: '#F0ECF6', fontFamily: 'Inter-Light', fontSize: 12, lineHeight: 18, textAlignVertical: 'top', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 13, borderWidth: 1, borderColor: 'rgba(205,194,255,0.24)', backgroundColor: 'rgba(3,5,13,0.58)' },
+  dreamSeedActions: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 10 },
+  releaseSeedButton: { minHeight: 32, justifyContent: 'center', paddingHorizontal: 11 },
+  releaseSeedText: { color: '#B993A2', fontFamily: 'Inter-Medium', fontSize: 7, letterSpacing: 1.05 },
+  keepSeedButton: { minHeight: 32, justifyContent: 'center', paddingHorizontal: 13, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(205,194,255,0.38)' },
+  keepSeedText: { color: '#E1D8F5', fontFamily: 'Inter-Medium', fontSize: 7, letterSpacing: 1.05 },
+  beginIncubationButton: { alignSelf: 'center', minHeight: 34, justifyContent: 'center', marginTop: 9, paddingHorizontal: 14, borderRadius: 17, borderWidth: 1, borderColor: 'rgba(205,194,255,0.38)', backgroundColor: 'rgba(105,83,171,0.18)' },
+  beginIncubationText: { color: '#E1D8F5', fontFamily: 'Inter-Medium', fontSize: 7, letterSpacing: 1.05 },
   createJourney: { alignItems: 'center', paddingVertical: 8 },
   createJourneyHint: { color: '#9E94BF', fontFamily: 'Inter-Medium', fontSize: 8, letterSpacing: 1.4, marginTop: 5 },
   savedSection: { alignItems: 'center', gap: 13, marginTop: -4 },
@@ -221,3 +998,31 @@ const styles = StyleSheet.create({
   returnButton: { alignSelf: 'center', paddingHorizontal: 24, paddingVertical: 13, marginTop: 4 },
   returnText: { color: '#E8E2F2', fontFamily: 'Inter-Medium', fontSize: 10, letterSpacing: 2.1 },
 });
+
+type ReflectionQuestionProps = {
+  prompt: string;
+  options: Array<{ label: string; value: string }>;
+  value: string | null;
+  onChange: (value: string) => void;
+};
+
+function ReflectionQuestion({ prompt, options, value, onChange }: ReflectionQuestionProps) {
+  return (
+    <View style={styles.reflectionQuestion}>
+      <Text style={styles.reflectionPrompt}>{prompt}</Text>
+      <View style={styles.reflectionOptions}>
+        {options.map(option => (
+          <Pressable
+            key={option.value}
+            onPress={() => onChange(option.value)}
+            accessibilityRole="button"
+            accessibilityState={{ selected: value === option.value }}
+            style={[styles.reflectionOption, value === option.value && styles.reflectionOptionSelected]}
+          >
+            <Text style={[styles.reflectionOptionText, value === option.value && styles.reflectionOptionTextSelected]}>{option.label}</Text>
+          </Pressable>
+        ))}
+      </View>
+    </View>
+  );
+}

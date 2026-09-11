@@ -1,6 +1,12 @@
 // utils/notifications.ts
 import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  getLucidSignalCuePlan,
+  LUCID_SIGNAL_CUE_OFFSETS_HOURS,
+  recordLucidSignalNight,
+} from '../core/lucidSignalLearning';
+import { getRecognitionSignalId, recognitionSignalById } from '../core/recognitionSignals';
 
 const WAKE_NOTIFICATION_IDS_KEY = 'wakeNotificationIds';
 /** Legacy single-ID key from before rotating weekly copy — cancelled for migration only. */
@@ -229,11 +235,47 @@ export async function cancelReengagementNotification(): Promise<void> {
 // several independent chances of landing inside one.
 export const LUCIDITY_CUE_NOTIFICATION_TYPE = 'lucidityCue';
 const LUCIDITY_CUE_NOTIFICATION_IDS_KEY = 'lucidityCueNotificationIds';
-const LUCIDITY_CUE_OFFSETS_MS = [4.5, 6, 7.5].map(hours => hours * 60 * 60 * 1000);
 // Android notification channels are immutable once created — a channel's
 // sound can't be changed later, so the cue needs its own channel rather than
 // sharing the app's default one (which has no custom sound configured).
-const LUCIDITY_CUE_CHANNEL_ID = 'lucidity-cue';
+const LUCIDITY_CUE_CHANNEL_PREFIX = 'lucidity-signal';
+
+/**
+ * Development-only smoke test for the currently selected recognition signal.
+ * It deliberately does not touch tonight's scheduled cues or learning record.
+ */
+export async function scheduleRecognitionSignalTestNotification(delaySeconds = 8): Promise<boolean> {
+  if (!__DEV__) return false;
+  try {
+    const granted = await requestNotificationPermission();
+    if (!granted) return false;
+
+    const signalId = await getRecognitionSignalId();
+    const signal = recognitionSignalById(signalId);
+    const channelId = `${LUCIDITY_CUE_CHANNEL_PREFIX}-${signal.id}`;
+    await Notifications.setNotificationChannelAsync(channelId, {
+      name: `Lucidity Signal · ${signal.name}`,
+      importance: Notifications.AndroidImportance.HIGH,
+      sound: signal.notificationSound,
+    });
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: 'The Signal · Test',
+        body: 'This is the tone. You are dreaming.',
+        sound: signal.notificationSound,
+        data: { type: LUCIDITY_CUE_NOTIFICATION_TYPE, signalId: signal.id, test: true },
+      },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.DATE,
+        date: new Date(Date.now() + Math.max(1, delaySeconds) * 1_000),
+        channelId,
+      },
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Schedules the reactivation cues relative to `sleepOnsetAtMs` (typically the
@@ -246,34 +288,62 @@ export async function scheduleLucidityCueNotifications(sleepOnsetAtMs: number): 
     if (!granted) return false;
 
     await cancelLucidityCueNotifications();
-    await Notifications.setNotificationChannelAsync(LUCIDITY_CUE_CHANNEL_ID, {
-      name: 'Lucidity Cue',
+    const cuePlan = await getLucidSignalCuePlan();
+    const signalId = await getRecognitionSignalId();
+    const signal = recognitionSignalById(signalId);
+    const channelId = `${LUCIDITY_CUE_CHANNEL_PREFIX}-${signal.id}`;
+    const cueOffsetsMs = LUCID_SIGNAL_CUE_OFFSETS_HOURS[cuePlan].map(hours => hours * 60 * 60 * 1000);
+    await Notifications.setNotificationChannelAsync(channelId, {
+      name: `Lucidity Signal · ${signal.name}`,
       importance: Notifications.AndroidImportance.HIGH,
-      sound: 'lucidity_cue.wav',
+      sound: signal.notificationSound,
     });
 
     const now = Date.now();
     const ids = await Promise.all(
-      LUCIDITY_CUE_OFFSETS_MS
+      cueOffsetsMs
         .map(offset => sleepOnsetAtMs + offset)
         .filter(fireAt => fireAt > now)
         .map(fireAt => Notifications.scheduleNotificationAsync({
           content: {
             title: 'The Signal',
             body: 'This is the tone. You are dreaming.',
-            sound: 'lucidity_cue.wav',
-            data: { type: LUCIDITY_CUE_NOTIFICATION_TYPE },
+            sound: signal.notificationSound,
+            data: { type: LUCIDITY_CUE_NOTIFICATION_TYPE, signalId: signal.id },
           },
           trigger: {
             type: Notifications.SchedulableTriggerInputTypes.DATE,
             date: new Date(fireAt),
-            channelId: LUCIDITY_CUE_CHANNEL_ID,
+            channelId,
           },
         }))
     );
 
     await AsyncStorage.setItem(LUCIDITY_CUE_NOTIFICATION_IDS_KEY, JSON.stringify(ids));
+    await recordLucidSignalNight(
+      sleepOnsetAtMs,
+      cueOffsetsMs.map(offset => sleepOnsetAtMs + offset),
+      AsyncStorage,
+      Date.now,
+      cuePlan,
+      signalId,
+    );
     return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function hasLucidityCueNotificationsScheduled(): Promise<boolean> {
+  try {
+    const raw = await AsyncStorage.getItem(LUCIDITY_CUE_NOTIFICATION_IDS_KEY);
+    const ids: string[] = raw ? JSON.parse(raw) : [];
+    if (!ids.length) return false;
+    const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+    const activeIds = new Set(scheduled.map(item => item.identifier));
+    const active = ids.some(id => activeIds.has(id));
+    if (!active) await AsyncStorage.removeItem(LUCIDITY_CUE_NOTIFICATION_IDS_KEY);
+    return active;
   } catch {
     return false;
   }

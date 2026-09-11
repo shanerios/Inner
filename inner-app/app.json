@@ -70,7 +70,12 @@
         "expo-notifications",
         {
           "icon": "./assets/images/inner_orb_icon.png",
-          "sounds": ["./assets/sounds/lucidity_cue.wav"]
+          "sounds": [
+            "./assets/sounds/lucidity_cue.wav",
+            "./assets/sounds/signal_bell.wav",
+            "./assets/sounds/signal_chimes.wav",
+            "./assets/sounds/signal_droplets.wav"
+          ]
         }
       ],
       "expo-font",

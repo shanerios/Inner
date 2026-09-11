@@ -13,6 +13,9 @@ import {
 import type { FactoryAudioJourney } from '../core/audio';
 import { Typography } from '../core/typography';
 import { cancelLucidityCueNotifications, scheduleLucidityCueNotifications } from '../utils/notifications';
+import { abandonPendingLucidSignalNight } from '../core/lucidSignalLearning';
+import { createRecognitionSignalSound, getRecognitionSignalId, recognitionSignalById } from '../core/recognitionSignals';
+import type { Audio } from 'expo-av';
 
 const LUCIDITY_CUE_TRAINING_JOURNEY_ID = 'lucid-signal';
 
@@ -37,6 +40,9 @@ export default function LucidJourneyPlayerScreen() {
   const cueScheduleStartedRef = useRef(false);
   const cueSchedulePromiseRef = useRef<Promise<boolean> | null>(null);
   const cueTrainingCompletedRef = useRef(false);
+  const recognitionSoundRef = useRef<Audio.Sound | null>(null);
+  const recognitionCueTimesRef = useRef<number[]>([]);
+  const lastRecognitionPositionRef = useRef(0);
   const [positionMs, setPositionMs] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
@@ -64,14 +70,41 @@ export default function LucidJourneyPlayerScreen() {
       try {
         if (!session.isAvailable()) throw new Error('Procedural audio is unavailable in this build.');
         const timeline = compileAudioJourneyTimeline(journey.timeline, DEFAULT_PROCEDURAL_AUDIO_CONFIG);
-        await session.startTimeline(DEFAULT_PROCEDURAL_AUDIO_CONFIG, timeline);
+        let playbackTimeline = timeline;
+        let signalName = 'the signal';
+        if (journey.id === LUCIDITY_CUE_TRAINING_JOURNEY_ID) {
+          const signalId = await getRecognitionSignalId();
+          signalName = recognitionSignalById(signalId).name;
+          const cueTimes: number[] = [];
+          let stageStartMs = 0;
+          for (const stage of timeline.stages) {
+            for (const event of stage.spatialEvents) {
+              if (event.type === 'cue') cueTimes.push(stageStartMs + event.atMs);
+            }
+            stageStartMs += stage.durationMs;
+          }
+          recognitionCueTimesRef.current = cueTimes;
+          lastRecognitionPositionRef.current = 0;
+          recognitionSoundRef.current = await createRecognitionSignalSound(signalId);
+          // The selected sampled Signal replaces the native engine's original
+          // hard-coded cue events during waking conditioning.
+          playbackTimeline = {
+            ...timeline,
+            stages: timeline.stages.map(stage => ({
+              ...stage,
+              spatialEvents: stage.spatialEvents.filter(event => event.type !== 'cue'),
+            })),
+          };
+        }
+        await session.startTimeline(DEFAULT_PROCEDURAL_AUDIO_CONFIG, playbackTimeline);
         // The native timer keeps the ending dependable while the screen is
         // locked or JavaScript is suspended, and applies a short final fade.
         await session.setSleepTimer(Date.now() + timeline.totalDurationMs);
         if (journey.id === LUCIDITY_CUE_TRAINING_JOURNEY_ID) {
+          const sleepOnsetDelayMs = journey.overnight?.sleepOnsetDelayMs ?? timeline.totalDurationMs;
           Alert.alert(
             'Schedule tonight’s cues?',
-            'After this practice ends, Inner can play three notification cues later tonight. You can choose Not Tonight and still complete the training.',
+            `After this practice ends, Inner can return ${signalName} during later dream windows tonight. You can choose Not Tonight and still complete the training.`,
             [
               { text: 'Not Tonight', style: 'cancel' },
               {
@@ -81,7 +114,7 @@ export default function LucidJourneyPlayerScreen() {
                   cueScheduleStartedRef.current = true;
                   // There is no on-device REM detection. The practice ending is
                   // used as the sleep-onset estimate for the later cue offsets.
-                  cueSchedulePromiseRef.current = scheduleLucidityCueNotifications(Date.now() + timeline.totalDurationMs);
+                  cueSchedulePromiseRef.current = scheduleLucidityCueNotifications(Date.now() + sleepOnsetDelayMs);
                 },
               },
             ],
@@ -90,8 +123,15 @@ export default function LucidJourneyPlayerScreen() {
         timer = setInterval(() => {
           if (!mounted || seekingRef.current) return;
           const nextPositionMs = Math.min(session.getPositionMs(), timeline.totalDurationMs);
+          if (journey.id === LUCIDITY_CUE_TRAINING_JOURNEY_ID) {
+            const previousPositionMs = lastRecognitionPositionRef.current;
+            const crossedCue = recognitionCueTimesRef.current.find(cueAtMs => cueAtMs > previousPositionMs && cueAtMs <= nextPositionMs);
+            if (crossedCue !== undefined) void recognitionSoundRef.current?.replayAsync().catch(() => {});
+            lastRecognitionPositionRef.current = nextPositionMs;
+          }
+          const cueTrainingEndMs = journey.overnight?.sleepOnsetDelayMs ?? timeline.totalDurationMs;
           if (journey.id === LUCIDITY_CUE_TRAINING_JOURNEY_ID
-            && nextPositionMs >= timeline.totalDurationMs - 500) {
+            && nextPositionMs >= cueTrainingEndMs - 500) {
             cueTrainingCompletedRef.current = true;
           }
           setPositionMs(nextPositionMs);
@@ -109,8 +149,14 @@ export default function LucidJourneyPlayerScreen() {
         // Wait for scheduling to finish before cancelling so a quick RETURN
         // cannot race the notification IDs being written to storage.
         void (cueSchedulePromiseRef.current ?? Promise.resolve(true))
-          .then(() => cancelLucidityCueNotifications());
+          .then(async () => {
+            await cancelLucidityCueNotifications();
+            await abandonPendingLucidSignalNight();
+          });
       }
+      const recognitionSound = recognitionSoundRef.current;
+      recognitionSoundRef.current = null;
+      if (recognitionSound) void recognitionSound.unloadAsync().catch(() => {});
       void session.stop();
     };
   }, [journey]);
@@ -132,6 +178,7 @@ export default function LucidJourneyPlayerScreen() {
     try {
       await sessionRef.current.seekToMs(bounded);
       await sessionRef.current.setSleepTimer(Date.now() + Math.max(0, durationMs - bounded));
+      lastRecognitionPositionRef.current = bounded;
       setPositionMs(bounded);
     } catch (seekError) {
       setError(seekError instanceof Error ? seekError.message : String(seekError));

@@ -24,6 +24,10 @@ describe('clearPrivateUserData', () => {
       ['journal:two', 'encrypted-two'],
       ['aerisHistory', 'encrypted-history'],
       ['aerisHistoryDate', '2026-07-13'],
+      ['inner.lucid-signal.learning.v1', '{"schemaVersion":1,"nights":[]}'],
+      ['inner.lucid-signal.plan.v1', 'gentle'],
+      ['inner.dream-incubation.seed.v1', '{"text":"A red door","createdAt":1}'],
+      ['inner.recognition-signal.v1', 'droplets'],
       ['profileName', 'preserved'],
     ]);
 
@@ -32,6 +36,10 @@ describe('clearPrivateUserData', () => {
     await expect(AsyncStorage.getItem('journal:index')).resolves.toBeNull();
     await expect(AsyncStorage.getItem('journal:one')).resolves.toBeNull();
     await expect(AsyncStorage.getItem('aerisHistory')).resolves.toBeNull();
+    await expect(AsyncStorage.getItem('inner.lucid-signal.learning.v1')).resolves.toBeNull();
+    await expect(AsyncStorage.getItem('inner.lucid-signal.plan.v1')).resolves.toBeNull();
+    await expect(AsyncStorage.getItem('inner.dream-incubation.seed.v1')).resolves.toBeNull();
+    await expect(AsyncStorage.getItem('inner.recognition-signal.v1')).resolves.toBeNull();
     await expect(AsyncStorage.getItem('profileName')).resolves.toBe('preserved');
   });
 });

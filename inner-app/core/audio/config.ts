@@ -42,6 +42,10 @@ export function normalizeProceduralAudioConfig(
   value: Partial<ProceduralAudioConfig> = {},
 ): ProceduralAudioConfig {
   const gain = PROCEDURAL_AUDIO_LIMITS.gain;
+  // Cave shipped briefly during development. Preserve those saved mixes by
+  // moving the retired selection into its replacement instead of turning it off.
+  const requestedEnvironment = value.environment as unknown;
+  const environment = requestedEnvironment === 'cave' ? 'cosmic' : requestedEnvironment;
   return {
     carrierHz: clamp(
       value.carrierHz ?? DEFAULT_PROCEDURAL_AUDIO_CONFIG.carrierHz,
@@ -63,7 +67,7 @@ export function normalizeProceduralAudioConfig(
     binauralGain: clamp(value.binauralGain ?? DEFAULT_PROCEDURAL_AUDIO_CONFIG.binauralGain, gain.min, gain.max),
     noiseColor: value.noiseColor === null || isNoiseColor(value.noiseColor) ? value.noiseColor : null,
     noiseGain: clamp(value.noiseGain ?? DEFAULT_PROCEDURAL_AUDIO_CONFIG.noiseGain, gain.min, gain.max),
-    environment: value.environment === 'ocean' || value.environment === 'wind' || value.environment === 'fire' || value.environment === 'cave' || value.environment === 'forest' ? value.environment : 'none',
+    environment: environment === 'ocean' || environment === 'wind' || environment === 'fire' || environment === 'cosmic' || environment === 'forest' ? environment : 'none',
     environmentGain: clamp(value.environmentGain ?? DEFAULT_PROCEDURAL_AUDIO_CONFIG.environmentGain, gain.min, gain.max),
     environmentIntensity: clamp(value.environmentIntensity ?? DEFAULT_PROCEDURAL_AUDIO_CONFIG.environmentIntensity, gain.min, gain.max),
     templeGain: clamp(value.templeGain ?? DEFAULT_PROCEDURAL_AUDIO_CONFIG.templeGain, gain.min, gain.max),

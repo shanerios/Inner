@@ -4,6 +4,7 @@ export * from './factoryJourneys';
 export * from './factoryPresets';
 export * from './journeyStore';
 export * from './nativeEngine';
+export * from './overnightProtocol';
 export * from './presetStore';
 export * from './personalizedJourneyStore';
 export * from './proceduralSession';

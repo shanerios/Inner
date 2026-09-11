@@ -1,9 +1,16 @@
 import { describe, expect, it } from '@jest/globals';
 import { DEFAULT_PROCEDURAL_AUDIO_CONFIG } from '../config';
-import { createJourneyPreview, createPersonalizedLucidJourney, FACTORY_AUDIO_JOURNEYS } from '../factoryJourneys';
+import { createDreamIncubationJourney, createJourneyPreview, createPersonalizedLucidJourney, FACTORY_AUDIO_JOURNEYS } from '../factoryJourneys';
 import { compileAudioJourneyTimeline } from '../timeline';
 
 describe('factory audio journeys', () => {
+  it('builds a ten-minute Dream Incubation journey around the held seed', () => {
+    const journey = createDreamIncubationJourney('  the   house by the sea ');
+    expect(journey.timeline.stages.reduce((total, item) => total + item.durationMs, 0)).toBe(10 * 60_000);
+    expect(journey.timeline.guidance?.some(cue => cue.prompt.includes('the house by the sea'))).toBe(true);
+    expect(() => compileAudioJourneyTimeline(journey.timeline, DEFAULT_PROCEDURAL_AUDIO_CONFIG)).not.toThrow();
+  });
+
   it('keeps the WBTB journey at eight minutes', () => {
     const journey = FACTORY_AUDIO_JOURNEYS.find(item => item.id === 'lucid-return-wbtb');
     expect(journey).toBeDefined();

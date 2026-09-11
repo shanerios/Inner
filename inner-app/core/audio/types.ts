@@ -1,5 +1,5 @@
 export type NoiseColor = 'white' | 'pink' | 'brown' | 'grey';
-export type ProceduralEnvironment = 'none' | 'ocean' | 'wind' | 'fire' | 'cave' | 'forest';
+export type ProceduralEnvironment = 'none' | 'ocean' | 'wind' | 'fire' | 'cosmic' | 'forest';
 export type SpatialMovementMode = 'still' | 'drift' | 'pendulum' | 'swoosh' | 'rain' | 'orbit' | 'vortex' | 'channelTest';
 export type SpatialMovementTarget = 'noise' | 'tone' | 'both';
 

@@ -287,10 +287,10 @@ export default function ProceduralMixerPanel({
 
       <View style={styles.environmentHeader}>
         <Text style={[Typography.caption, styles.label]}>Environment</Text>
-        <Text style={[Typography.caption, styles.value]}>{draft.environment === 'ocean' ? 'Ocean' : draft.environment === 'wind' ? 'Wind' : draft.environment === 'fire' ? 'Fire' : draft.environment === 'cave' ? 'Cave' : draft.environment === 'forest' ? 'Forest' : 'Off'}</Text>
+        <Text style={[Typography.caption, styles.value]}>{draft.environment === 'ocean' ? 'Ocean' : draft.environment === 'wind' ? 'Wind' : draft.environment === 'fire' ? 'Fire' : draft.environment === 'cosmic' ? 'Cosmic' : draft.environment === 'forest' ? 'Forest' : 'Off'}</Text>
       </View>
       <View style={styles.environmentRow}>
-        {([{ value: 'none', label: 'Off' }, { value: 'ocean', label: 'Ocean' }, { value: 'wind', label: 'Wind' }, { value: 'fire', label: 'Fire' }, { value: 'cave', label: 'Cave' }, { value: 'forest', label: 'Forest' }] as const).map(option => {
+        {([{ value: 'none', label: 'Off' }, { value: 'ocean', label: 'Ocean' }, { value: 'wind', label: 'Wind' }, { value: 'fire', label: 'Fire' }, { value: 'cosmic', label: 'Cosmic' }, { value: 'forest', label: 'Forest' }] as const).map(option => {
           const active = draft.environment === option.value;
           return (
             <Pressable

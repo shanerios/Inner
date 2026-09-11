@@ -209,18 +209,20 @@ private final class ProceduralAudioEngine: NSObject {
   private var fireHiss = 0.0
   private var firePopLeft = 0.0
   private var firePopRight = 0.0
-  private var caveEnvelope = 0.0
-  private var caveRandom: UInt64 = 0x9e3779b97f4a7c15 ^ 0x8f1bbcdc
-  private var caveRumble = 0.0
-  private var caveDripFramesRemaining = 0.0
-  private var caveDripPhase = 0.0
-  private var caveDripFreq = 0.0
-  private var caveDripAmp = 0.0
-  private var caveDripPan = 0.0
-  private var caveDripEnvelope = 0.0
-  private var caveDripDecay = 0.0
-  private var caveDelay = [Double](repeating: 0, count: 48_000)
-  private var caveDelayIndex = 0
+  private var cosmicEnvelope = 0.0
+  private var cosmicRandom: UInt64 = 0x9e3779b97f4a7c15 ^ 0x8f1bbcdc
+  private var cosmicRumble = 0.0
+  private var cosmicAirLeft = 0.0
+  private var cosmicAirRight = 0.0
+  private var cosmicSparkFramesRemaining = 0.0
+  private var cosmicSparkPhase = 0.0
+  private var cosmicSparkFreq = 0.0
+  private var cosmicSparkAmp = 0.0
+  private var cosmicSparkPan = 0.0
+  private var cosmicSparkAgeFrames = 0.0
+  private var cosmicSparkDurationFrames = 0.0
+  private var cosmicDelay = [Double](repeating: 0, count: 48_000)
+  private var cosmicDelayIndex = 0
   private var forestEnvelope = 0.0
   private var forestRandom: UInt64 = 0x9e3779b97f4a7c15 ^ 0xc2b2ae35
   private var forestCanopy = 0.0
@@ -455,18 +457,20 @@ private final class ProceduralAudioEngine: NSObject {
     fireHiss = 0
     firePopLeft = 0
     firePopRight = 0
-    caveEnvelope = 0
-    caveRandom = 0x9e3779b97f4a7c15 ^ 0x8f1bbcdc
-    caveRumble = 0
-    caveDripFramesRemaining = 0
-    caveDripPhase = 0
-    caveDripFreq = 0
-    caveDripAmp = 0
-    caveDripPan = 0
-    caveDripEnvelope = 0
-    caveDripDecay = 0
-    caveDelay = [Double](repeating: 0, count: 48_000)
-    caveDelayIndex = 0
+    cosmicEnvelope = 0
+    cosmicRandom = 0x9e3779b97f4a7c15 ^ 0x8f1bbcdc
+    cosmicRumble = 0
+    cosmicAirLeft = 0
+    cosmicAirRight = 0
+    cosmicSparkFramesRemaining = 0
+    cosmicSparkPhase = 0
+    cosmicSparkFreq = 0
+    cosmicSparkAmp = 0
+    cosmicSparkPan = 0
+    cosmicSparkAgeFrames = 0
+    cosmicSparkDurationFrames = 0
+    cosmicDelay = [Double](repeating: 0, count: 48_000)
+    cosmicDelayIndex = 0
     forestEnvelope = 0
     forestRandom = 0x9e3779b97f4a7c15 ^ 0xc2b2ae35
     forestCanopy = 0
@@ -560,18 +564,22 @@ private final class ProceduralAudioEngine: NSObject {
       oceanRandom = activeTimeline.seed ^ 0x51ed2705
       windRandom = activeTimeline.seed ^ 0x7f4a7c15
       fireRandom = activeTimeline.seed ^ 0x2c1b3c6d
-      caveRandom = activeTimeline.seed ^ 0x8f1bbcdc
+      cosmicRandom = activeTimeline.seed ^ 0x8f1bbcdc
+      cosmicRumble = 0
+      cosmicAirLeft = 0
+      cosmicAirRight = 0
       templeRandom = activeTimeline.seed ^ 0x9c2f5a31
       rainPockets = (0..<5).map { RainPocket(random: activeTimeline.seed &+ UInt64($0 + 1) * 0x100000001b3) }
       pink = [Double](repeating: 0, count: 7)
       brown = 0
       greyLow = 0
-      caveDelay.withUnsafeMutableBufferPointer { buffer in
+      cosmicDelay.withUnsafeMutableBufferPointer { buffer in
         buffer.baseAddress?.update(repeating: 0, count: buffer.count)
       }
-      caveDelayIndex = 0
-      caveDripFramesRemaining = 0
-      caveDripEnvelope = 0
+      cosmicDelayIndex = 0
+      cosmicSparkFramesRemaining = 0
+      cosmicSparkAgeFrames = 0
+      cosmicSparkDurationFrames = 0
       forestRandom = activeTimeline.seed ^ 0xc2b2ae35
       forestBirdActive = false
       forestBirdFramesRemaining = 0
@@ -678,9 +686,9 @@ private final class ProceduralAudioEngine: NSObject {
       let fireTarget = target.environment == "fire" && target.environmentGain > 0.0001 ? 1.0 : 0.0
       let fireStep = 1 / max(1, sampleRate * 4.5)
       fireEnvelope += clamp(fireTarget - fireEnvelope, -fireStep, fireStep)
-      let caveTarget = target.environment == "cave" && target.environmentGain > 0.0001 ? 1.0 : 0.0
-      let caveStep = 1 / max(1, sampleRate * 4.5)
-      caveEnvelope += clamp(caveTarget - caveEnvelope, -caveStep, caveStep)
+      let cosmicTarget = target.environment == "cosmic" && target.environmentGain > 0.0001 ? 1.0 : 0.0
+      let cosmicStep = 1 / max(1, sampleRate * 4.5)
+      cosmicEnvelope += clamp(cosmicTarget - cosmicEnvelope, -cosmicStep, cosmicStep)
       let forestTarget = target.environment == "forest" && target.environmentGain > 0.0001 ? 1.0 : 0.0
       let forestStep = 1 / max(1, sampleRate * 4.5)
       forestEnvelope += clamp(forestTarget - forestEnvelope, -forestStep, forestStep)
@@ -734,10 +742,10 @@ private final class ProceduralAudioEngine: NSObject {
         ? nextFire(elapsedSeconds: spatialSeconds, intensity: target.environmentIntensity)
         : (left: 0.0, right: 0.0)
       let fireGain = target.environmentGain * fireEnvelope
-      let cave = caveEnvelope > 0.0001
-        ? nextCave(elapsedSeconds: spatialSeconds, intensity: target.environmentIntensity)
+      let cosmic = cosmicEnvelope > 0.0001
+        ? nextCosmic(elapsedSeconds: spatialSeconds, intensity: target.environmentIntensity)
         : (left: 0.0, right: 0.0)
-      let caveGain = target.environmentGain * caveEnvelope
+      let cosmicGain = target.environmentGain * cosmicEnvelope
       let forest = forestEnvelope > 0.0001
         ? nextForest(elapsedSeconds: spatialSeconds, intensity: target.environmentIntensity)
         : (left: 0.0, right: 0.0)
@@ -756,8 +764,8 @@ private final class ProceduralAudioEngine: NSObject {
       let speakerPulse = sin(phases[5]) * pulseEnvelope * gains[1] * spatialRoom
       let leftEntrainment = sin(phases[1]) * gains[1] * spatialRoom * privateOutputMix + speakerPulse * (1 - privateOutputMix)
       let rightEntrainment = sin(phases[2]) * gains[1] * spatialRoom * privateOutputMix + speakerPulse * (1 - privateOutputMix)
-      let leftMix = (leftCarrier + leftEntrainment + leftNoise + ocean.left * oceanGain + wind.left * windGain + fire.left * fireGain + cave.left * caveGain + forest.left * forestGain + temple.left * templeLevel + cue.left) * gains[3] * journeyFade * sleepGain * 0.32
-      let rightMix = (rightCarrier + rightEntrainment + rightNoise + ocean.right * oceanGain + wind.right * windGain + fire.right * fireGain + cave.right * caveGain + forest.right * forestGain + temple.right * templeLevel + cue.right) * gains[3] * journeyFade * sleepGain * 0.32
+      let leftMix = (leftCarrier + leftEntrainment + leftNoise + ocean.left * oceanGain + wind.left * windGain + fire.left * fireGain + cosmic.left * cosmicGain + forest.left * forestGain + temple.left * templeLevel + cue.left) * gains[3] * journeyFade * sleepGain * 0.32
+      let rightMix = (rightCarrier + rightEntrainment + rightNoise + ocean.right * oceanGain + wind.right * windGain + fire.right * fireGain + cosmic.right * cosmicGain + forest.right * forestGain + temple.right * templeLevel + cue.right) * gains[3] * journeyFade * sleepGain * 0.32
       left[frame] = Float(softLimit(leftMix))
       right[frame] = Float(softLimit(rightMix))
       phases[0] = fmod(phases[0] + tau * target.carrierHz / sampleRate, tau)
@@ -1066,8 +1074,10 @@ private final class ProceduralAudioEngine: NSObject {
     return Double(fireRandom & 0x00ff_ffff) / Double(0x007f_ffff) - 1
   }
 
-  private static let caveDelaySeconds = 0.3
-  private static let caveFeedback = 0.42
+  private static let cosmicNearDelaySeconds = 0.23
+  private static let cosmicMidDelaySeconds = 0.41
+  private static let cosmicFarDelaySeconds = 0.67
+  private static let cosmicFeedback = 0.24
   private static let forestNoiseMix = 0.3
 
   // The lucidity cue: a fixed, non-seeded ascending three-note motif (the
@@ -1100,52 +1110,71 @@ private final class ProceduralAudioEngine: NSObject {
     pow(10.0, -3.0 * Double(delaySamples) / (rt60 * sampleRate))
   }
 
-  // A deep, heavily smoothed noise floor stands in for a cavern's vast air mass,
-  // while sparse seeded water drips feed a feedback delay line — the same "echo
-  // of itself, decaying" structure a real hollow space produces — so the drips
-  // trail off into the rumble instead of ending abruptly.
-  private func nextCave(elapsedSeconds: Double, intensity: Double) -> (left: Double, right: Double) {
-    let shared = nextCaveWhite()
-    caveRumble += 0.0025 * (shared - caveRumble)
-    let breathe = 0.6 + 0.4 * sin(elapsedSeconds * Double.pi * 2 / 26.0 + 0.9 * sin(elapsedSeconds * Double.pi * 2 / 41.0))
-    let rumbleBody = caveRumble * (2.6 + intensity * 2.2) * breathe
+  // A low harmonic field and filtered stellar air move independently across the
+  // channels. Sparse particles bloom slowly, then leave staggered reflections;
+  // no transient begins sharply enough to resemble a droplet or notification.
+  private func nextCosmic(elapsedSeconds: Double, intensity: Double) -> (left: Double, right: Double) {
+    let shared = nextCosmicWhite()
+    cosmicRumble += 0.0016 * (shared - cosmicRumble)
+    cosmicAirLeft += 0.015 * (nextCosmicWhite() - cosmicAirLeft)
+    cosmicAirRight += 0.015 * (nextCosmicWhite() - cosmicAirRight)
+    let breathe = 0.72 + 0.28 * sin(elapsedSeconds * Double.pi * 2 / 31.0 + 0.7 * sin(elapsedSeconds * Double.pi * 2 / 47.0))
+    let rumbleBody = cosmicRumble * (1.7 + intensity * 1.1) * breathe
+    let airLevel = 0.11 + intensity * 0.08
+    let fundamental = 38 + intensity * 10
+    let slowDrift = sin(elapsedSeconds * Double.pi * 2 / 37.0) * 0.45
+    let leftField = sin(elapsedSeconds * Double.pi * 2 * fundamental + slowDrift) * 0.075
+      + sin(elapsedSeconds * Double.pi * 2 * fundamental * 1.5 + 1.2) * 0.028
+    let rightField = sin(elapsedSeconds * Double.pi * 2 * fundamental - slowDrift + 0.24) * 0.075
+      + sin(elapsedSeconds * Double.pi * 2 * fundamental * 1.5 + 2.0) * 0.028
 
-    if caveDripFramesRemaining <= 0 {
-      let gapSeconds = (8.5 - intensity * 6.0) * (0.4 + abs(nextCaveWhite()) * 1.3)
-      caveDripFramesRemaining = sampleRate * max(0.9, gapSeconds)
-      caveDripFreq = 620 + abs(nextCaveWhite()) * 780
-      caveDripAmp = 0.4 + abs(nextCaveWhite()) * 0.5
-      caveDripPan = clamp(nextCaveWhite() * 0.7, -0.7, 0.7)
-      caveDripPhase = 0
-      caveDripEnvelope = 1
-      caveDripDecay = exp(-1.0 / (sampleRate * (0.16 + abs(nextCaveWhite()) * 0.16)))
+    if cosmicSparkFramesRemaining <= 0 {
+      let gapSeconds = (12.0 - intensity * 5.5) * (0.75 + abs(nextCosmicWhite()) * 1.35)
+      cosmicSparkFramesRemaining = sampleRate * max(3.0, gapSeconds)
+      cosmicSparkDurationFrames = sampleRate * (1.6 + abs(nextCosmicWhite()) * 1.8)
+      cosmicSparkAgeFrames = 0
+      cosmicSparkFreq = 980 + abs(nextCosmicWhite()) * 1_650
+      cosmicSparkAmp = 0.065 + abs(nextCosmicWhite()) * 0.09
+      cosmicSparkPan = clamp(nextCosmicWhite() * 0.78, -0.78, 0.78)
+      cosmicSparkPhase = 0
     }
-    caveDripFramesRemaining -= 1
-    let dripMono = sin(caveDripPhase) * caveDripEnvelope * caveDripAmp * (0.5 + intensity * 0.6)
-    caveDripEnvelope *= caveDripDecay
-    caveDripFreq *= 0.99992
-    caveDripPhase = fmod(caveDripPhase + Double.pi * 2 * caveDripFreq / sampleRate, Double.pi * 2)
+    cosmicSparkFramesRemaining -= 1
+    let sparkProgress = cosmicSparkDurationFrames > 0 ? cosmicSparkAgeFrames / cosmicSparkDurationFrames : 1
+    let sparkWindow = sparkProgress < 1 ? pow(sin(Double.pi * sparkProgress), 2) : 0
+    let sparkTone = sin(cosmicSparkPhase) + 0.18 * sin(cosmicSparkPhase * 2)
+    let sparkMono = sparkTone * sparkWindow * cosmicSparkAmp * (0.7 + intensity * 0.3)
+    cosmicSparkAgeFrames += 1
+    cosmicSparkFreq *= 0.999997
+    cosmicSparkPhase = fmod(cosmicSparkPhase + Double.pi * 2 * cosmicSparkFreq / sampleRate, Double.pi * 2)
 
-    let delayFrames = min(caveDelay.count - 1, max(1, Int(Self.caveDelaySeconds * sampleRate)))
-    let readIndex = (caveDelayIndex - delayFrames + caveDelay.count) % caveDelay.count
-    let delayed = caveDelay[readIndex]
-    caveDelay[caveDelayIndex] = dripMono + delayed * Self.caveFeedback
-    caveDelayIndex = (caveDelayIndex + 1) % caveDelay.count
+    let nearFrames = min(cosmicDelay.count - 1, max(1, Int(Self.cosmicNearDelaySeconds * sampleRate)))
+    let midFrames = min(cosmicDelay.count - 1, max(1, Int(Self.cosmicMidDelaySeconds * sampleRate)))
+    let farFrames = min(cosmicDelay.count - 1, max(1, Int(Self.cosmicFarDelaySeconds * sampleRate)))
+    let nearReflection = cosmicDelay[(cosmicDelayIndex - nearFrames + cosmicDelay.count) % cosmicDelay.count]
+    let midReflection = cosmicDelay[(cosmicDelayIndex - midFrames + cosmicDelay.count) % cosmicDelay.count]
+    let farReflection = cosmicDelay[(cosmicDelayIndex - farFrames + cosmicDelay.count) % cosmicDelay.count]
+    cosmicDelay[cosmicDelayIndex] = sparkMono + (nearReflection * 0.5 + midReflection * 0.3 + farReflection * 0.2) * Self.cosmicFeedback
+    cosmicDelayIndex = (cosmicDelayIndex + 1) % cosmicDelay.count
 
-    // Rotating the echo tail's pan (independently of the drip's own fixed
-    // position) reads as reflections arriving from many directions at once.
-    let echoPan = sin(elapsedSeconds * Double.pi * 2 / 6.7) * 0.55
-    let dripLeft = dripMono * (1 - caveDripPan)
-    let dripRight = dripMono * (1 + caveDripPan)
-    let echoLeft = delayed * (1 - echoPan) * 0.6
-    let echoRight = delayed * (1 + echoPan) * 0.6
+    let sparkLeft = sparkMono * (1 - cosmicSparkPan)
+    let sparkRight = sparkMono * (1 + cosmicSparkPan)
+    let reflectionDrift = sin(elapsedSeconds * Double.pi * 2 / 9.7) * 0.34
+    let echoLeft = nearReflection * (1 + cosmicSparkPan * 0.55) * 0.34
+      + midReflection * (1 - reflectionDrift) * 0.24
+      + farReflection * 0.14
+    let echoRight = nearReflection * (1 - cosmicSparkPan * 0.55) * 0.34
+      + midReflection * (1 + reflectionDrift) * 0.24
+      + farReflection * 0.14
 
-    return (rumbleBody + dripLeft * 0.55 + echoLeft, rumbleBody + dripRight * 0.55 + echoRight)
+    return (
+      rumbleBody + leftField + cosmicAirLeft * airLevel + sparkLeft * 0.42 + echoLeft,
+      rumbleBody + rightField + cosmicAirRight * airLevel + sparkRight * 0.42 + echoRight
+    )
   }
 
-  private func nextCaveWhite() -> Double {
-    caveRandom ^= caveRandom << 13; caveRandom ^= caveRandom >> 7; caveRandom ^= caveRandom << 17
-    return Double(caveRandom & 0x00ff_ffff) / Double(0x007f_ffff) - 1
+  private func nextCosmicWhite() -> Double {
+    cosmicRandom ^= cosmicRandom << 13; cosmicRandom ^= cosmicRandom >> 7; cosmicRandom ^= cosmicRandom << 17
+    return Double(cosmicRandom & 0x00ff_ffff) / Double(0x007f_ffff) - 1
   }
 
   // A canopy rustle bed (smoothed noise breathing on a light breeze cycle, plus a
@@ -1318,7 +1347,7 @@ private final class ProceduralAudioEngine: NSObject {
       binauralGain: clamp(raw.binauralGain, 0, 1),
       noiseColor: raw.noiseColor.flatMap { ["white", "pink", "brown", "grey"].contains($0) ? $0 : nil },
       noiseGain: clamp(raw.noiseGain, 0, 1),
-      environment: ["ocean", "wind", "fire", "cave", "forest"].contains(raw.environment) ? raw.environment : "none",
+      environment: raw.environment == "cave" ? "cosmic" : (["ocean", "wind", "fire", "cosmic", "forest"].contains(raw.environment) ? raw.environment : "none"),
       environmentGain: clamp(raw.environmentGain, 0, 1),
       environmentIntensity: clamp(raw.environmentIntensity, 0, 1),
       templeGain: clamp(raw.templeGain, 0, 1),

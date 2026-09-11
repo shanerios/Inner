@@ -3,6 +3,16 @@ import { DEFAULT_PROCEDURAL_AUDIO_CONFIG } from '../config';
 import { compileAudioJourneyTimeline } from '../timeline';
 
 describe('audio journey timeline compiler', () => {
+  it('migrates the retired Cave environment to Cosmic', () => {
+    const result = compileAudioJourneyTimeline({
+      id: 'legacy-cave', title: 'Legacy Cave', stages: [{
+        id: 'space', label: 'Space', durationMs: 10_000,
+        target: { environment: 'cave' } as any,
+      }],
+    }, DEFAULT_PROCEDURAL_AUDIO_CONFIG);
+    expect(result.stages[0].config.environment).toBe('cosmic');
+  });
+
   it('carries configuration forward and calculates duration', () => {
     const result = compileAudioJourneyTimeline({
       id: ' descent ',
