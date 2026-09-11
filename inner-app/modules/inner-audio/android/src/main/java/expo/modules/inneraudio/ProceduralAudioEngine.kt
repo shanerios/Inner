@@ -147,8 +147,12 @@ object ProceduralAudioEngine {
   @Volatile var nowPlayingTitle: String = "Inner"
 
   // Render-thread-only state (never touched off the audio thread).
-  private val phases = DoubleArray(5)
+  // carrier, binaural L/R, carrier harmonics, speaker carrier + pulse envelope
+  private val phases = DoubleArray(7)
   private val gains = DoubleArray(4)
+  /** 1 = private stereo output (binaural), 0 = speaker-safe rhythmic pulse. */
+  @Volatile private var privateOutputTarget = 0.0
+  private var privateOutputMix = 0.0
   private var random: Long = XORSHIFT_SEED
   private val pink = DoubleArray(7)
   private var brown = 0.0
@@ -307,6 +311,10 @@ object ProceduralAudioEngine {
     cuePending = true
   }
 
+  fun setPrivateOutput(isPrivate: Boolean) {
+    privateOutputTarget = if (isPrivate) 1.0 else 0.0
+  }
+
   /** Mirrors iOS stop(): clears render-thread DSP state and any active timeline. */
   fun reset() {
     phases.fill(0.0)
@@ -382,6 +390,7 @@ object ProceduralAudioEngine {
     renderedPan = 0.0
     renderedSpatialRoom = 1.0
     renderedSpatialDistance = 1.0
+    privateOutputMix = privateOutputTarget
     renderElapsedFrames = 0.0
     sleepStopScheduled = false
     lock.withLock {
@@ -481,6 +490,8 @@ object ProceduralAudioEngine {
       val smoothing = min(1.0, 1 / max(1.0, target.rampSeconds * sampleRate))
       val leftHz = max(20.0, target.binauralCarrierHz - target.deltaHz / 2)
       val rightHz = min(2_000.0, target.binauralCarrierHz + target.deltaHz / 2)
+      val routeStep = 1 / max(1.0, sampleRate * 5.0)
+      privateOutputMix += clamp(privateOutputTarget - privateOutputMix, -routeStep, routeStep)
       gains[0] += (target.toneGain - gains[0]) * smoothing
       gains[1] += (target.binauralGain - gains[1]) * smoothing
       gains[2] += (target.noiseGain - gains[2]) * smoothing
@@ -569,8 +580,12 @@ object ProceduralAudioEngine {
       val cue = nextCue()
       val sampleNowMs = bufferStartMs + frame * 1_000.0 / sampleRate
       val sleepGain = target.sleepEndMs?.let { clamp((it - sampleNowMs) / 6_000.0, 0.0, 1.0) } ?: 1.0
-      val leftMix = (leftCarrier + sin(phases[1]) * gains[1] * spatialRoom + leftNoise + ocean.first * oceanGain + wind.first * windGain + fire.first * fireGain + cave.first * caveGain + forest.first * forestGain + temple.first * templeLevel + cue.first) * gains[3] * journeyFade * sleepGain * 0.32
-      val rightMix = (rightCarrier + sin(phases[2]) * gains[1] * spatialRoom + rightNoise + ocean.second * oceanGain + wind.second * windGain + fire.second * fireGain + cave.second * caveGain + forest.second * forestGain + temple.second * templeLevel + cue.second) * gains[3] * journeyFade * sleepGain * 0.32
+      val pulseEnvelope = 0.12 + 0.88 * (0.5 - 0.5 * cos(phases[6]))
+      val speakerPulse = sin(phases[5]) * pulseEnvelope * gains[1] * spatialRoom
+      val leftEntrainment = sin(phases[1]) * gains[1] * spatialRoom * privateOutputMix + speakerPulse * (1 - privateOutputMix)
+      val rightEntrainment = sin(phases[2]) * gains[1] * spatialRoom * privateOutputMix + speakerPulse * (1 - privateOutputMix)
+      val leftMix = (leftCarrier + leftEntrainment + leftNoise + ocean.first * oceanGain + wind.first * windGain + fire.first * fireGain + cave.first * caveGain + forest.first * forestGain + temple.first * templeLevel + cue.first) * gains[3] * journeyFade * sleepGain * 0.32
+      val rightMix = (rightCarrier + rightEntrainment + rightNoise + ocean.second * oceanGain + wind.second * windGain + fire.second * fireGain + cave.second * caveGain + forest.second * forestGain + temple.second * templeLevel + cue.second) * gains[3] * journeyFade * sleepGain * 0.32
       output[frame * 2] = softLimit(leftMix).toFloat()
       output[frame * 2 + 1] = softLimit(rightMix).toFloat()
       phases[0] = (phases[0] + tau * target.carrierHz / sampleRate) % tau
@@ -578,6 +593,8 @@ object ProceduralAudioEngine {
       phases[2] = (phases[2] + tau * rightHz / sampleRate) % tau
       phases[3] = (phases[3] + tau * target.carrierHz * 2 / sampleRate) % tau
       phases[4] = (phases[4] + tau * target.carrierHz * 1.5 / sampleRate) % tau
+      phases[5] = (phases[5] + tau * target.binauralCarrierHz / sampleRate) % tau
+      phases[6] = (phases[6] + tau * target.deltaHz / sampleRate) % tau
     }
 
     if (activeTimeline != null) {

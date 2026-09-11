@@ -177,8 +177,11 @@ private final class ProceduralAudioEngine: NSObject {
   private var renderedTimelineGeneration: UInt64 = .max
   private var source: AVAudioSourceNode?
   private var sampleRate = 48_000.0
-  private var phases = [Double](repeating: 0, count: 5)
+  // carrier, binaural L/R, carrier harmonics, speaker carrier + pulse envelope
+  private var phases = [Double](repeating: 0, count: 7)
   private var gains = [Double](repeating: 0, count: 4)
+  private var privateOutputTarget = 0.0
+  private var privateOutputMix = 0.0
   private var random: UInt64 = 0x9e3779b97f4a7c15
   private var pink = [Double](repeating: 0, count: 7)
   private var brown = 0.0
@@ -266,6 +269,12 @@ private final class ProceduralAudioEngine: NSObject {
       name: AVAudioSession.interruptionNotification,
       object: AVAudioSession.sharedInstance()
     )
+    NotificationCenter.default.addObserver(
+      self,
+      selector: #selector(handleRouteChange(_:)),
+      name: AVAudioSession.routeChangeNotification,
+      object: AVAudioSession.sharedInstance()
+    )
   }
 
   deinit { NotificationCenter.default.removeObserver(self) }
@@ -342,6 +351,7 @@ private final class ProceduralAudioEngine: NSObject {
     } catch {
       throw stageError("setActive", error)
     }
+    updatePrivateOutput(for: session.currentRoute)
     let hardwareFormat = engine.outputNode.inputFormat(forBus: 0)
     sampleRate = hardwareFormat.sampleRate > 0 ? hardwareFormat.sampleRate : 48_000
     if source == nil { installSource(channelCount: max(2, hardwareFormat.channelCount)) }
@@ -416,8 +426,9 @@ private final class ProceduralAudioEngine: NSObject {
     stopNowPlayingRefresh()
     engine.stop()
     if let source { engine.detach(source); self.source = nil }
-    phases = [Double](repeating: 0, count: 5)
+    phases = [Double](repeating: 0, count: 7)
     gains = [Double](repeating: 0, count: 4)
+    privateOutputMix = privateOutputTarget
     pink = [Double](repeating: 0, count: 7)
     brown = 0
     greyLow = 0
@@ -542,6 +553,7 @@ private final class ProceduralAudioEngine: NSObject {
     let timelineStartFrame = timelineElapsedFrames
     let renderStartFrame = renderElapsedFrames
     let generation = timelineGeneration
+    let routeTarget = privateOutputTarget
     lock.unlock()
     if let activeTimeline, renderedTimelineGeneration != generation {
       random = activeTimeline.seed
@@ -627,6 +639,8 @@ private final class ProceduralAudioEngine: NSObject {
       let smoothing = min(1, 1 / max(1, target.rampSeconds * sampleRate))
       let leftHz = max(20, target.binauralCarrierHz - target.deltaHz / 2)
       let rightHz = min(2_000, target.binauralCarrierHz + target.deltaHz / 2)
+      let routeStep = 1 / max(1, sampleRate * 5.0)
+      privateOutputMix += clamp(routeTarget - privateOutputMix, -routeStep, routeStep)
       gains[0] += (target.toneGain - gains[0]) * smoothing
       gains[1] += (target.binauralGain - gains[1]) * smoothing
       gains[2] += (target.noiseGain - gains[2]) * smoothing
@@ -738,8 +752,12 @@ private final class ProceduralAudioEngine: NSObject {
       // Fixed staging keeps a single layer comfortably audible while leaving
       // room for all three layers. The final tanh stage is effectively unity
       // at normal levels and rounds only extreme peaks instead of hard-clipping.
-      let leftMix = (leftCarrier + sin(phases[1]) * gains[1] * spatialRoom + leftNoise + ocean.left * oceanGain + wind.left * windGain + fire.left * fireGain + cave.left * caveGain + forest.left * forestGain + temple.left * templeLevel + cue.left) * gains[3] * journeyFade * sleepGain * 0.32
-      let rightMix = (rightCarrier + sin(phases[2]) * gains[1] * spatialRoom + rightNoise + ocean.right * oceanGain + wind.right * windGain + fire.right * fireGain + cave.right * caveGain + forest.right * forestGain + temple.right * templeLevel + cue.right) * gains[3] * journeyFade * sleepGain * 0.32
+      let pulseEnvelope = 0.12 + 0.88 * (0.5 - 0.5 * cos(phases[6]))
+      let speakerPulse = sin(phases[5]) * pulseEnvelope * gains[1] * spatialRoom
+      let leftEntrainment = sin(phases[1]) * gains[1] * spatialRoom * privateOutputMix + speakerPulse * (1 - privateOutputMix)
+      let rightEntrainment = sin(phases[2]) * gains[1] * spatialRoom * privateOutputMix + speakerPulse * (1 - privateOutputMix)
+      let leftMix = (leftCarrier + leftEntrainment + leftNoise + ocean.left * oceanGain + wind.left * windGain + fire.left * fireGain + cave.left * caveGain + forest.left * forestGain + temple.left * templeLevel + cue.left) * gains[3] * journeyFade * sleepGain * 0.32
+      let rightMix = (rightCarrier + rightEntrainment + rightNoise + ocean.right * oceanGain + wind.right * windGain + fire.right * fireGain + cave.right * caveGain + forest.right * forestGain + temple.right * templeLevel + cue.right) * gains[3] * journeyFade * sleepGain * 0.32
       left[frame] = Float(softLimit(leftMix))
       right[frame] = Float(softLimit(rightMix))
       phases[0] = fmod(phases[0] + tau * target.carrierHz / sampleRate, tau)
@@ -747,6 +765,8 @@ private final class ProceduralAudioEngine: NSObject {
       phases[2] = fmod(phases[2] + tau * rightHz / sampleRate, tau)
       phases[3] = fmod(phases[3] + tau * target.carrierHz * 2 / sampleRate, tau)
       phases[4] = fmod(phases[4] + tau * target.carrierHz * 1.5 / sampleRate, tau)
+      phases[5] = fmod(phases[5] + tau * target.binauralCarrierHz / sampleRate, tau)
+      phases[6] = fmod(phases[6] + tau * target.deltaHz / sampleRate, tau)
     }
 
     if activeTimeline != nil {
@@ -1461,5 +1481,50 @@ private final class ProceduralAudioEngine: NSObject {
     let optionsRaw = notification.userInfo?[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0
     let options = AVAudioSession.InterruptionOptions(rawValue: optionsRaw)
     if desiredPlaying && options.contains(.shouldResume) { try? play() }
+  }
+
+  private func isPrivateOutput(_ route: AVAudioSessionRouteDescription) -> Bool {
+    route.outputs.contains { output in
+      switch output.portType {
+      case .headphones, .bluetoothA2DP, .bluetoothHFP, .bluetoothLE, .usbAudio:
+        return true
+      default:
+        return false
+      }
+    }
+  }
+
+  private func updatePrivateOutput(for route: AVAudioSessionRouteDescription) {
+    lock.lock()
+    privateOutputTarget = isPrivateOutput(route) ? 1 : 0
+    lock.unlock()
+  }
+
+  @objc private func handleRouteChange(_ notification: Notification) {
+    let session = AVAudioSession.sharedInstance()
+    let previousRoute = notification.userInfo?[AVAudioSessionRouteChangePreviousRouteKey] as? AVAudioSessionRouteDescription
+    let reasonRaw = notification.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt ?? 0
+    let reason = AVAudioSession.RouteChangeReason(rawValue: reasonRaw)
+    let lostPrivateOutput = reason == .oldDeviceUnavailable
+      && previousRoute.map(isPrivateOutput) == true
+      && !isPrivateOutput(session.currentRoute)
+    updatePrivateOutput(for: session.currentRoute)
+    if lostPrivateOutput && desiredPlaying {
+      pause()
+      return
+    }
+
+    // A newly connected output can leave AVAudioEngine logically running while
+    // its render path is still attached to the previous device. A manual
+    // pause/play repairs that state; do the same automatically after iOS has had
+    // a moment to finish selecting and configuring the new route.
+    if reason == .newDeviceAvailable && desiredPlaying {
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
+        guard let self, self.desiredPlaying else { return }
+        self.updatePrivateOutput(for: AVAudioSession.sharedInstance().currentRoute)
+        self.engine.pause()
+        try? self.play()
+      }
+    }
   }
 }

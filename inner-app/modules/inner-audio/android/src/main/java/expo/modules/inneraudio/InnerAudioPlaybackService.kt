@@ -77,6 +77,11 @@ class InnerAudioPlaybackService : Service() {
   private var activePrivateDeviceId: Int? = null
 
   private val deviceCallback = object : AudioDeviceCallback() {
+    override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>) {
+      mainHandler.postDelayed({ if (isPlaying()) refreshActivePrivateDevice() }, 350L)
+      mainHandler.postDelayed({ if (isPlaying()) refreshActivePrivateDevice() }, 1_500L)
+    }
+
     override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>) {
       val activeId = activePrivateDeviceId ?: return
       if (removedDevices.any { it.id == activeId }) {
@@ -223,9 +228,9 @@ class InnerAudioPlaybackService : Service() {
   }
 
   private fun refreshActivePrivateDevice() {
-    activePrivateDeviceId = audioTrack?.routedDevice
-      ?.takeIf(::isPrivateOutput)
-      ?.id
+    val privateDevice = audioTrack?.routedDevice?.takeIf(::isPrivateOutput)
+    activePrivateDeviceId = privateDevice?.id
+    ProceduralAudioEngine.setPrivateOutput(privateDevice != null)
   }
 
   private fun buildAudioTrack(): AudioTrack {
