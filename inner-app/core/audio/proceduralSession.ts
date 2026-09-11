@@ -90,6 +90,10 @@ export class ProceduralPlaybackSession {
     return this.engine.drainDiagnosticEvents();
   }
 
+  async setRecognitionSignal(uri: string | null) {
+    await this.engine.setRecognitionSignal(uri);
+  }
+
   getPositionMs() {
     return this.accumulatedMs + (this.playing && this.startedAtMs !== null
       ? Math.max(0, this.now() - this.startedAtMs)

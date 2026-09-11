@@ -66,6 +66,7 @@ public final class InnerAudioModule: Module {
     AsyncFunction("setSleepTimer") { (endAtMs: Double?) in self.engine.setSleepTimer(endAtMs) }
     Function("getLastTimerCompletionAtMs") { self.engine.getLastTimerCompletionAtMs() }
     Function("drainDiagnosticEvents") { self.engine.drainDiagnosticEvents() }
+    AsyncFunction("setRecognitionSignal") { (uri: String?) in try self.engine.setRecognitionSignal(uri) }
     AsyncFunction("triggerCue") { self.engine.triggerCue() }
     AsyncFunction("play") { try self.engine.play() }
     AsyncFunction("pause") { self.engine.pause() }
@@ -252,6 +253,10 @@ private final class ProceduralAudioEngine: NSObject {
   private var cueRightCombs: [CombFilter] = []
   private var cueLeftAllpasses: [AllpassFilter] = []
   private var cueRightAllpasses: [AllpassFilter] = []
+  private var recognitionSignalSamples: [Float] = []
+  private var recognitionSignalSampleRate = 0.0
+  private var activeCueSamples: [Float] = []
+  private var activeCueSampleRate = 0.0
   private var orbitMix = 0.0
   private var orbitNoiseFilter = 0.0
   private var renderedPan = 0.0
@@ -546,6 +551,32 @@ private final class ProceduralAudioEngine: NSObject {
     let events = diagnosticEvents
     diagnosticEvents.removeAll(keepingCapacity: true)
     return events
+  }
+
+  func setRecognitionSignal(_ uri: String?) throws {
+    guard let uri, !uri.isEmpty else {
+      lock.lock()
+      recognitionSignalSamples = []
+      recognitionSignalSampleRate = 0
+      lock.unlock()
+      return
+    }
+    guard let url = URL(string: uri), url.isFileURL else {
+      throw NSError(domain: "InnerAudio", code: 1, userInfo: [NSLocalizedDescriptionKey: "Recognition signal requires a local file URL"])
+    }
+    let file = try AVAudioFile(forReading: url)
+    guard let buffer = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: AVAudioFrameCount(file.length)) else {
+      throw NSError(domain: "InnerAudio", code: 2, userInfo: [NSLocalizedDescriptionKey: "Could not allocate recognition signal buffer"])
+    }
+    try file.read(into: buffer)
+    guard let channels = buffer.floatChannelData, buffer.frameLength > 0 else {
+      throw NSError(domain: "InnerAudio", code: 3, userInfo: [NSLocalizedDescriptionKey: "Recognition signal contains no PCM samples"])
+    }
+    let samples = Array(UnsafeBufferPointer(start: channels[0], count: Int(buffer.frameLength)))
+    lock.lock()
+    recognitionSignalSamples = samples
+    recognitionSignalSampleRate = file.processingFormat.sampleRate
+    lock.unlock()
   }
 
   private func recordDiagnostic(_ type: String, reason: String? = nil, route: String? = nil) {
@@ -952,9 +983,15 @@ private final class ProceduralAudioEngine: NSObject {
   }
 
   private func startCue() {
+    lock.lock()
+    activeCueSamples = recognitionSignalSamples
+    activeCueSampleRate = recognitionSignalSampleRate
+    lock.unlock()
     cueActive = true
     cueElapsedFrames = 0
-    cueTotalFrames = sampleRate * Self.cueTotalSeconds
+    cueTotalFrames = activeCueSamples.isEmpty
+      ? sampleRate * Self.cueTotalSeconds
+      : Double(activeCueSamples.count) / activeCueSampleRate * sampleRate
     cueLeftCombs = Self.cueLeftCombMs.map { ms in
       let delaySamples = max(1, Int(ms / 1_000 * sampleRate))
       return CombFilter(delaySamples: delaySamples, feedback: Self.combFeedback(forRt60: Self.cueReverbRt60, delaySamples: delaySamples, sampleRate: sampleRate))
@@ -1283,6 +1320,16 @@ private final class ProceduralAudioEngine: NSObject {
 
   private func nextCue() -> (left: Double, right: Double) {
     guard cueActive else { return (0, 0) }
+    if !activeCueSamples.isEmpty, activeCueSampleRate > 0 {
+      let sourcePosition = cueElapsedFrames * activeCueSampleRate / sampleRate
+      let lower = min(activeCueSamples.count - 1, Int(sourcePosition))
+      let upper = min(activeCueSamples.count - 1, lower + 1)
+      let fraction = sourcePosition - Double(lower)
+      let sample = Double(activeCueSamples[lower]) * (1 - fraction) + Double(activeCueSamples[upper]) * fraction
+      cueElapsedFrames += 1
+      if cueElapsedFrames >= cueTotalFrames { cueActive = false }
+      return (sample * 1.45, sample * 1.45)
+    }
     let t = cueElapsedFrames / sampleRate
     var dry = 0.0
     for index in Self.cueNoteHz.indices {

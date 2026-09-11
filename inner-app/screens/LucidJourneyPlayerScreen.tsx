@@ -14,7 +14,7 @@ import type { FactoryAudioJourney } from '../core/audio';
 import { Typography } from '../core/typography';
 import { cancelLucidityCueNotifications, scheduleLucidityCueNotifications } from '../utils/notifications';
 import { abandonPendingLucidSignalNight } from '../core/lucidSignalLearning';
-import { createRecognitionSignalSound, getRecognitionSignalId, recognitionSignalById } from '../core/recognitionSignals';
+import { createRecognitionSignalSound, getRecognitionSignalAssetUri, getRecognitionSignalId, recognitionSignalById } from '../core/recognitionSignals';
 import {
   beginJourneyMemorySession,
   finishJourneyMemorySession,
@@ -112,6 +112,11 @@ export default function LucidJourneyPlayerScreen() {
           cueStageStartMs += stage.durationMs;
         }
         let signalName = 'the signal';
+        await session.setRecognitionSignal(null);
+        if (journey.overnight) {
+          const overnightSignalId = await getRecognitionSignalId();
+          await session.setRecognitionSignal(await getRecognitionSignalAssetUri(overnightSignalId));
+        }
         if (journey.id === LUCIDITY_CUE_TRAINING_JOURNEY_ID) {
           const signalId = await getRecognitionSignalId();
           signalName = recognitionSignalById(signalId).name;

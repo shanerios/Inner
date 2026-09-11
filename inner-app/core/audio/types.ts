@@ -133,6 +133,7 @@ export interface InnerAudioEngine {
   setSleepTimer(endAtMs: number | null): Promise<void>;
   getLastTimerCompletionAtMs(): Promise<number | null>;
   drainDiagnosticEvents(): Promise<NativeAudioDiagnosticEvent[]>;
+  setRecognitionSignal(uri: string | null): Promise<void>;
   triggerCue(): Promise<void>;
   play(): Promise<void>;
   pause(): Promise<void>;

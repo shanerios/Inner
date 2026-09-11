@@ -1,5 +1,9 @@
 package expo.modules.inneraudio
 
+import java.io.File
+import java.net.URI
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 import kotlin.math.cos
@@ -226,6 +230,10 @@ object ProceduralAudioEngine {
   private var cueRightCombs: Array<CombFilter> = emptyArray()
   private var cueLeftAllpasses: Array<AllpassFilter> = emptyArray()
   private var cueRightAllpasses: Array<AllpassFilter> = emptyArray()
+  private var recognitionSignalSamples = FloatArray(0)
+  private var recognitionSignalSampleRate = 0.0
+  private var activeCueSamples = FloatArray(0)
+  private var activeCueSampleRate = 0.0
   private var orbitMix = 0.0
   private var orbitNoiseFilter = 0.0
   private var renderedPan = 0.0
@@ -254,6 +262,53 @@ object ProceduralAudioEngine {
 
   fun drainDiagnosticEvents(): List<Map<String, Any>> = diagnosticLock.withLock {
     diagnosticEvents.toList().also { diagnosticEvents.clear() }
+  }
+
+  fun setRecognitionSignal(uri: String?) {
+    if (uri.isNullOrEmpty()) {
+      lock.withLock {
+        recognitionSignalSamples = FloatArray(0)
+        recognitionSignalSampleRate = 0.0
+      }
+      return
+    }
+    val bytes = File(URI(uri)).readBytes()
+    require(bytes.size >= 44 && String(bytes, 0, 4, Charsets.US_ASCII) == "RIFF" && String(bytes, 8, 4, Charsets.US_ASCII) == "WAVE") {
+      "Recognition signal is not a valid WAV file"
+    }
+    val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
+    var format = 0
+    var channels = 0
+    var sourceRate = 0
+    var bits = 0
+    var dataOffset = -1
+    var dataSize = 0
+    var offset = 12
+    while (offset + 8 <= bytes.size) {
+      val chunkId = String(bytes, offset, 4, Charsets.US_ASCII)
+      val chunkSize = buffer.getInt(offset + 4)
+      val body = offset + 8
+      if (chunkSize < 0 || body + chunkSize > bytes.size) break
+      if (chunkId == "fmt " && chunkSize >= 16) {
+        format = buffer.getShort(body).toInt() and 0xffff
+        channels = buffer.getShort(body + 2).toInt() and 0xffff
+        sourceRate = buffer.getInt(body + 4)
+        bits = buffer.getShort(body + 14).toInt() and 0xffff
+      } else if (chunkId == "data") {
+        dataOffset = body
+        dataSize = chunkSize
+      }
+      offset = body + chunkSize + (chunkSize and 1)
+    }
+    require(format == 1 && channels == 1 && bits == 16 && sourceRate > 0 && dataOffset >= 0) {
+      "Recognition signal must be 16-bit mono PCM WAV"
+    }
+    val sampleCount = dataSize / 2
+    val samples = FloatArray(sampleCount) { index -> buffer.getShort(dataOffset + index * 2) / 32768f }
+    lock.withLock {
+      recognitionSignalSamples = samples
+      recognitionSignalSampleRate = sourceRate.toDouble()
+    }
   }
 
   fun configure(raw: AudioConfigRecord) {
@@ -756,9 +811,14 @@ object ProceduralAudioEngine {
   }
 
   private fun startCue() {
+    lock.withLock {
+      activeCueSamples = recognitionSignalSamples
+      activeCueSampleRate = recognitionSignalSampleRate
+    }
     cueActive = true
     cueElapsedFrames = 0.0
-    cueTotalFrames = sampleRate * CUE_TOTAL_SECONDS
+    cueTotalFrames = if (activeCueSamples.isEmpty()) sampleRate * CUE_TOTAL_SECONDS
+      else activeCueSamples.size / activeCueSampleRate * sampleRate
     cueLeftCombs = CUE_LEFT_COMB_MS.map { ms ->
       val delaySamples = max(1, (ms / 1_000.0 * sampleRate).toInt())
       CombFilter(delaySamples, combFeedbackForRt60(delaySamples, CUE_REVERB_RT60, sampleRate))
@@ -1065,6 +1125,16 @@ object ProceduralAudioEngine {
 
   private fun nextCue(): Pair<Double, Double> {
     if (!cueActive) return Pair(0.0, 0.0)
+    if (activeCueSamples.isNotEmpty() && activeCueSampleRate > 0) {
+      val sourcePosition = cueElapsedFrames * activeCueSampleRate / sampleRate
+      val lower = min(activeCueSamples.lastIndex, sourcePosition.toInt())
+      val upper = min(activeCueSamples.lastIndex, lower + 1)
+      val fraction = sourcePosition - lower
+      val sample = activeCueSamples[lower] * (1 - fraction) + activeCueSamples[upper] * fraction
+      cueElapsedFrames += 1
+      if (cueElapsedFrames >= cueTotalFrames) cueActive = false
+      return Pair(sample * 1.45, sample * 1.45)
+    }
     val t = cueElapsedFrames / sampleRate
     var dry = 0.0
     for (index in CUE_NOTE_HZ.indices) {

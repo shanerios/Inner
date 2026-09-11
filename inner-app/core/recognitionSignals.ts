@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { AVPlaybackSource } from 'expo-av';
+import { Asset } from 'expo-asset';
 
 export const RECOGNITION_SIGNAL_KEY = 'inner.recognition-signal.v1';
 
@@ -50,4 +51,11 @@ export async function createRecognitionSignalSound(id: RecognitionSignalId): Pro
   const { Audio } = await import('expo-av');
   const { sound } = await Audio.Sound.createAsync(SIGNAL_ASSETS[id], { shouldPlay: false, volume: 0.8 });
   return sound;
+}
+
+export async function getRecognitionSignalAssetUri(id: RecognitionSignalId): Promise<string | null> {
+  if (id === 'ascending') return null;
+  const asset = Asset.fromModule(SIGNAL_ASSETS[id] as number);
+  await asset.downloadAsync();
+  return asset.localUri ?? asset.uri ?? null;
 }

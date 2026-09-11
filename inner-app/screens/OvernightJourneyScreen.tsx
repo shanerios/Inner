@@ -129,7 +129,9 @@ function overnightJourney(
   const scaledPreparationDurationMs = preparationStages.reduce((total, stage) => total + stage.durationMs, 0);
   return {
     ...base,
-    id: accelerated ? protocol.id : base.id,
+    // Keep overnight playback distinct from the standalone Lucid Signal
+    // trainer; all of its cue events belong to the native overnight timeline.
+    id: protocol.id,
     title: 'Overnight Recognition',
     summary: `Recognition practice shaped around the ${environment} before later signals return during sleep.`,
     durationLabel: `${durationLabel(Math.round(protocol.totalDurationMs / 60_000))} · Overnight`,
