@@ -12,6 +12,7 @@ import {
   loadLucidSignalLearning,
   recordLucidSignalNight,
   saveLucidSignalReflection,
+  saveLucidSignalMorningCapture,
 } from '../lucidSignalLearning';
 
 function memoryStorage() {
@@ -37,6 +38,14 @@ describe('Lucid Signal learning', () => {
     await saveLucidSignalReflection(night.id, { noticed: 'yes', lucid: true, sleepImpact: 'none' }, storage as any, () => 9_000);
     await expect(getPendingLucidSignalReflection(storage as any, () => night.reviewAt + 1)).resolves.toBeNull();
     expect((await loadLucidSignalLearning(storage as any)).nights[0].reflection?.lucid).toBe(true);
+  });
+
+  it('keeps a morning capture linked while the structured reflection remains pending', async () => {
+    const storage = memoryStorage();
+    const night = await recordLucidSignalNight(1_000, [2_000], storage as any, () => 500);
+    await saveLucidSignalMorningCapture(night.id, 'journal-1', storage as any);
+    const pending = await getPendingLucidSignalReflection(storage as any, () => night.reviewAt + 1);
+    expect(pending?.morningCaptureEntryId).toBe('journal-1');
   });
 
   it('waits for three nights before describing a pattern', () => {

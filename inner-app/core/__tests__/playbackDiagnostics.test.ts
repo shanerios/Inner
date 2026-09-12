@@ -17,6 +17,7 @@ describe('playback diagnostics export', () => {
           answers: { noticed: 'yes', lucid: true, sleepImpact: 'none' },
           savedAt: 250,
         },
+        morningCapture: { journalEntryId: 'private-journal-id', savedAt: 245 },
         plannedDurationMs: 60_000,
         endPolicy: 'protocolControlled',
         protocolVersion: 1,
@@ -38,8 +39,10 @@ describe('playback diagnostics export', () => {
     });
     expect(exported.sessions[0]).not.toHaveProperty('title');
     expect(exported.sessions[0]).not.toHaveProperty('morningReflection');
+    expect(exported.sessions[0]).not.toHaveProperty('morningCapture');
     const json = serializePlaybackDiagnostics(exported);
     expect(json).not.toContain('private custom title');
     expect(json).not.toContain('sleepImpact');
+    expect(json).not.toContain('private-journal-id');
   });
 });

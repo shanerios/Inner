@@ -33,9 +33,11 @@ import {
   LucidSignalNight,
   resetLucidSignalLearning,
   saveLucidSignalReflection,
+  saveLucidSignalMorningCapture,
   setLucidSignalCuePlan,
   SignalNotice,
   SleepImpact,
+  DreamRecall,
 } from '../core/lucidSignalLearning';
 import { clearDreamSeed, DreamSeed, loadDreamSeed, saveDreamSeed } from '../core/dreamIncubation';
 import {
@@ -49,10 +51,12 @@ import {
 import {
   pendingOvernightReflection,
   saveOvernightReflection,
+  saveOvernightMorningCapture,
   deriveJourneyMemoryProfile,
   JourneyMemoryProfile,
   loadJourneyMemory,
 } from '../core/journeyMemory';
+import { createEntry } from '../core/journalRepo';
 import type { Audio } from 'expo-av';
 
 export default function LucidJourneysScreen() {
@@ -80,6 +84,11 @@ export default function LucidJourneysScreen() {
   const [noticed, setNoticed] = useState<SignalNotice | null>(null);
   const [lucid, setLucid] = useState<boolean | null>(null);
   const [sleepImpact, setSleepImpact] = useState<SleepImpact | null>(null);
+  const [dreamRecall, setDreamRecall] = useState<DreamRecall | null>(null);
+  const [morningStep, setMorningStep] = useState<'capture' | 'reflection'>('capture');
+  const [morningCapture, setMorningCapture] = useState('');
+  const [morningCaptureEntryId, setMorningCaptureEntryId] = useState<string | null>(null);
+  const [morningCaptureSaving, setMorningCaptureSaving] = useState(false);
   const previewSessionRef = useRef(new ProceduralPlaybackSession(proceduralAudioEngine));
   const recognitionSoundRef = useRef<Audio.Sound | null>(null);
   const previewStopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -170,17 +179,63 @@ export default function LucidJourneysScreen() {
     setNoticed(null);
     setLucid(null);
     setSleepImpact(null);
-  }, [pendingReflection?.id]);
+    setDreamRecall(null);
+    setMorningStep(pendingReflection?.morningCaptureEntryId ? 'reflection' : 'capture');
+    setMorningCapture('');
+    setMorningCaptureEntryId(null);
+  }, [pendingReflection?.id, pendingReflection?.morningCaptureEntryId]);
 
   const offeredReflectionIdRef = useRef<string | null>(null);
 
+  const captureMorningDream = useCallback(async () => {
+    if (!pendingReflection || !morningCapture.trim() || morningCaptureSaving) return;
+    if (pendingReflection.preview) {
+      setMorningStep('reflection');
+      return;
+    }
+    setMorningCaptureSaving(true);
+    let entryId = morningCaptureEntryId;
+    try {
+      if (!entryId) {
+        const entry = await createEntry({
+          body: morningCapture.trim(),
+          kind: 'dream',
+          journeySessionId: pendingReflection.journeySessionId,
+          captureSource: 'morning_return',
+        });
+        entryId = entry.id;
+        setMorningCaptureEntryId(entry.id);
+      }
+      if (pendingReflection.journeySessionId) {
+        await saveOvernightMorningCapture(pendingReflection.journeySessionId, entryId);
+      } else {
+        await saveLucidSignalMorningCapture(pendingReflection.id, entryId);
+      }
+      setMorningStep('reflection');
+    } catch {
+      Alert.alert(
+        entryId ? 'Dream saved' : 'Dream not saved',
+        entryId
+          ? 'Your dream is safe in the Journal, but Inner could not link it to this journey yet. Please try again.'
+          : 'Your words are still here. Please try again.',
+      );
+    } finally {
+      setMorningCaptureSaving(false);
+    }
+  }, [morningCapture, morningCaptureEntryId, morningCaptureSaving, pendingReflection]);
+
+  const continueWithoutRecall = useCallback(() => {
+    setDreamRecall('none');
+    setMorningStep('reflection');
+  }, []);
+
   const submitReflection = useCallback(async () => {
-    if (!pendingReflection || !noticed || lucid === null || !sleepImpact) return;
+    if (!pendingReflection || !dreamRecall || !noticed || lucid === null || !sleepImpact) return;
     try {
       if (pendingReflection.journeySessionId) {
-        await saveOvernightReflection(pendingReflection.journeySessionId, { noticed, lucid, sleepImpact });
+        await saveOvernightReflection(pendingReflection.journeySessionId, { recall: dreamRecall, noticed, lucid, sleepImpact });
       } else if (!pendingReflection.preview) {
-        const learning = await saveLucidSignalReflection(pendingReflection.id, { noticed, lucid, sleepImpact });
+        const learning = await saveLucidSignalReflection(pendingReflection.id, { recall: dreamRecall, noticed, lucid, sleepImpact });
         setLearningNights(learning.nights);
         setLearningSummary(lucidSignalLearningSummary(learning.nights));
       }
@@ -193,7 +248,11 @@ export default function LucidJourneysScreen() {
     setNoticed(null);
     setLucid(null);
     setSleepImpact(null);
-  }, [lucid, noticed, pendingReflection, sleepImpact]);
+    setDreamRecall(null);
+    setMorningCapture('');
+    setMorningCaptureEntryId(null);
+    setMorningStep('capture');
+  }, [dreamRecall, lucid, noticed, pendingReflection, sleepImpact]);
 
   const previewMorningReflection = useCallback(async () => {
     const now = Date.now();
@@ -232,6 +291,7 @@ export default function LucidJourneysScreen() {
         id: overnight.id, journeySessionId: overnight.id,
         scheduledAt: overnight.startedAt, sleepOnsetAt: overnight.startedAt,
         cueTimes: [], reviewAt: overnight.startedAt + overnight.plannedDurationMs,
+        morningCaptureEntryId: overnight.morningCapture?.journalEntryId,
       } : reflection;
       if ((pending?.id ?? null) !== offeredReflectionIdRef.current) {
         offeredReflectionIdRef.current = pending?.id ?? null;
@@ -683,43 +743,83 @@ export default function LucidJourneysScreen() {
             >
               <Ionicons name="close" size={18} color="#CFC5DA" />
             </Pressable>
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.morningModalContent}>
-              <Text style={styles.reflectionEyebrow}>MORNING REFLECTION</Text>
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.morningModalContent}>
+              <Text style={styles.reflectionEyebrow}>MORNING RETURN</Text>
               <Text style={styles.reflectionPrompt}>
                 {pendingReflection?.preview ? 'Preview · answers are not saved' : `${pendingReflection?.journeySessionId ? 'Overnight journey' : 'Scheduled signals'} · ${new Date(pendingReflection?.scheduledAt ?? 0).toLocaleString()}`}
               </Text>
-              <Text style={[Typography.display, styles.reflectionTitle]}>What stayed with you?</Text>
-              <ReflectionQuestion
-                prompt="Did you notice the signal?"
-                options={[
-                  { label: 'YES', value: 'yes' }, { label: 'UNSURE', value: 'unsure' }, { label: 'NO', value: 'no' },
-                ]}
-                value={noticed}
-                onChange={value => setNoticed(value as SignalNotice)}
-              />
-              <ReflectionQuestion
-                prompt="Did you become lucid?"
-                options={[{ label: 'YES', value: 'yes' }, { label: 'NO', value: 'no' }]}
-                value={lucid === null ? null : lucid ? 'yes' : 'no'}
-                onChange={value => setLucid(value === 'yes')}
-              />
-              <ReflectionQuestion
-                prompt="How did it affect your sleep?"
-                options={[
-                  { label: 'NOT AT ALL', value: 'none' }, { label: 'GENTLY', value: 'gentle' }, { label: 'WOKE ME', value: 'woke' },
-                ]}
-                value={sleepImpact}
-                onChange={value => setSleepImpact(value as SleepImpact)}
-              />
-              <Pressable
-                onPress={() => { void submitReflection(); }}
-                disabled={!noticed || lucid === null || !sleepImpact}
-                accessibilityRole="button"
-                accessibilityLabel="Save morning reflection"
-                style={[styles.saveReflection, (!noticed || lucid === null || !sleepImpact) && styles.disabledReflection]}
-              >
-                <Text style={styles.saveReflectionText}>SAVE REFLECTION</Text>
-              </Pressable>
+              {morningStep === 'capture' ? (
+                <>
+                  <Text style={[Typography.display, styles.morningReturnTitle]}>You returned. What remains?</Text>
+                  <Text style={styles.morningReturnCopy}>Capture the dream before details begin to fade.</Text>
+                  <TextInput
+                    value={morningCapture}
+                    onChangeText={setMorningCapture}
+                    multiline
+                    autoFocus
+                    maxLength={12_000}
+                    placeholder="A scene, feeling, voice, color—anything that remains…"
+                    placeholderTextColor="#746D80"
+                    accessibilityLabel="Morning dream capture"
+                    style={styles.morningCaptureInput}
+                  />
+                  <Pressable
+                    onPress={() => { void captureMorningDream(); }}
+                    disabled={!morningCapture.trim() || morningCaptureSaving}
+                    accessibilityRole="button"
+                    accessibilityLabel="Save dream and continue"
+                    style={[styles.saveReflection, (!morningCapture.trim() || morningCaptureSaving) && styles.disabledReflection]}
+                  >
+                    <Text style={styles.saveReflectionText}>{morningCaptureSaving ? 'SAVING…' : 'SAVE DREAM & CONTINUE'}</Text>
+                  </Pressable>
+                  <Pressable onPress={continueWithoutRecall} accessibilityRole="button" style={styles.noRecallButton}>
+                    <Text style={styles.noRecallText}>NOTHING RECALLED</Text>
+                  </Pressable>
+                </>
+              ) : (
+                <>
+                  <Text style={[Typography.display, styles.reflectionTitle]}>A few quiet questions</Text>
+                  <ReflectionQuestion
+                    prompt="How much did you recall?"
+                    options={[
+                      { label: 'NONE', value: 'none' }, { label: 'A FRAGMENT', value: 'fragment' }, { label: 'A DREAM', value: 'dream' },
+                    ]}
+                    value={dreamRecall}
+                    onChange={value => setDreamRecall(value as DreamRecall)}
+                  />
+                  <ReflectionQuestion
+                    prompt="Did you notice the signal?"
+                    options={[
+                      { label: 'YES', value: 'yes' }, { label: 'UNSURE', value: 'unsure' }, { label: 'NO', value: 'no' },
+                    ]}
+                    value={noticed}
+                    onChange={value => setNoticed(value as SignalNotice)}
+                  />
+                  <ReflectionQuestion
+                    prompt="Did you become lucid?"
+                    options={[{ label: 'YES', value: 'yes' }, { label: 'NO', value: 'no' }]}
+                    value={lucid === null ? null : lucid ? 'yes' : 'no'}
+                    onChange={value => setLucid(value === 'yes')}
+                  />
+                  <ReflectionQuestion
+                    prompt="How did it affect your sleep?"
+                    options={[
+                      { label: 'NOT AT ALL', value: 'none' }, { label: 'GENTLY', value: 'gentle' }, { label: 'WOKE ME', value: 'woke' },
+                    ]}
+                    value={sleepImpact}
+                    onChange={value => setSleepImpact(value as SleepImpact)}
+                  />
+                  <Pressable
+                    onPress={() => { void submitReflection(); }}
+                    disabled={!dreamRecall || !noticed || lucid === null || !sleepImpact}
+                    accessibilityRole="button"
+                    accessibilityLabel="Save morning reflection"
+                    style={[styles.saveReflection, (!dreamRecall || !noticed || lucid === null || !sleepImpact) && styles.disabledReflection]}
+                  >
+                    <Text style={styles.saveReflectionText}>SAVE REFLECTION</Text>
+                  </Pressable>
+                </>
+              )}
               <Text style={styles.privateCopy}>Stored privately on this device.</Text>
             </ScrollView>
           </View>
@@ -1030,6 +1130,11 @@ const styles = StyleSheet.create({
   reflectionCard: { alignSelf: 'center', width: '96%', maxWidth: 350, paddingHorizontal: 18, paddingVertical: 17, borderRadius: 20, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(185,167,255,0.3)', backgroundColor: 'rgba(5,7,17,0.84)' },
   reflectionEyebrow: { color: '#B8A7EE', fontFamily: 'Inter-Medium', fontSize: 8, letterSpacing: 1.55, textAlign: 'center' },
   reflectionTitle: { color: '#F1EDF8', fontSize: 17, textAlign: 'center', marginTop: 7, marginBottom: 5 },
+  morningReturnTitle: { color: '#F1EDF8', fontSize: 21, lineHeight: 28, textAlign: 'center', marginTop: 8 },
+  morningReturnCopy: { maxWidth: 260, color: '#B9B1C4', fontFamily: 'Inter-ExtraLight', fontSize: 11, lineHeight: 17, textAlign: 'center', marginTop: 7 },
+  morningCaptureInput: { width: '100%', minHeight: 150, maxHeight: 260, marginTop: 15, paddingHorizontal: 14, paddingVertical: 13, borderRadius: 17, borderWidth: 1, borderColor: 'rgba(205,194,255,0.24)', backgroundColor: 'rgba(12,13,28,0.78)', color: '#EEEAF5', fontFamily: 'Inter-Light', fontSize: 13, lineHeight: 20, textAlignVertical: 'top' },
+  noRecallButton: { minHeight: 34, justifyContent: 'center', marginTop: 8, paddingHorizontal: 14 },
+  noRecallText: { color: '#91899D', fontFamily: 'Inter-Medium', fontSize: 7, letterSpacing: 1.15 },
   reflectionQuestion: { alignItems: 'center', marginTop: 12 },
   reflectionPrompt: { color: '#D7D0E0', fontFamily: 'Inter-Light', fontSize: 11, textAlign: 'center', marginBottom: 7 },
   reflectionOptions: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 6 },

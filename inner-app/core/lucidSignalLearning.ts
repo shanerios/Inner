@@ -12,8 +12,10 @@ type Storage = Pick<typeof AsyncStorage, 'getItem' | 'setItem'>;
 
 export type SignalNotice = 'yes' | 'unsure' | 'no';
 export type SleepImpact = 'none' | 'gentle' | 'woke';
+export type DreamRecall = 'none' | 'fragment' | 'dream';
 
 export type LucidSignalReflection = {
+  recall?: DreamRecall;
   noticed: SignalNotice;
   lucid: boolean;
   sleepImpact: SleepImpact;
@@ -29,6 +31,7 @@ export type LucidSignalNight = {
   reflectedAt?: number;
   cuePlan?: LucidSignalCuePlan;
   signalId?: RecognitionSignalId;
+  morningCaptureEntryId?: string;
 };
 
 type LucidSignalLearningState = {
@@ -111,6 +114,18 @@ export async function saveLucidSignalReflection(
   const next = { schemaVersion: 1 as const, nights };
   await storage.setItem(LUCID_SIGNAL_LEARNING_KEY, JSON.stringify(next));
   return next;
+}
+
+export async function saveLucidSignalMorningCapture(
+  nightId: string,
+  journalEntryId: string,
+  storage: Storage = AsyncStorage,
+): Promise<void> {
+  const state = await loadLucidSignalLearning(storage);
+  const nights = state.nights.map(night => night.id === nightId
+    ? { ...night, morningCaptureEntryId: journalEntryId }
+    : night);
+  await storage.setItem(LUCID_SIGNAL_LEARNING_KEY, JSON.stringify({ schemaVersion: 1, nights }));
 }
 
 export function lucidSignalInsight(nights: LucidSignalNight[]): string | null {

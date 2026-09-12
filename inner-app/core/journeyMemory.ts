@@ -60,6 +60,7 @@ export type JourneyMemorySession = {
   startedAt: number;
   endedAt?: number;
   morningReflection?: { answers: LucidSignalReflection; savedAt: number };
+  morningCapture?: { journalEntryId: string; savedAt: number };
   plannedDurationMs: number;
   endPolicy: CompiledAudioJourneyTimeline['endPolicy'];
   protocolVersion: number;
@@ -332,6 +333,25 @@ export function saveOvernightReflection(
     }
     const sessions = state.sessions.map(item => item.id === sessionId
       ? { ...item, morningReflection: { answers, savedAt: now() } }
+      : item);
+    await storage.setItem(JOURNEY_MEMORY_KEY, JSON.stringify({ ...state, sessions }));
+  });
+}
+
+export function saveOvernightMorningCapture(
+  sessionId: string,
+  journalEntryId: string,
+  storage: Storage = AsyncStorage,
+  now: () => number = Date.now,
+): Promise<void> {
+  return enqueue(async () => {
+    const state = await loadJourneyMemory(storage);
+    const session = state.sessions.find(item => item.id === sessionId);
+    if (!session || pendingOvernightReflection({ ...state, sessions: [session] }, now()) === null) {
+      throw new Error('This overnight session is no longer available for morning capture.');
+    }
+    const sessions = state.sessions.map(item => item.id === sessionId
+      ? { ...item, morningCapture: { journalEntryId, savedAt: now() } }
       : item);
     await storage.setItem(JOURNEY_MEMORY_KEY, JSON.stringify({ ...state, sessions }));
   });

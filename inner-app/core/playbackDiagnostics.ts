@@ -6,13 +6,13 @@ export type PlaybackDiagnosticsExport = {
   exportVersion: typeof PLAYBACK_DIAGNOSTICS_EXPORT_VERSION;
   generatedAt: number;
   app: { version: string | null; build: string | null; platform: string };
-  sessions: Array<Omit<JourneyMemorySession, 'title' | 'morningReflection'>>;
+  sessions: Array<Omit<JourneyMemorySession, 'title' | 'morningReflection' | 'morningCapture'>>;
 };
 
 /**
  * Produces a support-safe playback record. User-authored titles and morning
- * answers are intentionally excluded; journals and profile data never enter
- * Journey Memory and therefore cannot enter this export.
+ * answers and journal links are intentionally excluded; journal content never
+ * enters Journey Memory and therefore cannot enter this export.
  */
 export function buildPlaybackDiagnosticsExport(
   memory: JourneyMemoryState,
@@ -23,7 +23,7 @@ export function buildPlaybackDiagnosticsExport(
     exportVersion: PLAYBACK_DIAGNOSTICS_EXPORT_VERSION,
     generatedAt,
     app,
-    sessions: memory.sessions.map(({ title: _title, morningReflection: _reflection, ...session }) => session),
+    sessions: memory.sessions.map(({ title: _title, morningReflection: _reflection, morningCapture: _capture, ...session }) => session),
   };
 }
 

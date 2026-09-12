@@ -25,6 +25,8 @@ export type JournalEntry = {
   chamberId?: string;       // set when kind === 'chamber'
   chamberTitle?: string;    // human-readable title of the chamber session
   dreamSigns?: string[];
+  journeySessionId?: string;
+  captureSource?: 'morning_return';
 };
 
 const INDEX_KEY = 'journal:index';
@@ -73,6 +75,9 @@ export async function createEntry(partial?: Partial<JournalEntry>): Promise<Jour
     intentionTags: partial?.intentionTags || [],
     mood: partial?.mood ?? undefined,
     kind: partial?.kind || 'note',
+    dreamSigns: partial?.dreamSigns || [],
+    journeySessionId: partial?.journeySessionId,
+    captureSource: partial?.captureSource,
   };
   await secureSetItem(ENTRY_KEY(entry.id), JSON.stringify(entry));
   const ids = await readIndex();

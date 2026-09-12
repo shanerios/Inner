@@ -1,6 +1,7 @@
 import {
   pendingOvernightReflection,
   saveOvernightReflection,
+  saveOvernightMorningCapture,
   beginJourneyMemorySession,
   deriveJourneyMemoryProfile,
   finishJourneyMemorySession,
@@ -202,6 +203,18 @@ describe('overnight reflection linkage', () => {
     const saved = await loadJourneyMemory(storage);
     expect(saved.sessions.find(s => s.id === first.id)).toMatchObject({ outcome: 'completed', morningReflection: { answers } });
     expect(saved.sessions.find(s => s.id === second.id)?.morningReflection).toBeUndefined();
+  });
+
+  it('links a morning journal capture to the exact overnight session', async () => {
+    const storage = memoryStorage();
+    const session = await beginJourneyMemorySession('overnight-recognition-forest-standard', overnight,
+      DEFAULT_PROCEDURAL_AUDIO_CONFIG, storage, () => 100);
+
+    await saveOvernightMorningCapture(session.id, 'journal-entry-1', storage, () => 60_100);
+
+    const saved = await loadJourneyMemory(storage);
+    expect(saved.sessions[0].morningCapture).toEqual({ journalEntryId: 'journal-entry-1', savedAt: 60_100 });
+    expect(pendingOvernightReflection(saved, 60_100)?.id).toBe(session.id);
   });
 
   it('rejects missing, premature, failed, and development sessions', async () => {
