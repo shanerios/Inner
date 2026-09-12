@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { AppState, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -65,6 +65,22 @@ export default function LiveMixScreen() {
     };
   }, []);
 
+  useEffect(() => {
+    let active = true;
+    const subscription = AppState.addEventListener('change', nextState => {
+      if (nextState !== 'active') return;
+      void sessionRef.current.reconcilePlaybackState()
+        .then(nativeState => {
+          if (active) setIsPlaying(nativeState === 'playing');
+        })
+        .catch(() => {});
+    });
+    return () => {
+      active = false;
+      subscription.remove();
+    };
+  }, []);
+
   const applyPatch = useCallback(async (patch: ProceduralAudioPatch) => {
     try {
       await sessionRef.current.update(patch);
@@ -79,9 +95,10 @@ export default function LiveMixScreen() {
 
   const togglePlayback = async () => {
     try {
-      if (isPlaying) await sessionRef.current.pause();
+      const nativeState = await sessionRef.current.reconcilePlaybackState();
+      if (nativeState === 'playing') await sessionRef.current.pause();
       else await sessionRef.current.play();
-      setIsPlaying(!isPlaying);
+      setIsPlaying(sessionRef.current.isPlaying());
     } catch (playbackError) {
       setError(playbackError instanceof Error ? playbackError.message : String(playbackError));
     }

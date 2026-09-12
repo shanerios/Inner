@@ -55,6 +55,9 @@ class InnerAudioPlaybackService : Service() {
     @Volatile var isRunning = false
       private set
 
+    @Volatile var playbackState = "stopped"
+      private set
+
     fun playIntent(context: Context): Intent = Intent(context, InnerAudioPlaybackService::class.java).setAction(ACTION_PLAY)
     fun pauseIntent(context: Context): Intent = Intent(context, InnerAudioPlaybackService::class.java).setAction(ACTION_PAUSE)
     fun stopIntent(context: Context): Intent = Intent(context, InnerAudioPlaybackService::class.java).setAction(ACTION_STOP)
@@ -117,6 +120,7 @@ class InnerAudioPlaybackService : Service() {
   override fun onCreate() {
     super.onCreate()
     isRunning = true
+    playbackState = "stopped"
     audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
     createNotificationChannel()
     ProceduralAudioEngine.onSleepTimerElapsed = { mainHandler.post { stop() } }
@@ -175,6 +179,7 @@ class InnerAudioPlaybackService : Service() {
     }
     audioTrack?.play()
     renderThreadPaused.set(false)
+    playbackState = "playing"
     registerDeviceCallbackIfNeeded()
     refreshActivePrivateDevice()
     // A2DP routing may not be populated synchronously with AudioTrack.play().
@@ -188,6 +193,7 @@ class InnerAudioPlaybackService : Service() {
   private fun pause() {
     renderThreadPaused.set(true)
     audioTrack?.pause()
+    playbackState = if (audioTrack == null) "stopped" else "paused"
     updateNowPlaying(isPlaying = false)
     ProceduralAudioEngine.recordDiagnostic("playback_paused", "pause_request")
   }
@@ -218,6 +224,7 @@ class InnerAudioPlaybackService : Service() {
     abandonAudioFocus()
     unregisterDeviceCallbackIfNeeded()
     updatePlaybackState(PlaybackStateCompat.STATE_STOPPED)
+    playbackState = "stopped"
   }
 
   private fun preferredSampleRate(): Double {
@@ -282,7 +289,13 @@ class InnerAudioPlaybackService : Service() {
         // the AudioTrack alone) is what keeps phase state frozen across pause/resume.
         ProceduralAudioEngine.render(buffer, RENDER_CHUNK_FRAMES)
         val written = track.write(buffer, 0, buffer.size, AudioTrack.WRITE_BLOCKING)
-        if (written < 0) break
+        if (written < 0) {
+          renderThreadRunning.set(false)
+          renderThreadPaused.set(true)
+          playbackState = "stopped"
+          ProceduralAudioEngine.recordDiagnostic("playback_paused", "audio_track_write_failed")
+          break
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
           val underrunCount = track.underrunCount
           if (underrunCount > lastUnderrunCount) {

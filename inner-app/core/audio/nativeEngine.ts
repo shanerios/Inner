@@ -5,6 +5,7 @@ import type {
   AudioEngineSnapshot,
   CompiledAudioJourneyTimeline,
   InnerAudioEngine,
+  NativePlaybackState,
   ProceduralAudioConfig,
   ProceduralAudioPatch,
   NativeAudioDiagnosticEvent,
@@ -18,6 +19,7 @@ type NativeInnerAudio = {
   setNowPlaying(title: string): Promise<void>;
   setSleepTimer(endAtMs: number | null): Promise<void>;
   getLastTimerCompletionAtMs(): number | null;
+  getPlaybackState?(): NativePlaybackState;
   drainDiagnosticEvents(): NativeAudioDiagnosticEvent[];
   setRecognitionSignal(signalId: string | null, uri: string | null): Promise<void>;
   triggerCue(): Promise<void>;
@@ -71,6 +73,14 @@ class NativeProceduralAudioEngine implements InnerAudioEngine {
 
   async getLastTimerCompletionAtMs() {
     return this.getNativeModule().getLastTimerCompletionAtMs();
+  }
+
+  async getPlaybackState(): Promise<NativePlaybackState> {
+    const module = this.getNativeModule();
+    if (module.getPlaybackState) return module.getPlaybackState();
+    if (this.snapshot.state === 'playing') return 'playing';
+    if (this.snapshot.state === 'paused') return 'paused';
+    return 'stopped';
   }
 
   async drainDiagnosticEvents() {

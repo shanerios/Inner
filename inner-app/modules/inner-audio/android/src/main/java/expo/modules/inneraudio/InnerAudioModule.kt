@@ -42,6 +42,10 @@ class InnerAudioModule : Module() {
       ProceduralAudioEngine.lastTimerCompletionAtMs
     }
 
+    Function("getPlaybackState") {
+      InnerAudioPlaybackService.playbackState
+    }
+
     Function("drainDiagnosticEvents") {
       ProceduralAudioEngine.drainDiagnosticEvents()
     }

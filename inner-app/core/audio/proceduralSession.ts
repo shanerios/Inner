@@ -86,6 +86,15 @@ export class ProceduralPlaybackSession {
     return this.engine.getLastTimerCompletionAtMs();
   }
 
+  async reconcilePlaybackState() {
+    const nativeState = await this.engine.getPlaybackState();
+    const nativePlaying = nativeState === 'playing';
+    if (this.playing && !nativePlaying) this.captureElapsed();
+    if (!this.playing && nativePlaying) this.startedAtMs = this.now();
+    this.playing = nativePlaying;
+    return nativeState;
+  }
+
   async drainDiagnosticEvents() {
     return this.engine.drainDiagnosticEvents();
   }

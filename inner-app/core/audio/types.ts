@@ -113,6 +113,7 @@ export type AudioEngineSnapshot = {
 };
 
 export type AudioEngineListener = (snapshot: AudioEngineSnapshot) => void;
+export type NativePlaybackState = 'playing' | 'paused' | 'stopped';
 
 export type NativeAudioDiagnosticEvent = {
   type: 'playback_resumed' | 'playback_paused' | 'audio_route_changed' | 'interruption_began' | 'interruption_ended' | 'recognition_signal_fired' | 'audio_underrun';
@@ -137,6 +138,7 @@ export interface InnerAudioEngine {
   setNowPlaying(title: string): Promise<void>;
   setSleepTimer(endAtMs: number | null): Promise<void>;
   getLastTimerCompletionAtMs(): Promise<number | null>;
+  getPlaybackState(): Promise<NativePlaybackState>;
   drainDiagnosticEvents(): Promise<NativeAudioDiagnosticEvent[]>;
   setRecognitionSignal(signalId: string | null, uri: string | null): Promise<void>;
   triggerCue(): Promise<void>;

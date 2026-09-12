@@ -65,6 +65,7 @@ public final class InnerAudioModule: Module {
     AsyncFunction("setNowPlaying") { (title: String) in self.engine.setNowPlaying(title) }
     AsyncFunction("setSleepTimer") { (endAtMs: Double?) in self.engine.setSleepTimer(endAtMs) }
     Function("getLastTimerCompletionAtMs") { self.engine.getLastTimerCompletionAtMs() }
+    Function("getPlaybackState") { self.engine.getPlaybackState() }
     Function("drainDiagnosticEvents") { self.engine.drainDiagnosticEvents() }
     AsyncFunction("setRecognitionSignal") { (signalId: String?, uri: String?) in try self.engine.setRecognitionSignal(signalId, uri) }
     AsyncFunction("triggerCue") { self.engine.triggerCue() }
@@ -544,6 +545,10 @@ private final class ProceduralAudioEngine: NSObject {
     lock.lock()
     defer { lock.unlock() }
     return lastTimerCompletionAtMs
+  }
+
+  func getPlaybackState() -> String {
+    engine.isRunning ? "playing" : (source == nil ? "stopped" : "paused")
   }
 
   func drainDiagnosticEvents() -> [[String: Any]] {

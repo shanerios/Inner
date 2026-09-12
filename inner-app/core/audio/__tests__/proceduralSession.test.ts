@@ -15,9 +15,10 @@ function engine(): jest.Mocked<InnerAudioEngine> {
     seekTimeline: jest.fn(async () => {}),
     setNowPlaying: jest.fn(async () => {}),
     setSleepTimer: jest.fn(async () => {}),
-      getLastTimerCompletionAtMs: jest.fn(async () => null),
-      drainDiagnosticEvents: jest.fn(async () => []),
-      setRecognitionSignal: jest.fn(async () => undefined),
+    getLastTimerCompletionAtMs: jest.fn(async () => null),
+    getPlaybackState: jest.fn(async () => 'stopped'),
+    drainDiagnosticEvents: jest.fn(async () => []),
+    setRecognitionSignal: jest.fn(async () => undefined),
     triggerCue: jest.fn(async () => {}),
     play: jest.fn(async () => {}),
     pause: jest.fn(async () => {}),
@@ -40,6 +41,22 @@ describe('ProceduralPlaybackSession', () => {
     await session.play();
     time = 9_000;
     expect(session.getPositionMs()).toBe(3_500);
+  });
+
+  it('reconciles stale JavaScript playback state with native playback', async () => {
+    let time = 1_000;
+    const native = engine();
+    native.getPlaybackState.mockResolvedValue('paused');
+    const session = new ProceduralPlaybackSession(native, () => time);
+    await session.start(DEFAULT_PROCEDURAL_AUDIO_CONFIG);
+    time = 4_000;
+
+    await expect(session.reconcilePlaybackState()).resolves.toBe('paused');
+    expect(session.isPlaying()).toBe(false);
+    expect(session.getPositionMs()).toBe(3_000);
+
+    await session.play();
+    expect(native.play).toHaveBeenCalledTimes(2);
   });
 
   it('updates volume through the normalized engine patch', async () => {
