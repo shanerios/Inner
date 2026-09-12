@@ -23,6 +23,9 @@ const NOISES: Array<{ value: NoiseColor | null; label: string }> = [
   { value: 'grey', label: 'Grey' },
 ];
 
+// Match the existing Garden tone catalog without importing its bundled recordings.
+const TONE_FREQUENCIES = [174, 285, 396, 432, 528, 639, 741, 852, 888, 963] as const;
+
 const BINAURAL_PRESETS = [
   { label: 'Delta', hz: 2 },
   { label: 'Theta', hz: 6 },
@@ -239,6 +242,23 @@ export default function ProceduralMixerPanel({
         keyboardShouldPersistTaps="handled"
       >
       {slider('Solfeggio carrier', `${Math.round(draft.carrierHz)} Hz`, draft.carrierHz, 174, 963, 1, 'carrierHz')}
+      <View style={[styles.presetRow, styles.tonePresetRow]}>
+        {TONE_FREQUENCIES.map(hz => {
+          const active = Math.abs(draft.carrierHz - hz) < 0.01;
+          return (
+            <Pressable
+              key={hz}
+              onPress={() => queue({ carrierHz: hz }, true)}
+              accessibilityRole="button"
+              accessibilityLabel={`Set tone to ${hz} hertz`}
+              accessibilityState={{ selected: active }}
+              style={[styles.presetPill, styles.tonePresetPill, active && styles.presetPillActive]}
+            >
+              <Text style={[Typography.caption, styles.presetName, active && styles.presetNameActive]}>{hz} Hz</Text>
+            </Pressable>
+          );
+        })}
+      </View>
       {slider('Solfeggio level', `${Math.round(draft.toneGain * 100)}%`, draft.toneGain, 0, 1, 0.01, 'toneGain')}
       {slider('Harmonic warmth', `${Math.round(draft.harmonicWarmth * 100)}%`, draft.harmonicWarmth, 0, 1, 0.01, 'harmonicWarmth')}
       {slider('Binaural carrier', `${Math.round(draft.binauralCarrierHz)} Hz`, draft.binauralCarrierHz, 100, 500, 1, 'binauralCarrierHz')}
@@ -631,6 +651,8 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(185,167,255,0.14)',
     backgroundColor: 'rgba(185,167,255,0.04)',
   },
+  tonePresetRow: { flexWrap: 'wrap', marginBottom: 5 },
+  tonePresetPill: { flexBasis: '18%', minHeight: 44, justifyContent: 'center' },
   presetPillActive: { borderColor: '#B9A7FF', backgroundColor: 'rgba(185,167,255,0.2)' },
   presetName: { color: '#AAA3B8', fontSize: 9 },
   presetHz: { color: '#746E82', fontSize: 8, marginTop: 1, fontVariant: ['tabular-nums'] },
