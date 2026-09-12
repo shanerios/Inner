@@ -115,7 +115,7 @@ export type AudioEngineSnapshot = {
 export type AudioEngineListener = (snapshot: AudioEngineSnapshot) => void;
 
 export type NativeAudioDiagnosticEvent = {
-  type: 'playback_resumed' | 'playback_paused' | 'audio_route_changed' | 'interruption_began' | 'interruption_ended' | 'recognition_signal_fired';
+  type: 'playback_resumed' | 'playback_paused' | 'audio_route_changed' | 'interruption_began' | 'interruption_ended' | 'recognition_signal_fired' | 'audio_underrun';
   atMs: number;
   reason?: string;
   route?: string;
@@ -123,6 +123,7 @@ export type NativeAudioDiagnosticEvent = {
   scheduledPositionMs?: number;
   actualPositionMs?: number;
   driftMs?: number;
+  underrunCount?: number;
 };
 
 export interface InnerAudioEngine {

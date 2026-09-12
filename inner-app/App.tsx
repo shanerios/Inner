@@ -25,6 +25,7 @@ import LucidJourneyPlayerScreen from './screens/LucidJourneyPlayerScreen';
 import CreateLucidJourneyScreen from './screens/CreateLucidJourneyScreen';
 import LiveMixScreen from './screens/LiveMixScreen';
 import OvernightJourneyScreen from './screens/OvernightJourneyScreen';
+import PlaybackDiagnosticsScreen from './screens/PlaybackDiagnosticsScreen';
 import LearnHub from './learn/screens/LearnHub';
 import LessonList from './learn/screens/LessonList';
 import LessonReader from './learn/screens/LessonReader';
@@ -127,6 +128,7 @@ type RootStackParamList = {
   CreateLucidJourney: undefined;
   LiveMix: undefined;
   OvernightJourney: undefined;
+  PlaybackDiagnostics: undefined;
   LucidJourneyPlayer: { journeyId?: string; journey?: import('./core/audio').FactoryAudioJourney };
   JourneyPlayer: { trackId?: string; chamber?: string; proceduralJourneyId?: string; openLiveMix?: boolean } | undefined;
   Glossary: { trackId: 'lucid' | 'obe' };
@@ -434,6 +436,7 @@ export default Sentry.wrap(function App() {
                 <Stack.Screen name="CreateLucidJourney" component={CreateLucidJourneyScreen} options={{ headerShown: false }} />
                 <Stack.Screen name="LiveMix" component={LiveMixScreen} options={{ headerShown: false }} />
                 <Stack.Screen name="OvernightJourney" component={OvernightJourneyScreen} options={{ headerShown: false }} />
+                <Stack.Screen name="PlaybackDiagnostics" component={PlaybackDiagnosticsScreen} options={{ headerShown: false }} />
                 <Stack.Screen name="LucidJourneyPlayer" component={LucidJourneyPlayerScreen} options={{ headerShown: false }} />
                 <Stack.Screen name="JourneyPlayer" component={JourneyPlayer} options={{ headerShown: false, presentation: 'transparentModal' }} />
                 <Stack.Screen name="Glossary" component={require('./learn/screens/GlossaryScreen').default} options={{ headerShown: false }} />

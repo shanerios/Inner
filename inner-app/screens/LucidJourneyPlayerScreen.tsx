@@ -229,6 +229,7 @@ export default function LucidJourneyPlayerScreen() {
                 scheduledPositionMs: event.scheduledPositionMs,
                 actualPositionMs: event.actualPositionMs,
                 driftMs: event.driftMs,
+                underrunCount: event.underrunCount,
               });
             }).catch(() => {});
             void session.getLastTimerCompletionAtMs().then(completedAtMs => {

@@ -44,6 +44,9 @@ export interface SettingsModalProps {
   // Paywall
   onOpenPaywall: () => void;
 
+  // Playback support
+  onOpenPlaybackDiagnostics: () => void;
+
   // Inner Pulse
   innerPulseUnlocked: boolean;
   innerPulseEnabled: boolean;
@@ -66,6 +69,7 @@ export default function SettingsModal({
   onProfileNameSaved,
   onChangeIntentions,
   onOpenPaywall,
+  onOpenPlaybackDiagnostics,
   innerPulseUnlocked,
   innerPulseEnabled,
   onInnerPulseToggle,
@@ -536,6 +540,21 @@ export default function SettingsModal({
                     : cacheEstimateMB != null
                     ? `Cache size: ${cacheEstimateMB.toFixed(1)} MB on this device.`
                     : 'Deletes downloaded audio files to free up space on your device.'}
+                </Text>
+              </View>
+
+              {/* Playback support */}
+              <View style={{ marginBottom: 20 }}>
+                <TouchableOpacity
+                  onPress={onOpenPlaybackDiagnostics}
+                  accessibilityRole="button"
+                  accessibilityLabel="Open playback diagnostics"
+                  style={{ borderWidth: 1, borderColor: 'rgba(180,140,80,0.5)', backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: 6, paddingVertical: 11, alignItems: 'center', marginBottom: 4 }}
+                >
+                  <Text style={{ color: 'rgba(210,170,90,0.95)', fontSize: 13, letterSpacing: 0.5 }}>Playback diagnostics</Text>
+                </TouchableOpacity>
+                <Text style={{ fontFamily: 'Inter-ExtraLight', fontSize: 11, lineHeight: 16, textAlign: 'center', color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>
+                  Review recent audio events or export a private playback report.
                 </Text>
               </View>
 

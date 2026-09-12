@@ -29,6 +29,7 @@ export type JourneyMemoryEventType =
   | 'audio_route_changed'
   | 'interruption_began'
   | 'interruption_ended'
+  | 'audio_underrun'
   | 'completed'
   | 'left_early'
   | 'error';
@@ -48,6 +49,7 @@ export type JourneyMemoryEvent = {
   scheduledPositionMs?: number;
   actualPositionMs?: number;
   driftMs?: number;
+  underrunCount?: number;
 };
 
 export type JourneyMemorySession = {

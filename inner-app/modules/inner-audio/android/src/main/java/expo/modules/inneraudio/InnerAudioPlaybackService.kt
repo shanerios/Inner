@@ -68,6 +68,7 @@ class InnerAudioPlaybackService : Service() {
   private var renderThread: Thread? = null
   private val renderThreadRunning = AtomicBoolean(false)
   private val renderThreadPaused = AtomicBoolean(true)
+  private var lastUnderrunCount = 0
 
   /** Whether playback should resume once an interruption (focus loss, noisy route) clears. */
   private var desiredPlaying = false
@@ -267,6 +268,7 @@ class InnerAudioPlaybackService : Service() {
 
   private fun startRenderThread() {
     val track = audioTrack ?: return
+    lastUnderrunCount = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) track.underrunCount else 0
     renderThreadRunning.set(true)
     renderThread = Thread({
       Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO)
@@ -281,6 +283,16 @@ class InnerAudioPlaybackService : Service() {
         ProceduralAudioEngine.render(buffer, RENDER_CHUNK_FRAMES)
         val written = track.write(buffer, 0, buffer.size, AudioTrack.WRITE_BLOCKING)
         if (written < 0) break
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+          val underrunCount = track.underrunCount
+          if (underrunCount > lastUnderrunCount) {
+            lastUnderrunCount = underrunCount
+            ProceduralAudioEngine.recordDiagnostic(
+              "audio_underrun",
+              extras = mapOf("underrunCount" to underrunCount),
+            )
+          }
+        }
       }
     }, "InnerAudioRender").apply { start() }
   }

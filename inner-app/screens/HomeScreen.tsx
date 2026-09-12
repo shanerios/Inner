@@ -2136,6 +2136,13 @@ const ORB_TOP =
   }, 220);
 }, [navigation, setShowSettings]);
 
+  const handleOpenPlaybackDiagnostics = useCallback(() => {
+    setShowSettings(false);
+    setTimeout(() => {
+      navigation.navigate('PlaybackDiagnostics');
+    }, 220);
+  }, [navigation, setShowSettings]);
+
   const getLastJourney = async () => {
     try {
       const raw = await AsyncStorage.getItem(lastJourneyKey);
@@ -3948,6 +3955,7 @@ const openInnerFlame = useCallback(async () => {
         onProfileNameSaved={setProfileName}
         onChangeIntentions={handleChangeIntentions}
         onOpenPaywall={handleSettingsPaywall}
+        onOpenPlaybackDiagnostics={handleOpenPlaybackDiagnostics}
         innerPulseUnlocked={innerPulseUnlocked}
         innerPulseEnabled={innerPulseEnabled}
         onInnerPulseToggle={setInnerPulseEnabled}
