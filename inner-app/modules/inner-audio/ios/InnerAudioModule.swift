@@ -172,6 +172,7 @@ private struct AudioTimeline {
 }
 
 private final class ProceduralAudioEngine: NSObject {
+  private enum PauseReason { case user, routeLoss, interruption }
   private let engine = AVAudioEngine()
   private let lock = NSLock()
   private var parameters = Parameters()
@@ -267,6 +268,8 @@ private final class ProceduralAudioEngine: NSObject {
   private var renderElapsedFrames = 0.0
   private var nowPlayingTitle = "Inner"
   private var desiredPlaying = false
+  private var pauseReason: PauseReason?
+  private var resumeFadeGeneration = 0
   private var sleepStopScheduled = false
   private var lastTimerCompletionAtMs: Double?
   private var remoteTargets: [(MPRemoteCommand, Any)] = []
@@ -348,8 +351,9 @@ private final class ProceduralAudioEngine: NSObject {
     timelineGeneration &+= 1
   }
 
-  func play() throws {
+  func play(reason: String = "play_request", gentleFadeIn: Bool = false) throws {
     desiredPlaying = true
+    pauseReason = nil
     if engine.isRunning { updateNowPlaying(rate: 1); return }
     let session = AVAudioSession.sharedInstance()
     do {
@@ -369,6 +373,7 @@ private final class ProceduralAudioEngine: NSObject {
     let hardwareFormat = engine.outputNode.inputFormat(forBus: 0)
     sampleRate = hardwareFormat.sampleRate > 0 ? hardwareFormat.sampleRate : 48_000
     if source == nil { installSource(channelCount: max(2, hardwareFormat.channelCount)) }
+    engine.mainMixerNode.outputVolume = gentleFadeIn ? 0 : 1
     engine.prepare()
     do {
       try engine.start()
@@ -378,7 +383,8 @@ private final class ProceduralAudioEngine: NSObject {
     installRemoteCommandsIfNeeded()
     updateNowPlaying(rate: 1)
     startNowPlayingRefresh()
-    recordDiagnostic("playback_resumed", reason: "play_request")
+    if gentleFadeIn { startGentleResumeFade() }
+    recordDiagnostic("playback_resumed", reason: reason)
   }
 
   // react-native-track-player's underlying SwiftAudioEx player reacts to its queue
@@ -431,13 +437,21 @@ private final class ProceduralAudioEngine: NSObject {
 
   func pause() {
     desiredPlaying = false
+    pause(reason: .user)
+  }
+
+  private func pause(reason: PauseReason) {
+    pauseReason = reason
+    resumeFadeGeneration &+= 1
     engine.pause()
     updateNowPlaying(rate: 0)
-    recordDiagnostic("playback_paused", reason: "pause_request")
+    recordDiagnostic("playback_paused", reason: reason == .user ? "user_pause" : reason == .routeLoss ? "route_loss" : "interruption")
   }
 
   func stop() {
     desiredPlaying = false
+    pauseReason = nil
+    resumeFadeGeneration &+= 1
     isSystemInterrupted = false
     stopNowPlayingRefresh()
     engine.stop()
@@ -549,6 +563,17 @@ private final class ProceduralAudioEngine: NSObject {
 
   func getPlaybackState() -> String {
     engine.isRunning ? "playing" : (source == nil ? "stopped" : "paused")
+  }
+
+  private func startGentleResumeFade() {
+    resumeFadeGeneration &+= 1
+    let generation = resumeFadeGeneration
+    for step in 1...10 {
+      DispatchQueue.main.asyncAfter(deadline: .now() + Double(step) * 0.06) { [weak self] in
+        guard let self, self.resumeFadeGeneration == generation, self.engine.isRunning else { return }
+        self.engine.mainMixerNode.outputVolume = Float(step) / 10
+      }
+    }
   }
 
   func drainDiagnosticEvents() -> [[String: Any]] {
@@ -1600,15 +1625,14 @@ private final class ProceduralAudioEngine: NSObject {
     if type == .began {
       isSystemInterrupted = true
       recordDiagnostic("interruption_began", reason: "system")
-      engine.pause()
-      updateNowPlaying(rate: 0)
+      pause(reason: .interruption)
       return
     }
     isSystemInterrupted = false
     let optionsRaw = notification.userInfo?[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0
     let options = AVAudioSession.InterruptionOptions(rawValue: optionsRaw)
     recordDiagnostic("interruption_ended", reason: options.contains(.shouldResume) ? "should_resume" : "no_resume")
-    if desiredPlaying && options.contains(.shouldResume) { try? play() }
+    if desiredPlaying && options.contains(.shouldResume) { try? play(reason: "interruption_recovered", gentleFadeIn: true) }
   }
 
   private func isPrivateOutput(_ route: AVAudioSessionRouteDescription) -> Bool {
@@ -1628,6 +1652,15 @@ private final class ProceduralAudioEngine: NSObject {
     lock.unlock()
   }
 
+  private func resumeAfterRouteLossIfPrivate() {
+    guard pauseReason == .routeLoss else { return }
+    let session = AVAudioSession.sharedInstance()
+    guard isPrivateOutput(session.currentRoute) else { return }
+    updatePrivateOutput(for: session.currentRoute)
+    desiredPlaying = true
+    try? play(reason: "route_recovered", gentleFadeIn: true)
+  }
+
   @objc private func handleRouteChange(_ notification: Notification) {
     let session = AVAudioSession.sharedInstance()
     let previousRoute = notification.userInfo?[AVAudioSessionRouteChangePreviousRouteKey] as? AVAudioSessionRouteDescription
@@ -1640,7 +1673,15 @@ private final class ProceduralAudioEngine: NSObject {
       && !isPrivateOutput(session.currentRoute)
     updatePrivateOutput(for: session.currentRoute)
     if lostPrivateOutput && desiredPlaying {
-      pause()
+      desiredPlaying = false
+      pause(reason: .routeLoss)
+      return
+    }
+
+    if reason == .newDeviceAvailable, pauseReason == .routeLoss {
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in self?.resumeAfterRouteLossIfPrivate() }
+      DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in self?.resumeAfterRouteLossIfPrivate() }
+      DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [weak self] in self?.resumeAfterRouteLossIfPrivate() }
       return
     }
 
@@ -1653,7 +1694,7 @@ private final class ProceduralAudioEngine: NSObject {
         guard let self, self.desiredPlaying else { return }
         self.updatePrivateOutput(for: AVAudioSession.sharedInstance().currentRoute)
         self.engine.pause()
-        try? self.play()
+        try? self.play(reason: "route_refreshed", gentleFadeIn: true)
       }
     }
   }
