@@ -1,6 +1,8 @@
+import { getRitualAudioUri } from '../core/ritualAudio';
 import React, { useEffect, useRef, useState } from 'react';
 import { usePostHog } from 'posthog-react-native';
 import {
+  Alert,
   View,
   Text,
   StyleSheet,
@@ -46,6 +48,10 @@ export default function InnerFlameScreen({ navigation }: InnerFlameScreenProps) 
 
   const [hasHeardPreroll, setHasHeardPreroll] = useState(false);
   const [isExercisePlaying, setIsExercisePlaying] = useState(false);
+
+  const audioActiveRef = useRef(true);
+  const audioLoadingRef = useRef(false);
+  const [audioLoading, setAudioLoading] = useState(false);
 
   const prerollSoundRef = useRef<Audio.Sound | null>(null);
   const exerciseSoundRef = useRef<Audio.Sound | null>(null);
@@ -237,6 +243,7 @@ export default function InnerFlameScreen({ navigation }: InnerFlameScreenProps) 
   // Load and optionally auto-play Inner Flame preroll on first visit
   useEffect(() => {
     let isMounted = true;
+    audioActiveRef.current = true;
 
     const loadPreroll = async () => {
       try {
@@ -256,11 +263,13 @@ export default function InnerFlameScreen({ navigation }: InnerFlameScreenProps) 
           shouldDuckAndroid: true,
         });
 
+        const uri = await getRitualAudioUri('inner_flame_preroll');
+        if (!audioActiveRef.current) return;
         const { sound } = await Audio.Sound.createAsync(
-          require('../assets/audio/inner_flame_preroll.m4a'),
-          { shouldPlay: true },
+          { uri },
+          { shouldPlay: false },
           status => {
-            if (!status.isLoaded) return;
+            if (!audioActiveRef.current || !status.isLoaded) return;
             if (status.didJustFinish) {
               // Mark preroll as heard so future visits skip auto-play
               AsyncStorage.setItem(INNER_FLAME_PREROLL_HEARD_KEY, 'true').catch(() => {});
@@ -269,11 +278,13 @@ export default function InnerFlameScreen({ navigation }: InnerFlameScreenProps) 
           }
         );
 
+        if (!audioActiveRef.current) { await sound.unloadAsync(); return; }
         prerollSoundRef.current = sound;
+        await sound.playAsync();
       } catch (e) {
         console.warn('[INNER FLAME] preroll load error', e);
         // If preroll fails to load/play, still allow user to start the ritual
-        setHasHeardPreroll(true);
+        if (audioActiveRef.current) setHasHeardPreroll(true);
       }
     };
 
@@ -281,6 +292,7 @@ export default function InnerFlameScreen({ navigation }: InnerFlameScreenProps) 
 
     return () => {
       isMounted = false;
+      audioActiveRef.current = false;
       if (prerollSoundRef.current) {
         prerollSoundRef.current.unloadAsync().catch(() => {});
         prerollSoundRef.current = null;
@@ -416,80 +428,98 @@ export default function InnerFlameScreen({ navigation }: InnerFlameScreenProps) 
   }, [shimmerOpacity, shimmerScale]);
 
   const handleBegin = async () => {
-    // Subtle scale bounce on press
-    Animated.sequence([
-      Animated.timing(beginScale, {
-        toValue: 0.97,
-        duration: 80,
-        useNativeDriver: true,
-      }),
-      Animated.timing(beginScale, {
-        toValue: 1.03,
-        duration: 120,
-        useNativeDriver: true,
-      }),
-      Animated.timing(beginScale, {
-        toValue: 1,
-        duration: 80,
-        useNativeDriver: true,
-      }),
-    ]).start();
-
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    if (!ritualStartedTrackedRef.current) {
-      posthog.capture('daily_ritual_started', {
-        ritual_id: 'inner_flame',
-        entry_point: 'daily_ritual_screen',
-      });
-      ritualStartedTrackedRef.current = true;
-    }
-
+    if (audioLoadingRef.current) return;
+    audioLoadingRef.current = true;
+    setAudioLoading(true);
     try {
-      // Stop preroll if it is still playing
-      if (prerollSoundRef.current) {
-        try {
-          await prerollSoundRef.current.stopAsync();
-        } catch {
-          // ignore
-        }
+      const uri = await getRitualAudioUri('inner_flame_exercise');
+      if (!audioActiveRef.current) return;
+
+      // Subtle scale bounce on press
+      Animated.sequence([
+        Animated.timing(beginScale, {
+          toValue: 0.97,
+          duration: 80,
+          useNativeDriver: true,
+        }),
+        Animated.timing(beginScale, {
+          toValue: 1.03,
+          duration: 120,
+          useNativeDriver: true,
+        }),
+        Animated.timing(beginScale, {
+          toValue: 1,
+          duration: 80,
+          useNativeDriver: true,
+        }),
+      ]).start();
+
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      if (!ritualStartedTrackedRef.current) {
+        posthog.capture('daily_ritual_started', {
+          ritual_id: 'inner_flame',
+          entry_point: 'daily_ritual_screen',
+        });
+        ritualStartedTrackedRef.current = true;
       }
 
-      // If exercise sound already created, replay it; otherwise create and play
-      if (exerciseSoundRef.current) {
-        exerciseStartRef.current = Date.now();
-        await exerciseSoundRef.current.replayAsync();
-        setIsExercisePlaying(true);
-      } else {
-        exerciseStartRef.current = Date.now();
-        const { sound } = await Audio.Sound.createAsync(
-          require('../assets/audio/inner_flame_exercise.m4a'),
-          { shouldPlay: true },
-          status => {
-            if (!status.isLoaded) return;
-
-            if (status.didJustFinish) {
-              // Exercise naturally completed: mark as finished and return Home
-              setIsExercisePlaying(false);
-
-              AsyncStorage.setItem(INNER_FLAME_COMPLETED_KEY, 'true').catch(() => {});
-              logRitualCompletionOnce();
-
-              // Small safety: defer navigation slightly to avoid race conditions
-              setTimeout(() => {
-                navigation.popTo('Home');
-              }, 200);
-            }
+      try {
+        // Stop preroll if it is still playing
+        if (prerollSoundRef.current) {
+          try {
+            await prerollSoundRef.current.stopAsync();
+          } catch {
+            // ignore
           }
-        );
-        exerciseSoundRef.current = sound;
-        setIsExercisePlaying(true);
+        }
+
+        // If exercise sound already created, replay it; otherwise create and play
+        if (exerciseSoundRef.current) {
+          exerciseStartRef.current = Date.now();
+          await exerciseSoundRef.current.replayAsync();
+          setIsExercisePlaying(true);
+        } else {
+          exerciseStartRef.current = Date.now();
+          const { sound } = await Audio.Sound.createAsync(
+            { uri },
+            { shouldPlay: false },
+            status => {
+              if (!audioActiveRef.current || !status.isLoaded) return;
+
+              if (status.didJustFinish) {
+                // Exercise naturally completed: mark as finished and return Home
+                setIsExercisePlaying(false);
+
+                AsyncStorage.setItem(INNER_FLAME_COMPLETED_KEY, 'true').catch(() => {});
+                logRitualCompletionOnce();
+
+                // Small safety: defer navigation slightly to avoid race conditions
+                setTimeout(() => {
+                  navigation.popTo('Home');
+                }, 200);
+              }
+            }
+          );
+          if (!audioActiveRef.current) { await sound.unloadAsync(); return; }
+          exerciseSoundRef.current = sound;
+          await sound.playAsync();
+          setIsExercisePlaying(true);
+        }
+      } catch (e) {
+        console.warn('[INNER FLAME] exercise audio error', e);
+        exerciseStartRef.current = null;
+        throw e;
       }
-    } catch (e) {
-      console.warn('[INNER FLAME] exercise audio error', e);
+    } catch {
+      if (audioActiveRef.current) Alert.alert('Audio unavailable', 'Connect to the internet and try again.');
+    } finally {
+      audioLoadingRef.current = false;
+      if (audioActiveRef.current) setAudioLoading(false);
     }
   };
 
   const handleReturn = async () => {
+    audioActiveRef.current = false;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (!ritualStartedTrackedRef.current) {
       posthog.capture('daily_ritual_started', {
@@ -685,13 +715,13 @@ export default function InnerFlameScreen({ navigation }: InnerFlameScreenProps) 
               <Animated.View style={{ transform: [{ scale: beginScale }] }}>
                 <Pressable
                   onPress={handleBegin}
-                  disabled={isExercisePlaying}
+                  disabled={isExercisePlaying || audioLoading}
                   style={[
                     styles.beginButton,
                     isExercisePlaying && { opacity: 0.7 },
                   ]}
                 >
-                  <Text style={styles.beginLabel}>Begin Inner Flame</Text>
+                  <Text style={styles.beginLabel}>{audioLoading ? 'Loading audio…' : 'Begin Inner Flame'}</Text>
                 </Pressable>
               </Animated.View>
             )}

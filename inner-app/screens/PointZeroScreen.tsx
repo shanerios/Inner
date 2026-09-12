@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
+  Alert,
   View,
   Text,
   StyleSheet,
@@ -12,7 +13,7 @@ import {
 import { useVideoPlayer, VideoView } from '../core/memorySafeVideo';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import TrackPlayer from 'react-native-track-player';
-import { Asset } from 'expo-asset';
+import { getRitualAudioUri } from '../core/ritualAudio';
 import { Audio, InterruptionModeAndroid, InterruptionModeIOS } from 'expo-av';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -62,7 +63,9 @@ export default function PointZeroScreen({ navigation }: PointZeroScreenProps) {
   const [phase, setPhase] = useState<'inhale' | 'exhale' | 'hold'>('inhale');
   const [hasHeardPreroll, setHasHeardPreroll] = useState<boolean | null>(null);
   const [showExerciseButton, setShowExerciseButton] = useState(false);
-  const [exerciseUri, setExerciseUri] = useState<string | null>(null);
+  const audioActiveRef = useRef(true);
+  const audioLoadingRef = useRef(false);
+  const [audioLoading, setAudioLoading] = useState(false);
   const autoReturnTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const uiOpacity = useRef(new Animated.Value(1)).current;
 
@@ -83,8 +86,8 @@ export default function PointZeroScreen({ navigation }: PointZeroScreenProps) {
     expoSoundRef.current = null;
   };
 
-  const playExpoSoundFromModule = async (moduleId: number, label: string) => {
-    // Use iOS-friendly audio mode and play a local bundled asset via expo-av
+  const playExpoSoundFromUri = async (uri: string, label: string) => {
+    // Play the verified local cache file with the existing iOS audio mode.
     try {
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: false,
@@ -102,18 +105,18 @@ export default function PointZeroScreen({ navigation }: PointZeroScreenProps) {
     // Ensure we don't have a previous sound instance hanging around
     await stopExpoSound();
 
-    const asset = Asset.fromModule(moduleId);
-    await asset.downloadAsync();
-    const uri = asset.localUri ?? asset.uri;
+    if (!audioActiveRef.current) return;
 
     if (__DEV__) console.log('[Point 0][expo-av] play', { label, uri });
 
     const { sound } = await Audio.Sound.createAsync(
       { uri },
-      { shouldPlay: true, isLooping: false, volume: 1.0 }
+      { shouldPlay: false, isLooping: false, volume: 1.0 }
     );
 
+    if (!audioActiveRef.current) { await sound.unloadAsync(); return; }
     expoSoundRef.current = sound;
+    await sound.playAsync();
     return uri;
   };
 
@@ -233,32 +236,12 @@ export default function PointZeroScreen({ navigation }: PointZeroScreenProps) {
   useEffect(() => {
     let cancelled = false;
 
+    audioActiveRef.current = true;
     const startPointZeroAudio = async () => {
       try {
         console.log('[Point 0] init audio effect');
         const stored = await AsyncStorage.getItem(POINT_ZERO_PREROLL_DONE);
         const alreadyHeard = stored === 'true';
-
-        // Pre-cache exercise audio so it starts smoothly when the user taps the CTA
-        try {
-          const exerciseAsset = Asset.fromModule(
-            require('../assets/audio/point_zero_exercise.m4a')
-          );
-          await exerciseAsset.downloadAsync();
-
-          const exUri = exerciseAsset.localUri ?? exerciseAsset.uri;
-
-          if (!cancelled) {
-            setExerciseUri(exUri);
-            console.log('[Point 0] Exercise audio pre-cached', {
-              uri: exUri,
-              localUri: exerciseAsset.localUri,
-              uriRaw: exerciseAsset.uri,
-            });
-          }
-        } catch (e) {
-          console.log('[Point 0] exercise pre-cache error', e);
-        }
 
         if (cancelled) return;
 
@@ -268,28 +251,17 @@ export default function PointZeroScreen({ navigation }: PointZeroScreenProps) {
         if (!alreadyHeard) {
           console.log('[Point 0] First-time preroll starting');
 
+          const prerollUri = await getRitualAudioUri('point_zero_preroll');
+          if (!audioActiveRef.current) return;
           // First time: auto-play preroll only
           if (Platform.OS === 'ios') {
-            await playExpoSoundFromModule(
-              require('../assets/audio/point_zero_preroll.m4a'),
+            await playExpoSoundFromUri(
+              prerollUri,
               'preroll'
             );
           } else {
             await TrackPlayer.reset();
             await TrackPlayer.setVolume(1.0);
-
-            const prerollAsset = Asset.fromModule(
-              require('../assets/audio/point_zero_preroll.m4a')
-            );
-            await prerollAsset.downloadAsync();
-
-            const prerollUri = prerollAsset.localUri ?? prerollAsset.uri;
-
-            if (__DEV__) console.log('[Point 0] preroll uri', {
-              uri: prerollUri,
-              localUri: prerollAsset.localUri,
-              uriRaw: prerollAsset.uri,
-            });
 
             await TrackPlayer.add({
               id: 'point_zero_preroll',
@@ -298,7 +270,8 @@ export default function PointZeroScreen({ navigation }: PointZeroScreenProps) {
             });
 
             if (cancelled) return;
-            await TrackPlayer.play();
+            if (!audioActiveRef.current) return;
+          await TrackPlayer.play();
           }
 
           // After preroll duration, mark as done and reveal exercise button
@@ -316,6 +289,7 @@ export default function PointZeroScreen({ navigation }: PointZeroScreenProps) {
         }
       } catch (e) {
         console.log('[Point 0] audio init error', e);
+        if (audioActiveRef.current) setShowExerciseButton(true);
       }
     };
 
@@ -323,6 +297,7 @@ export default function PointZeroScreen({ navigation }: PointZeroScreenProps) {
 
     return () => {
       cancelled = true;
+      audioActiveRef.current = false;
       TrackPlayer.stop().catch(() => {});
       stopExpoSound().catch(() => {});
       if (autoReturnTimeoutRef.current) {
@@ -333,6 +308,7 @@ export default function PointZeroScreen({ navigation }: PointZeroScreenProps) {
   }, []);
 
   const handleDone = async () => {
+    audioActiveRef.current = false;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (!ritualStartedTrackedRef.current) {
       posthog.capture('daily_ritual_started', {
@@ -379,71 +355,77 @@ export default function PointZeroScreen({ navigation }: PointZeroScreenProps) {
   };
 
   const handleStartExercise = async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    if (!ritualStartedTrackedRef.current) {
-      posthog.capture('daily_ritual_started', {
-        ritual_id: 'point_zero',
-        entry_point: 'daily_ritual_screen',
-      });
-      ritualStartedTrackedRef.current = true;
-    }
+    if (audioLoadingRef.current) return;
+    audioLoadingRef.current = true;
+    setAudioLoading(true);
     try {
-      console.log('[Point 0] Start exercise pressed');
+      const exerciseUri = await getRitualAudioUri('point_zero_exercise');
+      if (!audioActiveRef.current) return;
 
-      // Stop any preroll sound still playing (especially on iOS expo-av path)
-      await stopExpoSound();
-
-      // Fade UI slightly while the exercise runs
-      Animated.timing(uiOpacity, {
-        toValue: 0.75,
-        duration: 600,
-        easing: Easing.inOut(Easing.quad),
-        useNativeDriver: true,
-      }).start();
-
-      if (Platform.OS === 'ios') {
-        await playExpoSoundFromModule(
-          require('../assets/audio/point_zero_exercise.m4a'),
-          'exercise'
-        );
-      } else {
-        await TrackPlayer.reset();
-        await TrackPlayer.setVolume(1.0);
-
-        let uriToUse = exerciseUri;
-        if (!uriToUse) {
-          const exerciseAsset = Asset.fromModule(
-            require('../assets/audio/point_zero_exercise.m4a')
-          );
-          await exerciseAsset.downloadAsync();
-          uriToUse = exerciseAsset.localUri ?? exerciseAsset.uri;
-        }
-
-        if (__DEV__) console.log('[Point 0] exercise uri', { uri: uriToUse });
-
-        await TrackPlayer.add({
-          id: 'point_zero_exercise',
-          url: uriToUse!,
-          title: 'Point 0',
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      if (!ritualStartedTrackedRef.current) {
+        posthog.capture('daily_ritual_started', {
+          ritual_id: 'point_zero',
+          entry_point: 'daily_ritual_screen',
         });
-
-        await TrackPlayer.play();
+        ritualStartedTrackedRef.current = true;
       }
-      console.log('[Point 0] Exercise playback started');
+      try {
+        console.log('[Point 0] Start exercise pressed');
 
-      exerciseStartRef.current = Date.now();
+        // Stop any preroll sound still playing (especially on iOS expo-av path)
+        await stopExpoSound();
 
-      // Schedule auto-return 67 seconds after starting the exercise
-      if (autoReturnTimeoutRef.current) {
-        clearTimeout(autoReturnTimeoutRef.current);
+        // Fade UI slightly while the exercise runs
+        Animated.timing(uiOpacity, {
+          toValue: 0.75,
+          duration: 600,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }).start();
+
+        if (Platform.OS === 'ios') {
+          await playExpoSoundFromUri(
+            exerciseUri,
+            'exercise'
+          );
+        } else {
+          await TrackPlayer.reset();
+          await TrackPlayer.setVolume(1.0);
+
+          await TrackPlayer.add({
+            id: 'point_zero_exercise',
+            url: exerciseUri,
+            title: 'Point 0',
+          });
+
+          if (!audioActiveRef.current) return;
+          await TrackPlayer.play();
+        }
+        console.log('[Point 0] Exercise playback started');
+
+        if (!audioActiveRef.current) return;
+        exerciseStartRef.current = Date.now();
+
+        // Schedule auto-return 67 seconds after starting the exercise
+        if (autoReturnTimeoutRef.current) {
+          clearTimeout(autoReturnTimeoutRef.current);
+        }
+        autoReturnTimeoutRef.current = setTimeout(() => {
+          if (!audioActiveRef.current) return;
+          console.log('[Point 0] Auto-return after exercise');
+          logRitualCompletionOnce();
+          navigation.popTo('Home');
+        }, 67000);
+      } catch (e) {
+        console.log('[Point 0] exercise start error', e);
+        throw e;
       }
-      autoReturnTimeoutRef.current = setTimeout(() => {
-        console.log('[Point 0] Auto-return after exercise');
-        logRitualCompletionOnce();
-        navigation.popTo('Home');
-      }, 67000);
-    } catch (e) {
-      console.log('[Point 0] exercise start error', e);
+    } catch {
+      if (audioActiveRef.current) Alert.alert('Audio unavailable', 'Connect to the internet and try again.');
+    } finally {
+      audioLoadingRef.current = false;
+      if (audioActiveRef.current) setAudioLoading(false);
     }
   };
 
@@ -578,6 +560,7 @@ export default function PointZeroScreen({ navigation }: PointZeroScreenProps) {
           {showExerciseButton && (
             <Pressable
               onPress={handleStartExercise}
+              disabled={audioLoading}
               style={styles.doneButton}
               accessibilityRole="button"
               accessibilityLabel="Start Point 0 ritual"
@@ -588,7 +571,7 @@ export default function PointZeroScreen({ navigation }: PointZeroScreenProps) {
               }
             >
               <Text style={styles.doneLabel}>
-                {hasHeardPreroll ? 'Begin Point 0' : 'Start the exercise'}
+                {audioLoading ? 'Loading audio…' : hasHeardPreroll ? 'Begin Point 0' : 'Start the exercise'}
               </Text>
             </Pressable>
           )}

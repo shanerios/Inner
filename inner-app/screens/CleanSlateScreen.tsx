@@ -1,5 +1,7 @@
+import { getRitualAudioUri } from '../core/ritualAudio';
 import React, { useRef, useEffect, useState } from 'react';
 import {
+  Alert,
   View,
   Text,
   StyleSheet,
@@ -57,6 +59,10 @@ export default function CleanSlateScreen({ navigation }: any) {
   const [phase, setPhase] = useState<'gather' | 'sweep' | 'empty'>('gather');
   const [showExerciseButton, setShowExerciseButton] = useState(false);
   const [hasHeardPreroll, setHasHeardPreroll] = useState<boolean | null>(null);
+
+  const audioActiveRef = useRef(true);
+  const audioLoadingRef = useRef(false);
+  const [audioLoading, setAudioLoading] = useState(false);
 
   const prerollSoundRef = useRef<Audio.Sound | null>(null);
   const exerciseSoundRef = useRef<Audio.Sound | null>(null);
@@ -164,6 +170,7 @@ export default function CleanSlateScreen({ navigation }: any) {
   // -----------------------------------
   useEffect(() => {
     let cancelled = false;
+    audioActiveRef.current = true;
 
     const initAudio = async () => {
       try {
@@ -176,6 +183,7 @@ export default function CleanSlateScreen({ navigation }: any) {
 
         const stored = await AsyncStorage.getItem(CLEAN_SLATE_PREROLL_DONE);
         const already = stored === 'true';
+        if (!audioActiveRef.current) return;
 
         setHasHeardPreroll(already);
         setShowExerciseButton(already);
@@ -188,12 +196,14 @@ export default function CleanSlateScreen({ navigation }: any) {
         } catch {}
         prerollSoundRef.current = null;
 
+        const uri = await getRitualAudioUri('clean_slate_pre');
+        if (!audioActiveRef.current) return;
         const { sound } = await Audio.Sound.createAsync(
-          require('../assets/audio/clean_slate_pre.m4a'),
-          { shouldPlay: true },
+          { uri },
+          { shouldPlay: false },
           (status) => {
             if (cancelled) return;
-            if (!status.isLoaded) return;
+            if (!audioActiveRef.current || !status.isLoaded) return;
 
             // If preroll ends naturally, reveal CTA
             if (status.didJustFinish) {
@@ -208,11 +218,13 @@ export default function CleanSlateScreen({ navigation }: any) {
           }
         );
 
+        if (!audioActiveRef.current) { await sound.unloadAsync(); return; }
         prerollSoundRef.current = sound;
+        await sound.playAsync();
 
         // Failsafe: if iOS status callbacks don’t fire, reveal CTA after expected preroll duration
         prerollFailsafeRef.current = setTimeout(() => {
-          if (cancelled) return;
+          if (cancelled || !audioActiveRef.current) return;
           setShowExerciseButton(true);
           setHasHeardPreroll(true);
           AsyncStorage.setItem(CLEAN_SLATE_PREROLL_DONE, 'true').catch(() => {});
@@ -231,6 +243,7 @@ export default function CleanSlateScreen({ navigation }: any) {
 
     return () => {
       cancelled = true;
+      audioActiveRef.current = false;
 
       if (prerollFailsafeRef.current) {
         clearTimeout(prerollFailsafeRef.current);
@@ -254,67 +267,85 @@ export default function CleanSlateScreen({ navigation }: any) {
   // CTA: start exercise playback
   // -----------------------------
   const handleBegin = async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    if (!ritualStartedTrackedRef.current) {
-      posthog.capture('daily_ritual_started', {
-        ritual_id: 'clean_slate',
-        entry_point: 'daily_ritual_screen',
-      });
-      ritualStartedTrackedRef.current = true;
-    }
-
-    // Fade UI
-    Animated.timing(uiOpacity, {
-      toValue: 0.75,
-      duration: 600,
-      easing: Easing.inOut(Easing.quad),
-      useNativeDriver: true,
-    }).start();
-
-    // Stop/unload preroll
+    if (audioLoadingRef.current) return;
+    audioLoadingRef.current = true;
+    setAudioLoading(true);
     try {
-      await prerollSoundRef.current?.stopAsync();
-    } catch {}
-    try {
-      await prerollSoundRef.current?.unloadAsync();
-    } catch {}
-    prerollSoundRef.current = null;
+      const uri = await getRitualAudioUri('clean_slate_exercise');
+      if (!audioActiveRef.current) return;
 
-    // (Re)start exercise
-    try {
-      if (exerciseSoundRef.current) {
-        await exerciseSoundRef.current.replayAsync();
-      } else {
-        const { sound } = await Audio.Sound.createAsync(
-          require('../assets/audio/clean_slate_exercise.m4a'),
-          { shouldPlay: true },
-          (status) => {
-            if (!status.isLoaded) return;
-            if (status.didJustFinish) {
-              // If the user stays through it, count completion
-              logRitualCompletionOnce();
-              navigation.popTo('Home');
-            }
-          }
-        );
-        exerciseSoundRef.current = sound;
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      if (!ritualStartedTrackedRef.current) {
+        posthog.capture('daily_ritual_started', {
+          ritual_id: 'clean_slate',
+          entry_point: 'daily_ritual_screen',
+        });
+        ritualStartedTrackedRef.current = true;
       }
-    } catch (e) {
-      console.log('[Clean Slate] exercise load/play error', e);
-      // fail-open: still let them return
+
+      // Fade UI
+      Animated.timing(uiOpacity, {
+        toValue: 0.75,
+        duration: 600,
+        easing: Easing.inOut(Easing.quad),
+        useNativeDriver: true,
+      }).start();
+
+      // Stop/unload preroll
+      try {
+        await prerollSoundRef.current?.stopAsync();
+      } catch {}
+      try {
+        await prerollSoundRef.current?.unloadAsync();
+      } catch {}
+      prerollSoundRef.current = null;
+
+      // (Re)start exercise
+      try {
+        if (exerciseSoundRef.current) {
+          await exerciseSoundRef.current.replayAsync();
+        } else {
+          const { sound } = await Audio.Sound.createAsync(
+            { uri },
+            { shouldPlay: false },
+            (status) => {
+              if (!audioActiveRef.current || !status.isLoaded) return;
+              if (status.didJustFinish) {
+                // If the user stays through it, count completion
+                logRitualCompletionOnce();
+                navigation.popTo('Home');
+              }
+            }
+          );
+          if (!audioActiveRef.current) { await sound.unloadAsync(); return; }
+          exerciseSoundRef.current = sound;
+          await sound.playAsync();
+        }
+      } catch (e) {
+        console.log('[Clean Slate] exercise load/play error', e);
+        throw e;
+      }
+
+      if (!audioActiveRef.current) return;
+      exerciseStartRef.current = Date.now();
+
+      // Auto-return after ~65 seconds to match the exercise audio
+      if (autoReturnRef.current) clearTimeout(autoReturnRef.current);
+      autoReturnRef.current = setTimeout(() => {
+        if (!audioActiveRef.current) return;
+        logRitualCompletionOnce();
+        navigation.popTo('Home');
+      }, 67000);
+    } catch {
+      if (audioActiveRef.current) Alert.alert('Audio unavailable', 'Connect to the internet and try again.');
+    } finally {
+      audioLoadingRef.current = false;
+      if (audioActiveRef.current) setAudioLoading(false);
     }
-
-    exerciseStartRef.current = Date.now();
-
-    // Auto-return after ~65 seconds to match the exercise audio
-    if (autoReturnRef.current) clearTimeout(autoReturnRef.current);
-    autoReturnRef.current = setTimeout(() => {
-      logRitualCompletionOnce();
-      navigation.popTo('Home');
-    }, 67000);
   };
 
   const handleDone = async () => {
+    audioActiveRef.current = false;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (!ritualStartedTrackedRef.current) {
       posthog.capture('daily_ritual_started', {
@@ -500,8 +531,8 @@ export default function CleanSlateScreen({ navigation }: any) {
         <Animated.View style={[styles.footer, { opacity: uiOpacity }]}>
           <View style={styles.beginButtonSlot}>
             {showExerciseButton && (
-              <Pressable onPress={handleBegin} style={styles.beginButton}>
-                <Text style={styles.beginLabel}>Begin Clean Slate</Text>
+              <Pressable onPress={handleBegin} disabled={audioLoading} style={styles.beginButton}>
+                <Text style={styles.beginLabel}>{audioLoading ? 'Loading audio…' : 'Begin Clean Slate'}</Text>
               </Pressable>
             )}
           </View>
