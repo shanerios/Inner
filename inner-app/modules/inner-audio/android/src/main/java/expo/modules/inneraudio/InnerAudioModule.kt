@@ -46,8 +46,8 @@ class InnerAudioModule : Module() {
       ProceduralAudioEngine.drainDiagnosticEvents()
     }
 
-    AsyncFunction("setRecognitionSignal") { uri: String? ->
-      ProceduralAudioEngine.setRecognitionSignal(uri)
+    AsyncFunction("setRecognitionSignal") { signalId: String?, uri: String? ->
+      ProceduralAudioEngine.setRecognitionSignal(signalId, uri)
     }
 
     AsyncFunction("triggerCue") {

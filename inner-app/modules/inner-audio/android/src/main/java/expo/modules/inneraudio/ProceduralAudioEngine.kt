@@ -232,6 +232,7 @@ object ProceduralAudioEngine {
   private var cueRightAllpasses: Array<AllpassFilter> = emptyArray()
   private var recognitionSignalSamples = FloatArray(0)
   private var recognitionSignalSampleRate = 0.0
+  private var recognitionSignalId: String? = null
   private var activeCueSamples = FloatArray(0)
   private var activeCueSampleRate = 0.0
   private var orbitMix = 0.0
@@ -250,10 +251,11 @@ object ProceduralAudioEngine {
   private fun buildRainPockets(seed: Long = XORSHIFT_SEED) =
     Array(5) { index -> RainPocket(seed + (index + 1).toLong() * 0x100000001b3L) }
 
-  fun recordDiagnostic(type: String, reason: String? = null, route: String? = null) {
+  fun recordDiagnostic(type: String, reason: String? = null, route: String? = null, extras: Map<String, Any> = emptyMap()) {
     val event = mutableMapOf<String, Any>("type" to type, "atMs" to System.currentTimeMillis().toDouble())
     reason?.let { event["reason"] = it }
     route?.let { event["route"] = it }
+    event.putAll(extras)
     diagnosticLock.withLock {
       diagnosticEvents.add(event)
       while (diagnosticEvents.size > 100) diagnosticEvents.removeAt(0)
@@ -264,11 +266,12 @@ object ProceduralAudioEngine {
     diagnosticEvents.toList().also { diagnosticEvents.clear() }
   }
 
-  fun setRecognitionSignal(uri: String?) {
+  fun setRecognitionSignal(signalId: String?, uri: String?) {
     if (uri.isNullOrEmpty()) {
       lock.withLock {
         recognitionSignalSamples = FloatArray(0)
         recognitionSignalSampleRate = 0.0
+        recognitionSignalId = signalId
       }
       return
     }
@@ -308,6 +311,7 @@ object ProceduralAudioEngine {
     lock.withLock {
       recognitionSignalSamples = samples
       recognitionSignalSampleRate = sourceRate.toDouble()
+      recognitionSignalId = signalId
     }
   }
 
@@ -546,6 +550,12 @@ object ProceduralAudioEngine {
         if (cueFireMs != null) {
           cueTimelineThresholdMs = cueFireMs
           startCue()
+          recordDiagnostic("recognition_signal_fired", extras = mapOf(
+            "signalId" to (recognitionSignalId ?: "ascending"),
+            "scheduledPositionMs" to cueFireMs,
+            "actualPositionMs" to timelineElapsedMs,
+            "driftMs" to (timelineElapsedMs - cueFireMs),
+          ))
         }
       }
       val orbitPhase = spatialSeconds * target.spatialRate * Math.PI * 2 / 60

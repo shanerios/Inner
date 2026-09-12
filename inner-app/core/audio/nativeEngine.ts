@@ -19,7 +19,7 @@ type NativeInnerAudio = {
   setSleepTimer(endAtMs: number | null): Promise<void>;
   getLastTimerCompletionAtMs(): number | null;
   drainDiagnosticEvents(): NativeAudioDiagnosticEvent[];
-  setRecognitionSignal(uri: string | null): Promise<void>;
+  setRecognitionSignal(signalId: string | null, uri: string | null): Promise<void>;
   triggerCue(): Promise<void>;
   play(): Promise<void>;
   pause(): Promise<void>;
@@ -77,8 +77,8 @@ class NativeProceduralAudioEngine implements InnerAudioEngine {
     return this.getNativeModule().drainDiagnosticEvents();
   }
 
-  async setRecognitionSignal(uri: string | null) {
-    await this.getNativeModule().setRecognitionSignal(uri);
+  async setRecognitionSignal(signalId: string | null, uri: string | null) {
+    await this.getNativeModule().setRecognitionSignal(signalId, uri);
   }
 
   async triggerCue() {

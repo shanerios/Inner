@@ -90,8 +90,8 @@ export class ProceduralPlaybackSession {
     return this.engine.drainDiagnosticEvents();
   }
 
-  async setRecognitionSignal(uri: string | null) {
-    await this.engine.setRecognitionSignal(uri);
+  async setRecognitionSignal(signalId: string | null, uri: string | null) {
+    await this.engine.setRecognitionSignal(signalId, uri);
   }
 
   getPositionMs() {

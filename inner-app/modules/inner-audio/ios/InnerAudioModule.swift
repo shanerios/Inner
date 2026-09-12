@@ -66,7 +66,7 @@ public final class InnerAudioModule: Module {
     AsyncFunction("setSleepTimer") { (endAtMs: Double?) in self.engine.setSleepTimer(endAtMs) }
     Function("getLastTimerCompletionAtMs") { self.engine.getLastTimerCompletionAtMs() }
     Function("drainDiagnosticEvents") { self.engine.drainDiagnosticEvents() }
-    AsyncFunction("setRecognitionSignal") { (uri: String?) in try self.engine.setRecognitionSignal(uri) }
+    AsyncFunction("setRecognitionSignal") { (signalId: String?, uri: String?) in try self.engine.setRecognitionSignal(signalId, uri) }
     AsyncFunction("triggerCue") { self.engine.triggerCue() }
     AsyncFunction("play") { try self.engine.play() }
     AsyncFunction("pause") { self.engine.pause() }
@@ -255,6 +255,7 @@ private final class ProceduralAudioEngine: NSObject {
   private var cueRightAllpasses: [AllpassFilter] = []
   private var recognitionSignalSamples: [Float] = []
   private var recognitionSignalSampleRate = 0.0
+  private var recognitionSignalId: String?
   private var activeCueSamples: [Float] = []
   private var activeCueSampleRate = 0.0
   private var orbitMix = 0.0
@@ -553,11 +554,12 @@ private final class ProceduralAudioEngine: NSObject {
     return events
   }
 
-  func setRecognitionSignal(_ uri: String?) throws {
+  func setRecognitionSignal(_ signalId: String?, _ uri: String?) throws {
     guard let uri, !uri.isEmpty else {
       lock.lock()
       recognitionSignalSamples = []
       recognitionSignalSampleRate = 0
+      recognitionSignalId = signalId
       lock.unlock()
       return
     }
@@ -576,13 +578,15 @@ private final class ProceduralAudioEngine: NSObject {
     lock.lock()
     recognitionSignalSamples = samples
     recognitionSignalSampleRate = file.processingFormat.sampleRate
+    recognitionSignalId = signalId
     lock.unlock()
   }
 
-  private func recordDiagnostic(_ type: String, reason: String? = nil, route: String? = nil) {
+  private func recordDiagnostic(_ type: String, reason: String? = nil, route: String? = nil, extras: [String: Any] = [:]) {
     var event: [String: Any] = ["type": type, "atMs": Date().timeIntervalSince1970 * 1_000]
     if let reason { event["reason"] = reason }
     if let route { event["route"] = route }
+    for (key, value) in extras { event[key] = value }
     diagnosticLock.lock()
     diagnosticEvents.append(event)
     if diagnosticEvents.count > 100 { diagnosticEvents.removeFirst(diagnosticEvents.count - 100) }
@@ -676,6 +680,12 @@ private final class ProceduralAudioEngine: NSObject {
       if let activeTimeline, let cueFireMs = timelineCueEventMs(activeTimeline, elapsedMs: timelineElapsedMs, afterMs: cueTimelineThresholdMs) {
         cueTimelineThresholdMs = cueFireMs
         startCue()
+        recordDiagnostic("recognition_signal_fired", extras: [
+          "signalId": recognitionSignalId ?? "ascending",
+          "scheduledPositionMs": cueFireMs,
+          "actualPositionMs": timelineElapsedMs,
+          "driftMs": timelineElapsedMs - cueFireMs,
+        ])
       }
       let orbitPhase = spatialSeconds * target.spatialRate * Double.pi * 2 / 60
       let orbitNear = (cos(orbitPhase) + 1) / 2

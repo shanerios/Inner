@@ -19,6 +19,8 @@ export type JourneyMemoryEventType =
   | 'started'
   | 'stage_changed'
   | 'cue_played'
+  | 'recognition_signal_selected'
+  | 'recognition_signal_fired'
   | 'seeked'
   | 'app_state_changed'
   | 'playback_paused'
@@ -41,6 +43,10 @@ export type JourneyMemoryEvent = {
   reason?: string;
   appState?: string;
   route?: string;
+  signalId?: string;
+  scheduledPositionMs?: number;
+  actualPositionMs?: number;
+  driftMs?: number;
 };
 
 export type JourneyMemorySession = {

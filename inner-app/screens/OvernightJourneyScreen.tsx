@@ -59,6 +59,11 @@ function clockLabel(milliseconds: number): string {
 function eventLabel(event: JourneyMemorySession['events'][number]): string {
   if (event.type === 'stage_changed') return `Entered ${event.stageId ?? 'stage'}`;
   if (event.type === 'cue_played') return `Signal · ${event.cueId ?? 'cue'}`;
+  if (event.type === 'recognition_signal_selected') return `Selected signal · ${event.signalId ?? 'unknown'}`;
+  if (event.type === 'recognition_signal_fired') {
+    const drift = event.driftMs === undefined ? '' : ` · drift ${Math.round(event.driftMs)}ms`;
+    return `Native signal fired · ${event.signalId ?? 'unknown'}${drift}`;
+  }
   if (event.type === 'seeked') return `Scrubbed from ${clockLabel(event.fromPositionMs ?? 0)}`;
   if (event.type === 'app_state_changed') return `App state · ${event.appState ?? event.reason ?? 'changed'}`;
   if (event.type === 'playback_paused') return `Playback paused${event.reason ? ` · ${event.reason}` : ''}`;
