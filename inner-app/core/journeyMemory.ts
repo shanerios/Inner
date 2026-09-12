@@ -1,3 +1,4 @@
+import type { LucidSignalReflection } from './lucidSignalLearning';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type {
   CompiledAudioJourneyTimeline,
@@ -56,6 +57,7 @@ export type JourneyMemorySession = {
   title: string;
   startedAt: number;
   endedAt?: number;
+  morningReflection?: { answers: LucidSignalReflection; savedAt: number };
   plannedDurationMs: number;
   endPolicy: CompiledAudioJourneyTimeline['endPolicy'];
   protocolVersion: number;
@@ -301,4 +303,34 @@ export function deriveJourneyMemoryProfile(
     seekRate: seekCount / observed.length,
     confidence: observed.length >= 8 ? 'established' : observed.length >= 3 ? 'early' : 'forming',
   };
+}
+
+/** The planned end opens review; it is never evidence of native completion. */
+export function pendingOvernightReflection(memory: JourneyMemoryState, now = Date.now()): JourneyMemorySession | null {
+  return memory.sessions.find(session =>
+    session.journeyId.startsWith('overnight-recognition-')
+    && session.endPolicy === 'protocolControlled'
+    && session.outcome !== 'failed'
+    && !session.morningReflection
+    && session.startedAt + session.plannedDurationMs <= now
+  ) ?? null;
+}
+
+export function saveOvernightReflection(
+  sessionId: string,
+  answers: LucidSignalReflection,
+  storage: Storage = AsyncStorage,
+  now: () => number = Date.now,
+): Promise<void> {
+  return enqueue(async () => {
+    const state = await loadJourneyMemory(storage);
+    const session = state.sessions.find(item => item.id === sessionId);
+    if (!session || pendingOvernightReflection({ ...state, sessions: [session] }, now()) === null) {
+      throw new Error('This overnight session is no longer available for reflection.');
+    }
+    const sessions = state.sessions.map(item => item.id === sessionId
+      ? { ...item, morningReflection: { answers, savedAt: now() } }
+      : item);
+    await storage.setItem(JOURNEY_MEMORY_KEY, JSON.stringify({ ...state, sessions }));
+  });
 }

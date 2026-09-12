@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, AppState, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
@@ -31,7 +31,6 @@ import {
   LucidSignalCuePlan,
   LucidSignalLearningSummary,
   LucidSignalNight,
-  recordLucidSignalNight,
   resetLucidSignalLearning,
   saveLucidSignalReflection,
   setLucidSignalCuePlan,
@@ -48,6 +47,8 @@ import {
   setRecognitionSignalId,
 } from '../core/recognitionSignals';
 import {
+  pendingOvernightReflection,
+  saveOvernightReflection,
   deriveJourneyMemoryProfile,
   JourneyMemoryProfile,
   loadJourneyMemory,
@@ -62,7 +63,7 @@ export default function LucidJourneysScreen() {
   const [savedJourneysVisible, setSavedJourneysVisible] = useState(false);
   const [cueScheduled, setCueScheduled] = useState(false);
   const [previewingSignal, setPreviewingSignal] = useState(false);
-  const [pendingReflection, setPendingReflection] = useState<LucidSignalNight | null>(null);
+  const [pendingReflection, setPendingReflection] = useState<(LucidSignalNight & { journeySessionId?: string; preview?: boolean }) | null>(null);
   const [morningReflectionVisible, setMorningReflectionVisible] = useState(false);
   const [learningSummary, setLearningSummary] = useState<LucidSignalLearningSummary | null>(null);
   const [learningNights, setLearningNights] = useState<LucidSignalNight[]>([]);
@@ -165,34 +166,41 @@ export default function LucidJourneysScreen() {
     setCueScheduled(false);
   }, []);
 
+  useEffect(() => {
+    setNoticed(null);
+    setLucid(null);
+    setSleepImpact(null);
+  }, [pendingReflection?.id]);
+
+  const offeredReflectionIdRef = useRef<string | null>(null);
+
   const submitReflection = useCallback(async () => {
     if (!pendingReflection || !noticed || lucid === null || !sleepImpact) return;
-    const learning = await saveLucidSignalReflection(pendingReflection.id, { noticed, lucid, sleepImpact });
+    try {
+      if (pendingReflection.journeySessionId) {
+        await saveOvernightReflection(pendingReflection.journeySessionId, { noticed, lucid, sleepImpact });
+      } else if (!pendingReflection.preview) {
+        const learning = await saveLucidSignalReflection(pendingReflection.id, { noticed, lucid, sleepImpact });
+        setLearningNights(learning.nights);
+        setLearningSummary(lucidSignalLearningSummary(learning.nights));
+      }
+    } catch {
+      Alert.alert('Reflection not saved', 'Your answers are still here. Please try again.');
+      return;
+    }
     setPendingReflection(null);
     setMorningReflectionVisible(false);
-    setLearningNights(learning.nights);
-    setLearningSummary(lucidSignalLearningSummary(learning.nights));
     setNoticed(null);
     setLucid(null);
     setSleepImpact(null);
   }, [lucid, noticed, pendingReflection, sleepImpact]);
 
   const previewMorningReflection = useCallback(async () => {
-    const learning = await loadLucidSignalLearning();
-    const existing = learning.nights.find(night => !night.reflection);
-    if (existing) {
-      setPendingReflection(existing);
-      setMorningReflectionVisible(true);
-      return;
-    }
-    // Existing scheduled notifications may predate the learning-loop build.
-    // Development builds create one elapsed test night so the UI can still be
-    // reviewed immediately; this path is never included in production UI.
     const now = Date.now();
-    const testNight = await recordLucidSignalNight(
-      now - 9 * 60 * 60 * 1000,
-      [now - 4.5 * 60 * 60 * 1000, now - 3 * 60 * 60 * 1000, now - 1.5 * 60 * 60 * 1000],
-    );
+    const testNight = {
+      id: 'preview', scheduledAt: now, sleepOnsetAt: now,
+      cueTimes: [], reviewAt: now, preview: true,
+    };
     setPendingReflection(testNight);
     setMorningReflectionVisible(true);
   }, []);
@@ -204,7 +212,9 @@ export default function LucidJourneysScreen() {
 
   useFocusEffect(useCallback(() => {
     let active = true;
-    void Promise.all([
+    offeredReflectionIdRef.current = null;
+    const refresh = () => {
+      void Promise.all([
       loadPersonalizedJourneys(),
       hasLucidityCueNotificationsScheduled(),
       getPendingLucidSignalReflection(),
@@ -217,8 +227,17 @@ export default function LucidJourneysScreen() {
       if (!active) return;
       setSavedJourneys(journeys);
       setCueScheduled(hasCues);
-      setPendingReflection(reflection);
-      if (reflection) setMorningReflectionVisible(true);
+      const overnight = pendingOvernightReflection(journeyMemory);
+      const pending = overnight ? {
+        id: overnight.id, journeySessionId: overnight.id,
+        scheduledAt: overnight.startedAt, sleepOnsetAt: overnight.startedAt,
+        cueTimes: [], reviewAt: overnight.startedAt + overnight.plannedDurationMs,
+      } : reflection;
+      if ((pending?.id ?? null) !== offeredReflectionIdRef.current) {
+        offeredReflectionIdRef.current = pending?.id ?? null;
+        setPendingReflection(pending);
+        setMorningReflectionVisible(Boolean(pending));
+      }
       setLearningNights(learning.nights);
       setLearningSummary(lucidSignalLearningSummary(learning.nights));
       setCuePlan(selectedCuePlan);
@@ -226,8 +245,13 @@ export default function LucidJourneysScreen() {
       setDreamSeedDraft(savedDreamSeed?.text ?? '');
       setRecognitionSignalIdState(selectedSignalId);
       setJourneyMemoryProfile(deriveJourneyMemoryProfile(journeyMemory));
+      }).catch(() => {});
+    };
+    refresh();
+    const subscription = AppState.addEventListener('change', state => {
+      if (state === 'active') refresh();
     });
-    return () => { active = false; };
+    return () => { active = false; subscription.remove(); };
   }, []));
 
   const removeSavedJourney = (journey: SavedPersonalizedJourney) => {
@@ -661,6 +685,9 @@ export default function LucidJourneysScreen() {
             </Pressable>
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.morningModalContent}>
               <Text style={styles.reflectionEyebrow}>MORNING REFLECTION</Text>
+              <Text style={styles.reflectionPrompt}>
+                {pendingReflection?.preview ? 'Preview · answers are not saved' : `${pendingReflection?.journeySessionId ? 'Overnight journey' : 'Scheduled signals'} · ${new Date(pendingReflection?.scheduledAt ?? 0).toLocaleString()}`}
+              </Text>
               <Text style={[Typography.display, styles.reflectionTitle]}>What stayed with you?</Text>
               <ReflectionQuestion
                 prompt="Did you notice the signal?"

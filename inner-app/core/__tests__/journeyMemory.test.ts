@@ -1,4 +1,6 @@
 import {
+  pendingOvernightReflection,
+  saveOvernightReflection,
   beginJourneyMemorySession,
   deriveJourneyMemoryProfile,
   finishJourneyMemorySession,
@@ -165,5 +167,51 @@ describe('journey memory', () => {
       events: [{ type: 'completed' as const, at: 200, positionMs: 8 * 60_000 }],
     };
     expect(deriveJourneyMemoryProfile({ schemaVersion: 1, sessions: [developmentSession] })).toBeNull();
+  });
+});
+
+
+describe('overnight reflection linkage', () => {
+  const answers = { noticed: 'yes' as const, lucid: false, sleepImpact: 'none' as const };
+  const overnight = { ...timeline, endPolicy: 'protocolControlled' as const };
+
+  it('recovers an unreflected night after reload without inventing completion', async () => {
+    const storage = memoryStorage();
+    const session = await beginJourneyMemorySession('overnight-recognition-ocean-standard', overnight,
+      DEFAULT_PROCEDURAL_AUDIO_CONFIG, storage, () => 100);
+    const reloaded = await loadJourneyMemory(storage);
+    expect(pendingOvernightReflection(reloaded, 60_099)).toBeNull();
+    expect(pendingOvernightReflection(reloaded, 60_100)?.id).toBe(session.id);
+    await saveOvernightReflection(session.id, answers, storage, () => 60_100);
+    const saved = await loadJourneyMemory(storage);
+    expect(saved.sessions[0].morningReflection?.answers).toEqual(answers);
+    expect(saved.sessions[0].outcome).toBeUndefined();
+    expect(pendingOvernightReflection(saved, 60_100)).toBeNull();
+  });
+
+  it('saves to the selected session even after another night starts and a completion arrives', async () => {
+    const storage = memoryStorage();
+    const first = await beginJourneyMemorySession('overnight-recognition-ocean-standard', overnight,
+      DEFAULT_PROCEDURAL_AUDIO_CONFIG, storage, () => 100);
+    const second = await beginJourneyMemorySession('overnight-recognition-ocean-standard', overnight,
+      DEFAULT_PROCEDURAL_AUDIO_CONFIG, storage, () => 70_000);
+    await Promise.all([
+      saveOvernightReflection(first.id, answers, storage, () => 80_000),
+      finishJourneyMemorySession(first.id, 'completed', 60_000, undefined, storage, () => 80_001),
+    ]);
+    const saved = await loadJourneyMemory(storage);
+    expect(saved.sessions.find(s => s.id === first.id)).toMatchObject({ outcome: 'completed', morningReflection: { answers } });
+    expect(saved.sessions.find(s => s.id === second.id)?.morningReflection).toBeUndefined();
+  });
+
+  it('rejects missing, premature, failed, and development sessions', async () => {
+    const storage = memoryStorage();
+    await expect(saveOvernightReflection('missing', answers, storage)).rejects.toThrow();
+    for (const id of ['overnight-recognition-ocean-standard', 'dev-test-overnight-recognition-ocean-standard']) {
+      const session = await beginJourneyMemorySession(id, overnight, DEFAULT_PROCEDURAL_AUDIO_CONFIG, storage, () => 100);
+      await expect(saveOvernightReflection(session.id, answers, storage, () => 101)).rejects.toThrow();
+      if (!id.startsWith('dev-test-')) await finishJourneyMemorySession(session.id, 'failed', 0, undefined, storage);
+      await expect(saveOvernightReflection(session.id, answers, storage, () => 80_000)).rejects.toThrow();
+    }
   });
 });
