@@ -22,6 +22,15 @@
       "channel": "preview",
       "android": { "buildType": "apk", "gradleCommand": ":app:assembleProdRelease" }
     },
+    "lab": {
+      "distribution": "internal",
+      "channel": "internal",
+      "android": { "buildType": "apk", "gradleCommand": ":app:assembleProceduralDevRelease" },
+      "env": {
+        "EXPO_NEW_ARCH_ENABLED": "0",
+        "EXPO_PUBLIC_INNER_LAB": "1"
+      }
+    },
     "internal": {
       "channel": "internal",
       "android": { "buildType": "app-bundle", "gradleCommand": ":app:bundleProdRelease" },

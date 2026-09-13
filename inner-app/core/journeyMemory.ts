@@ -75,6 +75,8 @@ export type JourneyMemorySession = {
   endReason?: 'timeline_completed' | 'manual_stop' | 'playback_error';
   actualDurationMs?: number;
   elapsedWallTimeMs?: number;
+  /** QA sessions exercise persistence and UI but never contribute preference evidence. */
+  testSession?: boolean;
   events: JourneyMemoryEvent[];
 };
 
@@ -173,6 +175,48 @@ export function beginJourneyMemorySession(
   });
 }
 
+/** Creates a completed Lab-only night so Morning Return can be tested immediately. */
+export function createMorningReturnTestSession(
+  initialConfig: ProceduralAudioConfig,
+  storage: Storage = AsyncStorage,
+  now: () => number = Date.now,
+): Promise<JourneyMemorySession> {
+  return enqueue(async () => {
+    const endedAt = now();
+    const plannedDurationMs = 60_000;
+    const startedAt = endedAt - plannedDurationMs;
+    const session: JourneyMemorySession = {
+      schemaVersion: JOURNEY_MEMORY_SCHEMA_VERSION,
+      id: `journey-qa-${endedAt}-${Math.random().toString(36).slice(2, 8)}`,
+      journeyId: 'overnight-recognition-forest-qa',
+      title: 'Morning Return QA · Forest',
+      startedAt,
+      endedAt,
+      plannedDurationMs,
+      endPolicy: 'protocolControlled',
+      protocolVersion: 1,
+      seed: 0,
+      initialConfig,
+      stages: [{ id: 'qa-forest-return', durationMs: plannedDurationMs, config: initialConfig }],
+      outcome: 'completed',
+      endReason: 'timeline_completed',
+      actualDurationMs: plannedDurationMs,
+      elapsedWallTimeMs: plannedDurationMs,
+      testSession: true,
+      events: [
+        { type: 'started', at: startedAt, positionMs: 0 },
+        { type: 'completed', at: endedAt, positionMs: plannedDurationMs },
+      ],
+    };
+    const state = await loadJourneyMemory(storage);
+    await storage.setItem(JOURNEY_MEMORY_KEY, JSON.stringify({
+      schemaVersion: JOURNEY_MEMORY_SCHEMA_VERSION,
+      sessions: [session, ...state.sessions].slice(0, MAX_SESSIONS),
+    }));
+    return session;
+  });
+}
+
 export function recordJourneyMemoryEvent(
   sessionId: string,
   event: Omit<JourneyMemoryEvent, 'at'> & { at?: number },
@@ -240,6 +284,7 @@ export function deriveJourneyMemoryProfile(
 ): JourneyMemoryProfile | null {
   const observed = memory.sessions
     // Engine failures are diagnostics, not evidence about the listener.
+    .filter(session => !session.testSession)
     .filter(session => !session.journeyId.startsWith('dev-test-'))
     .filter(session => session.outcome === 'completed' || session.outcome === 'left_early')
     .slice(0, sampleSize);

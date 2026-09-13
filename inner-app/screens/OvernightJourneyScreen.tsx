@@ -22,7 +22,7 @@ import {
   setRecognitionSignalId,
 } from '../core/recognitionSignals';
 import { Typography } from '../core/typography';
-import { loadJourneyMemory, type JourneyMemorySession } from '../core/journeyMemory';
+import { createMorningReturnTestSession, loadJourneyMemory, type JourneyMemorySession } from '../core/journeyMemory';
 
 type OvernightEnvironment = Exclude<ProceduralEnvironment, 'none' | 'wind'>;
 type OvernightFeel = 'gentle' | 'deep' | 'immersive';
@@ -39,6 +39,7 @@ const FEELS: Array<{ id: OvernightFeel; label: string }> = [
   { id: 'deep', label: 'Deep' },
   { id: 'immersive', label: 'Immersive' },
 ];
+const INNER_LAB_BUILD = __DEV__ || process.env.EXPO_PUBLIC_INNER_LAB === '1';
 
 function durationLabel(minutes: number): string {
   const hours = Math.floor(minutes / 60);
@@ -194,7 +195,7 @@ export default function OvernightJourneyScreen() {
       feel,
     });
     return compileOvernightProtocol(
-      accelerated && __DEV__ ? createAcceleratedOvernightProtocol(realProtocol) : realProtocol,
+      accelerated && INNER_LAB_BUILD ? createAcceleratedOvernightProtocol(realProtocol) : realProtocol,
       DEFAULT_PROCEDURAL_AUDIO_CONFIG,
     );
   }, [accelerated, cuePlan, durationMinutes, environment, feel, signalId]);
@@ -207,13 +208,22 @@ export default function OvernightJourneyScreen() {
 
   const begin = async () => {
     await setRecognitionSignalId(signalId);
-    navigation.navigate('LucidJourneyPlayer', { journey: overnightJourney(environment, feel, compiled, accelerated && __DEV__) });
+    navigation.navigate('LucidJourneyPlayer', { journey: overnightJourney(environment, feel, compiled, accelerated && INNER_LAB_BUILD) });
   };
 
   const openMemoryInspector = async () => {
     const memory = await loadJourneyMemory();
     setLatestMemory(memory.sessions[0] ?? null);
     setInspectorVisible(true);
+  };
+
+  const openMorningReturnTest = async () => {
+    await createMorningReturnTestSession({
+      ...DEFAULT_PROCEDURAL_AUDIO_CONFIG,
+      environment: 'forest',
+      environmentGain: 0.12,
+    });
+    navigation.goBack();
   };
 
   const choiceGroup = <T extends string | number>(
@@ -263,7 +273,7 @@ export default function OvernightJourneyScreen() {
           <Text style={styles.readyCopy}>Your journey begins with a seven-minute waking preparation, then continues quietly through descent, protected sleep, recognition windows, and return.</Text>
         </View>
 
-        {__DEV__ ? (
+        {INNER_LAB_BUILD ? (
           <View style={styles.developmentTools}>
             <Pressable
               onPress={() => setAccelerated(value => !value)}
@@ -279,6 +289,9 @@ export default function OvernightJourneyScreen() {
             <Pressable onPress={() => { void openMemoryInspector(); }} style={styles.inspectMemory} accessibilityRole="button">
               <Text style={styles.inspectMemoryText}>INSPECT LATEST JOURNEY MEMORY</Text>
             </Pressable>
+            <Pressable onPress={() => { void openMorningReturnTest(); }} style={styles.inspectMemory} accessibilityRole="button">
+              <Text style={styles.inspectMemoryText}>TEST MORNING RETURN</Text>
+            </Pressable>
           </View>
         ) : null}
 
@@ -289,7 +302,7 @@ export default function OvernightJourneyScreen() {
           <Text style={styles.returnText}>RETURN</Text>
         </Pressable>
       </ScrollView>
-      {__DEV__ ? (
+      {INNER_LAB_BUILD ? (
         <Modal visible={inspectorVisible} transparent animationType="fade" onRequestClose={() => setInspectorVisible(false)}>
           <View style={styles.inspectorBackdrop}>
             <View style={[styles.inspectorSheet, { paddingBottom: insets.bottom + 18 }]}>
