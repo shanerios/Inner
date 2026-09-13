@@ -116,7 +116,7 @@ export type AudioEngineListener = (snapshot: AudioEngineSnapshot) => void;
 export type NativePlaybackState = 'playing' | 'paused' | 'stopped';
 
 export type NativeAudioDiagnosticEvent = {
-  type: 'playback_resumed' | 'playback_paused' | 'audio_route_changed' | 'interruption_began' | 'interruption_ended' | 'recognition_signal_fired' | 'audio_underrun';
+  type: 'playback_resumed' | 'playback_paused' | 'audio_route_changed' | 'interruption_began' | 'interruption_ended' | 'recognition_signal_fired' | 'audio_underrun' | 'error';
   atMs: number;
   reason?: string;
   route?: string;

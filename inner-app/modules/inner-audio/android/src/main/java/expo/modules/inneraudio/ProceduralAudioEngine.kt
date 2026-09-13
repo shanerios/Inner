@@ -39,7 +39,30 @@ internal data class AudioParameters(
   var spatialDepth: Double = 0.0,
   var spatialRate: Double = 0.3,
   var sleepEndMs: Double? = null,
-)
+) {
+  fun setFrom(other: AudioParameters) {
+    carrierHz = other.carrierHz
+    binauralCarrierHz = other.binauralCarrierHz
+    deltaHz = other.deltaHz
+    toneGain = other.toneGain
+    harmonicWarmth = other.harmonicWarmth
+    binauralGain = other.binauralGain
+    noiseColor = other.noiseColor
+    noiseGain = other.noiseGain
+    environment = other.environment
+    environmentGain = other.environmentGain
+    environmentIntensity = other.environmentIntensity
+    templeGain = other.templeGain
+    templeIntensity = other.templeIntensity
+    masterGain = other.masterGain
+    rampSeconds = other.rampSeconds
+    spatialMode = other.spatialMode
+    spatialTarget = other.spatialTarget
+    spatialDepth = other.spatialDepth
+    spatialRate = other.spatialRate
+    sleepEndMs = other.sleepEndMs
+  }
+}
 
 private data class TimelineStageState(
   val durationMs: Double,
@@ -65,6 +88,17 @@ private data class AudioTimelineState(
   val totalDurationMs: Double,
   val stages: List<TimelineStageState>,
 )
+
+// Each generator owns one result; primitives stay unboxed on the render thread.
+private class StereoSample {
+  var first = 0.0
+  var second = 0.0
+  fun set(left: Double, right: Double): StereoSample {
+    first = left
+    second = right
+    return this
+  }
+}
 
 private class RainPocket(var random: Long) {
   var pan = 0.0
@@ -144,6 +178,19 @@ object ProceduralAudioEngine {
   private val diagnosticLock = ReentrantLock()
   private val diagnosticEvents = mutableListOf<Map<String, Any>>()
   private var parameters = AudioParameters()
+  // Render-only scratch state. Never publish these to configuration/timeline state.
+  private val renderBaseTarget = AudioParameters()
+  private val timelineTarget = AudioParameters()
+  private val spatialCrossing = SpatialCrossing()
+  private val rainNoiseSample = StereoSample()
+  private val oceanSample = StereoSample()
+  private val windSample = StereoSample()
+  private val fireSample = StereoSample()
+  private val cosmicSample = StereoSample()
+  private val forestSample = StereoSample()
+  private val cueSample = StereoSample()
+  private val templeSample = StereoSample()
+
   private var timeline: AudioTimelineState? = null
   private var timelineElapsedFrames = 0.0
   private var timelineGeneration = 0L
@@ -201,7 +248,7 @@ object ProceduralAudioEngine {
   private var cosmicSparkAgeFrames = 0.0
   private var cosmicSparkDurationFrames = 0.0
   private val cosmicDelay = DoubleArray(48_000)
-  private val silentStereo = Pair(0.0, 0.0)
+  private val silentStereo = StereoSample()
   private var cosmicDelayIndex = 0
   private var forestEnvelope = 0.0
   private var forestRandom = XORSHIFT_SEED xor 0xc2b2ae35L
@@ -514,13 +561,13 @@ object ProceduralAudioEngine {
    * Must only ever be called from a single dedicated audio render thread.
    */
   fun render(output: FloatArray, frameCount: Int) {
-    val baseTarget: AudioParameters
+    val baseTarget = renderBaseTarget
     val activeTimeline: AudioTimelineState?
     val timelineStartFrame: Double
     val renderStartFrame = renderElapsedFrames
     val generation: Long
     lock.withLock {
-      baseTarget = parameters.copy()
+      baseTarget.setFrom(parameters)
       activeTimeline = timeline
       timelineStartFrame = timelineElapsedFrames
       generation = timelineGeneration
@@ -561,7 +608,7 @@ object ProceduralAudioEngine {
 
     for (frame in 0 until frameCount) {
       val target = activeTimeline?.let {
-        timelineParameters(it, (timelineStartFrame + frame) * 1_000.0 / sampleRate, baseTarget)
+        timelineParameters(it, (timelineStartFrame + frame) * 1_000.0 / sampleRate, baseTarget, timelineTarget)
       } ?: baseTarget
       val spatialTime = (if (activeTimeline == null) renderStartFrame else timelineStartFrame) + frame
       val spatialSeconds = spatialTime / sampleRate
@@ -817,9 +864,9 @@ object ProceduralAudioEngine {
         val crossingProgress = when {
           cycle >= 0.38 && cycle < 0.5 -> (cycle - 0.38) / 0.12
           cycle >= 0.88 -> (cycle - 0.88) / 0.12
-          else -> null
+          else -> -1.0
         }
-        val crossing = crossingProgress?.let { sin(Math.PI * it) } ?: 0.0
+        val crossing = if (crossingProgress >= 0) sin(Math.PI * crossingProgress) else 0.0
         val maximumDuck = 0.58 * target.spatialDepth
         1 - maximumDuck * crossing
       }
@@ -835,8 +882,12 @@ object ProceduralAudioEngine {
   // is left simple rather than tracking fired-state per lap.
   private fun timelineCueEventMs(timeline: AudioTimelineState, elapsedMs: Double, afterMs: Double): Double? {
     var cursor = 0.0
-    for (stage in timeline.stages) {
-      for (event in stage.cueEvents) {
+    var stageIndex = 0
+    while (stageIndex < timeline.stages.size) {
+      val stage = timeline.stages[stageIndex++]
+      var eventIndex = 0
+      while (eventIndex < stage.cueEvents.size) {
+        val event = stage.cueEvents[eventIndex++]
         val globalAtMs = cursor + event.atMs
         if (globalAtMs > afterMs && globalAtMs <= elapsedMs) return globalAtMs
       }
@@ -870,15 +921,19 @@ object ProceduralAudioEngine {
     if (timeline.totalDurationMs <= 0) return null
     val elapsedMs = if (timeline.loop) rawElapsedMs % timeline.totalDurationMs else min(rawElapsedMs, timeline.totalDurationMs)
     var cursor = 0.0
-    for (stage in timeline.stages) {
+    var stageIndex = 0
+    while (stageIndex < timeline.stages.size) {
+      val stage = timeline.stages[stageIndex++]
       val localMs = elapsedMs - cursor
       if (localMs >= 0 && localMs < stage.durationMs) {
-        for (event in stage.spatialEvents) {
+        var eventIndex = 0
+        while (eventIndex < stage.spatialEvents.size) {
+          val event = stage.spatialEvents[eventIndex++]
           if (localMs >= event.atMs && localMs <= event.atMs + event.durationMs) {
             val progress = clamp((localMs - event.atMs) / event.durationMs, 0.0, 1.0)
             val smooth = progress * progress * (3 - 2 * progress)
             val direction = if (event.direction == "left") -1.0 else 1.0
-            return SpatialCrossing(
+            return spatialCrossing.set(
               pan = (-direction + 2 * direction * smooth) * event.depth,
               crossing = sin(Math.PI * progress),
             )
@@ -891,7 +946,7 @@ object ProceduralAudioEngine {
     return null
   }
 
-  private fun nextRainNoise(target: AudioParameters): Pair<Double, Double> {
+  private fun nextRainNoise(target: AudioParameters): StereoSample {
     var left = 0.0
     var right = 0.0
     for (pocket in rainPockets) {
@@ -924,7 +979,7 @@ object ProceduralAudioEngine {
       left += value * pocket.level * (1 - pocket.pan)
       right += value * pocket.level * (1 + pocket.pan)
     }
-    return Pair(left * 0.42, right * 0.42)
+    return rainNoiseSample.set(left * 0.42, right * 0.42)
   }
 
   private fun nextPocketWhite(pocket: RainPocket): Double {
@@ -936,7 +991,7 @@ object ProceduralAudioEngine {
     return (state and 0x00ff_ffffL).toDouble() / 0x007f_ffffL.toDouble() - 1
   }
 
-  private fun nextOcean(elapsedSeconds: Double, intensity: Double): Pair<Double, Double> {
+  private fun nextOcean(elapsedSeconds: Double, intensity: Double): StereoSample {
     val shared = nextOceanWhite()
     oceanLow += 0.005 * (shared - oceanLow)
     oceanMid += 0.024 * (shared - oceanMid)
@@ -956,7 +1011,7 @@ object ProceduralAudioEngine {
     val leftFoam = (leftWhite - oceanFoamLeft * 0.65) * foamLevel
     val rightFoam = (rightWhite - oceanFoamRight * 0.65) * foamLevel
     val sway = sin(elapsedSeconds * Math.PI * 2 / 17.0) * 0.12
-    return Pair(undertow + leftFoam * (1 - sway), undertow + rightFoam * (1 + sway))
+    return oceanSample.set(undertow + leftFoam * (1 - sway), undertow + rightFoam * (1 + sway))
   }
 
   private fun nextOceanWhite(): Double {
@@ -966,7 +1021,7 @@ object ProceduralAudioEngine {
     return (oceanRandom and 0x00ff_ffffL).toDouble() / 0x007f_ffffL.toDouble() - 1
   }
 
-  private fun nextWind(elapsedSeconds: Double, intensity: Double): Pair<Double, Double> {
+  private fun nextWind(elapsedSeconds: Double, intensity: Double): StereoSample {
     val shared = nextWindWhite()
     windBody += 0.012 * (shared - windBody)
     val rawGust = clamp(
@@ -985,7 +1040,7 @@ object ProceduralAudioEngine {
     val leftAir = (leftWhite - windAirLeft * 0.72) * airLevel
     val rightAir = (rightWhite - windAirRight * 0.72) * airLevel
     val pass = sin(elapsedSeconds * Math.PI * 2 / 11.5 + sin(elapsedSeconds / 19.0)) * 0.26
-    return Pair(pressure + leftAir * (1 - pass), pressure + rightAir * (1 + pass))
+    return windSample.set(pressure + leftAir * (1 - pass), pressure + rightAir * (1 + pass))
   }
 
   private fun nextWindWhite(): Double {
@@ -995,7 +1050,7 @@ object ProceduralAudioEngine {
     return (windRandom and 0x00ff_ffffL).toDouble() / 0x007f_ffffL.toDouble() - 1
   }
 
-  private fun nextFire(elapsedSeconds: Double, intensity: Double): Pair<Double, Double> {
+  private fun nextFire(elapsedSeconds: Double, intensity: Double): StereoSample {
     val shared = nextFireWhite()
     fireBody = (fireBody + 0.018 * shared) / 1.018
     fireHiss += 0.065 * (shared - fireHiss)
@@ -1010,7 +1065,7 @@ object ProceduralAudioEngine {
     firePopRight *= 0.99845
     val warmBody = fireBody * 4.2 * flicker
     val dryCrackle = (shared - fireHiss) * (0.08 + flicker * 0.08)
-    return Pair(warmBody + dryCrackle + firePopLeft, warmBody + dryCrackle + firePopRight)
+    return fireSample.set(warmBody + dryCrackle + firePopLeft, warmBody + dryCrackle + firePopRight)
   }
 
   private fun nextFireWhite(): Double {
@@ -1023,7 +1078,7 @@ object ProceduralAudioEngine {
   // A low harmonic field and filtered stellar air move independently across the
   // channels. Sparse particles bloom slowly, then leave staggered reflections;
   // no transient begins sharply enough to resemble a droplet or notification.
-  private fun nextCosmic(elapsedSeconds: Double, intensity: Double): Pair<Double, Double> {
+  private fun nextCosmic(elapsedSeconds: Double, intensity: Double): StereoSample {
     val shared = nextCosmicWhite()
     cosmicRumble += 0.0016 * (shared - cosmicRumble)
     cosmicAirLeft += 0.015 * (nextCosmicWhite() - cosmicAirLeft)
@@ -1074,7 +1129,7 @@ object ProceduralAudioEngine {
     val echoRight = nearReflection * (1 - cosmicSparkPan * 0.55) * 0.34 +
       midReflection * (1 + reflectionDrift) * 0.24 + farReflection * 0.14
 
-    return Pair(
+    return cosmicSample.set(
       rumbleBody + leftField + cosmicAirLeft * airLevel + sparkLeft * 0.42 + echoLeft,
       rumbleBody + rightField + cosmicAirRight * airLevel + sparkRight * 0.42 + echoRight,
     )
@@ -1091,7 +1146,7 @@ object ProceduralAudioEngine {
   // crisper high-passed leaf shimmer) carries the space, while seeded bird calls —
   // frequency-sweeping tone bursts rather than noise transients, the way an actual
   // chirp reads as pitched motion instead of a click — punctuate it at random.
-  private fun nextForest(elapsedSeconds: Double, intensity: Double): Pair<Double, Double> {
+  private fun nextForest(elapsedSeconds: Double, intensity: Double): StereoSample {
     val shared = nextForestWhite()
     forestCanopy += 0.02 * (shared - forestCanopy)
     val sway = clamp(
@@ -1145,7 +1200,7 @@ object ProceduralAudioEngine {
     // separate white/pink/brown/grey layer instead of sitting alongside it —
     // keep it as a quiet texture underneath the birds rather than a competing
     // noise floor.
-    return Pair(
+    return forestSample.set(
       (canopyBody + leftLeaf) * FOREST_NOISE_MIX + birdLeft,
       (canopyBody + rightLeaf) * FOREST_NOISE_MIX + birdRight,
     )
@@ -1158,8 +1213,8 @@ object ProceduralAudioEngine {
     return (forestRandom and 0x00ff_ffffL).toDouble() / 0x007f_ffffL.toDouble() - 1
   }
 
-  private fun nextCue(): Pair<Double, Double> {
-    if (!cueActive) return Pair(0.0, 0.0)
+  private fun nextCue(): StereoSample {
+    if (!cueActive) return silentStereo
     if (activeCueSamples.isNotEmpty() && activeCueSampleRate > 0) {
       val sourcePosition = cueElapsedFrames * activeCueSampleRate / sampleRate
       val lower = min(activeCueSamples.lastIndex, sourcePosition.toInt())
@@ -1168,7 +1223,7 @@ object ProceduralAudioEngine {
       val sample = activeCueSamples[lower] * (1 - fraction) + activeCueSamples[upper] * fraction
       cueElapsedFrames += 1
       if (cueElapsedFrames >= cueTotalFrames) cueActive = false
-      return Pair(sample * 1.45, sample * 1.45)
+      return cueSample.set(sample * 1.45, sample * 1.45)
     }
     val t = cueElapsedFrames / sampleRate
     var dry = 0.0
@@ -1185,7 +1240,7 @@ object ProceduralAudioEngine {
     val side = (mixedLeft - mixedRight) / 2 * CUE_STEREO_WIDTH
     cueElapsedFrames += 1
     if (cueElapsedFrames >= cueTotalFrames) cueActive = false
-    return Pair((mid + side) * CUE_OUTPUT_GAIN, (mid - side) * CUE_OUTPUT_GAIN)
+    return cueSample.set((mid + side) * CUE_OUTPUT_GAIN, (mid - side) * CUE_OUTPUT_GAIN)
   }
 
   private fun cueNoteEnvelope(t: Double): Double {
@@ -1227,7 +1282,7 @@ object ProceduralAudioEngine {
   private val templeSwellPeriods = doubleArrayOf(23.0, 17.0, 29.0, 13.0)
   private val templeSwellPhases = doubleArrayOf(0.0, 1.7, 3.1, 4.6)
 
-  private fun nextTemple(elapsedSeconds: Double, intensity: Double): Pair<Double, Double> {
+  private fun nextTemple(elapsedSeconds: Double, intensity: Double): StereoSample {
     var body = 0.0
     val tau = Math.PI * 2
     for (index in 0 until 4) {
@@ -1240,7 +1295,7 @@ object ProceduralAudioEngine {
       templePhases[index] = (templePhases[index] + tau * templeFreqs[index] / sampleRate) % tau
     }
     body *= 0.5
-    return Pair(body, body)
+    return templeSample.set(body, body)
   }
 
   private fun nextTempleWhite(): Double {
@@ -1287,56 +1342,67 @@ object ProceduralAudioEngine {
     )
   }
 
-  private fun timelineParameters(timeline: AudioTimelineState, rawElapsedMs: Double, base: AudioParameters): AudioParameters {
+  private fun timelineParameters(timeline: AudioTimelineState, rawElapsedMs: Double, base: AudioParameters, output: AudioParameters): AudioParameters {
     val last = timeline.stages.lastOrNull() ?: return base
     if (timeline.totalDurationMs <= 0) return base
     val elapsedMs = if (timeline.loop) rawElapsedMs % timeline.totalDurationMs else min(rawElapsedMs, timeline.totalDurationMs)
     var cursor = 0.0
-    timeline.stages.forEachIndexed { index, stage ->
+    var index = 0
+    while (index < timeline.stages.size) {
+      val stage = timeline.stages[index]
       val end = cursor + stage.durationMs
       if (elapsedMs < end) {
         val previous = if (index > 0) timeline.stages[index - 1].parameters else (if (timeline.loop) last.parameters else base)
         val localMs = max(0.0, elapsedMs - cursor)
         val progress = if (stage.transitionMs > 0) min(1.0, localMs / stage.transitionMs) else 1.0
-        val result = interpolate(previous, stage.parameters, progress)
+        val result = interpolate(previous, stage.parameters, progress, output)
         result.sleepEndMs = base.sleepEndMs
         return result
       }
       cursor = end
+      index++
     }
-    val result = last.parameters.copy()
+    val result = output
+    result.setFrom(last.parameters)
     result.sleepEndMs = base.sleepEndMs
     return result
   }
 
-  private fun interpolate(from: AudioParameters, to: AudioParameters, progress: Double): AudioParameters {
+  private fun interpolate(from: AudioParameters, to: AudioParameters, progress: Double, output: AudioParameters): AudioParameters {
     val t = clamp(progress, 0.0, 1.0)
     fun lerp(start: Double, end: Double) = start + (end - start) * t
-    return AudioParameters(
-      carrierHz = lerp(from.carrierHz, to.carrierHz),
-      binauralCarrierHz = lerp(from.binauralCarrierHz, to.binauralCarrierHz),
-      deltaHz = lerp(from.deltaHz, to.deltaHz),
-      toneGain = lerp(from.toneGain, to.toneGain),
-      harmonicWarmth = lerp(from.harmonicWarmth, to.harmonicWarmth),
-      binauralGain = lerp(from.binauralGain, to.binauralGain),
-      noiseColor = if (t < 0.5) from.noiseColor else to.noiseColor,
-      noiseGain = lerp(from.noiseGain, to.noiseGain),
-      environment = if (t < 0.5) from.environment else to.environment,
-      environmentGain = lerp(from.environmentGain, to.environmentGain),
-      environmentIntensity = lerp(from.environmentIntensity, to.environmentIntensity),
-      templeGain = lerp(from.templeGain, to.templeGain),
-      templeIntensity = lerp(from.templeIntensity, to.templeIntensity),
-      masterGain = lerp(from.masterGain, to.masterGain),
-      rampSeconds = lerp(from.rampSeconds, to.rampSeconds),
-      spatialMode = if (t < 0.5) from.spatialMode else to.spatialMode,
-      spatialTarget = if (t < 0.5) from.spatialTarget else to.spatialTarget,
-      spatialDepth = lerp(from.spatialDepth, to.spatialDepth),
-      spatialRate = lerp(from.spatialRate, to.spatialRate),
-      sleepEndMs = null,
-    )
+    output.carrierHz = lerp(from.carrierHz, to.carrierHz)
+    output.binauralCarrierHz = lerp(from.binauralCarrierHz, to.binauralCarrierHz)
+    output.deltaHz = lerp(from.deltaHz, to.deltaHz)
+    output.toneGain = lerp(from.toneGain, to.toneGain)
+    output.harmonicWarmth = lerp(from.harmonicWarmth, to.harmonicWarmth)
+    output.binauralGain = lerp(from.binauralGain, to.binauralGain)
+    output.noiseColor = if (t < 0.5) from.noiseColor else to.noiseColor
+    output.noiseGain = lerp(from.noiseGain, to.noiseGain)
+    output.environment = if (t < 0.5) from.environment else to.environment
+    output.environmentGain = lerp(from.environmentGain, to.environmentGain)
+    output.environmentIntensity = lerp(from.environmentIntensity, to.environmentIntensity)
+    output.templeGain = lerp(from.templeGain, to.templeGain)
+    output.templeIntensity = lerp(from.templeIntensity, to.templeIntensity)
+    output.masterGain = lerp(from.masterGain, to.masterGain)
+    output.rampSeconds = lerp(from.rampSeconds, to.rampSeconds)
+    output.spatialMode = if (t < 0.5) from.spatialMode else to.spatialMode
+    output.spatialTarget = if (t < 0.5) from.spatialTarget else to.spatialTarget
+    output.spatialDepth = lerp(from.spatialDepth, to.spatialDepth)
+    output.spatialRate = lerp(from.spatialRate, to.spatialRate)
+    output.sleepEndMs = null
+    return output
   }
 
   private fun softLimit(sample: Double) = tanh(sample * 1.1) / 1.1
 
-  private data class SpatialCrossing(val pan: Double, val crossing: Double)
+  private class SpatialCrossing {
+    var pan = 0.0
+    var crossing = 0.0
+    fun set(pan: Double, crossing: Double): SpatialCrossing {
+      this.pan = pan
+      this.crossing = crossing
+      return this
+    }
+  }
 }

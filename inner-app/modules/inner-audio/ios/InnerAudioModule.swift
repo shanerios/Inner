@@ -174,7 +174,7 @@ private struct AudioTimeline {
 
 private final class ProceduralAudioEngine: NSObject {
   private enum PauseReason { case user, routeLoss, interruption }
-  private let engine = AVAudioEngine()
+  private var engine = AVAudioEngine()
   private let lock = NSLock()
   private var parameters = Parameters()
   private var timeline: AudioTimeline?
@@ -292,6 +292,18 @@ private final class ProceduralAudioEngine: NSObject {
       self,
       selector: #selector(handleRouteChange(_:)),
       name: AVAudioSession.routeChangeNotification,
+      object: AVAudioSession.sharedInstance()
+    )
+    NotificationCenter.default.addObserver(
+      self,
+      selector: #selector(handleMediaServicesLost(_:)),
+      name: AVAudioSession.mediaServicesWereLostNotification,
+      object: AVAudioSession.sharedInstance()
+    )
+    NotificationCenter.default.addObserver(
+      self,
+      selector: #selector(handleMediaServicesReset(_:)),
+      name: AVAudioSession.mediaServicesWereResetNotification,
       object: AVAudioSession.sharedInstance()
     )
   }
@@ -1663,7 +1675,48 @@ private final class ProceduralAudioEngine: NSObject {
     let optionsRaw = notification.userInfo?[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0
     let options = AVAudioSession.InterruptionOptions(rawValue: optionsRaw)
     recordDiagnostic("interruption_ended", reason: options.contains(.shouldResume) ? "should_resume" : "no_resume")
-    if desiredPlaying && options.contains(.shouldResume) { try? play(reason: "interruption_recovered", gentleFadeIn: true) }
+    if desiredPlaying && options.contains(.shouldResume) {
+      do {
+        try play(reason: "interruption_recovered", gentleFadeIn: true)
+      } catch {
+        recordPlaybackError("interruption_recovery_failed", error)
+      }
+    }
+  }
+
+  @objc private func handleMediaServicesLost(_ notification: Notification) {
+    let wasPlaying = desiredPlaying || engine.isRunning
+    desiredPlaying = false
+    isSystemInterrupted = true
+    pauseReason = .interruption
+    if wasPlaying { pauseSleepTimer() }
+    stopNowPlayingRefresh()
+    updateNowPlaying(rate: 0)
+    recordDiagnostic("interruption_began", reason: "media_services_lost")
+  }
+
+  @objc private func handleMediaServicesReset(_ notification: Notification) {
+    // Apple requires apps to discard every object connected to the old media
+    // server. Keep the procedural/timeline state, but wait for an explicit Play
+    // command before attaching it to this fresh engine.
+    engine = AVAudioEngine()
+    source = nil
+    activeCueSamples = []
+    cueActive = false
+    isSystemInterrupted = false
+    desiredPlaying = false
+    pauseReason = .interruption
+    do {
+      try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [])
+      recordDiagnostic("interruption_ended", reason: "media_services_reset_manual_resume_required")
+    } catch {
+      recordPlaybackError("media_services_reset_failed", error)
+    }
+  }
+
+  private func recordPlaybackError(_ context: String, _ error: Error) {
+    let nsError = error as NSError
+    recordDiagnostic("error", reason: "\(context):\(nsError.domain):\(nsError.code)")
   }
 
   private func isPrivateOutput(_ route: AVAudioSessionRouteDescription) -> Bool {
@@ -1689,7 +1742,11 @@ private final class ProceduralAudioEngine: NSObject {
     guard isPrivateOutput(session.currentRoute) else { return }
     updatePrivateOutput(for: session.currentRoute)
     desiredPlaying = true
-    try? play(reason: "route_recovered", gentleFadeIn: true)
+    do {
+      try play(reason: "route_recovered", gentleFadeIn: true)
+    } catch {
+      recordPlaybackError("route_recovery_failed", error)
+    }
   }
 
   @objc private func handleRouteChange(_ notification: Notification) {
@@ -1725,7 +1782,11 @@ private final class ProceduralAudioEngine: NSObject {
         guard let self, self.desiredPlaying else { return }
         self.updatePrivateOutput(for: AVAudioSession.sharedInstance().currentRoute)
         self.engine.pause()
-        try? self.play(reason: "route_refreshed", gentleFadeIn: true)
+        do {
+          try self.play(reason: "route_refreshed", gentleFadeIn: true)
+        } catch {
+          self.recordPlaybackError("route_refresh_failed", error)
+        }
       }
     }
   }
