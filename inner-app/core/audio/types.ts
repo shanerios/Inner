@@ -127,6 +127,22 @@ export type NativeAudioDiagnosticEvent = {
   underrunCount?: number;
 };
 
+/**
+ * A durable checkpoint the native side persisted to disk (Android only, so
+ * far -- see `journeyMemory.ts` for why iOS's background-audio model doesn't
+ * carry the same process-death risk). Present only when a prior session's
+ * clean stop/finish never ran.
+ */
+export type NativeCheckpoint = {
+  sessionId: string;
+  positionMs: number;
+  lastUpdatedAt: number;
+  firedSignalIds: string[];
+  plannedSignalCount?: number;
+  /** Diagnostics the native ring buffer hadn't handed to JS yet at last write -- see `peekDiagnosticEvents` on Android. */
+  pendingDiagnostics: NativeAudioDiagnosticEvent[];
+};
+
 export interface InnerAudioEngine {
   readonly kind: 'procedural';
   isAvailable(): boolean;
@@ -143,6 +159,12 @@ export interface InnerAudioEngine {
   drainDiagnosticEvents(): Promise<NativeAudioDiagnosticEvent[]>;
   setRecognitionSignal(signalId: string | null, uri: string | null): Promise<void>;
   triggerCue(): Promise<void>;
+  /** No-op where the native side has no checkpoint concept (iOS). */
+  setCheckpointSessionId(sessionId: string | null): Promise<void>;
+  /** Always null where the native side has no checkpoint concept (iOS). */
+  getCheckpoint(): Promise<NativeCheckpoint | null>;
+  /** Call once a checkpoint has been reconciled into a real outcome. No-op on iOS. */
+  clearCheckpoint(): Promise<void>;
   play(): Promise<void>;
   pause(): Promise<void>;
   stop(): Promise<void>;

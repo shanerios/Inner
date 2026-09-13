@@ -436,8 +436,8 @@ export default function LucidJourneysScreen() {
       </Pressable>
 
       <ScrollView
-        style={[styles.scrollViewport, { marginTop: insets.top + (Platform.OS === 'android' ? 218 : 188) }]}
-        contentContainerStyle={[styles.content, { paddingTop: 18, paddingBottom: insets.bottom + 28 }]}
+        style={styles.scrollViewport}
+        contentContainerStyle={[styles.content, { paddingTop: insets.top + (Platform.OS === 'android' ? 236 : 206), paddingBottom: insets.bottom + 28 }]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >

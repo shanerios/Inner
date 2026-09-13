@@ -5,6 +5,7 @@ import type {
   AudioEngineSnapshot,
   CompiledAudioJourneyTimeline,
   InnerAudioEngine,
+  NativeCheckpoint,
   NativePlaybackState,
   ProceduralAudioConfig,
   ProceduralAudioPatch,
@@ -24,6 +25,9 @@ type NativeInnerAudio = {
   drainDiagnosticEvents(): NativeAudioDiagnosticEvent[];
   setRecognitionSignal(signalId: string | null, uri: string | null): Promise<void>;
   triggerCue(): Promise<void>;
+  setCheckpointSessionId?(sessionId: string | null): Promise<void>;
+  getCheckpoint?(): NativeCheckpoint | null;
+  clearCheckpoint?(): Promise<void>;
   play(): Promise<void>;
   pause(): Promise<void>;
   stop(): Promise<void>;
@@ -98,6 +102,18 @@ class NativeProceduralAudioEngine implements InnerAudioEngine {
 
   async triggerCue() {
     await this.getNativeModule().triggerCue();
+  }
+
+  async setCheckpointSessionId(sessionId: string | null) {
+    await this.getNativeModule().setCheckpointSessionId?.(sessionId);
+  }
+
+  async getCheckpoint(): Promise<NativeCheckpoint | null> {
+    return this.getNativeModule().getCheckpoint?.() ?? null;
+  }
+
+  async clearCheckpoint() {
+    await this.getNativeModule().clearCheckpoint?.();
   }
 
   async play() {

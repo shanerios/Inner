@@ -177,6 +177,11 @@ object ProceduralAudioEngine {
   private val lock = ReentrantLock()
   private val diagnosticLock = ReentrantLock()
   private val diagnosticEvents = mutableListOf<Map<String, Any>>()
+  private val firedSignalLock = ReentrantLock()
+  private val firedSignalIds = mutableListOf<String>()
+  /** Set by JS right after a journeyMemory session begins; read back by the
+   * playback service to persist a durable checkpoint under this session id. */
+  @Volatile var checkpointSessionId: String? = null
   private var parameters = AudioParameters()
   // Render-only scratch state. Never publish these to configuration/timeline state.
   private val renderBaseTarget = AudioParameters()
@@ -312,6 +317,17 @@ object ProceduralAudioEngine {
 
   fun drainDiagnosticEvents(): List<Map<String, Any>> = diagnosticLock.withLock {
     diagnosticEvents.toList().also { diagnosticEvents.clear() }
+  }
+
+  /**
+   * Non-destructive read of whatever hasn't been drained by JS yet. JS drains
+   * (and durably records) this buffer roughly once a second during normal
+   * playback, so this is normally empty or near-empty -- it exists so the
+   * periodic checkpoint write can carry along the handful of events that
+   * would otherwise be lost if the process dies in that window.
+   */
+  fun peekDiagnosticEvents(): List<Map<String, Any>> = diagnosticLock.withLock {
+    diagnosticEvents.toList()
   }
 
   fun setRecognitionSignal(signalId: String?, uri: String?) {
@@ -458,6 +474,23 @@ object ProceduralAudioEngine {
     timeline?.let { timelineElapsedFrames * 1_000.0 / sampleRate }
   }
 
+  /**
+   * A point-in-time snapshot for the playback service to persist to disk.
+   * Null when there's no active checkpoint session to attach it to -- the
+   * service should treat that as "nothing to persist" rather than an error.
+   */
+  fun checkpointSnapshot(): Map<String, Any>? {
+    val sessionId = checkpointSessionId ?: return null
+    val positionMs = getTimelinePositionMs() ?: return null
+    val fired = firedSignalLock.withLock { firedSignalIds.toList() }
+    return mapOf(
+      "sessionId" to sessionId,
+      "positionMs" to positionMs,
+      "firedSignalIds" to fired,
+      "plannedSignalCount" to (timeline?.stages?.sumOf { it.cueEvents.size } ?: 0),
+    )
+  }
+
   /** Fires the fixed lucidity cue once. Safe to call at any time; a call while
    * the cue is already ringing restarts it cleanly rather than layering. */
   fun triggerCue() {
@@ -514,6 +547,8 @@ object ProceduralAudioEngine {
     cosmicDelay.fill(0.0)
     cosmicDelayIndex = 0
     cueTimelineThresholdMs = -1.0
+    checkpointSessionId = null
+    firedSignalLock.withLock { firedSignalIds.clear() }
     forestEnvelope = 0.0
     forestRandom = XORSHIFT_SEED xor 0xc2b2ae35L
     forestCanopy = 0.0
@@ -622,8 +657,10 @@ object ProceduralAudioEngine {
         if (cueFireMs != null) {
           cueTimelineThresholdMs = cueFireMs
           startCue()
+          val firedSignalId = recognitionSignalId ?: "ascending"
+          firedSignalLock.withLock { firedSignalIds.add(firedSignalId) }
           recordDiagnostic("recognition_signal_fired", extras = mapOf(
-            "signalId" to (recognitionSignalId ?: "ascending"),
+            "signalId" to firedSignalId,
             "scheduledPositionMs" to cueFireMs,
             "actualPositionMs" to timelineElapsedMs,
             "driftMs" to (timelineElapsedMs - cueFireMs),

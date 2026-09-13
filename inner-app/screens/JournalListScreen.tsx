@@ -74,6 +74,17 @@ export default function JournalListScreen({ navigation }: Props) {
       headerTransparent: true,
       animationEnabled: true,
       animation: 'fade',
+      headerRight: () => (
+        <Pressable
+          onPress={() => navigation.navigate('DreamArchive')}
+          hitSlop={14}
+          accessibilityRole="button"
+          accessibilityLabel="Open Dream Archive"
+          style={{ marginRight: 16, paddingVertical: 8, paddingLeft: 10 }}
+        >
+          <Text style={{ fontFamily: 'Inter-Medium', fontSize: 9, letterSpacing: 1.5, color: '#D8D1E8' }}>ARCHIVE</Text>
+        </Pressable>
+      ),
     });
   }, [navigation]);
 

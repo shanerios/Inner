@@ -62,6 +62,18 @@ class InnerAudioModule : Module() {
       ProceduralAudioEngine.triggerCue()
     }
 
+    AsyncFunction("setCheckpointSessionId") { sessionId: String? ->
+      ProceduralAudioEngine.checkpointSessionId = sessionId
+    }
+
+    Function("getCheckpoint") {
+      InnerAudioPlaybackService.readPersistedCheckpoint(context)
+    }
+
+    AsyncFunction("clearCheckpoint") {
+      InnerAudioPlaybackService.clearPersistedCheckpoint(context)
+    }
+
     AsyncFunction("play") {
       ContextCompat.startForegroundService(context, InnerAudioPlaybackService.playIntent(context))
     }

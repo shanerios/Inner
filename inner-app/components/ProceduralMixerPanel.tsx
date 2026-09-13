@@ -44,6 +44,7 @@ type Props = {
   isPlaying?: boolean;
   onClose: () => void;
   standalone?: boolean;
+  contentTopInset?: number;
 };
 
 export default function ProceduralMixerPanel({
@@ -56,6 +57,7 @@ export default function ProceduralMixerPanel({
   isPlaying = false,
   onClose,
   standalone = false,
+  contentTopInset = 0,
 }: Props) {
   const [draft, setDraft] = useState(config);
   const pendingRef = useRef<ProceduralAudioPatch>({});
@@ -236,7 +238,7 @@ export default function ProceduralMixerPanel({
 
       <ScrollView
         style={[styles.body, standalone && styles.standaloneBody]}
-        contentContainerStyle={[styles.bodyContent, standalone && styles.standaloneBodyContent]}
+        contentContainerStyle={[styles.bodyContent, standalone && styles.standaloneBodyContent, standalone && { paddingTop: contentTopInset }]}
         showsVerticalScrollIndicator
         nestedScrollEnabled
         keyboardShouldPersistTaps="handled"
@@ -298,7 +300,7 @@ export default function ProceduralMixerPanel({
               accessibilityState={{ selected: active }}
               style={[styles.noisePill, active && styles.noisePillActive]}
             >
-              <Text style={[Typography.caption, styles.noiseText, active && styles.noiseTextActive]}>{option.label}</Text>
+              <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82} style={[Typography.caption, styles.noiseText, active && styles.noiseTextActive]}>{option.label}</Text>
             </Pressable>
           );
         })}
@@ -323,7 +325,7 @@ export default function ProceduralMixerPanel({
               accessibilityState={{ selected: active }}
               style={[styles.environmentPill, active && styles.noisePillActive]}
             >
-              <Text style={[Typography.caption, styles.noiseText, active && styles.noiseTextActive]}>{option.label}</Text>
+              <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82} style={[Typography.caption, styles.noiseText, active && styles.noiseTextActive]}>{option.label}</Text>
             </Pressable>
           );
         })}
@@ -346,7 +348,7 @@ export default function ProceduralMixerPanel({
                 accessibilityState={{ selected: active }}
                 style={[styles.speedPill, active && styles.speedPillActive]}
               >
-                <Text style={[Typography.caption, styles.speedText, active && styles.speedTextActive]}>{option.label}</Text>
+                <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82} style={[Typography.caption, styles.speedText, active && styles.speedTextActive]}>{option.label}</Text>
               </Pressable>
             );
           })}
@@ -442,7 +444,7 @@ export default function ProceduralMixerPanel({
               accessibilityState={{ selected: active }}
               style={[styles.noisePill, styles.spatialModePill, active && styles.noisePillActive]}
             >
-              <Text style={[Typography.caption, styles.noiseText, active && styles.noiseTextActive]}>{option.label}</Text>
+              <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82} style={[Typography.caption, styles.noiseText, active && styles.noiseTextActive]}>{option.label}</Text>
             </Pressable>
           );
         })}
@@ -464,7 +466,7 @@ export default function ProceduralMixerPanel({
                 accessibilityState={{ selected: active }}
                 style={[styles.speedPill, active && styles.speedPillActive]}
               >
-                <Text style={[Typography.caption, styles.speedText, active && styles.speedTextActive]}>{speed.label}</Text>
+                <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82} style={[Typography.caption, styles.speedText, active && styles.speedTextActive]}>{speed.label}</Text>
               </Pressable>
             );
           })}
@@ -684,7 +686,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.04)',
   },
   noisePillActive: { borderColor: '#A995F5', backgroundColor: 'rgba(169,149,245,0.22)' },
-  noiseText: { color: '#918B9E', fontSize: 10, paddingHorizontal: 2 },
+  noiseText: { color: '#918B9E', fontSize: 10, lineHeight: 14, paddingHorizontal: 4, textAlign: 'center' },
   noiseTextActive: { color: '#EEE9FF' },
   spatialHeader: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
   spatialHeaderActions: { flexDirection: 'row', gap: 5 },
@@ -698,7 +700,7 @@ const styles = StyleSheet.create({
   spatialSpeedLabel: { color: '#8F89A3', fontSize: 8, marginRight: 2 },
   speedPill: { paddingHorizontal: 9, paddingVertical: 5, borderRadius: 9, borderWidth: 1, borderColor: 'rgba(185,167,255,0.14)' },
   speedPillActive: { borderColor: '#B9A7FF', backgroundColor: 'rgba(185,167,255,0.2)' },
-  speedText: { color: '#817A90', fontSize: 8, paddingHorizontal: 2 },
+  speedText: { color: '#817A90', fontSize: 8, lineHeight: 12, paddingHorizontal: 4, textAlign: 'center' },
   speedTextActive: { color: '#F0EBFF' },
   spatialHint: { color: '#746E82', fontSize: 8, marginTop: 4 },
   sectionLabel: { color: '#8F89A3', marginTop: 6 },

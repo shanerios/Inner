@@ -72,7 +72,11 @@ function eventLabel(event: JourneyMemorySession['events'][number]): string {
   if (event.type === 'audio_route_changed') return `Audio route · ${event.route ?? 'changed'}${event.reason ? ` · ${event.reason}` : ''}`;
   if (event.type === 'interruption_began') return `Interruption began${event.reason ? ` · ${event.reason}` : ''}`;
   if (event.type === 'interruption_ended') return `Interruption ended${event.reason ? ` · ${event.reason}` : ''}`;
-  if (event.type === 'left_early') return 'Journey left early';
+  if (event.type === 'user_stopped') return 'Stopped by user';
+  if (event.type === 'recovered_interrupted') return `Recovered after interruption${event.message ? ` · ${event.message}` : ''}`;
+  if (event.type === 'abandoned_interrupted') return `Abandoned after interruption${event.message ? ` · ${event.message}` : ''}`;
+  if (event.type === 'os_terminated') return `Ended by the OS${event.message ? ` · ${event.message}` : ''}`;
+  if (event.type === 'unknown') return `Ended, reason unknown${event.message ? ` · ${event.message}` : ''}`;
   if (event.type === 'completed') return 'Journey completed';
   if (event.type === 'error') return `Error${event.message ? ` · ${event.message}` : ''}`;
   return 'Journey started';
@@ -251,10 +255,14 @@ export default function OvernightJourneyScreen() {
     <View style={styles.root}>
       <VideoView player={background} contentFit="cover" style={StyleSheet.absoluteFill} nativeControls={false} allowsFullscreen={false} allowsPictureInPicture={false} />
       <View style={styles.veil} pointerEvents="none" />
-      <ScrollView contentContainerStyle={[styles.content, { paddingTop: insets.top + 96, paddingBottom: insets.bottom + 34 }]} showsVerticalScrollIndicator={false}>
-        <Text style={[Typography.display, styles.title, Platform.OS === 'android' && styles.androidTitleOffset]}>Overnight Journey</Text>
+      <View
+        pointerEvents="none"
+        style={[styles.fixedHeader, { top: insets.top + 66 }, Platform.OS === 'android' && styles.androidFixedHeader]}
+      >
+        <Text style={[Typography.display, styles.title]}>Overnight Journey</Text>
         <Text style={[Typography.body, styles.subtitle]}>Tell Inner where you want to go. The complexity stays beneath the surface.</Text>
-
+      </View>
+      <ScrollView contentContainerStyle={[styles.content, { paddingTop: insets.top + (Platform.OS === 'android' ? 210 : 180), paddingBottom: insets.bottom + 34 }]} showsVerticalScrollIndicator={false}>
         <View style={styles.intention}>
           <Text style={styles.label}>WHAT ARE YOU SEEKING TONIGHT?</Text>
           <Text style={[Typography.display, styles.intentionValue]}>Become Lucid</Text>
@@ -364,9 +372,10 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#02040B' },
   veil: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.61)' },
   content: { paddingHorizontal: 24 },
+  fixedHeader: { position: 'absolute', left: 24, right: 24, zIndex: 3, alignItems: 'center' },
+  androidFixedHeader: { transform: [{ translateY: 30 }] },
   title: { color: '#F4F1FA', fontSize: 24, textAlign: 'center' },
-  androidTitleOffset: { marginTop: 30 },
-  subtitle: { color: '#D7D1E0', fontFamily: 'Inter-ExtraLight', fontSize: 13, lineHeight: 19, textAlign: 'center', maxWidth: 280, alignSelf: 'center', marginTop: 8, marginBottom: 22 },
+  subtitle: { color: '#D7D1E0', fontFamily: 'Inter-ExtraLight', fontSize: 13, lineHeight: 19, textAlign: 'center', maxWidth: 280, alignSelf: 'center', marginTop: 8 },
   intention: { alignItems: 'center', marginTop: 10, marginBottom: 4 },
   intentionValue: { color: '#F2EDF9', fontSize: 19, marginTop: 8 },
   group: { marginTop: 22 },

@@ -79,10 +79,12 @@ export default function LucidJourneyPlayerScreen() {
     lastMemoryStageIdRef.current = null;
     lastMemoryCuePositionRef.current = 0;
 
-    const finishMemory = (outcome: 'completed' | 'left_early' | 'failed', message?: string, positionOverrideMs?: number) => {
+    const finishMemory = (outcome: 'completed' | 'user_stopped' | 'failed', message?: string, positionOverrideMs?: number) => {
       const memorySessionId = memorySessionIdRef.current;
       if (!memorySessionId || memoryFinishedRef.current) return;
       memoryFinishedRef.current = true;
+      // A clean finish means there's nothing left for a checkpoint to explain.
+      void proceduralAudioEngine.setCheckpointSessionId(null);
       void finishJourneyMemorySession(
         memorySessionId,
         outcome,
@@ -128,13 +130,14 @@ export default function LucidJourneyPlayerScreen() {
           DEFAULT_PROCEDURAL_AUDIO_CONFIG,
         );
         memorySessionIdRef.current = memorySession.id;
+        void proceduralAudioEngine.setCheckpointSessionId(memorySession.id);
         if (selectedSignalId) await recordJourneyMemoryEvent(memorySession.id, {
           type: 'recognition_signal_selected',
           positionMs: 0,
           signalId: selectedSignalId,
         });
         if (!mounted) {
-          finishMemory('left_early');
+          finishMemory('user_stopped');
           return;
         }
         await session.startTimeline(DEFAULT_PROCEDURAL_AUDIO_CONFIG, playbackTimeline);
@@ -264,7 +267,7 @@ export default function LucidJourneyPlayerScreen() {
             await abandonPendingLucidSignalNight();
           });
       }
-      finishMemory('left_early');
+      finishMemory('user_stopped');
       void session.stop();
     };
   }, [journey]);
@@ -273,7 +276,8 @@ export default function LucidJourneyPlayerScreen() {
     const memorySessionId = memorySessionIdRef.current;
     if (memorySessionId && !memoryFinishedRef.current) {
       memoryFinishedRef.current = true;
-      void finishJourneyMemorySession(memorySessionId, 'left_early', currentPositionRef.current);
+      void proceduralAudioEngine.setCheckpointSessionId(null);
+      void finishJourneyMemorySession(memorySessionId, 'user_stopped', currentPositionRef.current);
     }
     // Navigation must never wait on native audio teardown. The screen cleanup
     // issues the same idempotent stop, while this request begins immediately.

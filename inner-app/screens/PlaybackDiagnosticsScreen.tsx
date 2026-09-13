@@ -21,7 +21,7 @@ import {
   serializePlaybackDiagnostics,
 } from '../core/playbackDiagnostics';
 
-const EMPTY_MEMORY: JourneyMemoryState = { schemaVersion: 1, sessions: [] };
+const EMPTY_MEMORY: JourneyMemoryState = { schemaVersion: 2, sessions: [] };
 
 function formatDuration(ms?: number): string {
   if (ms == null || !Number.isFinite(ms)) return '—';
@@ -60,7 +60,11 @@ function describeEvent(event: JourneyMemoryEvent): string {
     case 'interruption_ended': return `Interruption ended${event.reason ? ` · ${event.reason}` : ''}`;
     case 'audio_underrun': return `Audio buffer underrun · count ${event.underrunCount ?? 'unknown'}`;
     case 'completed': return 'Journey completed';
-    case 'left_early': return `Journey ended early${event.reason ? ` · ${event.reason}` : ''}`;
+    case 'user_stopped': return `Stopped by user${event.reason ? ` · ${event.reason}` : ''}`;
+    case 'recovered_interrupted': return `Recovered after interruption${event.message ? ` · ${event.message}` : ''}`;
+    case 'abandoned_interrupted': return `Abandoned after interruption${event.message ? ` · ${event.message}` : ''}`;
+    case 'os_terminated': return `Ended by the OS${event.message ? ` · ${event.message}` : ''}`;
+    case 'unknown': return `Ended, reason unknown${event.message ? ` · ${event.message}` : ''}`;
     case 'error': return `Playback error${event.message ? ` · ${event.message}` : ''}`;
     default: return event.type;
   }
@@ -69,7 +73,11 @@ function describeEvent(event: JourneyMemoryEvent): string {
 function outcomeLabel(session: JourneyMemorySession): string {
   if (session.outcome === 'completed') return 'Completed';
   if (session.outcome === 'failed') return 'Failed';
-  if (session.outcome === 'left_early') return 'Ended early';
+  if (session.outcome === 'user_stopped') return 'Stopped by user';
+  if (session.outcome === 'recovered_interrupted') return 'Recovered after interruption';
+  if (session.outcome === 'abandoned_interrupted') return 'Abandoned after interruption';
+  if (session.outcome === 'os_terminated') return 'Ended by the OS';
+  if (session.outcome === 'unknown') return 'Ended, reason unknown';
   return 'In progress or interrupted';
 }
 
@@ -154,7 +162,7 @@ export default function PlaybackDiagnosticsScreen() {
       </View>
 
       <ScrollView
-        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 28 }]}
+        contentContainerStyle={[styles.content, { paddingTop: insets.top + 88, paddingBottom: insets.bottom + 28 }]}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.privacyCard}>
@@ -239,7 +247,7 @@ export default function PlaybackDiagnosticsScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#0D0B18' },
-  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 16, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(255,255,255,0.12)' },
+  header: { position: 'absolute', left: 0, right: 0, top: 0, zIndex: 3, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 16, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(255,255,255,0.12)', backgroundColor: 'rgba(13,11,24,0.94)' },
   headerButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   headerButtonText: { color: '#F4EFFB', fontSize: 38, fontWeight: '200', lineHeight: 40 },
   headerCopy: { flex: 1, alignItems: 'center' },

@@ -2,20 +2,37 @@ import type { LucidSignalReflection } from './lucidSignalLearning';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type {
   CompiledAudioJourneyTimeline,
+  NativeAudioDiagnosticEvent,
   NoiseColor,
   ProceduralAudioConfig,
   ProceduralEnvironment,
 } from './audio';
 
 export const JOURNEY_MEMORY_KEY = 'inner.journey-memory.v1';
-export const JOURNEY_MEMORY_SCHEMA_VERSION = 1 as const;
+export const JOURNEY_MEMORY_SCHEMA_VERSION = 2 as const;
 
 const MAX_SESSIONS = 60;
 const MAX_EVENTS_PER_SESSION = 240;
 
 type Storage = Pick<typeof AsyncStorage, 'getItem' | 'setItem'>;
 
-export type JourneyMemoryOutcome = 'completed' | 'left_early' | 'failed';
+/**
+ * `os_terminated` is reserved for cases where a native signal specifically
+ * attributes the death to the OS (e.g. a trim-memory callback caught before
+ * the kill) -- Android does not hand back a reliable "the OS killed me"
+ * reason in the general case, so checkpoint reconciliation alone will
+ * usually land on `recovered_interrupted`/`abandoned_interrupted`/`unknown`
+ * rather than this value. It exists so a more specific signal has somewhere
+ * to go later without another schema bump.
+ */
+export type JourneyMemoryOutcome =
+  | 'completed'
+  | 'user_stopped'
+  | 'recovered_interrupted'
+  | 'abandoned_interrupted'
+  | 'os_terminated'
+  | 'failed'
+  | 'unknown';
 export type JourneyMemoryEventType =
   | 'started'
   | 'stage_changed'
@@ -31,8 +48,32 @@ export type JourneyMemoryEventType =
   | 'interruption_ended'
   | 'audio_underrun'
   | 'completed'
-  | 'left_early'
+  | 'user_stopped'
+  | 'recovered_interrupted'
+  | 'abandoned_interrupted'
+  | 'os_terminated'
+  | 'unknown'
   | 'error';
+
+const OUTCOME_EVENT_TYPE: Record<JourneyMemoryOutcome, JourneyMemoryEventType> = {
+  completed: 'completed',
+  user_stopped: 'user_stopped',
+  recovered_interrupted: 'recovered_interrupted',
+  abandoned_interrupted: 'abandoned_interrupted',
+  os_terminated: 'os_terminated',
+  failed: 'error',
+  unknown: 'unknown',
+};
+
+const OUTCOME_END_REASON: Record<JourneyMemoryOutcome, NonNullable<JourneyMemorySession['endReason']>> = {
+  completed: 'timeline_completed',
+  user_stopped: 'manual_stop',
+  recovered_interrupted: 'recovered',
+  abandoned_interrupted: 'interrupted',
+  os_terminated: 'os_terminated',
+  failed: 'playback_error',
+  unknown: 'unknown',
+};
 
 export type JourneyMemoryEvent = {
   type: JourneyMemoryEventType;
@@ -72,7 +113,7 @@ export type JourneyMemorySession = {
     config: ProceduralAudioConfig;
   }>;
   outcome?: JourneyMemoryOutcome;
-  endReason?: 'timeline_completed' | 'manual_stop' | 'playback_error';
+  endReason?: 'timeline_completed' | 'manual_stop' | 'playback_error' | 'recovered' | 'interrupted' | 'os_terminated' | 'unknown';
   actualDurationMs?: number;
   elapsedWallTimeMs?: number;
   /** QA sessions exercise persistence and UI but never contribute preference evidence. */
@@ -117,16 +158,27 @@ function validSession(value: unknown): value is JourneyMemorySession {
     && Array.isArray(session.events);
 }
 
+/** Upgrades a v1-shaped session (pre-taxonomy-split) in place; a no-op for v2. */
+function migrateSessionToCurrentSchema(session: any): unknown {
+  if (!session || typeof session !== 'object') return session;
+  const outcome = session.outcome === 'left_early' ? 'user_stopped' : session.outcome;
+  const events = Array.isArray(session.events)
+    ? session.events.map((event: any) => (event?.type === 'left_early' ? { ...event, type: 'user_stopped' } : event))
+    : session.events;
+  return { ...session, schemaVersion: JOURNEY_MEMORY_SCHEMA_VERSION, outcome, events };
+}
+
 export async function loadJourneyMemory(storage: Storage = AsyncStorage): Promise<JourneyMemoryState> {
   try {
     const raw = await storage.getItem(JOURNEY_MEMORY_KEY);
     const parsed = raw ? JSON.parse(raw) : null;
-    if (parsed?.schemaVersion !== JOURNEY_MEMORY_SCHEMA_VERSION || !Array.isArray(parsed.sessions)) {
-      return EMPTY_STATE;
-    }
+    if (!parsed || !Array.isArray(parsed.sessions)) return EMPTY_STATE;
+    // Only migrate a known prior version forward; an unrecognized future
+    // version is safer to ignore than to guess at.
+    if (parsed.schemaVersion !== 1 && parsed.schemaVersion !== JOURNEY_MEMORY_SCHEMA_VERSION) return EMPTY_STATE;
     return {
       schemaVersion: JOURNEY_MEMORY_SCHEMA_VERSION,
-      sessions: parsed.sessions.filter(validSession).slice(0, MAX_SESSIONS),
+      sessions: parsed.sessions.map(migrateSessionToCurrentSchema).filter(validSession).slice(0, MAX_SESSIONS),
     };
   } catch {
     return EMPTY_STATE;
@@ -250,7 +302,7 @@ export function finishJourneyMemorySession(
     const sessions = state.sessions.map(session => {
       if (session.id !== sessionId || session.endedAt) return session;
       const event: JourneyMemoryEvent = {
-        type: outcome === 'completed' ? 'completed' : outcome === 'failed' ? 'error' : 'left_early',
+        type: OUTCOME_EVENT_TYPE[outcome],
         at: endedAt,
         positionMs,
         ...(message ? { message } : {}),
@@ -259,11 +311,7 @@ export function finishJourneyMemorySession(
         ...session,
         endedAt,
         outcome,
-        endReason: outcome === 'completed'
-          ? 'timeline_completed'
-          : outcome === 'failed'
-            ? 'playback_error'
-            : 'manual_stop',
+        endReason: OUTCOME_END_REASON[outcome],
         actualDurationMs: Math.max(0, positionMs),
         elapsedWallTimeMs: Math.max(0, endedAt - session.startedAt),
         events: [...session.events, event].slice(-MAX_EVENTS_PER_SESSION),
@@ -286,7 +334,10 @@ export function deriveJourneyMemoryProfile(
     // Engine failures are diagnostics, not evidence about the listener.
     .filter(session => !session.testSession)
     .filter(session => !session.journeyId.startsWith('dev-test-'))
-    .filter(session => session.outcome === 'completed' || session.outcome === 'left_early')
+    // Interrupted outcomes remain useful diagnostics, but only an explicit
+    // native completion is strong enough to influence personalization.
+    .filter(session => session.outcome === 'completed'
+      || session.outcome === 'user_stopped')
     .slice(0, sampleSize);
   if (!observed.length) return null;
 
@@ -400,4 +451,79 @@ export function saveOvernightMorningCapture(
       : item);
     await storage.setItem(JOURNEY_MEMORY_KEY, JSON.stringify({ ...state, sessions }));
   });
+}
+
+// ── Durable checkpoint reconciliation (Android process death) ──────────────
+//
+// The native side persists a small checkpoint (position, fired-signal
+// ledger, last-write time) to disk independently of this JS layer, so it
+// survives the process being killed outright. This reconciles that
+// checkpoint into a real outcome the next time the app launches, instead of
+// leaving the session open forever with no explanation.
+
+export type JourneyMemoryCheckpoint = {
+  sessionId: string;
+  positionMs: number;
+  lastUpdatedAt: number;
+  firedSignalIds: string[];
+  plannedSignalCount?: number;
+  /** Diagnostics recorded natively after the last drain the JS side ever saw. */
+  pendingDiagnostics?: NativeAudioDiagnosticEvent[];
+};
+
+/**
+ * Reconciles one native checkpoint into a terminal outcome. Only acts on a
+ * session that is genuinely still open (no `endedAt`) -- a checkpoint left
+ * over from a session that already finished cleanly (and should have been
+ * cleared natively) or was already reconciled once is left untouched.
+ * Returns the outcome it assigned, or null if there was nothing to do.
+ */
+export async function reconcileInterruptedJourneyMemorySession(
+  checkpoint: JourneyMemoryCheckpoint,
+  storage: Storage = AsyncStorage,
+  now: () => number = Date.now,
+): Promise<JourneyMemoryOutcome | null> {
+  // Not wrapped in enqueue() itself: finishJourneyMemorySession below already
+  // enqueues its own write (and re-checks !endedAt at write time), so nesting
+  // this in another enqueue() call would deadlock the shared write queue.
+  const state = await loadJourneyMemory(storage);
+  const session = state.sessions.find(item => item.id === checkpoint.sessionId);
+  if (!session || session.endedAt) return null;
+
+  // Allow only the native checkpoint cadence plus a small scheduling margin.
+  // A percentage threshold could misclassify many missing minutes overnight.
+  const nearPlannedEnd = checkpoint.positionMs >= session.plannedDurationMs - 30_000;
+  const allSignalsFired = checkpoint.plannedSignalCount != null
+    && checkpoint.firedSignalIds.length >= checkpoint.plannedSignalCount;
+  const outcome: JourneyMemoryOutcome = nearPlannedEnd && allSignalsFired
+    ? 'recovered_interrupted'
+    : checkpoint.positionMs > 0
+      ? 'abandoned_interrupted'
+      : 'unknown';
+
+  for (const event of checkpoint.pendingDiagnostics ?? []) {
+    await recordJourneyMemoryEvent(checkpoint.sessionId, {
+      type: event.type,
+      at: event.atMs,
+      positionMs: checkpoint.positionMs,
+      reason: event.reason,
+      route: event.route,
+      signalId: event.signalId,
+      scheduledPositionMs: event.scheduledPositionMs,
+      actualPositionMs: event.actualPositionMs,
+      driftMs: event.driftMs,
+      underrunCount: event.underrunCount,
+    }, storage, now);
+  }
+
+  const staleSeconds = Math.max(0, Math.round((now() - checkpoint.lastUpdatedAt) / 1_000));
+  await finishJourneyMemorySession(
+    checkpoint.sessionId,
+    outcome,
+    checkpoint.positionMs,
+    `reconciled from checkpoint (last written ${staleSeconds}s before relaunch, ${checkpoint.firedSignalIds.length}${checkpoint.plannedSignalCount != null ? `/${checkpoint.plannedSignalCount}` : ''} signals fired)`,
+    storage,
+    now,
+  );
+  return outcome;
 }

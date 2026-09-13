@@ -5,9 +5,9 @@ import { describe, expect, it } from '@jest/globals';
 describe('playback diagnostics export', () => {
   it('contains playback evidence without user-authored reflection content', () => {
     const exported = buildPlaybackDiagnosticsExport({
-      schemaVersion: 1,
+      schemaVersion: 2,
       sessions: [{
-        schemaVersion: 1,
+        schemaVersion: 2,
         id: 'session-1',
         journeyId: 'overnight-recognition-ocean-standard',
         title: 'A private custom title',
@@ -24,7 +24,7 @@ describe('playback diagnostics export', () => {
         seed: 42,
         initialConfig: DEFAULT_PROCEDURAL_AUDIO_CONFIG,
         stages: [],
-        outcome: 'left_early',
+        outcome: 'user_stopped',
         endReason: 'manual_stop',
         actualDurationMs: 55_000,
         elapsedWallTimeMs: 100,

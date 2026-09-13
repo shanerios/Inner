@@ -24,6 +24,8 @@ import android.os.Looper
 import android.os.Process
 import android.os.SystemClock
 import android.support.v4.media.MediaMetadataCompat
+import org.json.JSONArray
+import org.json.JSONObject
 import android.support.v4.media.session.MediaSessionCompat
 import android.support.v4.media.session.PlaybackStateCompat
 import android.util.Log
@@ -60,6 +62,9 @@ class InnerAudioPlaybackService : Service() {
     private const val RENDER_CHUNK_FRAMES = 960
     private const val ROUTE_LOG_TAG = "InnerAudioRoute"
     private const val MEDIA_PAUSE_ROUTE_GRACE_MS = 3_000L
+    private const val CHECKPOINT_PREFS_NAME = "inner_audio_checkpoint"
+    private const val CHECKPOINT_PREFS_KEY = "checkpoint_json"
+    private const val CHECKPOINT_INTERVAL_MS = 20_000L
 
     @Volatile var isRunning = false
       private set
@@ -72,6 +77,49 @@ class InnerAudioPlaybackService : Service() {
     fun stopIntent(context: Context): Intent = Intent(context, InnerAudioPlaybackService::class.java).setAction(ACTION_STOP)
     fun refreshNowPlayingIntent(context: Context): Intent =
       Intent(context, InnerAudioPlaybackService::class.java).setAction(ACTION_REFRESH_NOW_PLAYING)
+
+    /**
+     * Reads whatever checkpoint was last persisted to disk, independent of
+     * whether this service is currently running -- this is what lets a cold
+     * app launch after a process kill find out what happened. Does not clear
+     * it; the caller decides once it has reconciled the outcome.
+     */
+    fun readPersistedCheckpoint(context: Context): Map<String, Any?>? {
+      val raw = context.getSharedPreferences(CHECKPOINT_PREFS_NAME, Context.MODE_PRIVATE)
+        .getString(CHECKPOINT_PREFS_KEY, null) ?: return null
+      return try {
+        val json = JSONObject(raw)
+        val fired = json.optJSONArray("firedSignalIds")
+        val diagnostics = json.optJSONArray("pendingDiagnostics")
+        mapOf(
+          "sessionId" to json.optString("sessionId"),
+          "positionMs" to json.optDouble("positionMs"),
+          "lastUpdatedAt" to json.optDouble("lastUpdatedAt"),
+          "firedSignalIds" to (fired?.let { array -> List(array.length()) { array.getString(it) } } ?: emptyList<String>()),
+          "plannedSignalCount" to if (json.has("plannedSignalCount")) json.getInt("plannedSignalCount") else null,
+          "pendingDiagnostics" to (diagnostics?.let { array ->
+            List(array.length()) { index ->
+              val event = array.getJSONObject(index)
+              val map = mutableMapOf<String, Any?>("type" to event.getString("type"), "atMs" to event.getDouble("atMs"))
+              if (event.has("reason")) map["reason"] = event.getString("reason")
+              if (event.has("route")) map["route"] = event.getString("route")
+              if (event.has("signalId")) map["signalId"] = event.getString("signalId")
+              if (event.has("scheduledPositionMs")) map["scheduledPositionMs"] = event.getDouble("scheduledPositionMs")
+              if (event.has("actualPositionMs")) map["actualPositionMs"] = event.getDouble("actualPositionMs")
+              if (event.has("driftMs")) map["driftMs"] = event.getDouble("driftMs")
+              if (event.has("underrunCount")) map["underrunCount"] = event.getInt("underrunCount")
+              map
+            }
+          } ?: emptyList<Map<String, Any?>>()),
+        )
+      } catch (_: Exception) {
+        null
+      }
+    }
+
+    fun clearPersistedCheckpoint(context: Context) {
+      context.getSharedPreferences(CHECKPOINT_PREFS_NAME, Context.MODE_PRIVATE).edit().remove(CHECKPOINT_PREFS_KEY).apply()
+    }
   }
 
   private val mainHandler = Handler(Looper.getMainLooper())
@@ -92,6 +140,13 @@ class InnerAudioPlaybackService : Service() {
   private var activePrivateDeviceId: Int? = null
   private var lastMediaSessionPauseAtElapsedMs = Long.MIN_VALUE
   private var explicitAppPause = false
+
+  private val checkpointRunnable = object : Runnable {
+    override fun run() {
+      persistCheckpoint()
+      mainHandler.postDelayed(this, CHECKPOINT_INTERVAL_MS)
+    }
+  }
 
   private val noisyReceiver = object : BroadcastReceiver() {
     override fun onReceive(context: Context?, intent: Intent?) {
@@ -221,7 +276,9 @@ class InnerAudioPlaybackService : Service() {
   override fun onBind(intent: Intent?): IBinder? = null
 
   override fun onDestroy() {
-    teardownPlayback()
+    // Preserve the last checkpoint when Android destroys the service without
+    // an explicit stop; the next cold launch can then reconcile the session.
+    teardownPlayback(clearCheckpoint = false)
     mediaSession?.release()
     mediaSession = null
     ProceduralAudioEngine.onSleepTimerElapsed = null
@@ -257,6 +314,39 @@ class InnerAudioPlaybackService : Service() {
     updateNowPlaying(isPlaying = true)
     if (gentleFadeIn) rampTrackVolume()
     ProceduralAudioEngine.recordDiagnostic("playback_resumed", reason)
+    mainHandler.removeCallbacks(checkpointRunnable)
+    persistCheckpoint()
+    mainHandler.postDelayed(checkpointRunnable, CHECKPOINT_INTERVAL_MS)
+  }
+
+  /**
+   * Writes a small checkpoint to disk so a process kill (Doze, App Standby,
+   * force-stop, low-memory) leaves behind something to reconcile from on the
+   * next cold launch. There is no reliable "about to die" callback for a hard
+   * kill, so this runs on a cadence rather than waiting for one -- whatever
+   * was last written here is all a relaunch has to work with.
+   */
+  private fun persistCheckpoint() {
+    val snapshot = ProceduralAudioEngine.checkpointSnapshot() ?: return
+    val pendingDiagnostics = JSONArray().apply {
+      for (event in ProceduralAudioEngine.peekDiagnosticEvents()) {
+        put(JSONObject().apply {
+          for ((key, value) in event) put(key, value)
+        })
+      }
+    }
+    val json = JSONObject().apply {
+      put("sessionId", snapshot["sessionId"] as? String ?: return)
+      put("positionMs", snapshot["positionMs"] as? Double ?: 0.0)
+      @Suppress("UNCHECKED_CAST")
+      put("firedSignalIds", JSONArray(snapshot["firedSignalIds"] as? List<String> ?: emptyList<String>()))
+      put("plannedSignalCount", snapshot["plannedSignalCount"] as? Int ?: 0)
+      put("lastUpdatedAt", System.currentTimeMillis().toDouble())
+      put("pendingDiagnostics", pendingDiagnostics)
+    }
+    getSharedPreferences(CHECKPOINT_PREFS_NAME, Context.MODE_PRIVATE).edit()
+      .putString(CHECKPOINT_PREFS_KEY, json.toString())
+      .apply()
   }
 
   private fun pause(reason: PauseReason) {
@@ -272,20 +362,29 @@ class InnerAudioPlaybackService : Service() {
       PauseReason.ROUTE_LOSS -> "route_loss"
       PauseReason.INTERRUPTION -> "interruption"
     })
+    mainHandler.removeCallbacks(checkpointRunnable)
+    persistCheckpoint()
   }
 
   private fun stop() {
     desiredPlaying = false
     pauseReason = null
     explicitAppPause = false
-    teardownPlayback()
+    teardownPlayback(clearCheckpoint = true)
     mediaSession?.isActive = false
     stopForegroundCompat()
     stopSelf()
   }
 
-  /** Idempotent — safe to call from both stop() and onDestroy(). */
-  private fun teardownPlayback() {
+  /**
+   * Idempotent — safe to call from both stop() and onDestroy(). Only reached
+   * on a clean stop/destroy, so clearing the checkpoint here is correct: a
+   * hard process kill never runs this at all, which is exactly what leaves
+   * the last-persisted checkpoint behind for the next launch to find.
+   */
+  private fun teardownPlayback(clearCheckpoint: Boolean) {
+    mainHandler.removeCallbacks(checkpointRunnable)
+    if (clearCheckpoint) clearPersistedCheckpoint(applicationContext)
     renderThreadPaused.set(true)
     renderThreadRunning.set(false)
     renderThread?.let { thread ->

@@ -69,22 +69,19 @@ export default function CreateLucidJourneyScreen() {
     <View style={styles.root}>
       <VideoView player={background} contentFit="cover" style={StyleSheet.absoluteFill} nativeControls={false} allowsFullscreen={false} allowsPictureInPicture={false} />
       <View style={styles.veil} pointerEvents="none" />
+      <View
+        pointerEvents="none"
+        style={[styles.fixedHeader, { top: insets.top + 72 }, Platform.OS === 'android' && styles.androidFixedHeader]}
+      >
+        <Text style={[Typography.display, styles.title]}>Create a Journey</Text>
+        <Text style={[Typography.body, styles.subtitle]}>Shape a practice around the way you want to enter the night.</Text>
+      </View>
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={[styles.content, { paddingTop: insets.top + 102, paddingBottom: insets.bottom + 36 }]}
+        contentContainerStyle={[styles.content, { paddingTop: insets.top + (Platform.OS === 'android' ? 220 : 190), paddingBottom: insets.bottom + 36 }]}
         showsVerticalScrollIndicator={false}
         alwaysBounceVertical={false}
       >
-        <Text
-          style={[
-            Typography.display,
-            styles.title,
-            Platform.OS === 'android' && styles.androidTitleOffset,
-          ]}
-        >
-          Create a Journey
-        </Text>
-        <Text style={[Typography.body, styles.subtitle]}>Shape a practice around the way you want to enter the night.</Text>
         {group('WHAT ARE YOU MOVING TOWARD?', 'intention')}
         {group('HOW MUCH TIME DO YOU HAVE?', 'durationMinutes')}
         {group('HOW SHOULD IT FEEL?', 'feel')}
@@ -143,9 +140,11 @@ export default function CreateLucidJourneyScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#02040B' }, veil: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.58)' },
   scroll: { flex: 1 },
-  content: { paddingHorizontal: 24 }, title: { color: '#F4F1FA', fontSize: 24, textAlign: 'center' },
-  androidTitleOffset: { marginTop: 30 },
-  subtitle: { color: '#D7D1E0', fontFamily: 'Inter-ExtraLight', fontSize: 14, lineHeight: 20, textAlign: 'center', width: 280, alignSelf: 'center', marginTop: 8, marginBottom: 24 },
+  content: { paddingHorizontal: 24 },
+  fixedHeader: { position: 'absolute', left: 24, right: 24, zIndex: 3, alignItems: 'center' },
+  androidFixedHeader: { transform: [{ translateY: 30 }] },
+  title: { color: '#F4F1FA', fontSize: 24, textAlign: 'center' },
+  subtitle: { color: '#D7D1E0', fontFamily: 'Inter-ExtraLight', fontSize: 14, lineHeight: 20, textAlign: 'center', maxWidth: 280, alignSelf: 'center', marginTop: 8 },
   group: { marginTop: 18 }, label: { color: '#AFA4D5', fontFamily: 'Inter-Medium', fontSize: 9, letterSpacing: 1.4, textAlign: 'center' },
   choices: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 7, marginTop: 9 },
   choice: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(210,198,255,0.2)', backgroundColor: 'rgba(5,7,17,0.4)' },

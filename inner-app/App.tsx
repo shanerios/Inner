@@ -31,6 +31,7 @@ import LessonList from './learn/screens/LessonList';
 import LessonReader from './learn/screens/LessonReader';
 import JournalListScreen from './screens/JournalListScreen';
 import JournalEntryScreen from './screens/JournalEntryScreen';
+import DreamArchiveScreen from './screens/DreamArchiveScreen';
 import HomeScreen from './screens/HomeScreen';
 import PointZeroScreen from './screens/PointZeroScreen';
 import CleanSlateScreen from './screens/CleanSlateScreen';
@@ -47,6 +48,8 @@ import * as Notifications from 'expo-notifications';
 import { InteractionManager, AppState, Easing } from 'react-native';
 // import NetInfo from '@react-native-community/netinfo';
 import { initAudioOnce } from './core/initAudio';
+import { proceduralAudioEngine } from './core/audio';
+import { reconcileInterruptedJourneyMemorySession } from './core/journeyMemory';
 import { cancelLucidityCueNotifications, LUCIDITY_CUE_NOTIFICATION_TYPE, scheduleReengagementNotification } from './utils/notifications';
 import { createEntry } from './core/journalRepo';
 import { initChottuLinkOnce } from './src/core/deeplinking/chottuLink';
@@ -134,6 +137,7 @@ type RootStackParamList = {
   Glossary: { trackId: 'lucid' | 'obe' };
   Journal: undefined;
   JournalEntry: { id: string; isNew?: boolean };
+  DreamArchive: undefined;
   Guardian: undefined;
   GuardianPlayer: { trackId: string };
   PointZero: undefined;
@@ -295,6 +299,23 @@ export default Sentry.wrap(function App() {
     const t = setTimeout(() => setFogVisible(false), 7000);
     return () => clearTimeout(t);
   }, [fogVisible]);
+
+  // Reconcile a durable checkpoint left behind by a process death (Android
+  // only -- see journeyMemory.ts for why iOS's background-audio model
+  // doesn't carry the same risk). Runs once per cold launch, before anything
+  // else touches journey memory, so a stale "still open" session never lingers
+  // unexplained or gets mistaken for one that's genuinely in progress.
+  useEffect(() => {
+    (async () => {
+      try {
+        if (!proceduralAudioEngine.isAvailable()) return;
+        const checkpoint = await proceduralAudioEngine.getCheckpoint();
+        if (!checkpoint) return;
+        await reconcileInterruptedJourneyMemorySession(checkpoint);
+        await proceduralAudioEngine.clearCheckpoint();
+      } catch {}
+    })();
+  }, []);
 
   // Initialize audio engine and background warmups
   useEffect(() => {
@@ -480,6 +501,7 @@ export default Sentry.wrap(function App() {
                     },
                   }}
                 />
+                <Stack.Screen name="DreamArchive" component={DreamArchiveScreen} options={{ headerShown: false }} />
                 <Stack.Screen name="Guardian" component={GuardianScreen} options={{ headerShown: false }} />
                 <Stack.Screen name="GuardianPlayer" component={GuardianPlayerScreen} options={{ headerShown: false }} />
                 <Stack.Screen name="PointZero" component={PointZeroScreen} options={{ headerShown: false }} />

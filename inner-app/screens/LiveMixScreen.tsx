@@ -121,8 +121,15 @@ export default function LiveMixScreen() {
         </Pressable>
         {error ? <Text style={styles.error}>{error}</Text> : null}
       </View>
-      <View style={[styles.mixer, { top: insets.top + 190 + (Platform.OS === 'android' ? 30 : 0), bottom: insets.bottom + 62 }]}>
-        <ProceduralMixerPanel config={config} onPatch={applyPatch} isPlaying={isPlaying} onClose={() => {}} standalone />
+      <View style={[styles.mixer, { top: 0, bottom: insets.bottom + 62 }]}>
+        <ProceduralMixerPanel
+          config={config}
+          onPatch={applyPatch}
+          isPlaying={isPlaying}
+          onClose={() => {}}
+          standalone
+          contentTopInset={insets.top + 190 + (Platform.OS === 'android' ? 30 : 0)}
+        />
       </View>
       <Pressable onPress={() => void returnToJourneys()} accessibilityRole="button" accessibilityLabel="Return to Lucid Journeys" style={[styles.returnButton, { bottom: insets.bottom + 16 }]}>
         <Text style={styles.returnText}>RETURN</Text>
