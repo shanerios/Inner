@@ -46,6 +46,10 @@ class InnerAudioModule : Module() {
       InnerAudioPlaybackService.playbackState
     }
 
+    Function("getTimelinePositionMs") {
+      ProceduralAudioEngine.getTimelinePositionMs()
+    }
+
     Function("drainDiagnosticEvents") {
       ProceduralAudioEngine.drainDiagnosticEvents()
     }

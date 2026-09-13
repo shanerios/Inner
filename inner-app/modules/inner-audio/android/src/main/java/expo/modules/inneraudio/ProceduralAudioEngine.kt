@@ -242,6 +242,7 @@ object ProceduralAudioEngine {
   private var renderedSpatialDistance = 1.0
   private var renderElapsedFrames = 0.0
   @Volatile private var sleepStopScheduled = false
+  private var pausedSleepRemainingMs: Double? = null
   @Volatile var lastTimerCompletionAtMs: Double? = null
     private set
 
@@ -382,9 +383,32 @@ object ProceduralAudioEngine {
   fun setSleepTimer(endAtMs: Double?) {
     lock.withLock {
       parameters.sleepEndMs = endAtMs
+      pausedSleepRemainingMs = null
       sleepStopScheduled = false
       lastTimerCompletionAtMs = null
     }
+  }
+
+  fun pauseSleepTimer() {
+    lock.withLock {
+      parameters.sleepEndMs?.let { endAtMs ->
+        pausedSleepRemainingMs = max(0.0, endAtMs - System.currentTimeMillis())
+        parameters.sleepEndMs = null
+      }
+    }
+  }
+
+  fun resumeSleepTimer() {
+    lock.withLock {
+      pausedSleepRemainingMs?.let { remainingMs ->
+        parameters.sleepEndMs = System.currentTimeMillis() + remainingMs
+        pausedSleepRemainingMs = null
+      }
+    }
+  }
+
+  fun getTimelinePositionMs(): Double? = lock.withLock {
+    timeline?.let { timelineElapsedFrames * 1_000.0 / sampleRate }
   }
 
   /** Fires the fixed lucidity cue once. Safe to call at any time; a call while
@@ -480,6 +504,7 @@ object ProceduralAudioEngine {
     lock.withLock {
       timeline = null
       timelineElapsedFrames = 0.0
+      pausedSleepRemainingMs = null
       timelineGeneration++
     }
   }

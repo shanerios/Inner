@@ -66,6 +66,7 @@ public final class InnerAudioModule: Module {
     AsyncFunction("setSleepTimer") { (endAtMs: Double?) in self.engine.setSleepTimer(endAtMs) }
     Function("getLastTimerCompletionAtMs") { self.engine.getLastTimerCompletionAtMs() }
     Function("getPlaybackState") { self.engine.getPlaybackState() }
+    Function("getTimelinePositionMs") { self.engine.getTimelinePositionMs() }
     Function("drainDiagnosticEvents") { self.engine.drainDiagnosticEvents() }
     AsyncFunction("setRecognitionSignal") { (signalId: String?, uri: String?) in try self.engine.setRecognitionSignal(signalId, uri) }
     AsyncFunction("triggerCue") { self.engine.triggerCue() }
@@ -271,6 +272,7 @@ private final class ProceduralAudioEngine: NSObject {
   private var pauseReason: PauseReason?
   private var resumeFadeGeneration = 0
   private var sleepStopScheduled = false
+  private var pausedSleepRemainingMs: Double?
   private var lastTimerCompletionAtMs: Double?
   private var remoteTargets: [(MPRemoteCommand, Any)] = []
   private var nowPlayingRefreshTimer: DispatchSourceTimer?
@@ -354,6 +356,7 @@ private final class ProceduralAudioEngine: NSObject {
   func play(reason: String = "play_request", gentleFadeIn: Bool = false) throws {
     desiredPlaying = true
     pauseReason = nil
+    resumeSleepTimer()
     if engine.isRunning { updateNowPlaying(rate: 1); return }
     let session = AVAudioSession.sharedInstance()
     do {
@@ -442,6 +445,7 @@ private final class ProceduralAudioEngine: NSObject {
 
   private func pause(reason: PauseReason) {
     pauseReason = reason
+    pauseSleepTimer()
     resumeFadeGeneration &+= 1
     engine.pause()
     updateNowPlaying(rate: 0)
@@ -533,6 +537,7 @@ private final class ProceduralAudioEngine: NSObject {
     renderedSpatialDistance = 1
     renderElapsedFrames = 0
     sleepStopScheduled = false
+    pausedSleepRemainingMs = nil
     lock.lock()
     timeline = nil
     timelineElapsedFrames = 0
@@ -550,6 +555,7 @@ private final class ProceduralAudioEngine: NSObject {
   func setSleepTimer(_ endAtMs: Double?) {
     lock.lock()
     parameters.sleepEndMs = endAtMs
+    pausedSleepRemainingMs = nil
     sleepStopScheduled = false
     lastTimerCompletionAtMs = nil
     lock.unlock()
@@ -563,6 +569,31 @@ private final class ProceduralAudioEngine: NSObject {
 
   func getPlaybackState() -> String {
     engine.isRunning ? "playing" : (source == nil ? "stopped" : "paused")
+  }
+
+  func getTimelinePositionMs() -> Double? {
+    lock.lock()
+    defer { lock.unlock() }
+    guard timeline != nil else { return nil }
+    return timelineElapsedFrames * 1_000 / sampleRate
+  }
+
+  private func pauseSleepTimer() {
+    lock.lock()
+    if let endAtMs = parameters.sleepEndMs {
+      pausedSleepRemainingMs = max(0, endAtMs - Date().timeIntervalSince1970 * 1_000)
+      parameters.sleepEndMs = nil
+    }
+    lock.unlock()
+  }
+
+  private func resumeSleepTimer() {
+    lock.lock()
+    if let remainingMs = pausedSleepRemainingMs {
+      parameters.sleepEndMs = Date().timeIntervalSince1970 * 1_000 + remainingMs
+      pausedSleepRemainingMs = nil
+    }
+    lock.unlock()
   }
 
   private func startGentleResumeFade() {

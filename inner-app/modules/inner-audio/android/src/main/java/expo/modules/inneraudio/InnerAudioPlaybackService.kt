@@ -5,8 +5,10 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.ServiceInfo
 import android.media.AudioAttributes
 import android.media.AudioDeviceCallback
@@ -20,10 +22,13 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.os.Process
+import android.os.SystemClock
 import android.support.v4.media.MediaMetadataCompat
 import android.support.v4.media.session.MediaSessionCompat
 import android.support.v4.media.session.PlaybackStateCompat
+import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import androidx.media.app.NotificationCompat.MediaStyle
 import androidx.media.session.MediaButtonReceiver
 import java.util.concurrent.atomic.AtomicBoolean
@@ -53,6 +58,8 @@ class InnerAudioPlaybackService : Service() {
     private const val CHANNEL_ID = "inner_audio_playback"
     private const val NOTIFICATION_ID = 8420
     private const val RENDER_CHUNK_FRAMES = 960
+    private const val ROUTE_LOG_TAG = "InnerAudioRoute"
+    private const val MEDIA_PAUSE_ROUTE_GRACE_MS = 3_000L
 
     @Volatile var isRunning = false
       private set
@@ -81,15 +88,37 @@ class InnerAudioPlaybackService : Service() {
   private var audioManager: AudioManager? = null
   private var focusRequest: AudioFocusRequest? = null
   private var deviceCallbackRegistered = false
+  private var noisyReceiverRegistered = false
   private var activePrivateDeviceId: Int? = null
+  private var lastMediaSessionPauseAtElapsedMs = Long.MIN_VALUE
+  private var explicitAppPause = false
+
+  private val noisyReceiver = object : BroadcastReceiver() {
+    override fun onReceive(context: Context?, intent: Intent?) {
+      if (intent?.action != AudioManager.ACTION_AUDIO_BECOMING_NOISY) return
+      routeLog("becoming_noisy received")
+      pauseForRouteLoss("becoming_noisy")
+    }
+  }
 
   private val deviceCallback = object : AudioDeviceCallback() {
     override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>) {
       val addedPrivateOutput = addedDevices.any(::isPrivateOutput)
+      routeLog("devices_added=${describeDevices(addedDevices)} private=$addedPrivateOutput")
       ProceduralAudioEngine.recordDiagnostic("audio_route_changed", "device_added", if (addedPrivateOutput) "private" else "speaker")
+      val priorPrivateDeviceId = activePrivateDeviceId
+      val isNewPrivateRoute = priorPrivateDeviceId != null && addedDevices.any {
+        isPrivateOutput(it) && it.id != priorPrivateDeviceId
+      }
+      if (isNewPrivateRoute && pauseReason == PauseReason.USER && !explicitAppPause && audioTrack != null) {
+        routeLog("paused_session_upgraded_to_route_loss_on_reconnect")
+        desiredPlaying = true
+        pauseReason = PauseReason.ROUTE_LOSS
+      }
       if (addedPrivateOutput && pauseReason == PauseReason.ROUTE_LOSS) {
         mainHandler.postDelayed(::resumeAfterRouteLoss, 500L)
         mainHandler.postDelayed(::resumeAfterRouteLoss, 1_500L)
+        mainHandler.postDelayed(::resumeAfterRouteLoss, 3_000L)
         return
       }
       mainHandler.postDelayed({ if (isPlaying()) refreshActivePrivateDevice() }, 350L)
@@ -97,25 +126,41 @@ class InnerAudioPlaybackService : Service() {
     }
 
     override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>) {
-      val activeId = activePrivateDeviceId ?: return
-      if (removedDevices.any { it.id == activeId }) {
-        ProceduralAudioEngine.recordDiagnostic("audio_route_changed", "private_device_removed", "speaker")
-        desiredPlaying = false
-        pause(PauseReason.ROUTE_LOSS)
+      val removedPrivateOutput = removedDevices.any(::isPrivateOutput)
+      routeLog("devices_removed=${describeDevices(removedDevices)} private=$removedPrivateOutput activeId=$activePrivateDeviceId")
+      if (!removedPrivateOutput) return
+
+      val activeId = activePrivateDeviceId
+      val removedActiveOutput = activeId != null && removedDevices.any { it.id == activeId }
+      if (removedActiveOutput || (isPlaying() && !hasPrivateOutput())) {
+        val followedMediaPause = lastMediaSessionPauseAtElapsedMs != Long.MIN_VALUE &&
+          pauseReason == PauseReason.USER &&
+          SystemClock.elapsedRealtime() - lastMediaSessionPauseAtElapsedMs <= MEDIA_PAUSE_ROUTE_GRACE_MS
+        if (followedMediaPause) {
+          routeLog("media_pause_upgraded_to_route_loss source=private_device_removed")
+          desiredPlaying = true
+          pauseReason = PauseReason.ROUTE_LOSS
+          ProceduralAudioEngine.recordDiagnostic("audio_route_changed", "private_device_removed", "speaker")
+        } else {
+          pauseForRouteLoss("private_device_removed")
+        }
       }
     }
   }
 
   private val focusChangeListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
+    routeLog("focus_change=$focusChange")
     when (focusChange) {
       AudioManager.AUDIOFOCUS_LOSS -> {
         ProceduralAudioEngine.recordDiagnostic("interruption_began", "focus_loss")
-        desiredPlaying = false
-        pause(PauseReason.INTERRUPTION)
+        if (pauseReason != PauseReason.ROUTE_LOSS) {
+          desiredPlaying = false
+          pause(PauseReason.INTERRUPTION)
+        }
       }
       AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
         ProceduralAudioEngine.recordDiagnostic("interruption_began", "focus_loss_transient")
-        pause(PauseReason.INTERRUPTION)
+        if (pauseReason != PauseReason.ROUTE_LOSS) pause(PauseReason.INTERRUPTION)
       }
       AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> audioTrack?.setVolume(0.35f)
       AudioManager.AUDIOFOCUS_GAIN -> {
@@ -132,6 +177,7 @@ class InnerAudioPlaybackService : Service() {
     playbackState = "stopped"
     audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
     createNotificationChannel()
+    registerNoisyReceiver()
     ProceduralAudioEngine.onSleepTimerElapsed = { mainHandler.post { stop() } }
     mediaSession = MediaSessionCompat(this, "InnerAudio").apply {
       setCallback(object : MediaSessionCompat.Callback() {
@@ -140,6 +186,10 @@ class InnerAudioPlaybackService : Service() {
           play("media_control")
         }
         override fun onPause() {
+          if (pauseReason == PauseReason.ROUTE_LOSS) return
+          lastMediaSessionPauseAtElapsedMs = SystemClock.elapsedRealtime()
+          explicitAppPause = false
+          routeLog("media_session_pause")
           desiredPlaying = false
           pause(PauseReason.USER)
         }
@@ -156,6 +206,8 @@ class InnerAudioPlaybackService : Service() {
         play("play_request")
       }
       ACTION_PAUSE -> {
+        lastMediaSessionPauseAtElapsedMs = Long.MIN_VALUE
+        explicitAppPause = true
         desiredPlaying = false
         pause(PauseReason.USER)
       }
@@ -173,6 +225,7 @@ class InnerAudioPlaybackService : Service() {
     mediaSession?.release()
     mediaSession = null
     ProceduralAudioEngine.onSleepTimerElapsed = null
+    unregisterNoisyReceiver()
     isRunning = false
     super.onDestroy()
   }
@@ -180,13 +233,17 @@ class InnerAudioPlaybackService : Service() {
   private fun isPlaying() = renderThreadRunning.get() && !renderThreadPaused.get()
 
   private fun play(reason: String, gentleFadeIn: Boolean = false) {
-    if (!requestAudioFocus()) return
+    val focusGranted = requestAudioFocus()
+    routeLog("play reason=$reason focusGranted=$focusGranted gentle=$gentleFadeIn")
+    if (!focusGranted) return
+    explicitAppPause = false
     if (audioTrack == null) {
       ProceduralAudioEngine.sampleRate = preferredSampleRate()
       audioTrack = buildAudioTrack()
       startRenderThread()
     }
     pauseReason = null
+    ProceduralAudioEngine.resumeSleepTimer()
     if (gentleFadeIn) audioTrack?.setVolume(0f) else audioTrack?.setVolume(1f)
     audioTrack?.play()
     renderThreadPaused.set(false)
@@ -203,7 +260,9 @@ class InnerAudioPlaybackService : Service() {
   }
 
   private fun pause(reason: PauseReason) {
+    routeLog("pause reason=$reason")
     pauseReason = reason
+    ProceduralAudioEngine.pauseSleepTimer()
     renderThreadPaused.set(true)
     audioTrack?.pause()
     playbackState = if (audioTrack == null) "stopped" else "paused"
@@ -218,6 +277,7 @@ class InnerAudioPlaybackService : Service() {
   private fun stop() {
     desiredPlaying = false
     pauseReason = null
+    explicitAppPause = false
     teardownPlayback()
     mediaSession?.isActive = false
     stopForegroundCompat()
@@ -269,16 +329,84 @@ class InnerAudioPlaybackService : Service() {
   }
 
   private fun resumeAfterRouteLoss() {
-    if (pauseReason != PauseReason.ROUTE_LOSS) return
-    val privateDevice = audioManager
-      ?.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
-      ?.firstOrNull(::isPrivateOutput)
-      ?: return
-    audioTrack?.preferredDevice = privateDevice
+    if (pauseReason != PauseReason.ROUTE_LOSS) {
+      routeLog("resume_skipped reason=$pauseReason")
+      return
+    }
+    val privateDevice = preferredPrivateOutput()
+    if (privateDevice == null) {
+      routeLog("resume_waiting outputs=${describeDevices(audioManager?.getDevices(AudioManager.GET_DEVICES_OUTPUTS) ?: emptyArray())}")
+      return
+    }
+    val preferredAccepted = audioTrack?.setPreferredDevice(privateDevice)
+    routeLog("resume_attempt device=${describeDevice(privateDevice)} preferredAccepted=$preferredAccepted")
     activePrivateDeviceId = privateDevice.id
     ProceduralAudioEngine.setPrivateOutput(true)
     desiredPlaying = true
     play("route_recovered", gentleFadeIn = true)
+  }
+
+  /**
+   * Route loss may only take ownership of a session that is currently playing.
+   * In particular, it must never replace USER after a manual pause, since that
+   * would make a later device connection look eligible for automatic resume.
+   */
+  private fun pauseForRouteLoss(source: String) {
+    if (!isPlaying()) {
+      routeLog("route_loss_ignored source=$source")
+      return
+    }
+    routeLog("route_loss source=$source")
+    ProceduralAudioEngine.recordDiagnostic("audio_route_changed", source, "speaker")
+    pause(PauseReason.ROUTE_LOSS)
+  }
+
+  private fun hasPrivateOutput(): Boolean = audioManager
+    ?.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
+    ?.any(::isPrivateOutput) == true
+
+  private fun preferredPrivateOutput(): AudioDeviceInfo? = audioManager
+    ?.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
+    ?.filter(::isPrivateOutput)
+    ?.minByOrNull { device ->
+      when (device.type) {
+        AudioDeviceInfo.TYPE_BLUETOOTH_A2DP -> 0
+        AudioDeviceInfo.TYPE_WIRED_HEADSET,
+        AudioDeviceInfo.TYPE_WIRED_HEADPHONES,
+        AudioDeviceInfo.TYPE_USB_HEADSET,
+        AudioDeviceInfo.TYPE_USB_DEVICE -> 1
+        else -> 2
+      }
+    }
+
+  private fun routeLog(message: String) {
+    Log.i(
+      ROUTE_LOG_TAG,
+      "$message state=$playbackState pauseReason=$pauseReason desired=$desiredPlaying playing=${isPlaying()} explicitAppPause=$explicitAppPause",
+    )
+  }
+
+  private fun describeDevices(devices: Array<out AudioDeviceInfo>): String =
+    devices.joinToString(prefix = "[", postfix = "]", transform = ::describeDevice)
+
+  private fun describeDevice(device: AudioDeviceInfo): String =
+    "${device.id}:${device.type}:${device.productName}"
+
+  private fun registerNoisyReceiver() {
+    if (noisyReceiverRegistered) return
+    ContextCompat.registerReceiver(
+      this,
+      noisyReceiver,
+      IntentFilter(AudioManager.ACTION_AUDIO_BECOMING_NOISY),
+      ContextCompat.RECEIVER_NOT_EXPORTED,
+    )
+    noisyReceiverRegistered = true
+  }
+
+  private fun unregisterNoisyReceiver() {
+    if (!noisyReceiverRegistered) return
+    unregisterReceiver(noisyReceiver)
+    noisyReceiverRegistered = false
   }
 
   private fun rampTrackVolume() {

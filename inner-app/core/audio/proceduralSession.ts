@@ -87,10 +87,18 @@ export class ProceduralPlaybackSession {
   }
 
   async reconcilePlaybackState() {
-    const nativeState = await this.engine.getPlaybackState();
+    const [nativeState, nativePositionMs] = await Promise.all([
+      this.engine.getPlaybackState(),
+      this.engine.getTimelinePositionMs(),
+    ]);
     const nativePlaying = nativeState === 'playing';
-    if (this.playing && !nativePlaying) this.captureElapsed();
-    if (!this.playing && nativePlaying) this.startedAtMs = this.now();
+    if (nativePositionMs !== null) {
+      this.accumulatedMs = Math.max(0, nativePositionMs);
+      this.startedAtMs = nativePlaying ? this.now() : null;
+    } else {
+      if (this.playing && !nativePlaying) this.captureElapsed();
+      if (!this.playing && nativePlaying) this.startedAtMs = this.now();
+    }
     this.playing = nativePlaying;
     return nativeState;
   }
