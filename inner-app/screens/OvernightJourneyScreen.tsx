@@ -12,6 +12,7 @@ import {
   FactoryAudioJourney,
   CompiledOvernightProtocol,
   ProceduralEnvironment,
+  toneGainForEnvironment,
 } from '../core/audio';
 import { getLucidSignalCuePlan, LucidSignalCuePlan } from '../core/lucidSignalLearning';
 import {
@@ -159,7 +160,7 @@ function overnightJourney(
           target: {
             ...stage.target,
             toneGain: typeof stage.target.toneGain === 'number'
-              ? stage.target.toneGain * (environment === 'temple' ? 0.07 : 1)
+              ? toneGainForEnvironment(stage.target.toneGain, environment)
               : undefined,
             environment,
             environmentGain: stage.id === 'release' ? gain * 0.55 : gain,

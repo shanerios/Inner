@@ -1,4 +1,5 @@
 import type { AudioJourneyTimeline, AudioJourneyStage, ProceduralEnvironment } from './types';
+import { toneGainForEnvironment } from './config';
 
 export type FactoryAudioJourney = {
   id: string;
@@ -430,7 +431,7 @@ export function createPersonalizedLucidJourney(
         environmentIntensity: answers.feel === 'immersive' ? 0.68 : answers.feel === 'gentle' ? 0.38 : 0.5,
       } : {}),
       toneGain: typeof item.target.toneGain === 'number'
-        ? Math.min(1, item.target.toneGain * toneScale * (answers.environment === 'temple' ? 0.08 : 1))
+        ? Math.min(1, toneGainForEnvironment(item.target.toneGain * toneScale, answers.environment ?? 'none'))
         : undefined,
       binauralGain: typeof item.target.binauralGain === 'number' ? Math.min(1, item.target.binauralGain * gainScale) : undefined,
       noiseGain: answers.feel === 'minimal' ? 0.05 : item.target.noiseGain,

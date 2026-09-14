@@ -31,16 +31,19 @@ describe('overnight protocol', () => {
     expect(result.events.filter(event => event.id.startsWith('signal-'))).toHaveLength(2);
   });
 
-  it('keeps the carrier beneath the Temple environment', () => {
-    const result = compileOvernightProtocol(createRecognitionOvernightProtocol({
-      sleepDurationMinutes: 8 * 60,
-      environment: 'temple',
-      signalId: 'chimes',
-      cuePlan: 'gentle',
-    }), DEFAULT_PROCEDURAL_AUDIO_CONFIG);
-    expect(result.phases[0].audioConfig.toneGain).toBe(0.01);
-    expect(result.phases[1].audioConfig.toneGain).toBe(0.01);
-  });
+  it.each(['temple', 'ocean', 'forest', 'cosmic', 'fire'] as const)(
+    'keeps the carrier beneath the %s environment',
+    environment => {
+      const result = compileOvernightProtocol(createRecognitionOvernightProtocol({
+        sleepDurationMinutes: 8 * 60,
+        environment,
+        signalId: 'chimes',
+        cuePlan: 'gentle',
+      }), DEFAULT_PROCEDURAL_AUDIO_CONFIG);
+      expect(result.phases[0].audioConfig.toneGain).toBe(0.01);
+      expect(result.phases[1].audioConfig.toneGain).toBe(0.01);
+    },
+  );
 
   it('compresses a complete standard night below ten minutes without losing signal events', () => {
     const source = createRecognitionOvernightProtocol({

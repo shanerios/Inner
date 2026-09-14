@@ -79,14 +79,19 @@ describe('factory audio journeys', () => {
     expect(journey.timeline.stages.every(stage => stage.target.spatialMode === 'still')).toBe(true);
   });
 
-  it('carries a selected Temple environment through every personalized stage', () => {
-    const journey = createPersonalizedLucidJourney({
+  it('keeps the carrier equally quiet beneath every personalized environment', () => {
+    const temple = createPersonalizedLucidJourney({
       intention: 'lucidity', environment: 'temple', durationMinutes: 10, feel: 'gentle', familiarity: 'new',
     });
-    expect(journey.timeline.stages.every(item => item.target.environment === 'temple')).toBe(true);
-    expect(journey.timeline.stages.every(item => (item.target.environmentGain ?? 0) > 0)).toBe(true);
-    expect(Math.max(...journey.timeline.stages.map(item => item.target.toneGain ?? 0))).toBeLessThan(0.07);
-    expect(() => compileAudioJourneyTimeline(journey.timeline, DEFAULT_PROCEDURAL_AUDIO_CONFIG)).not.toThrow();
+    const ocean = createPersonalizedLucidJourney({
+      intention: 'lucidity', environment: 'ocean', durationMinutes: 10, feel: 'gentle', familiarity: 'new',
+    });
+    expect(temple.timeline.stages.every(item => item.target.environment === 'temple')).toBe(true);
+    expect(temple.timeline.stages.every(item => (item.target.environmentGain ?? 0) > 0)).toBe(true);
+    expect(temple.timeline.stages.map(item => item.target.toneGain))
+      .toEqual(ocean.timeline.stages.map(item => item.target.toneGain));
+    expect(Math.max(...temple.timeline.stages.map(item => item.target.toneGain ?? 0))).toBeLessThan(0.07);
+    expect(() => compileAudioJourneyTimeline(temple.timeline, DEFAULT_PROCEDURAL_AUDIO_CONFIG)).not.toThrow();
   });
 
   it('preserves the visualization sound arc and keeps movement bounded', () => {

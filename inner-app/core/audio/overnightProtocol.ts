@@ -169,7 +169,7 @@ export function createRecognitionOvernightProtocol(options: RecognitionOvernight
         noiseColor: 'pink',
         noiseGain: 0.12,
         masterGain: 0.58,
-        ...(options.environment === 'temple' ? { toneGain: 0.01 } : {}),
+        toneGain: 0.01,
       },
       events: [{ id: 'journey-begins', trigger: { kind: 'phaseStart' }, actions: [{ kind: 'markEvent', name: 'overnight_started' }] }],
     },

@@ -1,5 +1,17 @@
 import type { NoiseColor, ProceduralAudioConfig } from './types';
 
+// In environment-led journeys, the carrier should sit beneath the scene rather
+// than compete with it. Live Mix remains unscaled so its tone control stays
+// literal and user-directed.
+export const ENVIRONMENT_TONE_GAIN_SCALE = 0.08;
+
+export function toneGainForEnvironment(
+  toneGain: number,
+  environment: ProceduralAudioConfig['environment'],
+): number {
+  return environment === 'none' ? toneGain : toneGain * ENVIRONMENT_TONE_GAIN_SCALE;
+}
+
 export const PROCEDURAL_AUDIO_LIMITS = {
   carrierHz: { min: 20, max: 2000 },
   binauralCarrierHz: { min: 100, max: 500 },
