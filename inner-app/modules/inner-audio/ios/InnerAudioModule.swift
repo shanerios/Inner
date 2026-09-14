@@ -199,11 +199,7 @@ private final class ProceduralAudioEngine: NSObject {
   private var isChangingNoiseColor = false
   private var rainMix = 0.0
   private var oceanEnvelope = 0.0
-  private var oceanRandom: UInt64 = 0x9e3779b97f4a7c15 ^ 0x51ed2705
-  private var oceanLow = 0.0
-  private var oceanMid = 0.0
-  private var oceanFoamLeft = 0.0
-  private var oceanFoamRight = 0.0
+  private let oceanModel = OceanModel()
   private var windEnvelope = 0.0
   private var windRandom: UInt64 = 0x9e3779b97f4a7c15 ^ 0x7f4a7c15
   private var windBody = 0.0
@@ -514,11 +510,7 @@ private final class ProceduralAudioEngine: NSObject {
     isChangingNoiseColor = false
     rainMix = 0
     oceanEnvelope = 0
-    oceanRandom = 0x9e3779b97f4a7c15 ^ 0x51ed2705
-    oceanLow = 0
-    oceanMid = 0
-    oceanFoamLeft = 0
-    oceanFoamRight = 0
+    oceanModel.reset(seed: 0x9e3779b97f4a7c15, sampleRate: sampleRate)
     windEnvelope = 0
     windRandom = 0x9e3779b97f4a7c15 ^ 0x7f4a7c15
     windBody = 0
@@ -751,7 +743,7 @@ private final class ProceduralAudioEngine: NSObject {
     lock.unlock()
     if let activeTimeline, renderedTimelineGeneration != generation {
       random = activeTimeline.seed
-      oceanRandom = activeTimeline.seed ^ 0x51ed2705
+      oceanModel.reset(seed: activeTimeline.seed, sampleRate: sampleRate)
       windRandom = activeTimeline.seed ^ 0x7f4a7c15
       fireRandom = activeTimeline.seed ^ 0x2c1b3c6d
       cosmicRandom = activeTimeline.seed ^ 0x8f1bbcdc
@@ -1229,31 +1221,8 @@ private final class ProceduralAudioEngine: NSObject {
   }
 
   private func nextOcean(elapsedSeconds: Double, intensity: Double) -> (left: Double, right: Double) {
-    let shared = nextOceanWhite()
-    oceanLow += 0.005 * (shared - oceanLow)
-    oceanMid += 0.024 * (shared - oceanMid)
-    let slowWave = clamp(
-      0.5 + 0.32 * sin(elapsedSeconds * Double.pi * 2 / 9.7)
-        + 0.18 * sin(elapsedSeconds * Double.pi * 2 / 13.9 + 1.8),
-      0,
-      1
-    )
-    let crest = slowWave * slowWave * (3 - 2 * slowWave)
-    let leftWhite = nextOceanWhite()
-    let rightWhite = nextOceanWhite()
-    oceanFoamLeft += 0.075 * (leftWhite - oceanFoamLeft)
-    oceanFoamRight += 0.075 * (rightWhite - oceanFoamRight)
-    let undertow = (oceanLow * 2.7 + oceanMid * 0.8) * (0.45 + slowWave * 0.55)
-    let foamLevel = 0.08 + intensity * 0.08 + crest * (0.34 + intensity * 0.48)
-    let leftFoam = (leftWhite - oceanFoamLeft * 0.65) * foamLevel
-    let rightFoam = (rightWhite - oceanFoamRight * 0.65) * foamLevel
-    let sway = sin(elapsedSeconds * Double.pi * 2 / 17) * 0.12
-    return (undertow + leftFoam * (1 - sway), undertow + rightFoam * (1 + sway))
-  }
-
-  private func nextOceanWhite() -> Double {
-    oceanRandom ^= oceanRandom << 13; oceanRandom ^= oceanRandom >> 7; oceanRandom ^= oceanRandom << 17
-    return Double(oceanRandom & 0x00ff_ffff) / Double(0x007f_ffff) - 1
+    oceanModel.render(sampleRate: sampleRate, intensity: intensity)
+    return (oceanModel.left, oceanModel.right)
   }
 
   private func nextWind(elapsedSeconds: Double, intensity: Double) -> (left: Double, right: Double) {
@@ -2113,5 +2082,173 @@ final class TempleAccents {
       right += value * (1 + pans[slot]) * 0.7
       ages[slot] += 1
     }
+  }
+}
+
+/// Probabilistic surf model with a fixed micro-water voice pool.
+final class OceanModel {
+  private(set) var left = 0.0
+  private(set) var right = 0.0
+  private var random: UInt64 = 1
+  private var rate = 48_000.0
+  private var phase = 0
+  private var phaseAge = 0.0
+  private var phaseDuration = 96_000.0
+  private var wavesRemaining = 0
+  private var waveAmplitude = 0.7
+  private var wavePan = 0.0
+  private var bodyLevel = 0.3
+  private var foamLevel = 0.05
+  private var renderedPan = 0.0
+  private var renderedWidth = 0.3
+  private var mood = 0.5
+  private var moodTarget = 0.5
+  private var moodFrames = 48_000.0 * 120
+  private var low = 0.0
+  private var mid = 0.0
+  private var foamLeft = 0.0
+  private var foamRight = 0.0
+  private var bubblePhases = [Double](repeating: 0, count: 8)
+  private var bubbleAges = [Double](repeating: 0, count: 8)
+  private var bubbleDurations = [Double](repeating: 0, count: 8)
+  private var bubbleFrequencies = [Double](repeating: 0, count: 8)
+  private var bubbleAmplitudes = [Double](repeating: 0, count: 8)
+  private var bubblePans = [Double](repeating: 0, count: 8)
+  private var bubbleCursor = 0
+  private var bubbleCountdown = 0.0
+  private var bubbleBurstRemaining = 0
+  private var bubbleLeft = 0.0
+  private var bubbleRight = 0.0
+
+  func reset(seed: UInt64, sampleRate: Double) {
+    random = seed ^ 0x510e527f
+    if random == 0 { random = 1 }
+    rate = sampleRate
+    phase = 0; phaseAge = 0; phaseDuration = rate * 2; wavesRemaining = 0
+    waveAmplitude = 0.7; wavePan = 0; bodyLevel = 0.3; foamLevel = 0.05
+    renderedPan = 0; renderedWidth = 0.3; mood = 0.5; moodTarget = 0.5; moodFrames = rate * 120
+    low = 0; mid = 0; foamLeft = 0; foamRight = 0
+    for i in bubblePhases.indices {
+      bubblePhases[i] = 0; bubbleAges[i] = 0; bubbleDurations[i] = 0
+      bubbleFrequencies[i] = 0; bubbleAmplitudes[i] = 0; bubblePans[i] = 0
+    }
+    bubbleCursor = 0; bubbleCountdown = 0; bubbleBurstRemaining = 0
+    bubbleLeft = 0; bubbleRight = 0; left = 0; right = 0
+  }
+
+  private func unit() -> Double {
+    random ^= random << 13; random ^= random >> 7; random ^= random << 17
+    return Double(random & 0x00ff_ffff) / Double(0x00ff_ffff)
+  }
+
+  private func white() -> Double { unit() * 2 - 1 }
+
+  private func enter(_ next: Int, intensity: Double) {
+    phase = next
+    phaseAge = 0
+    switch phase {
+    case 0:
+      phaseDuration = rate * (wavesRemaining > 0 ? 1.5 + unit() * 2.5 : 6 + unit() * 10)
+    case 1:
+      if wavesRemaining <= 0 { wavesRemaining = 1 + Int(unit() * 3) }
+      wavesRemaining -= 1
+      waveAmplitude = (0.55 + unit() * 0.38) * (0.7 + intensity * 0.3) * (0.78 + mood * 0.3)
+      wavePan = (unit() * 2 - 1) * 0.52
+      phaseDuration = rate * (2.2 + unit() * 2.7)
+    case 2:
+      phaseDuration = rate * (0.8 + unit() * 1.1)
+    case 3:
+      phaseDuration = rate * (1.5 + unit() * 1.8)
+      bubbleBurstRemaining = 3 + Int(unit() * (4 + intensity * 4))
+      bubbleCountdown = rate * (0.08 + unit() * 0.18)
+    case 4:
+      phaseDuration = rate * (3 + unit() * 3.5)
+      bubbleBurstRemaining += 2 + Int(unit() * 4)
+    default:
+      phaseDuration = rate * (4 + unit() * 5)
+    }
+  }
+
+  private func advance(intensity: Double) {
+    if phaseAge >= phaseDuration { enter(phase == 5 ? 0 : phase + 1, intensity: intensity) }
+  }
+
+  private func exciteBubble() {
+    let slot = bubbleCursor
+    bubbleCursor = (bubbleCursor + 1) % bubblePhases.count
+    bubblePhases[slot] = 0
+    bubbleAges[slot] = 0
+    bubbleDurations[slot] = rate * (0.08 + unit() * 0.20)
+    bubbleFrequencies[slot] = 320 + unit() * 1_180
+    bubbleAmplitudes[slot] = 0.012 + unit() * 0.025
+    bubblePans[slot] = (unit() * 2 - 1) * 0.8
+  }
+
+  private func renderBubbles() {
+    if bubbleBurstRemaining > 0 && (phase == 3 || phase == 4) {
+      bubbleCountdown -= 1
+      if bubbleCountdown <= 0 {
+        exciteBubble()
+        bubbleBurstRemaining -= 1
+        bubbleCountdown = rate * (0.10 + unit() * 0.42)
+      }
+    }
+    bubbleLeft = 0; bubbleRight = 0
+    for slot in bubblePhases.indices {
+      let duration = bubbleDurations[slot]
+      if duration <= 0 || bubbleAges[slot] >= duration { continue }
+      let progress = bubbleAges[slot] / duration
+      let attack = 0.5 - 0.5 * cos(Double.pi * min(1, bubbleAges[slot] / max(1, rate * 0.006)))
+      let envelope = attack * (1 - progress) * (1 - progress)
+      let frequency = bubbleFrequencies[slot] * (1 + 0.22 * (1 - progress))
+      let value = sin(bubblePhases[slot]) * envelope * bubbleAmplitudes[slot]
+      bubblePhases[slot] = fmod(bubblePhases[slot] + Double.pi * 2 * frequency / rate, Double.pi * 2)
+      bubbleAges[slot] += 1
+      bubbleLeft += value * (1 - bubblePans[slot]) * 0.6
+      bubbleRight += value * (1 + bubblePans[slot]) * 0.6
+    }
+  }
+
+  func render(sampleRate: Double, intensity: Double) {
+    if rate != sampleRate { reset(seed: random, sampleRate: sampleRate) }
+    advance(intensity: intensity)
+    moodFrames -= 1
+    if moodFrames <= 0 {
+      moodTarget = 0.15 + unit() * 0.75
+      moodFrames = rate * (120 + unit() * 180)
+    }
+    mood += (moodTarget - mood) / max(1, rate * 45)
+    let progress = min(1, phaseAge / max(1, phaseDuration))
+    let smooth = progress * progress * (3 - 2 * progress)
+    let bodyTarget: Double
+    let foamTarget: Double
+    let widthTarget: Double
+    switch phase {
+    case 0: bodyTarget = 0.25 + mood * 0.1; foamTarget = 0.04 + mood * 0.04; widthTarget = 0.25
+    case 1: bodyTarget = 0.28 + waveAmplitude * 0.52 * smooth; foamTarget = 0.05 + waveAmplitude * 0.16 * smooth; widthTarget = 0.3 + smooth * 0.25
+    case 2: bodyTarget = 0.56 + waveAmplitude * 0.28; foamTarget = 0.24 + waveAmplitude * 0.25; widthTarget = 0.68
+    case 3: bodyTarget = 0.72 - smooth * 0.16; foamTarget = (0.66 + waveAmplitude * 0.25) * (1 - smooth * 0.18); widthTarget = 0.9
+    case 4: bodyTarget = 0.54 - smooth * 0.12; foamTarget = 0.58 * (1 - smooth * 0.5); widthTarget = 0.82 - smooth * 0.18
+    default: bodyTarget = 0.42 - smooth * 0.15; foamTarget = 0.28 * (1 - smooth) + 0.05; widthTarget = 0.55 - smooth * 0.25
+    }
+    let slew = 1 / max(1, rate * 0.28)
+    bodyLevel += (bodyTarget - bodyLevel) * slew
+    foamLevel += (foamTarget - foamLevel) * slew
+    renderedPan += (wavePan - renderedPan) * slew
+    renderedWidth += (widthTarget - renderedWidth) * slew
+    let shared = white()
+    low += 0.0045 * (shared - low)
+    mid += 0.022 * (shared - mid)
+    let leftWhite = white()
+    let rightWhite = white()
+    foamLeft += 0.072 * (leftWhite - foamLeft)
+    foamRight += 0.072 * (rightWhite - foamRight)
+    let undertow = (low * 2.8 + mid * 0.78) * bodyLevel
+    let brightLeft = (leftWhite - foamLeft * 0.66) * foamLevel * (0.72 + intensity * 0.38)
+    let brightRight = (rightWhite - foamRight * 0.66) * foamLevel * (0.72 + intensity * 0.38)
+    renderBubbles()
+    left = undertow * (1 - renderedPan * 0.12) + brightLeft * (0.72 + renderedWidth * 0.35) * (1 - renderedPan * 0.3) + bubbleLeft
+    right = undertow * (1 + renderedPan * 0.12) + brightRight * (0.72 + renderedWidth * 0.35) * (1 + renderedPan * 0.3) + bubbleRight
+    phaseAge += 1
   }
 }

@@ -225,11 +225,7 @@ object ProceduralAudioEngine {
   private var isChangingNoiseColor = false
   private var rainMix = 0.0
   private var oceanEnvelope = 0.0
-  private var oceanRandom = XORSHIFT_SEED xor 0x51ed2705L
-  private var oceanLow = 0.0
-  private var oceanMid = 0.0
-  private var oceanFoamLeft = 0.0
-  private var oceanFoamRight = 0.0
+  private val oceanModel = OceanModel()
   private var windEnvelope = 0.0
   private var windRandom = XORSHIFT_SEED xor 0x7f4a7c15L
   private var windBody = 0.0
@@ -546,11 +542,7 @@ object ProceduralAudioEngine {
     isChangingNoiseColor = false
     rainMix = 0.0
     oceanEnvelope = 0.0
-    oceanRandom = XORSHIFT_SEED xor 0x51ed2705L
-    oceanLow = 0.0
-    oceanMid = 0.0
-    oceanFoamLeft = 0.0
-    oceanFoamRight = 0.0
+    oceanModel.reset(XORSHIFT_SEED, sampleRate)
     windEnvelope = 0.0
     windRandom = XORSHIFT_SEED xor 0x7f4a7c15L
     windBody = 0.0
@@ -660,7 +652,7 @@ object ProceduralAudioEngine {
     }
     if (activeTimeline != null && renderedTimelineGeneration != generation) {
       random = activeTimeline.seed
-      oceanRandom = activeTimeline.seed xor 0x51ed2705L
+      oceanModel.reset(activeTimeline.seed, sampleRate)
       windRandom = activeTimeline.seed xor 0x7f4a7c15L
       fireRandom = activeTimeline.seed xor 0x2c1b3c6dL
       cosmicRandom = activeTimeline.seed xor 0x8f1bbcdcL
@@ -1105,33 +1097,8 @@ object ProceduralAudioEngine {
   }
 
   private fun nextOcean(elapsedSeconds: Double, intensity: Double): StereoSample {
-    val shared = nextOceanWhite()
-    oceanLow += 0.005 * (shared - oceanLow)
-    oceanMid += 0.024 * (shared - oceanMid)
-    val slowWave = clamp(
-      0.5 + 0.32 * sin(elapsedSeconds * Math.PI * 2 / 9.7) +
-        0.18 * sin(elapsedSeconds * Math.PI * 2 / 13.9 + 1.8),
-      0.0,
-      1.0,
-    )
-    val crest = slowWave * slowWave * (3 - 2 * slowWave)
-    val leftWhite = nextOceanWhite()
-    val rightWhite = nextOceanWhite()
-    oceanFoamLeft += 0.075 * (leftWhite - oceanFoamLeft)
-    oceanFoamRight += 0.075 * (rightWhite - oceanFoamRight)
-    val undertow = (oceanLow * 2.7 + oceanMid * 0.8) * (0.45 + slowWave * 0.55)
-    val foamLevel = 0.08 + intensity * 0.08 + crest * (0.34 + intensity * 0.48)
-    val leftFoam = (leftWhite - oceanFoamLeft * 0.65) * foamLevel
-    val rightFoam = (rightWhite - oceanFoamRight * 0.65) * foamLevel
-    val sway = sin(elapsedSeconds * Math.PI * 2 / 17.0) * 0.12
-    return oceanSample.set(undertow + leftFoam * (1 - sway), undertow + rightFoam * (1 + sway))
-  }
-
-  private fun nextOceanWhite(): Double {
-    oceanRandom = oceanRandom xor (oceanRandom shl 13)
-    oceanRandom = oceanRandom xor (oceanRandom ushr 7)
-    oceanRandom = oceanRandom xor (oceanRandom shl 17)
-    return (oceanRandom and 0x00ff_ffffL).toDouble() / 0x007f_ffffL.toDouble() - 1
+    oceanModel.render(sampleRate, intensity)
+    return oceanSample.set(oceanModel.left, oceanModel.right)
   }
 
   private fun nextWind(elapsedSeconds: Double, intensity: Double): StereoSample {
