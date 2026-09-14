@@ -30,6 +30,7 @@ type OvernightFeel = 'gentle' | 'deep' | 'immersive';
 const ENVIRONMENTS: Array<{ id: OvernightEnvironment; label: string }> = [
   { id: 'ocean', label: 'Ocean' },
   { id: 'forest', label: 'Forest' },
+  { id: 'temple', label: 'Temple' },
   { id: 'cosmic', label: 'Cosmic' },
   { id: 'fire', label: 'Fire' },
 ];
@@ -157,6 +158,9 @@ function overnightJourney(
           ...stage,
           target: {
             ...stage.target,
+            toneGain: typeof stage.target.toneGain === 'number'
+              ? stage.target.toneGain * (environment === 'temple' ? 0.07 : 1)
+              : undefined,
             environment,
             environmentGain: stage.id === 'release' ? gain * 0.55 : gain,
             environmentIntensity: feel === 'immersive' ? 0.68 : feel === 'deep' ? 0.5 : 0.34,

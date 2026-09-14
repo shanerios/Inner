@@ -2,12 +2,14 @@ import React, { useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useVideoPlayer, VideoView } from '../core/memorySafeVideo';
 import { createJourneyPreview, createPersonalizedLucidJourney, PersonalizedLucidJourneyAnswers, savePersonalizedJourney } from '../core/audio';
 import { Typography } from '../core/typography';
 
 const OPTIONS = {
   intention: [['lucidity', 'Lucid recognition'], ['recall', 'Dream recall'], ['calm', 'Calm return'], ['visualization', 'Visualization']],
+  environment: [['none', 'Quiet'], ['temple', 'Temple'], ['ocean', 'Ocean'], ['forest', 'Forest'], ['cosmic', 'Cosmic'], ['fire', 'Fire']],
   durationMinutes: [[5, '5 min'], [10, '10 min'], [20, '20 min'], [30, '30 min']],
   feel: [['gentle', 'Gentle'], ['immersive', 'Immersive'], ['grounded', 'Grounded'], ['minimal', 'Minimal']],
   familiarity: [['new', 'New'], ['familiar', 'Familiar'], ['experienced', 'Experienced']],
@@ -17,7 +19,7 @@ export default function CreateLucidJourneyScreen() {
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
   const [answers, setAnswers] = useState<PersonalizedLucidJourneyAnswers>({
-    intention: 'lucidity', durationMinutes: 10, feel: 'gentle', familiarity: 'new',
+    intention: 'lucidity', environment: 'temple', durationMinutes: 10, feel: 'gentle', familiarity: 'new',
   });
   const [nameModalVisible, setNameModalVisible] = useState(false);
   const [journeyName, setJourneyName] = useState('My Lucid Journey');
@@ -83,6 +85,7 @@ export default function CreateLucidJourneyScreen() {
         alwaysBounceVertical={false}
       >
         {group('WHAT ARE YOU MOVING TOWARD?', 'intention')}
+        {group('WHERE WOULD YOU LIKE TO GO?', 'environment')}
         {group('HOW MUCH TIME DO YOU HAVE?', 'durationMinutes')}
         {group('HOW SHOULD IT FEEL?', 'feel')}
         {group('YOUR EXPERIENCE', 'familiarity')}
@@ -109,6 +112,12 @@ export default function CreateLucidJourneyScreen() {
         </Pressable>
         <Pressable onPress={() => navigation.goBack()} style={styles.returnButton}><Text style={styles.returnText}>RETURN</Text></Pressable>
       </ScrollView>
+      <LinearGradient
+        pointerEvents="none"
+        colors={['rgba(2,4,11,0.98)', 'rgba(2,4,11,0.9)', 'rgba(2,4,11,0)']}
+        locations={[0, 0.7, 1]}
+        style={[styles.headerMask, { height: insets.top + (Platform.OS === 'android' ? 224 : 194) }]}
+      />
 
       <Modal visible={nameModalVisible} transparent animationType="fade" onRequestClose={() => setNameModalVisible(false)}>
         <KeyboardAvoidingView style={styles.modalRoot} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -141,6 +150,7 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#02040B' }, veil: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.58)' },
   scroll: { flex: 1 },
   content: { paddingHorizontal: 24 },
+  headerMask: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 2 },
   fixedHeader: { position: 'absolute', left: 24, right: 24, zIndex: 3, alignItems: 'center' },
   androidFixedHeader: { transform: [{ translateY: 30 }] },
   title: { color: '#F4F1FA', fontSize: 24, textAlign: 'center' },

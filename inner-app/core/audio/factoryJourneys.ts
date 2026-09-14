@@ -1,4 +1,4 @@
-import type { AudioJourneyTimeline, AudioJourneyStage } from './types';
+import type { AudioJourneyTimeline, AudioJourneyStage, ProceduralEnvironment } from './types';
 
 export type FactoryAudioJourney = {
   id: string;
@@ -15,6 +15,7 @@ export type PersonalizedLucidJourneyAnswers = {
   durationMinutes: 5 | 10 | 20 | 30;
   feel: 'gentle' | 'immersive' | 'grounded' | 'minimal';
   familiarity: 'new' | 'familiar' | 'experienced';
+  environment?: ProceduralEnvironment;
 };
 
 const stage = (
@@ -423,7 +424,14 @@ export function createPersonalizedLucidJourney(
     transitionMs: Math.round((item.transitionMs ?? 0) * durationScale),
     target: {
       ...item.target,
-      toneGain: typeof item.target.toneGain === 'number' ? Math.min(1, item.target.toneGain * toneScale) : undefined,
+      ...(answers.environment ? {
+        environment: answers.environment,
+        environmentGain: answers.environment === 'none' ? 0 : (answers.feel === 'immersive' ? 0.52 : answers.feel === 'minimal' ? 0.22 : 0.38),
+        environmentIntensity: answers.feel === 'immersive' ? 0.68 : answers.feel === 'gentle' ? 0.38 : 0.5,
+      } : {}),
+      toneGain: typeof item.target.toneGain === 'number'
+        ? Math.min(1, item.target.toneGain * toneScale * (answers.environment === 'temple' ? 0.08 : 1))
+        : undefined,
       binauralGain: typeof item.target.binauralGain === 'number' ? Math.min(1, item.target.binauralGain * gainScale) : undefined,
       noiseGain: answers.feel === 'minimal' ? 0.05 : item.target.noiseGain,
       noiseColor: answers.feel === 'grounded' ? 'brown' as const : item.target.noiseColor,

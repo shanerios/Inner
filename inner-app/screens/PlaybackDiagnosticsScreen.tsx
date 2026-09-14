@@ -12,6 +12,7 @@ import {
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import * as Application from 'expo-application';
 import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { JourneyMemoryEvent, JourneyMemorySession, JourneyMemoryState } from '../core/journeyMemory';
@@ -120,21 +121,19 @@ export default function PlaybackDiagnosticsScreen() {
       }, generatedAt));
       const filename = `inner-playback-diagnostics-${new Date(generatedAt).toISOString().replace(/[:.]/g, '-')}.json`;
 
-      if (Platform.OS === 'android') {
-        const permission = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
-        if (!permission.granted) return;
-        const uri = await FileSystem.StorageAccessFramework.createFileAsync(
-          permission.directoryUri,
-          filename,
-          'application/json',
-        );
+      if (FileSystem.cacheDirectory && await Sharing.isAvailableAsync()) {
+        const uri = `${FileSystem.cacheDirectory}${filename}`;
         await FileSystem.writeAsStringAsync(uri, data);
-        Alert.alert('Diagnostics saved', 'The playback report was saved to the folder you selected.');
+        await Sharing.shareAsync(uri, {
+          mimeType: 'application/json',
+          dialogTitle: 'Export Inner Playback Diagnostics',
+          UTI: 'public.json',
+        });
       } else {
         await Share.share({ title: 'Inner Playback Diagnostics', message: data });
       }
     } catch {
-      Alert.alert('Could not export', 'Inner could not create the playback report. Please try again.');
+      Alert.alert('Could not share', 'Inner created the playback report but could not open the selected sharing destination.');
     } finally {
       setExporting(false);
     }

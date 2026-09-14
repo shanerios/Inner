@@ -242,6 +242,35 @@ private final class ProceduralAudioEngine: NSObject {
   private var forestBirdFreqRange = 0.0
   private var forestBirdAmp = 0.0
   private var forestBirdPan = 0.0
+  private var templeSpaceEnvelope = 0.0
+  private var templeSpaceRandom: UInt64 = 0x9e3779b97f4a7c15 ^ 0x6a09e667
+  private var templeSpaceAirLeft = 0.0
+  private var templeSpaceAirRight = 0.0
+  private var templeSpaceBreathLowLeft = 0.0
+  private var templeSpaceBreathLowRight = 0.0
+  private var templeSpaceBreathMidLeft = 0.0
+  private var templeSpaceBreathMidRight = 0.0
+  private var templeSpacePhases = [Double](repeating: 0, count: 3)
+  private static let templeSpaceFreqs = [73.42, 110.0, 164.81]
+  private static let templeSpaceWeights = [0.46, 0.25, 0.13]
+  private var templeSpaceChantPhases = [Double](repeating: 0, count: 3)
+  private static let templeSpaceChantFreqs = [104.0, 108.0, 111.5]
+  private static let templeSpaceChantWeights = [0.34, 0.28, 0.23]
+  private var templeSpaceFormantIc1 = [Double](repeating: 0, count: 4)
+  private var templeSpaceFormantIc2 = [Double](repeating: 0, count: 4)
+  private var templeSpaceDropFramesRemaining = 0.0
+  private var templeSpaceDropAgeFrames = 0.0
+  private var templeSpaceDropDurationFrames = 0.0
+  private var templeSpaceDropPhase = 0.0
+  private var templeSpaceDropFrequency = 0.0
+  private var templeSpaceDropAmplitude = 0.0
+  private var templeSpaceDropPan = 0.0
+  private var templeSpaceNextDropFrames = 0.0
+  private var templeSpaceDropEcho = [Double](repeating: 0, count: 48_000)
+  private var templeSpaceDropEchoIndex = 0
+  private var templeSpaceDelay = [Double](repeating: 0, count: 48_000)
+  private let templeAccents = TempleAccents()
+  private var templeSpaceDelayIndex = 0
   private var templeEnvelope = 0.0
   private var templeRandom: UInt64 = 0x9e3779b97f4a7c15 ^ 0x9c2f5a31
   private var templePhases = [Double](repeating: 0, count: 4)
@@ -528,6 +557,27 @@ private final class ProceduralAudioEngine: NSObject {
     forestBirdFreqRange = 0
     forestBirdAmp = 0
     forestBirdPan = 0
+    templeSpaceEnvelope = 0
+    templeSpaceRandom = 0x9e3779b97f4a7c15 ^ 0x6a09e667
+    templeSpaceAirLeft = 0
+    templeSpaceAirRight = 0
+    templeSpaceBreathLowLeft = 0
+    templeSpaceBreathLowRight = 0
+    templeSpaceBreathMidLeft = 0
+    templeSpaceBreathMidRight = 0
+    templeSpacePhases = [Double](repeating: 0, count: 3)
+    templeSpaceChantPhases = [Double](repeating: 0, count: 3)
+    templeSpaceFormantIc1 = [Double](repeating: 0, count: 4)
+    templeSpaceFormantIc2 = [Double](repeating: 0, count: 4)
+    templeSpaceDropFramesRemaining = 0
+    templeSpaceDropAgeFrames = 0
+    templeSpaceDropDurationFrames = 0
+    templeSpaceNextDropFrames = sampleRate * 3.2
+    templeSpaceDropEcho = [Double](repeating: 0, count: 48_000)
+    templeSpaceDropEchoIndex = 0
+    templeAccents.reset(seed: 0x9e3779b97f4a7c15, sampleRate: sampleRate)
+    templeSpaceDelay = [Double](repeating: 0, count: 48_000)
+    templeSpaceDelayIndex = 0
     templeEnvelope = 0
     templeRandom = 0x9e3779b97f4a7c15 ^ 0x9c2f5a31
     templePhases = [Double](repeating: 0, count: 4)
@@ -723,6 +773,26 @@ private final class ProceduralAudioEngine: NSObject {
       forestRandom = activeTimeline.seed ^ 0xc2b2ae35
       forestBirdActive = false
       forestBirdFramesRemaining = 0
+      templeSpaceRandom = activeTimeline.seed ^ 0x6a09e667
+      templeSpaceAirLeft = 0
+      templeSpaceAirRight = 0
+      templeSpaceBreathLowLeft = 0
+      templeSpaceBreathLowRight = 0
+      templeSpaceBreathMidLeft = 0
+      templeSpaceBreathMidRight = 0
+      templeSpacePhases = [Double](repeating: 0, count: 3)
+      templeSpaceChantPhases = [Double](repeating: 0, count: 3)
+      templeSpaceFormantIc1 = [Double](repeating: 0, count: 4)
+      templeSpaceFormantIc2 = [Double](repeating: 0, count: 4)
+      templeSpaceDropFramesRemaining = 0
+      templeSpaceDropAgeFrames = 0
+      templeSpaceDropDurationFrames = 0
+      templeSpaceNextDropFrames = sampleRate * 3.2
+      templeSpaceDropEcho = [Double](repeating: 0, count: 48_000)
+      templeSpaceDropEchoIndex = 0
+      templeAccents.reset(seed: activeTimeline.seed, sampleRate: sampleRate)
+      templeSpaceDelay = [Double](repeating: 0, count: 48_000)
+      templeSpaceDelayIndex = 0
       // Anything at-or-before the timeline's current position counts as
       // already fired, so a fresh timeline or a seek doesn't replay past cues.
       cueTimelineThresholdMs = timelineStartFrame * 1_000 / sampleRate
@@ -838,6 +908,9 @@ private final class ProceduralAudioEngine: NSObject {
       let forestTarget = target.environment == "forest" && target.environmentGain > 0.0001 ? 1.0 : 0.0
       let forestStep = 1 / max(1, sampleRate * 4.5)
       forestEnvelope += clamp(forestTarget - forestEnvelope, -forestStep, forestStep)
+      let templeSpaceTarget = target.environment == "temple" && target.environmentGain > 0.0001 ? 1.0 : 0.0
+      let templeSpaceStep = 1 / max(1, sampleRate * 4.5)
+      templeSpaceEnvelope += clamp(templeSpaceTarget - templeSpaceEnvelope, -templeSpaceStep, templeSpaceStep)
       // Temple is its own independent layer (like tone/binaural/noise), not tied
       // to the mutually-exclusive environment selector.
       let templeTarget = target.templeGain > 0.0001 ? 1.0 : 0.0
@@ -896,6 +969,10 @@ private final class ProceduralAudioEngine: NSObject {
         ? nextForest(elapsedSeconds: spatialSeconds, intensity: target.environmentIntensity)
         : (left: 0.0, right: 0.0)
       let forestGain = target.environmentGain * forestEnvelope
+      let templeSpace = templeSpaceEnvelope > 0.0001
+        ? nextTempleSpace(elapsedSeconds: spatialSeconds, intensity: target.environmentIntensity)
+        : (left: 0.0, right: 0.0)
+      let templeSpaceGain = target.environmentGain * templeSpaceEnvelope
       let temple = templeEnvelope > 0.0001
         ? nextTemple(elapsedSeconds: spatialSeconds, intensity: target.templeIntensity)
         : (left: 0.0, right: 0.0)
@@ -910,8 +987,8 @@ private final class ProceduralAudioEngine: NSObject {
       let speakerPulse = sin(phases[5]) * pulseEnvelope * gains[1] * spatialRoom
       let leftEntrainment = sin(phases[1]) * gains[1] * spatialRoom * privateOutputMix + speakerPulse * (1 - privateOutputMix)
       let rightEntrainment = sin(phases[2]) * gains[1] * spatialRoom * privateOutputMix + speakerPulse * (1 - privateOutputMix)
-      let leftMix = (leftCarrier + leftEntrainment + leftNoise + ocean.left * oceanGain + wind.left * windGain + fire.left * fireGain + cosmic.left * cosmicGain + forest.left * forestGain + temple.left * templeLevel + cue.left) * gains[3] * journeyFade * sleepGain * 0.32
-      let rightMix = (rightCarrier + rightEntrainment + rightNoise + ocean.right * oceanGain + wind.right * windGain + fire.right * fireGain + cosmic.right * cosmicGain + forest.right * forestGain + temple.right * templeLevel + cue.right) * gains[3] * journeyFade * sleepGain * 0.32
+      let leftMix = (leftCarrier + leftEntrainment + leftNoise + ocean.left * oceanGain + wind.left * windGain + fire.left * fireGain + cosmic.left * cosmicGain + forest.left * forestGain + templeSpace.left * templeSpaceGain + temple.left * templeLevel + cue.left) * gains[3] * journeyFade * sleepGain * 0.32
+      let rightMix = (rightCarrier + rightEntrainment + rightNoise + ocean.right * oceanGain + wind.right * windGain + fire.right * fireGain + cosmic.right * cosmicGain + forest.right * forestGain + templeSpace.right * templeSpaceGain + temple.right * templeLevel + cue.right) * gains[3] * journeyFade * sleepGain * 0.32
       left[frame] = Float(softLimit(leftMix))
       right[frame] = Float(softLimit(rightMix))
       phases[0] = fmod(phases[0] + tau * target.carrierHz / sampleRate, tau)
@@ -1488,6 +1565,150 @@ private final class ProceduralAudioEngine: NSObject {
     return (body, body)
   }
 
+  /// A quiet stone chamber: modal body, filtered air, and long asymmetric reflections.
+  private func nextTempleSpace(elapsedSeconds: Double, intensity: Double) -> (left: Double, right: Double) {
+    let tau = Double.pi * 2
+    var body = 0.0
+    for index in 0..<3 {
+      let breathe = 0.52 + 0.48 * sin(elapsedSeconds * tau / (31.0 + Double(index) * 13.0) + Double(index) * 1.9)
+      body += sin(templeSpacePhases[index]) * Self.templeSpaceWeights[index] * breathe
+      templeSpacePhases[index] = fmod(templeSpacePhases[index] + tau * Self.templeSpaceFreqs[index] / sampleRate, tau)
+    }
+    let leftWhite = nextTempleSpaceWhite()
+    let rightWhite = nextTempleSpaceWhite()
+    let airRate = 0.004 + intensity * 0.006
+    templeSpaceAirLeft += (leftWhite - templeSpaceAirLeft) * airRate
+    templeSpaceAirRight += (rightWhite - templeSpaceAirRight) * airRate
+
+    // A slowly opening noise band suggests shared breath without becoming a
+    // literal close-miked inhale. It lives mostly in the chamber reflections.
+    templeSpaceBreathLowLeft += (leftWhite - templeSpaceBreathLowLeft) * 0.0035
+    templeSpaceBreathLowRight += (rightWhite - templeSpaceBreathLowRight) * 0.0035
+    templeSpaceBreathMidLeft += (leftWhite - templeSpaceBreathMidLeft) * 0.028
+    templeSpaceBreathMidRight += (rightWhite - templeSpaceBreathMidRight) * 0.028
+    let breathCycle = 0.5 - 0.5 * cos(elapsedSeconds * tau / 12.7)
+    let breathEnvelope = breathCycle * breathCycle * (0.32 + intensity * 0.28)
+    let breathLeft = (templeSpaceBreathMidLeft - templeSpaceBreathLowLeft) * breathEnvelope
+    let breathRight = (templeSpaceBreathMidRight - templeSpaceBreathLowRight) * breathEnvelope
+
+    // Three imperfect virtual voices move from an open "O" spectrum toward a
+    // closed nasal hum. The sound stays distant because its dry level is low and
+    // most of it reaches the listener through the room taps below.
+    let chantTime = fmod(elapsedSeconds + 26.0, 31.0)
+    let chantEnvelope: Double
+    if chantTime >= 9.0 {
+      chantEnvelope = 0
+    } else if chantTime < 2.2 {
+      chantEnvelope = 0.5 - 0.5 * cos(Double.pi * chantTime / 2.2)
+    } else if chantTime > 6.0 {
+      chantEnvelope = 0.5 + 0.5 * cos(Double.pi * (chantTime - 6.0) / 3.0)
+    } else {
+      chantEnvelope = 1
+    }
+    let chantProgress = clamp(chantTime / 9.0, 0, 1)
+    let firstTransition = clamp(chantProgress / 0.56, 0, 1)
+    let finalTransition = clamp((chantProgress - 0.56) / 0.44, 0, 1)
+    let formant1 = chantProgress < 0.56
+      ? 700.0 + (300.0 - 700.0) * firstTransition
+      : 300.0 + (250.0 - 300.0) * finalTransition
+    let formant2 = chantProgress < 0.56
+      ? 1_200.0 + (800.0 - 1_200.0) * firstTransition
+      : 800.0 + (2_500.0 - 800.0) * finalTransition
+    let formant2Presence = 1.0 - finalTransition * 0.82
+    var sourceLeft = 0.0
+    var sourceRight = 0.0
+    var sub = 0.0
+    for index in 0..<3 {
+      let phase = templeSpaceChantPhases[index]
+      // A compact band-limited glottal source: richer than a sine but without
+      // the high-frequency aliasing of a naive sawtooth.
+      let glottal = sin(phase) + sin(phase * 2) * 0.42 + sin(phase * 3) * 0.18 + sin(phase * 4) * 0.08
+      let shimmer = 0.96 + 0.04 * sin(elapsedSeconds * tau * (5.1 + Double(index) * 0.47) + Double(index))
+      let voice = glottal * Self.templeSpaceChantWeights[index] * shimmer
+      sourceLeft += voice * (index == 2 ? 0.62 : 1)
+      sourceRight += voice * (index == 0 ? 0.62 : 1)
+      sub += sin(phase) * Self.templeSpaceChantWeights[index]
+      let jitter = 1.0 + 0.0014 * sin(elapsedSeconds * tau * (6.0 + Double(index) * 0.31) + Double(index) * 1.7)
+      templeSpaceChantPhases[index] = fmod(phase + tau * Self.templeSpaceChantFreqs[index] * jitter / sampleRate, tau)
+    }
+    let chantLeft = templeSpaceBandpass(sourceLeft, index: 0, frequency: formant1, q: 6.5) * 1.65
+      + templeSpaceBandpass(sourceLeft, index: 1, frequency: formant2, q: 7.5) * 1.25 * formant2Presence
+      + sub * 0.08
+    let chantRight = templeSpaceBandpass(sourceRight, index: 2, frequency: formant1 * 0.992, q: 6.5) * 1.65
+      + templeSpaceBandpass(sourceRight, index: 3, frequency: formant2 * 1.008, q: 7.5) * 1.25 * formant2Presence
+      + sub * 0.08
+    let chantLevel = chantEnvelope * (0.18 + intensity * 0.12)
+    let drop = nextTempleSpaceDrop(intensity: intensity)
+    let dropEchoSize = templeSpaceDropEcho.count
+    let dropEchoLeftA = templeSpaceDropEcho[(templeSpaceDropEchoIndex - min(dropEchoSize - 1, max(1, Int(sampleRate * 0.27))) + dropEchoSize) % dropEchoSize]
+    let dropEchoRightA = templeSpaceDropEcho[(templeSpaceDropEchoIndex - min(dropEchoSize - 1, max(1, Int(sampleRate * 0.41))) + dropEchoSize) % dropEchoSize]
+    let dropEchoTail = templeSpaceDropEcho[(templeSpaceDropEchoIndex - min(dropEchoSize - 1, max(1, Int(sampleRate * 0.63))) + dropEchoSize) % dropEchoSize]
+    templeSpaceDropEcho[templeSpaceDropEchoIndex] = (drop.left + drop.right) * 0.42 + (dropEchoLeftA + dropEchoRightA) * 0.14
+    templeSpaceDropEchoIndex = (templeSpaceDropEchoIndex + 1) % dropEchoSize
+    let dropEchoLeft = dropEchoLeftA * 0.48 + dropEchoTail * 0.18
+    let dropEchoRight = dropEchoRightA * 0.44 + dropEchoTail * 0.20
+    templeAccents.render(sampleRate: sampleRate, intensity: intensity, elapsedSeconds: elapsedSeconds)
+    let dryLeft = body + templeSpaceAirLeft * (0.22 + intensity * 0.12) + breathLeft * 0.7 + chantLeft * chantLevel + drop.left + dropEchoLeft + templeAccents.left
+    let dryRight = body + templeSpaceAirRight * (0.22 + intensity * 0.12) + breathRight * 0.7 + chantRight * chantLevel + drop.right + dropEchoRight + templeAccents.right
+    let size = templeSpaceDelay.count
+    let tap71 = templeSpaceDelay[(templeSpaceDelayIndex - min(size - 1, max(1, Int(sampleRate * 0.071))) + size) % size]
+    let tap89 = templeSpaceDelay[(templeSpaceDelayIndex - min(size - 1, max(1, Int(sampleRate * 0.089))) + size) % size]
+    let tap113 = templeSpaceDelay[(templeSpaceDelayIndex - min(size - 1, max(1, Int(sampleRate * 0.113))) + size) % size]
+    let tap137 = templeSpaceDelay[(templeSpaceDelayIndex - min(size - 1, max(1, Int(sampleRate * 0.137))) + size) % size]
+    let wetLeft = tap71 * 0.58 + tap137 * 0.34
+    let wetRight = tap89 * 0.56 + tap113 * 0.36
+    templeSpaceDelay[templeSpaceDelayIndex] = (dryLeft + dryRight) * 0.5 + (wetLeft + wetRight) * 0.45
+    templeSpaceDelayIndex = (templeSpaceDelayIndex + 1) % size
+    return (dryLeft * 0.42 + wetLeft * 0.62, dryRight * 0.42 + wetRight * 0.62)
+  }
+
+  private func nextTempleSpaceWhite() -> Double {
+    templeSpaceRandom ^= templeSpaceRandom << 13; templeSpaceRandom ^= templeSpaceRandom >> 7; templeSpaceRandom ^= templeSpaceRandom << 17
+    return Double(templeSpaceRandom & 0x00ff_ffff) / Double(0x007f_ffff) - 1
+  }
+
+  /// Topology-preserving state-variable bandpass; stable while formants move.
+  private func templeSpaceBandpass(_ input: Double, index: Int, frequency: Double, q: Double) -> Double {
+    let g = tan(Double.pi * frequency / sampleRate)
+    let k = 1 / q
+    let v1 = (templeSpaceFormantIc1[index] + g * (input - templeSpaceFormantIc2[index])) / (1 + g * (g + k))
+    let v2 = templeSpaceFormantIc2[index] + g * v1
+    templeSpaceFormantIc1[index] = 2 * v1 - templeSpaceFormantIc1[index]
+    templeSpaceFormantIc2[index] = 2 * v2 - templeSpaceFormantIc2[index]
+    return v1
+  }
+
+  private func nextTempleSpaceDrop(intensity: Double) -> (left: Double, right: Double) {
+    if templeSpaceDropFramesRemaining <= 0 {
+      templeSpaceNextDropFrames -= 1
+      if templeSpaceNextDropFrames <= 0 {
+        templeSpaceDropDurationFrames = sampleRate * (0.13 + abs(nextTempleSpaceWhite()) * 0.11)
+        templeSpaceDropFramesRemaining = templeSpaceDropDurationFrames
+        templeSpaceDropAgeFrames = 0
+        templeSpaceDropPhase = 0
+        templeSpaceDropFrequency = 820 + abs(nextTempleSpaceWhite()) * 1_050
+        templeSpaceDropAmplitude = 0.02 + abs(nextTempleSpaceWhite()) * 0.02
+        templeSpaceDropPan = clamp(nextTempleSpaceWhite() * 0.72, -0.72, 0.72)
+        let pair = nextTempleSpaceWhite() > 0.78
+        let gapSeconds = pair
+          ? 0.32 + abs(nextTempleSpaceWhite()) * 0.28
+          : (6.5 - intensity * 2.2) + abs(nextTempleSpaceWhite()) * 8.0
+        templeSpaceNextDropFrames = sampleRate * gapSeconds
+      }
+    }
+    guard templeSpaceDropFramesRemaining > 0, templeSpaceDropDurationFrames > 0 else { return (0, 0) }
+    let progress = templeSpaceDropAgeFrames / templeSpaceDropDurationFrames
+    let attackProgress = clamp(templeSpaceDropAgeFrames / max(1, sampleRate * 0.008), 0, 1)
+    let attack = 0.5 - 0.5 * cos(Double.pi * attackProgress)
+    let decay = (1 - progress) * (1 - progress) * (1 - progress)
+    let frequency = templeSpaceDropFrequency * (1 - progress * 0.48)
+    let tone = (sin(templeSpaceDropPhase) + sin(templeSpaceDropPhase * 2.0) * 0.24) * attack * decay * templeSpaceDropAmplitude
+    templeSpaceDropPhase = fmod(templeSpaceDropPhase + Double.pi * 2 * frequency / sampleRate, Double.pi * 2)
+    templeSpaceDropAgeFrames += 1
+    templeSpaceDropFramesRemaining -= 1
+    return (tone * (1 - templeSpaceDropPan) * 0.56, tone * (1 + templeSpaceDropPan) * 0.56)
+  }
+
   private func nextTempleWhite() -> Double {
     templeRandom ^= templeRandom << 13; templeRandom ^= templeRandom >> 7; templeRandom ^= templeRandom << 17
     return Double(templeRandom & 0x00ff_ffff) / Double(0x007f_ffff) - 1
@@ -1512,7 +1733,7 @@ private final class ProceduralAudioEngine: NSObject {
       binauralGain: clamp(raw.binauralGain, 0, 1),
       noiseColor: raw.noiseColor.flatMap { ["white", "pink", "brown", "grey"].contains($0) ? $0 : nil },
       noiseGain: clamp(raw.noiseGain, 0, 1),
-      environment: raw.environment == "cave" ? "cosmic" : (["ocean", "wind", "fire", "cosmic", "forest"].contains(raw.environment) ? raw.environment : "none"),
+      environment: raw.environment == "cave" ? "cosmic" : (["ocean", "wind", "fire", "cosmic", "forest", "temple"].contains(raw.environment) ? raw.environment : "none"),
       environmentGain: clamp(raw.environmentGain, 0, 1),
       environmentIntensity: clamp(raw.environmentIntensity, 0, 1),
       templeGain: clamp(raw.templeGain, 0, 1),
@@ -1788,6 +2009,109 @@ private final class ProceduralAudioEngine: NSObject {
           self.recordPlaybackError("route_refresh_failed", error)
         }
       }
+    }
+  }
+}
+import Foundation
+
+/// Fixed voice pool: one bowl and three chimes, with no render-time allocation.
+final class TempleAccents {
+  private(set) var left = 0.0
+  private(set) var right = 0.0
+  private var random: UInt64 = 1
+  private var rate = 48_000.0
+  private var phases = [Double](repeating: 0, count: 24)
+  private var frequencies = [Double](repeating: 0, count: 24)
+  private var amplitudes = [Double](repeating: 0, count: 24)
+  private var decays = [Double](repeating: 0, count: 24)
+  private var ages = [Double](repeating: 0, count: 4)
+  private var durations = [Double](repeating: 0, count: 4)
+  private var attacks = [Double](repeating: 0, count: 4)
+  private var pans = [Double](repeating: 0, count: 4)
+  private var counts = [Int](repeating: 0, count: 4)
+  private static let bowlRatios = [1.0, 1.006, 2.76, 2.772, 3.76, 5.4]
+  private static let bowlWeights = [0.5, 0.25, 0.16, 0.08, 0.08, 0.04]
+  private static let bowlTails = [7.0, 6.7, 4.3, 4.0, 3.0, 2.1]
+  private static let chimeRatios = [1.0, 2.76, 3.76]
+  private static let chimeWeights = [0.65, 0.22, 0.08]
+  private static let chimeTails = [1.8, 1.2, 0.8]
+  private var nextBowl = 48_000.0 * 18
+  private var nextCluster = 48_000.0 * 10
+  private var nextChime = 0.0
+  private var pendingChimes = 0
+  private var chimeCursor = 0
+
+  func reset(seed: UInt64, sampleRate: Double) {
+    random = seed ^ 0x3c6ef372
+    if random == 0 { random = 1 }
+    rate = sampleRate
+    for i in phases.indices { phases[i] = 0; frequencies[i] = 0; amplitudes[i] = 0; decays[i] = 0 }
+    for i in ages.indices { ages[i] = 0; durations[i] = 0; counts[i] = 0 }
+    nextBowl = rate * 18; nextCluster = rate * 10; nextChime = 0
+    pendingChimes = 0; chimeCursor = 0; left = 0; right = 0
+  }
+
+  private func unit() -> Double {
+    random ^= random << 13; random ^= random >> 7; random ^= random << 17
+    return Double(random & 0x00ff_ffff) / Double(0x00ff_ffff)
+  }
+
+  private func excite(slot: Int, bowl: Bool) {
+    let base = bowl ? 174 + unit() * 14 : 980 + unit() * 850
+    let level = bowl ? 0.12 : 0.055 + unit() * 0.025
+    ages[slot] = 0
+    durations[slot] = rate * (bowl ? 14.0 : 5.0)
+    attacks[slot] = rate * (bowl ? 0.045 : 0.009)
+    pans[slot] = (unit() * 2 - 1) * 0.65
+    counts[slot] = bowl ? 6 : 3
+    for mode in 0..<counts[slot] {
+      let index = slot * 6 + mode
+      phases[index] = 0
+      frequencies[index] = base * (bowl ? Self.bowlRatios[mode] : Self.chimeRatios[mode])
+      amplitudes[index] = level * (bowl ? Self.bowlWeights[mode] : Self.chimeWeights[mode])
+      decays[index] = exp(-1 / (rate * (bowl ? Self.bowlTails[mode] : Self.chimeTails[mode])))
+    }
+  }
+
+  func render(sampleRate: Double, intensity: Double, elapsedSeconds: Double) {
+    if rate != sampleRate { reset(seed: random, sampleRate: sampleRate) }
+    nextBowl -= 1
+    if nextBowl <= 0 {
+      excite(slot: 0, bowl: true)
+      nextBowl = rate * (28 + unit() * 24)
+    }
+    nextCluster -= 1
+    let gust = sin(elapsedSeconds * Double.pi * 2 / 19.3)
+    if pendingChimes == 0 && nextCluster <= 0 && gust > -0.25 {
+      pendingChimes = unit() > 0.45 ? 3 : 2
+      nextChime = 0
+      nextCluster = rate * (23 - intensity * 5 + unit() * 22)
+    }
+    if pendingChimes > 0 {
+      nextChime -= 1
+      if nextChime <= 0 {
+        excite(slot: 1 + chimeCursor % 3, bowl: false)
+        chimeCursor = (chimeCursor + 1) % 3
+        pendingChimes -= 1
+        nextChime = rate * (0.35 + unit() * 0.8)
+      }
+    }
+    left = 0; right = 0
+    for slot in 0..<4 {
+      if ages[slot] >= durations[slot] { continue }
+      let attack = 0.5 - 0.5 * cos(Double.pi * min(1, ages[slot] / attacks[slot]))
+      let release = min(1, (durations[slot] - ages[slot]) / (rate * 0.8))
+      var value = 0.0
+      for mode in 0..<counts[slot] {
+        let index = slot * 6 + mode
+        value += sin(phases[index]) * amplitudes[index]
+        phases[index] = fmod(phases[index] + Double.pi * 2 * frequencies[index] / rate, Double.pi * 2)
+        amplitudes[index] *= decays[index]
+      }
+      value *= attack * release
+      left += value * (1 - pans[slot]) * 0.7
+      right += value * (1 + pans[slot]) * 0.7
+      ages[slot] += 1
     }
   }
 }

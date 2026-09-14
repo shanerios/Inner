@@ -163,7 +163,14 @@ export function createRecognitionOvernightProtocol(options: RecognitionOvernight
   const phases: OvernightProtocolPhase[] = [
     {
       id: 'preparation', label: 'Recognition Practice', kind: 'preparation', durationMs: preparationMs,
-      audio: { environment: options.environment, environmentGain, noiseColor: 'pink', noiseGain: 0.12, masterGain: 0.58 },
+      audio: {
+        environment: options.environment,
+        environmentGain,
+        noiseColor: 'pink',
+        noiseGain: 0.12,
+        masterGain: 0.58,
+        ...(options.environment === 'temple' ? { toneGain: 0.01 } : {}),
+      },
       events: [{ id: 'journey-begins', trigger: { kind: 'phaseStart' }, actions: [{ kind: 'markEvent', name: 'overnight_started' }] }],
     },
     {

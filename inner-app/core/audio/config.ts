@@ -67,7 +67,7 @@ export function normalizeProceduralAudioConfig(
     binauralGain: clamp(value.binauralGain ?? DEFAULT_PROCEDURAL_AUDIO_CONFIG.binauralGain, gain.min, gain.max),
     noiseColor: value.noiseColor === null || isNoiseColor(value.noiseColor) ? value.noiseColor : null,
     noiseGain: clamp(value.noiseGain ?? DEFAULT_PROCEDURAL_AUDIO_CONFIG.noiseGain, gain.min, gain.max),
-    environment: environment === 'ocean' || environment === 'wind' || environment === 'fire' || environment === 'cosmic' || environment === 'forest' ? environment : 'none',
+    environment: environment === 'ocean' || environment === 'wind' || environment === 'fire' || environment === 'cosmic' || environment === 'forest' || environment === 'temple' ? environment : 'none',
     environmentGain: clamp(value.environmentGain ?? DEFAULT_PROCEDURAL_AUDIO_CONFIG.environmentGain, gain.min, gain.max),
     environmentIntensity: clamp(value.environmentIntensity ?? DEFAULT_PROCEDURAL_AUDIO_CONFIG.environmentIntensity, gain.min, gain.max),
     templeGain: clamp(value.templeGain ?? DEFAULT_PROCEDURAL_AUDIO_CONFIG.templeGain, gain.min, gain.max),
