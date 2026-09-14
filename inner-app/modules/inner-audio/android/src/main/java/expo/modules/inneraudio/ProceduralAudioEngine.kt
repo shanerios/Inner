@@ -139,10 +139,6 @@ private fun clamp(value: Double, low: Double, high: Double) = min(high, max(low,
 // literal range — parse it as an unsigned value to get the identical bit pattern instead.
 private val XORSHIFT_SEED: Long = java.lang.Long.parseUnsignedLong("9e3779b97f4a7c15", 16)
 
-private const val COSMIC_NEAR_DELAY_SECONDS = 0.23
-private const val COSMIC_MID_DELAY_SECONDS = 0.41
-private const val COSMIC_FAR_DELAY_SECONDS = 0.67
-private const val COSMIC_FEEDBACK = 0.24
 private const val FOREST_NOISE_MIX = 0.3
 
 // The lucidity cue: a fixed, non-seeded ascending three-note motif (the same
@@ -238,20 +234,8 @@ object ProceduralAudioEngine {
   private var firePopLeft = 0.0
   private var firePopRight = 0.0
   private var cosmicEnvelope = 0.0
-  private var cosmicRandom = XORSHIFT_SEED xor 0x8f1bbcdcL
-  private var cosmicRumble = 0.0
-  private var cosmicAirLeft = 0.0
-  private var cosmicAirRight = 0.0
-  private var cosmicSparkFramesRemaining = 0.0
-  private var cosmicSparkPhase = 0.0
-  private var cosmicSparkFreq = 0.0
-  private var cosmicSparkAmp = 0.0
-  private var cosmicSparkPan = 0.0
-  private var cosmicSparkAgeFrames = 0.0
-  private var cosmicSparkDurationFrames = 0.0
-  private val cosmicDelay = DoubleArray(48_000)
+  private val cosmicModel = CosmicModel()
   private val silentStereo = StereoSample()
-  private var cosmicDelayIndex = 0
   private var forestEnvelope = 0.0
   private var forestRandom = XORSHIFT_SEED xor 0xc2b2ae35L
   private var forestCanopy = 0.0
@@ -555,19 +539,7 @@ object ProceduralAudioEngine {
     firePopLeft = 0.0
     firePopRight = 0.0
     cosmicEnvelope = 0.0
-    cosmicRandom = XORSHIFT_SEED xor 0x8f1bbcdcL
-    cosmicRumble = 0.0
-    cosmicAirLeft = 0.0
-    cosmicAirRight = 0.0
-    cosmicSparkFramesRemaining = 0.0
-    cosmicSparkPhase = 0.0
-    cosmicSparkFreq = 0.0
-    cosmicSparkAmp = 0.0
-    cosmicSparkPan = 0.0
-    cosmicSparkAgeFrames = 0.0
-    cosmicSparkDurationFrames = 0.0
-    cosmicDelay.fill(0.0)
-    cosmicDelayIndex = 0
+    cosmicModel.reset(XORSHIFT_SEED, sampleRate)
     cueTimelineThresholdMs = -1.0
     checkpointSessionId = null
     firedSignalLock.withLock { firedSignalIds.clear() }
@@ -655,20 +627,12 @@ object ProceduralAudioEngine {
       oceanModel.reset(activeTimeline.seed, sampleRate)
       windRandom = activeTimeline.seed xor 0x7f4a7c15L
       fireRandom = activeTimeline.seed xor 0x2c1b3c6dL
-      cosmicRandom = activeTimeline.seed xor 0x8f1bbcdcL
-      cosmicRumble = 0.0
-      cosmicAirLeft = 0.0
-      cosmicAirRight = 0.0
+      cosmicModel.reset(activeTimeline.seed, sampleRate)
       templeRandom = activeTimeline.seed xor 0x9c2f5a31L
       rainPockets = buildRainPockets(activeTimeline.seed)
       pink.fill(0.0)
       brown = 0.0
       greyLow = 0.0
-      cosmicDelay.fill(0.0)
-      cosmicDelayIndex = 0
-      cosmicSparkFramesRemaining = 0.0
-      cosmicSparkAgeFrames = 0.0
-      cosmicSparkDurationFrames = 0.0
       forestRandom = activeTimeline.seed xor 0xc2b2ae35L
       forestBirdActive = false
       forestBirdFramesRemaining = 0.0
@@ -1155,71 +1119,9 @@ object ProceduralAudioEngine {
     return (fireRandom and 0x00ff_ffffL).toDouble() / 0x007f_ffffL.toDouble() - 1
   }
 
-  // A low harmonic field and filtered stellar air move independently across the
-  // channels. Sparse particles bloom slowly, then leave staggered reflections;
-  // no transient begins sharply enough to resemble a droplet or notification.
   private fun nextCosmic(elapsedSeconds: Double, intensity: Double): StereoSample {
-    val shared = nextCosmicWhite()
-    cosmicRumble += 0.0016 * (shared - cosmicRumble)
-    cosmicAirLeft += 0.015 * (nextCosmicWhite() - cosmicAirLeft)
-    cosmicAirRight += 0.015 * (nextCosmicWhite() - cosmicAirRight)
-    val breathe = 0.72 + 0.28 * sin(elapsedSeconds * Math.PI * 2 / 31.0 + 0.7 * sin(elapsedSeconds * Math.PI * 2 / 47.0))
-    val rumbleBody = cosmicRumble * (1.7 + intensity * 1.1) * breathe
-    val airLevel = 0.11 + intensity * 0.08
-    val fundamental = 38 + intensity * 10
-    val slowDrift = sin(elapsedSeconds * Math.PI * 2 / 37.0) * 0.45
-    val leftField = sin(elapsedSeconds * Math.PI * 2 * fundamental + slowDrift) * 0.075 +
-      sin(elapsedSeconds * Math.PI * 2 * fundamental * 1.5 + 1.2) * 0.028
-    val rightField = sin(elapsedSeconds * Math.PI * 2 * fundamental - slowDrift + 0.24) * 0.075 +
-      sin(elapsedSeconds * Math.PI * 2 * fundamental * 1.5 + 2.0) * 0.028
-
-    if (cosmicSparkFramesRemaining <= 0) {
-      val gapSeconds = (12.0 - intensity * 5.5) * (0.75 + Math.abs(nextCosmicWhite()) * 1.35)
-      cosmicSparkFramesRemaining = sampleRate * max(3.0, gapSeconds)
-      cosmicSparkDurationFrames = sampleRate * (1.6 + Math.abs(nextCosmicWhite()) * 1.8)
-      cosmicSparkAgeFrames = 0.0
-      cosmicSparkFreq = 980 + Math.abs(nextCosmicWhite()) * 1_650
-      cosmicSparkAmp = 0.065 + Math.abs(nextCosmicWhite()) * 0.09
-      cosmicSparkPan = clamp(nextCosmicWhite() * 0.78, -0.78, 0.78)
-      cosmicSparkPhase = 0.0
-    }
-    cosmicSparkFramesRemaining -= 1
-    val sparkProgress = if (cosmicSparkDurationFrames > 0) cosmicSparkAgeFrames / cosmicSparkDurationFrames else 1.0
-    val sparkWindow = if (sparkProgress < 1) sin(Math.PI * sparkProgress).let { it * it } else 0.0
-    val sparkTone = sin(cosmicSparkPhase) + 0.18 * sin(cosmicSparkPhase * 2)
-    val sparkMono = sparkTone * sparkWindow * cosmicSparkAmp * (0.7 + intensity * 0.3)
-    cosmicSparkAgeFrames += 1
-    cosmicSparkFreq *= 0.999997
-    cosmicSparkPhase = (cosmicSparkPhase + Math.PI * 2 * cosmicSparkFreq / sampleRate) % (Math.PI * 2)
-
-    val nearFrames = min(cosmicDelay.size - 1, max(1, (COSMIC_NEAR_DELAY_SECONDS * sampleRate).toInt()))
-    val midFrames = min(cosmicDelay.size - 1, max(1, (COSMIC_MID_DELAY_SECONDS * sampleRate).toInt()))
-    val farFrames = min(cosmicDelay.size - 1, max(1, (COSMIC_FAR_DELAY_SECONDS * sampleRate).toInt()))
-    val nearReflection = cosmicDelay[(cosmicDelayIndex - nearFrames + cosmicDelay.size) % cosmicDelay.size]
-    val midReflection = cosmicDelay[(cosmicDelayIndex - midFrames + cosmicDelay.size) % cosmicDelay.size]
-    val farReflection = cosmicDelay[(cosmicDelayIndex - farFrames + cosmicDelay.size) % cosmicDelay.size]
-    cosmicDelay[cosmicDelayIndex] = sparkMono + (nearReflection * 0.5 + midReflection * 0.3 + farReflection * 0.2) * COSMIC_FEEDBACK
-    cosmicDelayIndex = (cosmicDelayIndex + 1) % cosmicDelay.size
-
-    val sparkLeft = sparkMono * (1 - cosmicSparkPan)
-    val sparkRight = sparkMono * (1 + cosmicSparkPan)
-    val reflectionDrift = sin(elapsedSeconds * Math.PI * 2 / 9.7) * 0.34
-    val echoLeft = nearReflection * (1 + cosmicSparkPan * 0.55) * 0.34 +
-      midReflection * (1 - reflectionDrift) * 0.24 + farReflection * 0.14
-    val echoRight = nearReflection * (1 - cosmicSparkPan * 0.55) * 0.34 +
-      midReflection * (1 + reflectionDrift) * 0.24 + farReflection * 0.14
-
-    return cosmicSample.set(
-      rumbleBody + leftField + cosmicAirLeft * airLevel + sparkLeft * 0.42 + echoLeft,
-      rumbleBody + rightField + cosmicAirRight * airLevel + sparkRight * 0.42 + echoRight,
-    )
-  }
-
-  private fun nextCosmicWhite(): Double {
-    cosmicRandom = cosmicRandom xor (cosmicRandom shl 13)
-    cosmicRandom = cosmicRandom xor (cosmicRandom ushr 7)
-    cosmicRandom = cosmicRandom xor (cosmicRandom shl 17)
-    return (cosmicRandom and 0x00ff_ffffL).toDouble() / 0x007f_ffffL.toDouble() - 1
+    cosmicModel.render(sampleRate, intensity)
+    return cosmicSample.set(cosmicModel.left, cosmicModel.right)
   }
 
   // A canopy rustle bed (smoothed noise breathing on a light breeze cycle, plus a

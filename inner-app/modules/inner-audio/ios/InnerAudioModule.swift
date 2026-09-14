@@ -212,19 +212,7 @@ private final class ProceduralAudioEngine: NSObject {
   private var firePopLeft = 0.0
   private var firePopRight = 0.0
   private var cosmicEnvelope = 0.0
-  private var cosmicRandom: UInt64 = 0x9e3779b97f4a7c15 ^ 0x8f1bbcdc
-  private var cosmicRumble = 0.0
-  private var cosmicAirLeft = 0.0
-  private var cosmicAirRight = 0.0
-  private var cosmicSparkFramesRemaining = 0.0
-  private var cosmicSparkPhase = 0.0
-  private var cosmicSparkFreq = 0.0
-  private var cosmicSparkAmp = 0.0
-  private var cosmicSparkPan = 0.0
-  private var cosmicSparkAgeFrames = 0.0
-  private var cosmicSparkDurationFrames = 0.0
-  private var cosmicDelay = [Double](repeating: 0, count: 48_000)
-  private var cosmicDelayIndex = 0
+  private let cosmicModel = CosmicModel()
   private var forestEnvelope = 0.0
   private var forestRandom: UInt64 = 0x9e3779b97f4a7c15 ^ 0xc2b2ae35
   private var forestCanopy = 0.0
@@ -523,19 +511,7 @@ private final class ProceduralAudioEngine: NSObject {
     firePopLeft = 0
     firePopRight = 0
     cosmicEnvelope = 0
-    cosmicRandom = 0x9e3779b97f4a7c15 ^ 0x8f1bbcdc
-    cosmicRumble = 0
-    cosmicAirLeft = 0
-    cosmicAirRight = 0
-    cosmicSparkFramesRemaining = 0
-    cosmicSparkPhase = 0
-    cosmicSparkFreq = 0
-    cosmicSparkAmp = 0
-    cosmicSparkPan = 0
-    cosmicSparkAgeFrames = 0
-    cosmicSparkDurationFrames = 0
-    cosmicDelay = [Double](repeating: 0, count: 48_000)
-    cosmicDelayIndex = 0
+    cosmicModel.reset(seed: 0x9e3779b97f4a7c15, sampleRate: sampleRate)
     forestEnvelope = 0
     forestRandom = 0x9e3779b97f4a7c15 ^ 0xc2b2ae35
     forestCanopy = 0
@@ -746,22 +722,12 @@ private final class ProceduralAudioEngine: NSObject {
       oceanModel.reset(seed: activeTimeline.seed, sampleRate: sampleRate)
       windRandom = activeTimeline.seed ^ 0x7f4a7c15
       fireRandom = activeTimeline.seed ^ 0x2c1b3c6d
-      cosmicRandom = activeTimeline.seed ^ 0x8f1bbcdc
-      cosmicRumble = 0
-      cosmicAirLeft = 0
-      cosmicAirRight = 0
+      cosmicModel.reset(seed: activeTimeline.seed, sampleRate: sampleRate)
       templeRandom = activeTimeline.seed ^ 0x9c2f5a31
       rainPockets = (0..<5).map { RainPocket(random: activeTimeline.seed &+ UInt64($0 + 1) * 0x100000001b3) }
       pink = [Double](repeating: 0, count: 7)
       brown = 0
       greyLow = 0
-      cosmicDelay.withUnsafeMutableBufferPointer { buffer in
-        buffer.baseAddress?.update(repeating: 0, count: buffer.count)
-      }
-      cosmicDelayIndex = 0
-      cosmicSparkFramesRemaining = 0
-      cosmicSparkAgeFrames = 0
-      cosmicSparkDurationFrames = 0
       forestRandom = activeTimeline.seed ^ 0xc2b2ae35
       forestBirdActive = false
       forestBirdFramesRemaining = 0
@@ -1275,10 +1241,6 @@ private final class ProceduralAudioEngine: NSObject {
     return Double(fireRandom & 0x00ff_ffff) / Double(0x007f_ffff) - 1
   }
 
-  private static let cosmicNearDelaySeconds = 0.23
-  private static let cosmicMidDelaySeconds = 0.41
-  private static let cosmicFarDelaySeconds = 0.67
-  private static let cosmicFeedback = 0.24
   private static let forestNoiseMix = 0.3
 
   // The lucidity cue: a fixed, non-seeded ascending three-note motif (the
@@ -1311,71 +1273,9 @@ private final class ProceduralAudioEngine: NSObject {
     pow(10.0, -3.0 * Double(delaySamples) / (rt60 * sampleRate))
   }
 
-  // A low harmonic field and filtered stellar air move independently across the
-  // channels. Sparse particles bloom slowly, then leave staggered reflections;
-  // no transient begins sharply enough to resemble a droplet or notification.
   private func nextCosmic(elapsedSeconds: Double, intensity: Double) -> (left: Double, right: Double) {
-    let shared = nextCosmicWhite()
-    cosmicRumble += 0.0016 * (shared - cosmicRumble)
-    cosmicAirLeft += 0.015 * (nextCosmicWhite() - cosmicAirLeft)
-    cosmicAirRight += 0.015 * (nextCosmicWhite() - cosmicAirRight)
-    let breathe = 0.72 + 0.28 * sin(elapsedSeconds * Double.pi * 2 / 31.0 + 0.7 * sin(elapsedSeconds * Double.pi * 2 / 47.0))
-    let rumbleBody = cosmicRumble * (1.7 + intensity * 1.1) * breathe
-    let airLevel = 0.11 + intensity * 0.08
-    let fundamental = 38 + intensity * 10
-    let slowDrift = sin(elapsedSeconds * Double.pi * 2 / 37.0) * 0.45
-    let leftField = sin(elapsedSeconds * Double.pi * 2 * fundamental + slowDrift) * 0.075
-      + sin(elapsedSeconds * Double.pi * 2 * fundamental * 1.5 + 1.2) * 0.028
-    let rightField = sin(elapsedSeconds * Double.pi * 2 * fundamental - slowDrift + 0.24) * 0.075
-      + sin(elapsedSeconds * Double.pi * 2 * fundamental * 1.5 + 2.0) * 0.028
-
-    if cosmicSparkFramesRemaining <= 0 {
-      let gapSeconds = (12.0 - intensity * 5.5) * (0.75 + abs(nextCosmicWhite()) * 1.35)
-      cosmicSparkFramesRemaining = sampleRate * max(3.0, gapSeconds)
-      cosmicSparkDurationFrames = sampleRate * (1.6 + abs(nextCosmicWhite()) * 1.8)
-      cosmicSparkAgeFrames = 0
-      cosmicSparkFreq = 980 + abs(nextCosmicWhite()) * 1_650
-      cosmicSparkAmp = 0.065 + abs(nextCosmicWhite()) * 0.09
-      cosmicSparkPan = clamp(nextCosmicWhite() * 0.78, -0.78, 0.78)
-      cosmicSparkPhase = 0
-    }
-    cosmicSparkFramesRemaining -= 1
-    let sparkProgress = cosmicSparkDurationFrames > 0 ? cosmicSparkAgeFrames / cosmicSparkDurationFrames : 1
-    let sparkWindow = sparkProgress < 1 ? pow(sin(Double.pi * sparkProgress), 2) : 0
-    let sparkTone = sin(cosmicSparkPhase) + 0.18 * sin(cosmicSparkPhase * 2)
-    let sparkMono = sparkTone * sparkWindow * cosmicSparkAmp * (0.7 + intensity * 0.3)
-    cosmicSparkAgeFrames += 1
-    cosmicSparkFreq *= 0.999997
-    cosmicSparkPhase = fmod(cosmicSparkPhase + Double.pi * 2 * cosmicSparkFreq / sampleRate, Double.pi * 2)
-
-    let nearFrames = min(cosmicDelay.count - 1, max(1, Int(Self.cosmicNearDelaySeconds * sampleRate)))
-    let midFrames = min(cosmicDelay.count - 1, max(1, Int(Self.cosmicMidDelaySeconds * sampleRate)))
-    let farFrames = min(cosmicDelay.count - 1, max(1, Int(Self.cosmicFarDelaySeconds * sampleRate)))
-    let nearReflection = cosmicDelay[(cosmicDelayIndex - nearFrames + cosmicDelay.count) % cosmicDelay.count]
-    let midReflection = cosmicDelay[(cosmicDelayIndex - midFrames + cosmicDelay.count) % cosmicDelay.count]
-    let farReflection = cosmicDelay[(cosmicDelayIndex - farFrames + cosmicDelay.count) % cosmicDelay.count]
-    cosmicDelay[cosmicDelayIndex] = sparkMono + (nearReflection * 0.5 + midReflection * 0.3 + farReflection * 0.2) * Self.cosmicFeedback
-    cosmicDelayIndex = (cosmicDelayIndex + 1) % cosmicDelay.count
-
-    let sparkLeft = sparkMono * (1 - cosmicSparkPan)
-    let sparkRight = sparkMono * (1 + cosmicSparkPan)
-    let reflectionDrift = sin(elapsedSeconds * Double.pi * 2 / 9.7) * 0.34
-    let echoLeft = nearReflection * (1 + cosmicSparkPan * 0.55) * 0.34
-      + midReflection * (1 - reflectionDrift) * 0.24
-      + farReflection * 0.14
-    let echoRight = nearReflection * (1 - cosmicSparkPan * 0.55) * 0.34
-      + midReflection * (1 + reflectionDrift) * 0.24
-      + farReflection * 0.14
-
-    return (
-      rumbleBody + leftField + cosmicAirLeft * airLevel + sparkLeft * 0.42 + echoLeft,
-      rumbleBody + rightField + cosmicAirRight * airLevel + sparkRight * 0.42 + echoRight
-    )
-  }
-
-  private func nextCosmicWhite() -> Double {
-    cosmicRandom ^= cosmicRandom << 13; cosmicRandom ^= cosmicRandom >> 7; cosmicRandom ^= cosmicRandom << 17
-    return Double(cosmicRandom & 0x00ff_ffff) / Double(0x007f_ffff) - 1
+    cosmicModel.render(sampleRate: sampleRate, intensity: intensity)
+    return (cosmicModel.left, cosmicModel.right)
   }
 
   // A canopy rustle bed (smoothed noise breathing on a light breeze cycle, plus a
@@ -2250,5 +2150,207 @@ final class OceanModel {
     left = undertow * (1 - renderedPan * 0.12) + brightLeft * (0.72 + renderedWidth * 0.35) * (1 - renderedPan * 0.3) + bubbleLeft
     right = undertow * (1 + renderedPan * 0.12) + brightRight * (0.72 + renderedWidth * 0.35) * (1 + renderedPan * 0.3) + bubbleRight
     phaseAge += 1
+  }
+}
+
+/// Liminal harmonic environment with no fixed-period environmental motion.
+final class CosmicModel {
+  private static let phi = 1.61803398875
+  private static let fieldRatios = [1.0, 1.41421356237, phi, 2.61803398875]
+  private static let fieldWeights = [0.07, 0.035, 0.027, 0.016]
+  private(set) var left = 0.0
+  private(set) var right = 0.0
+  private var random: UInt64 = 1
+  private var rate = 48_000.0
+  private var state = 0
+  private var stateAge = 0.0
+  private var stateDuration = 144_000.0
+  private var firstPass = true
+  private var mood = 0.5
+  private var moodTarget = 0.5
+  private var moodFrames = 48_000.0 * 120
+  private var motion = 0.0
+  private var motionTarget = 0.0
+  private var motionFrames = 48_000.0 * 4
+  private var pressure = 0.42
+  private var width = 0.3
+  private var brightness = 0.25
+  private var presence = 0.4
+  private var rumble = 0.0
+  private var airLeft = 0.0
+  private var airRight = 0.0
+  private var fieldPhases = [Double](repeating: 0, count: 4)
+  private var bloomPhases = [Double](repeating: 0, count: 6)
+  private var bloomAges = [Double](repeating: 0, count: 6)
+  private var bloomDurations = [Double](repeating: 0, count: 6)
+  private var bloomFrequencies = [Double](repeating: 0, count: 6)
+  private var bloomAmplitudes = [Double](repeating: 0, count: 6)
+  private var bloomPans = [Double](repeating: 0, count: 6)
+  private var bloomCursor = 0
+  private var bloomCountdown = 48_000.0 * 5
+  private var delay = [Double](repeating: 0, count: 48_000)
+  private var delayIndex = 0
+
+  func reset(seed: UInt64, sampleRate: Double) {
+    random = seed ^ 0x8f1bbcdc
+    if random == 0 { random = 1 }
+    rate = sampleRate
+    state = 0; stateAge = 0; stateDuration = rate * 3; firstPass = true
+    mood = 0.5; moodTarget = 0.5; moodFrames = rate * 120
+    motion = 0; motionTarget = 0; motionFrames = rate * 4
+    pressure = 0.42; width = 0.3; brightness = 0.25; presence = 0.4
+    rumble = 0; airLeft = 0; airRight = 0
+    for index in fieldPhases.indices { fieldPhases[index] = 0 }
+    for index in bloomPhases.indices {
+      bloomPhases[index] = 0; bloomAges[index] = 0; bloomDurations[index] = 0
+      bloomFrequencies[index] = 0; bloomAmplitudes[index] = 0; bloomPans[index] = 0
+    }
+    bloomCursor = 0; bloomCountdown = rate * 5
+    delay.withUnsafeMutableBufferPointer { buffer in
+      buffer.baseAddress?.update(repeating: 0, count: buffer.count)
+    }
+    delayIndex = 0; left = 0; right = 0
+  }
+
+  private func unit() -> Double {
+    random ^= random << 13; random ^= random >> 7; random ^= random << 17
+    return Double(random & 0x00ff_ffff) / Double(0x00ff_ffff)
+  }
+
+  private func white() -> Double { unit() * 2 - 1 }
+
+  private func enter(_ next: Int) {
+    state = next
+    stateAge = 0
+    switch state {
+    case 0: stateDuration = rate * (firstPass ? 3 : 18 + unit() * 34)
+    case 1: stateDuration = rate * (9 + unit() * 13)
+    case 2: stateDuration = rate * (8 + unit() * 12)
+    case 3: stateDuration = rate * (16 + unit() * 34)
+    default: stateDuration = rate * (10 + unit() * 18)
+    }
+    motionTarget = (unit() * 2 - 1) * (state == 2 ? 0.9 : 0.55)
+    if state == 1 || state == 3 { bloomCountdown = rate * (2 + unit() * 4) }
+  }
+
+  private func advance() {
+    guard stateAge >= stateDuration else { return }
+    if state == 4 { firstPass = false }
+    enter(state == 4 ? 0 : state + 1)
+  }
+
+  private func exciteBloom(_ intensity: Double) {
+    let slot = bloomCursor
+    bloomCursor = (bloomCursor + 1) % bloomPhases.count
+    let root = 72 + unit() * 42
+    let selector = Int(unit() * 4)
+    let ratio: Double
+    switch selector {
+    case 0: ratio = Self.phi
+    case 1: ratio = 1.41421356237 * Self.phi
+    case 2: ratio = Self.phi * Self.phi
+    default: ratio = 1.41421356237 * Self.phi * Self.phi
+    }
+    bloomPhases[slot] = unit() * Double.pi * 2
+    bloomAges[slot] = 0
+    bloomDurations[slot] = rate * (4.5 + unit() * 7.5)
+    bloomFrequencies[slot] = root * ratio
+    bloomAmplitudes[slot] = (0.018 + unit() * 0.026) * (0.75 + intensity * 0.25)
+    bloomPans[slot] = (unit() * 2 - 1) * 0.82
+  }
+
+  private func renderBlooms(_ intensity: Double) {
+    if state == 1 || state == 2 || state == 3 {
+      bloomCountdown -= 1
+      if bloomCountdown <= 0 {
+        exciteBloom(intensity)
+        bloomCountdown = rate * (4 + unit() * (10 - intensity * 3))
+      }
+    }
+    var mono = 0.0
+    var bloomLeft = 0.0
+    var bloomRight = 0.0
+    for slot in bloomPhases.indices {
+      let duration = bloomDurations[slot]
+      if duration <= 0 || bloomAges[slot] >= duration { continue }
+      let progress = bloomAges[slot] / duration
+      let attack = min(1, bloomAges[slot] / max(1, rate * 1.4))
+      let curve = sin(Double.pi * progress)
+      let envelope = curve * curve * attack
+      let bend = 1 + (0.5 - progress) * 0.012 * motion
+      let value = (sin(bloomPhases[slot]) + sin(bloomPhases[slot] * 0.5) * 0.14) * envelope * bloomAmplitudes[slot]
+      bloomPhases[slot] = fmod(bloomPhases[slot] + Double.pi * 2 * bloomFrequencies[slot] * bend / rate, Double.pi * 2)
+      bloomAges[slot] += 1
+      bloomLeft += value * (1 - bloomPans[slot]) * 0.58
+      bloomRight += value * (1 + bloomPans[slot]) * 0.58
+      mono += value * 0.35
+    }
+    let nearFrames = min(delay.count - 1, max(1, Int(rate * 0.23)))
+    let farFrames = min(delay.count - 1, max(1, Int(rate * 0.61)))
+    let near = delay[(delayIndex - nearFrames + delay.count) % delay.count]
+    let far = delay[(delayIndex - farFrames + delay.count) % delay.count]
+    delay[delayIndex] = mono + (near * 0.34 + far * 0.24) * 0.28
+    delayIndex = (delayIndex + 1) % delay.count
+    left += bloomLeft + near * (0.26 - motion * 0.08) + far * (0.17 + motion * 0.07)
+    right += bloomRight + near * (0.26 + motion * 0.08) + far * (0.17 - motion * 0.07)
+  }
+
+  func render(sampleRate: Double, intensity: Double) {
+    if rate != sampleRate { reset(seed: random, sampleRate: sampleRate) }
+    advance()
+    moodFrames -= 1
+    if moodFrames <= 0 {
+      moodTarget = 0.12 + unit() * 0.78
+      moodFrames = rate * (90 + unit() * 180)
+    }
+    mood += (moodTarget - mood) / max(1, rate * 55)
+    motionFrames -= 1
+    if motionFrames <= 0 {
+      motionTarget = (unit() * 2 - 1) * (state == 2 ? 0.92 : 0.56)
+      motionFrames = rate * (3 + unit() * 10)
+    }
+    motion += (motionTarget - motion) / max(1, rate * 3.2)
+
+    let progress = min(1, stateAge / max(1, stateDuration))
+    let arcValue = sin(Double.pi * progress)
+    let arc = arcValue * arcValue
+    let targetPressure: Double
+    let targetWidth: Double
+    let targetBrightness: Double
+    let targetPresence: Double
+    switch state {
+    case 0: targetPressure = 0.48 + mood * 0.12; targetWidth = 0.24; targetBrightness = 0.14; targetPresence = 0.3
+    case 1: targetPressure = 0.5 + arc * 0.13; targetWidth = 0.32 + arc * 0.2; targetBrightness = 0.2 + arc * 0.18; targetPresence = 0.38 + arc * 0.22
+    case 2: targetPressure = 0.56 - arc * 0.18; targetWidth = 0.52 + arc * 0.45; targetBrightness = 0.35 + arc * 0.3; targetPresence = 0.58 + arc * 0.18
+    case 3: targetPressure = 0.27 - arc * 0.1; targetWidth = 0.9; targetBrightness = 0.48 + mood * 0.16; targetPresence = 0.68
+    default: targetPressure = 0.34 + progress * 0.13; targetWidth = 0.78 - progress * 0.48; targetBrightness = 0.42 - progress * 0.24; targetPresence = 0.58 - progress * 0.24
+    }
+    let slew = 1 / max(1, rate * 1.8)
+    pressure += (targetPressure - pressure) * slew
+    width += (targetWidth - width) * slew
+    brightness += (targetBrightness - brightness) * slew
+    presence += (targetPresence - presence) * slew
+
+    let shared = white()
+    rumble += (shared - rumble) * (0.0007 + brightness * 0.0012)
+    airLeft += (white() - airLeft) * (0.006 + brightness * 0.018)
+    airRight += (white() - airRight) * (0.006 + brightness * 0.018)
+    let voidBody = rumble * (2 + intensity * 1.15) * pressure
+    let airLevel = (0.06 + intensity * 0.055) * (0.55 + brightness)
+    let base = 34 + intensity * 8 + mood * 3
+    var fieldLeft = 0.0
+    var fieldRight = 0.0
+    for index in fieldPhases.indices {
+      let sample = sin(fieldPhases[index]) * Self.fieldWeights[index] * presence
+      let pan = motion * (0.22 + Double(index) * 0.11) * (index % 2 == 0 ? 1 : -1)
+      fieldLeft += sample * (1 - pan * width)
+      fieldRight += sample * (1 + pan * width)
+      let lensBend = 1 + motion * (Double(index) - 1.5) * 0.00045 * (0.3 + width)
+      fieldPhases[index] = fmod(fieldPhases[index] + Double.pi * 2 * base * Self.fieldRatios[index] * lensBend / rate, Double.pi * 2)
+    }
+    left = voidBody + fieldLeft + airLeft * airLevel * (1 - motion * width * 0.16)
+    right = voidBody + fieldRight + airRight * airLevel * (1 + motion * width * 0.16)
+    renderBlooms(intensity)
+    stateAge += 1
   }
 }
