@@ -2176,6 +2176,8 @@ final class CosmicModel {
   private var width = 0.3
   private var brightness = 0.25
   private var presence = 0.4
+  private var gravityLevel = 0.0
+  private var gravityPhase = 0.0
   private var rumble = 0.0
   private var airLeft = 0.0
   private var airRight = 0.0
@@ -2199,6 +2201,7 @@ final class CosmicModel {
     mood = 0.5; moodTarget = 0.5; moodFrames = rate * 120
     motion = 0; motionTarget = 0; motionFrames = rate * 4
     pressure = 0.42; width = 0.3; brightness = 0.25; presence = 0.4
+    gravityLevel = 0; gravityPhase = 0
     rumble = 0; airLeft = 0; airRight = 0
     for index in fieldPhases.indices { fieldPhases[index] = 0 }
     for index in bloomPhases.indices {
@@ -2225,18 +2228,19 @@ final class CosmicModel {
     switch state {
     case 0: stateDuration = rate * (firstPass ? 3 : 18 + unit() * 34)
     case 1: stateDuration = rate * (9 + unit() * 13)
-    case 2: stateDuration = rate * (8 + unit() * 12)
-    case 3: stateDuration = rate * (16 + unit() * 34)
+    case 2: stateDuration = rate * (10 + unit() * 10)
+    case 3: stateDuration = rate * (8 + unit() * 12)
+    case 4: stateDuration = rate * (16 + unit() * 34)
     default: stateDuration = rate * (10 + unit() * 18)
     }
-    motionTarget = (unit() * 2 - 1) * (state == 2 ? 0.9 : 0.55)
-    if state == 1 || state == 3 { bloomCountdown = rate * (2 + unit() * 4) }
+    motionTarget = (unit() * 2 - 1) * (state == 3 ? 0.9 : 0.55)
+    if state == 1 || state == 4 { bloomCountdown = rate * (2 + unit() * 4) }
   }
 
   private func advance() {
     guard stateAge >= stateDuration else { return }
-    if state == 4 { firstPass = false }
-    enter(state == 4 ? 0 : state + 1)
+    if state == 5 { firstPass = false }
+    enter(state == 5 ? 0 : state + 1)
   }
 
   private func exciteBloom(_ intensity: Double) {
@@ -2260,7 +2264,7 @@ final class CosmicModel {
   }
 
   private func renderBlooms(_ intensity: Double) {
-    if state == 1 || state == 2 || state == 3 {
+    if (1...4).contains(state) {
       bloomCountdown -= 1
       if bloomCountdown <= 0 {
         exciteBloom(intensity)
@@ -2306,7 +2310,7 @@ final class CosmicModel {
     mood += (moodTarget - mood) / max(1, rate * 55)
     motionFrames -= 1
     if motionFrames <= 0 {
-      motionTarget = (unit() * 2 - 1) * (state == 2 ? 0.92 : 0.56)
+      motionTarget = (unit() * 2 - 1) * (state == 3 ? 0.92 : 0.56)
       motionFrames = rate * (3 + unit() * 10)
     }
     motion += (motionTarget - motion) / max(1, rate * 3.2)
@@ -2321,8 +2325,9 @@ final class CosmicModel {
     switch state {
     case 0: targetPressure = 0.48 + mood * 0.12; targetWidth = 0.24; targetBrightness = 0.14; targetPresence = 0.3
     case 1: targetPressure = 0.5 + arc * 0.13; targetWidth = 0.32 + arc * 0.2; targetBrightness = 0.2 + arc * 0.18; targetPresence = 0.38 + arc * 0.22
-    case 2: targetPressure = 0.56 - arc * 0.18; targetWidth = 0.52 + arc * 0.45; targetBrightness = 0.35 + arc * 0.3; targetPresence = 0.58 + arc * 0.18
-    case 3: targetPressure = 0.27 - arc * 0.1; targetWidth = 0.9; targetBrightness = 0.48 + mood * 0.16; targetPresence = 0.68
+    case 2: targetPressure = 0.56 + arc * 0.2; targetWidth = 0.38; targetBrightness = 0.22 + arc * 0.08; targetPresence = 0.5 + arc * 0.12
+    case 3: targetPressure = 0.56 - arc * 0.18; targetWidth = 0.52 + arc * 0.45; targetBrightness = 0.35 + arc * 0.3; targetPresence = 0.58 + arc * 0.18
+    case 4: targetPressure = 0.27 - arc * 0.1; targetWidth = 0.9; targetBrightness = 0.48 + mood * 0.16; targetPresence = 0.68
     default: targetPressure = 0.34 + progress * 0.13; targetWidth = 0.78 - progress * 0.48; targetBrightness = 0.42 - progress * 0.24; targetPresence = 0.58 - progress * 0.24
     }
     let slew = 1 / max(1, rate * 1.8)
@@ -2337,6 +2342,11 @@ final class CosmicModel {
     airRight += (white() - airRight) * (0.006 + brightness * 0.018)
     let voidBody = rumble * (2 + intensity * 1.15) * pressure
     let airLevel = (0.06 + intensity * 0.055) * (0.55 + brightness)
+    let gravityTarget = state == 2 ? arc : 0
+    gravityLevel += (gravityTarget - gravityLevel) / max(1, rate * (gravityTarget > gravityLevel ? 2.8 : 4.2))
+    let gravityFrequency = 40 + intensity * 9 + mood * 3
+    let gravity = (sin(gravityPhase) + sin(gravityPhase * 2) * 0.16) * gravityLevel * (0.07 + intensity * 0.035)
+    gravityPhase = fmod(gravityPhase + Double.pi * 2 * gravityFrequency / rate, Double.pi * 2)
     let base = 34 + intensity * 8 + mood * 3
     var fieldLeft = 0.0
     var fieldRight = 0.0
@@ -2348,8 +2358,8 @@ final class CosmicModel {
       let lensBend = 1 + motion * (Double(index) - 1.5) * 0.00045 * (0.3 + width)
       fieldPhases[index] = fmod(fieldPhases[index] + Double.pi * 2 * base * Self.fieldRatios[index] * lensBend / rate, Double.pi * 2)
     }
-    left = voidBody + fieldLeft + airLeft * airLevel * (1 - motion * width * 0.16)
-    right = voidBody + fieldRight + airRight * airLevel * (1 + motion * width * 0.16)
+    left = voidBody + gravity + fieldLeft + airLeft * airLevel * (1 - motion * width * 0.16)
+    right = voidBody + gravity + fieldRight + airRight * airLevel * (1 + motion * width * 0.16)
     renderBlooms(intensity)
     stateAge += 1
   }
