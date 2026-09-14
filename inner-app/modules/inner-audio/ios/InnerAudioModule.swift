@@ -2158,6 +2158,8 @@ final class CosmicModel {
   private static let phi = 1.61803398875
   private static let fieldRatios = [1.0, 1.41421356237, phi, 2.61803398875]
   private static let fieldWeights = [0.07, 0.035, 0.027, 0.016]
+  private static let horizonRatios = [1.0, phi, phi * phi]
+  private static let horizonWeights = [0.058, 0.021, 0.009]
   private(set) var left = 0.0
   private(set) var right = 0.0
   private var random: UInt64 = 1
@@ -2178,6 +2180,8 @@ final class CosmicModel {
   private var presence = 0.4
   private var gravityLevel = 0.0
   private var gravityPhase = 0.0
+  private var horizonLevel = 0.6
+  private var horizonPhases = [Double](repeating: 0, count: 3)
   private var rumble = 0.0
   private var airLeft = 0.0
   private var airRight = 0.0
@@ -2202,6 +2206,8 @@ final class CosmicModel {
     motion = 0; motionTarget = 0; motionFrames = rate * 4
     pressure = 0.42; width = 0.3; brightness = 0.25; presence = 0.4
     gravityLevel = 0; gravityPhase = 0
+    horizonLevel = 0.6
+    for index in horizonPhases.indices { horizonPhases[index] = 0 }
     rumble = 0; airLeft = 0; airRight = 0
     for index in fieldPhases.indices { fieldPhases[index] = 0 }
     for index in bloomPhases.indices {
@@ -2347,6 +2353,18 @@ final class CosmicModel {
     let gravityFrequency = 40 + intensity * 9 + mood * 3
     let gravity = (sin(gravityPhase) + sin(gravityPhase * 2) * 0.16) * gravityLevel * (0.07 + intensity * 0.035)
     gravityPhase = fmod(gravityPhase + Double.pi * 2 * gravityFrequency / rate, Double.pi * 2)
+    let horizonTarget = 0.56 + mood * 0.16 + ((state == 3 || state == 4) ? 0.08 : 0)
+    horizonLevel += (horizonTarget - horizonLevel) / max(1, rate * 24)
+    let horizonBase = 36 + intensity * 5 + mood * 2
+    var horizonLeft = 0.0
+    var horizonRight = 0.0
+    for index in horizonPhases.indices {
+      let voice = sin(horizonPhases[index]) * Self.horizonWeights[index] * horizonLevel
+      let spread = index == 0 ? 0 : motion * width * (0.1 + Double(index) * 0.07)
+      horizonLeft += voice * (1 - spread)
+      horizonRight += voice * (1 + spread)
+      horizonPhases[index] = fmod(horizonPhases[index] + Double.pi * 2 * horizonBase * Self.horizonRatios[index] / rate, Double.pi * 2)
+    }
     let base = 34 + intensity * 8 + mood * 3
     var fieldLeft = 0.0
     var fieldRight = 0.0
@@ -2358,8 +2376,8 @@ final class CosmicModel {
       let lensBend = 1 + motion * (Double(index) - 1.5) * 0.00045 * (0.3 + width)
       fieldPhases[index] = fmod(fieldPhases[index] + Double.pi * 2 * base * Self.fieldRatios[index] * lensBend / rate, Double.pi * 2)
     }
-    left = voidBody + gravity + fieldLeft + airLeft * airLevel * (1 - motion * width * 0.16)
-    right = voidBody + gravity + fieldRight + airRight * airLevel * (1 + motion * width * 0.16)
+    left = voidBody + gravity + horizonLeft + fieldLeft + airLeft * airLevel * (1 - motion * width * 0.16)
+    right = voidBody + gravity + horizonRight + fieldRight + airRight * airLevel * (1 + motion * width * 0.16)
     renderBlooms(intensity)
     stateAge += 1
   }

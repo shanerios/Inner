@@ -8,6 +8,8 @@ internal class CosmicModel {
     const val PHI = 1.61803398875
     val FIELD_RATIOS = doubleArrayOf(1.0, 1.41421356237, PHI, 2.61803398875)
     val FIELD_WEIGHTS = doubleArrayOf(0.07, 0.035, 0.027, 0.016)
+    val HORIZON_RATIOS = doubleArrayOf(1.0, PHI, PHI * PHI)
+    val HORIZON_WEIGHTS = doubleArrayOf(0.058, 0.021, 0.009)
   }
   var left = 0.0
     private set
@@ -32,6 +34,8 @@ internal class CosmicModel {
   private var presence = 0.4
   private var gravityLevel = 0.0
   private var gravityPhase = 0.0
+  private var horizonLevel = 0.6
+  private val horizonPhases = DoubleArray(3)
   private var rumble = 0.0
   private var airLeft = 0.0
   private var airRight = 0.0
@@ -55,6 +59,7 @@ internal class CosmicModel {
     motion = 0.0; motionTarget = 0.0; motionFrames = rate * 4.0
     pressure = 0.42; width = 0.3; brightness = 0.25; presence = 0.4
     gravityLevel = 0.0; gravityPhase = 0.0
+    horizonLevel = 0.6; horizonPhases.fill(0.0)
     rumble = 0.0; airLeft = 0.0; airRight = 0.0
     fieldPhases.fill(0.0); bloomPhases.fill(0.0); bloomAges.fill(0.0)
     bloomDurations.fill(0.0); bloomFrequencies.fill(0.0)
@@ -196,6 +201,19 @@ internal class CosmicModel {
     val gravity = (sin(gravityPhase) + sin(gravityPhase * 2.0) * 0.16) * gravityLevel * (0.07 + intensity * 0.035)
     gravityPhase = (gravityPhase + PI * 2.0 * gravityFrequency / rate) % (PI * 2.0)
 
+    val horizonTarget = 0.56 + mood * 0.16 + if (state == 3 || state == 4) 0.08 else 0.0
+    horizonLevel += (horizonTarget - horizonLevel) / max(1.0, rate * 24.0)
+    val horizonBase = 36.0 + intensity * 5.0 + mood * 2.0
+    var horizonLeft = 0.0
+    var horizonRight = 0.0
+    for (index in horizonPhases.indices) {
+      val voice = sin(horizonPhases[index]) * HORIZON_WEIGHTS[index] * horizonLevel
+      val spread = if (index == 0) 0.0 else motion * width * (0.1 + index * 0.07)
+      horizonLeft += voice * (1.0 - spread)
+      horizonRight += voice * (1.0 + spread)
+      horizonPhases[index] = (horizonPhases[index] + PI * 2.0 * horizonBase * HORIZON_RATIOS[index] / rate) % (PI * 2.0)
+    }
+
     val base = 34.0 + intensity * 8.0 + mood * 3.0
     var fieldLeft = 0.0
     var fieldRight = 0.0
@@ -208,8 +226,8 @@ internal class CosmicModel {
       fieldPhases[index] = (fieldPhases[index] + PI * 2.0 * base * FIELD_RATIOS[index] * lensBend / rate) % (PI * 2.0)
     }
 
-    left = voidBody + gravity + fieldLeft + airLeft * airLevel * (1.0 - motion * width * 0.16)
-    right = voidBody + gravity + fieldRight + airRight * airLevel * (1.0 + motion * width * 0.16)
+    left = voidBody + gravity + horizonLeft + fieldLeft + airLeft * airLevel * (1.0 - motion * width * 0.16)
+    right = voidBody + gravity + horizonRight + fieldRight + airRight * airLevel * (1.0 + motion * width * 0.16)
     renderBlooms(intensity)
     stateAge += 1.0
   }
