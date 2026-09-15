@@ -118,6 +118,7 @@ function overnightJourney(
               id: event.id,
               type: 'cue' as const,
               atMs: withinPhaseMs - chunkStartMs,
+              recognitionSpace: true,
             })),
         };
       });

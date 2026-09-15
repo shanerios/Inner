@@ -72,6 +72,18 @@ describe('audio journey timeline compiler', () => {
     ]);
   });
 
+  it('preserves the overnight recognition-space cue marker', () => {
+    const result = compileAudioJourneyTimeline({
+      id: 'overnight-cue', title: 'Overnight Cue', stages: [{
+        id: 'recognize', label: 'Recognize', durationMs: 60_000, target: {},
+        spatialEvents: [{ id: 'signal', atMs: 30_000, type: 'cue', recognitionSpace: true }],
+      }],
+    }, DEFAULT_PROCEDURAL_AUDIO_CONFIG);
+    expect(result.stages[0].spatialEvents).toEqual([
+      { id: 'signal', atMs: 30_000, type: 'cue', recognitionSpace: true },
+    ]);
+  });
+
   it('rejects cue events outside their stage', () => {
     expect(() => compileAudioJourneyTimeline({
       id: 'bad-cue', title: 'Bad Cue', stages: [{

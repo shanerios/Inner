@@ -18,6 +18,8 @@ export type AudioCueEvent = {
   id: string;
   atMs: number;
   type: 'cue';
+  /** Opens a quieter native sound field around overnight recognition signals. */
+  recognitionSpace?: boolean;
 };
 
 export type AudioSpatialEvent = AudioSwooshEvent | AudioCueEvent;

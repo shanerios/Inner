@@ -41,6 +41,7 @@ private struct SpatialEventRecord: Record {
   @Field var direction = "right"
   @Field var durationMs = 1_200.0
   @Field var depth = 0.8
+  @Field var recognitionSpace = false
 }
 
 private struct AudioTimelineRecord: Record {
@@ -110,6 +111,7 @@ private struct TimelineStage {
 
 private struct CueEvent {
   let atMs: Double
+  let recognitionSpace: Bool
 }
 
 private struct SpatialEvent {
@@ -357,7 +359,7 @@ private final class ProceduralAudioEngine: NSObject {
         },
         cueEvents: stage.spatialEvents.prefix(16).compactMap { event in
           guard event.type == "cue", event.atMs >= 0 else { return nil }
-          return CueEvent(atMs: event.atMs)
+          return CueEvent(atMs: event.atMs, recognitionSpace: event.recognitionSpace)
         }
       )
     }
@@ -777,6 +779,7 @@ private final class ProceduralAudioEngine: NSObject {
         $0.fadeInMs > 0 ? min(1, spatialTime * 1_000 / sampleRate / $0.fadeInMs) : 1
       } ?? 1
       let timelineElapsedMs = spatialTime * 1_000 / sampleRate
+      let recognitionSpace = activeTimeline.flatMap { timelineRecognitionSpace($0, elapsedMs: timelineElapsedMs) }
       let event = activeTimeline.flatMap { timelineSpatialEvent($0, elapsedMs: timelineElapsedMs) }
       if let activeTimeline, let cueFireMs = timelineCueEventMs(activeTimeline, elapsedMs: timelineElapsedMs, afterMs: cueTimelineThresholdMs) {
         cueTimelineThresholdMs = cueFireMs
@@ -945,8 +948,16 @@ private final class ProceduralAudioEngine: NSObject {
       let speakerPulse = sin(phases[5]) * pulseEnvelope * gains[1] * spatialRoom
       let leftEntrainment = sin(phases[1]) * gains[1] * spatialRoom * privateOutputMix + speakerPulse * (1 - privateOutputMix)
       let rightEntrainment = sin(phases[2]) * gains[1] * spatialRoom * privateOutputMix + speakerPulse * (1 - privateOutputMix)
-      let leftMix = (leftCarrier + leftEntrainment + leftNoise + ocean.left * oceanGain + wind.left * windGain + fire.left * fireGain + cosmic.left * cosmicGain + forest.left * forestGain + templeSpace.left * templeSpaceGain + temple.left * templeLevel + cue.left) * gains[3] * journeyFade * sleepGain * 0.32
-      let rightMix = (rightCarrier + rightEntrainment + rightNoise + ocean.right * oceanGain + wind.right * windGain + fire.right * fireGain + cosmic.right * cosmicGain + forest.right * forestGain + templeSpace.right * templeSpaceGain + temple.right * templeLevel + cue.right) * gains[3] * journeyFade * sleepGain * 0.32
+      let rawEnvironmentLeft = ocean.left * oceanGain + wind.left * windGain + fire.left * fireGain + cosmic.left * cosmicGain + forest.left * forestGain + templeSpace.left * templeSpaceGain + temple.left * templeLevel
+      let rawEnvironmentRight = ocean.right * oceanGain + wind.right * windGain + fire.right * fireGain + cosmic.right * cosmicGain + forest.right * forestGain + templeSpace.right * templeSpaceGain + temple.right * templeLevel
+      let environmentMid = (rawEnvironmentLeft + rawEnvironmentRight) * 0.5
+      let environmentSide = (rawEnvironmentLeft - rawEnvironmentRight) * 0.5 * (recognitionSpace?.width ?? 1)
+      let recognitionGain = recognitionSpace?.gain ?? 1
+      let shapedEnvironmentLeft = (environmentMid + environmentSide) * recognitionGain
+      let shapedEnvironmentRight = (environmentMid - environmentSide) * recognitionGain
+      let recognitionNoiseGain = 0.7 + 0.3 * recognitionGain
+      let leftMix = (leftCarrier + leftEntrainment + leftNoise * recognitionNoiseGain + shapedEnvironmentLeft + cue.left) * gains[3] * journeyFade * sleepGain * 0.32
+      let rightMix = (rightCarrier + rightEntrainment + rightNoise * recognitionNoiseGain + shapedEnvironmentRight + cue.right) * gains[3] * journeyFade * sleepGain * 0.32
       left[frame] = Float(softLimit(leftMix))
       right[frame] = Float(softLimit(rightMix))
       phases[0] = fmod(phases[0] + tau * target.carrierHz / sampleRate, tau)
@@ -1098,6 +1109,45 @@ private final class ProceduralAudioEngine: NSObject {
       cursor += stage.durationMs
     }
     return nil
+  }
+
+  /// Opens a quiet field around overnight recognition cues. The curve comes
+  /// from timeline position, keeping it sample-smooth through every callback.
+  private func timelineRecognitionSpace(_ timeline: AudioTimeline, elapsedMs: Double) -> (gain: Double, width: Double)? {
+    var cursor = 0.0
+    var bestGain = 1.0
+    var bestWidth = 1.0
+    var active = false
+    for stage in timeline.stages {
+      for event in stage.cueEvents where event.recognitionSpace {
+        let relativeMs = elapsedMs - (cursor + event.atMs)
+        let progress: Double
+        if relativeMs < -20_000 || relativeMs > 30_000 {
+          continue
+        } else if relativeMs < -10_000 {
+          progress = smoothStep((relativeMs + 20_000) / 10_000) * 0.45
+        } else if relativeMs < 0 {
+          progress = 0.45 + smoothStep((relativeMs + 10_000) / 10_000) * 0.45
+        } else if relativeMs <= 10_000 {
+          progress = 0.9
+        } else {
+          progress = 0.9 * (1 - smoothStep((relativeMs - 10_000) / 20_000))
+        }
+        let gain = 1 - progress * 0.46
+        if gain < bestGain {
+          bestGain = gain
+          bestWidth = 1 + progress * 0.18
+          active = true
+        }
+      }
+      cursor += stage.durationMs
+    }
+    return active ? (gain: bestGain, width: bestWidth) : nil
+  }
+
+  private func smoothStep(_ value: Double) -> Double {
+    let bounded = clamp(value, 0, 1)
+    return bounded * bounded * (3 - 2 * bounded)
   }
 
   private func startCue() {

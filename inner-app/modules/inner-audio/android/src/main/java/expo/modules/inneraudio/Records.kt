@@ -32,6 +32,7 @@ class SpatialEventRecord : Record {
   @Field var direction: String = "right"
   @Field var durationMs: Double = 1_200.0
   @Field var depth: Double = 0.8
+  @Field var recognitionSpace: Boolean = false
 }
 
 class TimelineStageRecord : Record {

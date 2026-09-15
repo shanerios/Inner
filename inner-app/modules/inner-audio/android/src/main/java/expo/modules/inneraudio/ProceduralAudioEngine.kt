@@ -79,7 +79,10 @@ private data class SpatialEventState(
   val depth: Double,
 )
 
-private data class CueEventState(val atMs: Double)
+private data class CueEventState(
+  val atMs: Double,
+  val recognitionSpace: Boolean,
+)
 
 private data class AudioTimelineState(
   val seed: Long,
@@ -183,6 +186,7 @@ object ProceduralAudioEngine {
   private val renderBaseTarget = AudioParameters()
   private val timelineTarget = AudioParameters()
   private val spatialCrossing = SpatialCrossing()
+  private val recognitionSpaceMix = RecognitionSpaceMix()
   private val rainNoiseSample = StereoSample()
   private val oceanSample = StereoSample()
   private val windSample = StereoSample()
@@ -423,7 +427,7 @@ object ProceduralAudioEngine {
           },
           cueEvents = stage.spatialEvents.take(16).mapNotNull { event ->
             if (event.type != "cue" || event.atMs < 0) return@mapNotNull null
-            CueEventState(atMs = event.atMs)
+            CueEventState(atMs = event.atMs, recognitionSpace = event.recognitionSpace)
           },
         )
       }
@@ -678,6 +682,7 @@ object ProceduralAudioEngine {
         if (it.fadeInMs > 0) min(1.0, spatialTime * 1_000.0 / sampleRate / it.fadeInMs) else 1.0
       } ?: 1.0
       val timelineElapsedMs = spatialTime * 1_000.0 / sampleRate
+      val recognitionSpace = activeTimeline?.let { timelineRecognitionSpace(it, timelineElapsedMs) }
       val event = activeTimeline?.let { timelineSpatialEvent(it, timelineElapsedMs) }
       if (activeTimeline != null) {
         val cueFireMs = timelineCueEventMs(activeTimeline, timelineElapsedMs, cueTimelineThresholdMs)
@@ -819,8 +824,16 @@ object ProceduralAudioEngine {
       val speakerPulse = sin(phases[5]) * pulseEnvelope * gains[1] * spatialRoom
       val leftEntrainment = sin(phases[1]) * gains[1] * spatialRoom * privateOutputMix + speakerPulse * (1 - privateOutputMix)
       val rightEntrainment = sin(phases[2]) * gains[1] * spatialRoom * privateOutputMix + speakerPulse * (1 - privateOutputMix)
-      val leftMix = (leftCarrier + leftEntrainment + leftNoise + ocean.first * oceanGain + wind.first * windGain + fire.first * fireGain + cosmic.first * cosmicGain + forest.first * forestGain + templeSpace.first * templeSpaceGain + temple.first * templeLevel + cue.first) * gains[3] * journeyFade * sleepGain * 0.32
-      val rightMix = (rightCarrier + rightEntrainment + rightNoise + ocean.second * oceanGain + wind.second * windGain + fire.second * fireGain + cosmic.second * cosmicGain + forest.second * forestGain + templeSpace.second * templeSpaceGain + temple.second * templeLevel + cue.second) * gains[3] * journeyFade * sleepGain * 0.32
+      val rawEnvironmentLeft = ocean.first * oceanGain + wind.first * windGain + fire.first * fireGain + cosmic.first * cosmicGain + forest.first * forestGain + templeSpace.first * templeSpaceGain + temple.first * templeLevel
+      val rawEnvironmentRight = ocean.second * oceanGain + wind.second * windGain + fire.second * fireGain + cosmic.second * cosmicGain + forest.second * forestGain + templeSpace.second * templeSpaceGain + temple.second * templeLevel
+      val environmentMid = (rawEnvironmentLeft + rawEnvironmentRight) * 0.5
+      val environmentSide = (rawEnvironmentLeft - rawEnvironmentRight) * 0.5 * (recognitionSpace?.width ?: 1.0)
+      val recognitionGain = recognitionSpace?.gain ?: 1.0
+      val shapedEnvironmentLeft = (environmentMid + environmentSide) * recognitionGain
+      val shapedEnvironmentRight = (environmentMid - environmentSide) * recognitionGain
+      val recognitionNoiseGain = 0.7 + 0.3 * recognitionGain
+      val leftMix = (leftCarrier + leftEntrainment + leftNoise * recognitionNoiseGain + shapedEnvironmentLeft + cue.first) * gains[3] * journeyFade * sleepGain * 0.32
+      val rightMix = (rightCarrier + rightEntrainment + rightNoise * recognitionNoiseGain + shapedEnvironmentRight + cue.second) * gains[3] * journeyFade * sleepGain * 0.32
       output[frame * 2] = softLimit(leftMix).toFloat()
       output[frame * 2 + 1] = softLimit(rightMix).toFloat()
       phases[0] = (phases[0] + tau * target.carrierHz / sampleRate) % tau
@@ -963,6 +976,44 @@ object ProceduralAudioEngine {
       cursor += stage.durationMs
     }
     return null
+  }
+
+  /**
+   * Opens a quiet field around overnight recognition cues. The curve is
+   * derived directly from timeline position, so it remains sample-smooth
+   * across callbacks, seeks, background playback, and process recovery.
+   */
+  private fun timelineRecognitionSpace(timeline: AudioTimelineState, elapsedMs: Double): RecognitionSpaceMix? {
+    var cursor = 0.0
+    var bestGain = 1.0
+    var bestWidth = 1.0
+    var active = false
+    for (stage in timeline.stages) {
+      for (event in stage.cueEvents) {
+        if (!event.recognitionSpace) continue
+        val relativeMs = elapsedMs - (cursor + event.atMs)
+        val progress = when {
+          relativeMs < -20_000.0 || relativeMs > 30_000.0 -> continue
+          relativeMs < -10_000.0 -> smoothStep((relativeMs + 20_000.0) / 10_000.0) * 0.45
+          relativeMs < 0.0 -> 0.45 + smoothStep((relativeMs + 10_000.0) / 10_000.0) * 0.45
+          relativeMs <= 10_000.0 -> 0.9
+          else -> 0.9 * (1.0 - smoothStep((relativeMs - 10_000.0) / 20_000.0))
+        }
+        val gain = 1.0 - progress * 0.46
+        if (gain < bestGain) {
+          bestGain = gain
+          bestWidth = 1.0 + progress * 0.18
+          active = true
+        }
+      }
+      cursor += stage.durationMs
+    }
+    return if (active) recognitionSpaceMix.set(bestGain, bestWidth) else null
+  }
+
+  private fun smoothStep(value: Double): Double {
+    val bounded = clamp(value, 0.0, 1.0)
+    return bounded * bounded * (3.0 - 2.0 * bounded)
   }
 
   private fun startCue() {
@@ -1519,6 +1570,16 @@ object ProceduralAudioEngine {
     fun set(pan: Double, crossing: Double): SpatialCrossing {
       this.pan = pan
       this.crossing = crossing
+      return this
+    }
+  }
+
+  private class RecognitionSpaceMix {
+    var gain = 1.0
+    var width = 1.0
+    fun set(gain: Double, width: Double): RecognitionSpaceMix {
+      this.gain = gain
+      this.width = width
       return this
     }
   }
