@@ -1,7 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 import { OVERNIGHT_WORLD_PROFILES, WORLD_PROFILES } from '../worldProfiles';
 
-const WORLD_IDS = ['ocean', 'wind', 'fire', 'cosmic', 'forest', 'temple'] as const;
+const WORLD_IDS = ['ocean', 'abyssal', 'wind', 'fire', 'cosmic', 'forest', 'temple'] as const;
 
 describe('procedural world profiles', () => {
   it('defines one complete profile for every procedural world', () => {
@@ -33,7 +33,7 @@ describe('procedural world profiles', () => {
 
   it('drives the overnight picker from the same world catalog', () => {
     expect(OVERNIGHT_WORLD_PROFILES.map((world) => world.id)).toEqual([
-      'ocean', 'forest', 'temple', 'cosmic', 'fire',
+      'ocean', 'abyssal', 'forest', 'temple', 'cosmic', 'fire',
     ]);
   });
 });

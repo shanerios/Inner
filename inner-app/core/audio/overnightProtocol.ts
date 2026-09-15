@@ -160,7 +160,9 @@ export function createRecognitionOvernightProtocol(options: RecognitionOvernight
     .map(hours => hours * 60 * 60_000)
     .filter(offset => offset < sleepDurationMs - returnMs);
   const environmentGain = options.feel === 'immersive' ? 0.2 : options.feel === 'deep' ? 0.16 : 0.12;
-  const harmonicTranslation = options.environment === 'ocean' || options.environment === 'cosmic' ? 0.72 : 0;
+  const harmonicTranslation = options.environment === 'ocean' || options.environment === 'cosmic'
+    ? 0.72
+    : options.environment === 'abyssal' ? 0.6 : 0;
   const phases: OvernightProtocolPhase[] = [
     {
       id: 'preparation', label: 'Recognition Practice', kind: 'preparation', durationMs: preparationMs,

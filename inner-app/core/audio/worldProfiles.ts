@@ -42,6 +42,17 @@ export const WORLD_PROFILES: Record<AudioWorld, WorldProfile> = {
     events: [{ id: 'bubble-burst', role: 'accent', salience: 0.28, recoverySeconds: 2 }],
     recognitionRecoverySeconds: 2,
   },
+  abyssal: {
+    id: 'abyssal', label: 'Abyssal Glass', concept: 'A protected glass habitat resting under immense deep-ocean pressure.',
+    foundation: ['pressure-drone', 'hydrophone-water', 'glass-resonance'],
+    acoustics: { scale: 'vast', absorption: 0.82, diffusion: 0.7, width: 0.76 },
+    signatures: ['distant-biological-pulse', 'condensation-on-glass', 'structural-flex'], motion: 'drift',
+    events: [
+      { id: 'condensation-drop', role: 'texture', salience: 0.22, recoverySeconds: 1.5 },
+      { id: 'abyssal-call', role: 'anchor', salience: 0.58, recoverySeconds: 5 },
+    ],
+    recognitionRecoverySeconds: 2,
+  },
   wind: {
     id: 'wind', label: 'Wind', concept: 'Broad moving air shaped by slow gusts and pressure changes.',
     foundation: ['low-air-pressure', 'filtered-air'],
@@ -84,7 +95,7 @@ export const WORLD_PROFILES: Record<AudioWorld, WorldProfile> = {
   },
 };
 
-const OVERNIGHT_WORLD_ORDER: readonly OvernightAudioWorld[] = ['ocean', 'forest', 'temple', 'cosmic', 'fire'];
+const OVERNIGHT_WORLD_ORDER: readonly OvernightAudioWorld[] = ['ocean', 'abyssal', 'forest', 'temple', 'cosmic', 'fire'];
 
 export const OVERNIGHT_WORLD_PROFILES: ReadonlyArray<WorldProfile & { id: OvernightAudioWorld }> =
   OVERNIGHT_WORLD_ORDER.map((id) => ({ ...WORLD_PROFILES[id], id }));

@@ -250,6 +250,8 @@ private final class ProceduralAudioEngine: NSObject {
   private var rainMix = 0.0
   private var oceanEnvelope = 0.0
   private let oceanModel = OceanModel()
+  private var abyssalEnvelope = 0.0
+  private let abyssalModel = AbyssalModel()
   private var windEnvelope = 0.0
   private var windRandom: UInt64 = 0x9e3779b97f4a7c15 ^ 0x7f4a7c15
   private var windBody = 0.0
@@ -551,6 +553,8 @@ private final class ProceduralAudioEngine: NSObject {
     rainMix = 0
     oceanEnvelope = 0
     oceanModel.reset(seed: 0x9e3779b97f4a7c15, sampleRate: sampleRate)
+    abyssalEnvelope = 0
+    abyssalModel.reset(seed: 0x9e3779b97f4a7c15, sampleRate: sampleRate)
     windEnvelope = 0
     windRandom = 0x9e3779b97f4a7c15 ^ 0x7f4a7c15
     windBody = 0
@@ -773,6 +777,7 @@ private final class ProceduralAudioEngine: NSObject {
     if let activeTimeline, renderedTimelineGeneration != generation {
       random = activeTimeline.seed
       oceanModel.reset(seed: activeTimeline.seed, sampleRate: sampleRate)
+      abyssalModel.reset(seed: activeTimeline.seed, sampleRate: sampleRate)
       windRandom = activeTimeline.seed ^ 0x7f4a7c15
       fireRandom = activeTimeline.seed ^ 0x2c1b3c6d
       cosmicModel.reset(seed: activeTimeline.seed, sampleRate: sampleRate)
@@ -912,6 +917,9 @@ private final class ProceduralAudioEngine: NSObject {
       let oceanTarget = target.environment == "ocean" && target.environmentGain > 0.0001 ? 1.0 : 0.0
       let oceanStep = 1 / max(1, sampleRate * 4.5)
       oceanEnvelope += clamp(oceanTarget - oceanEnvelope, -oceanStep, oceanStep)
+      let abyssalTarget = target.environment == "abyssal" && target.environmentGain > 0.0001 ? 1.0 : 0.0
+      let abyssalStep = 1 / max(1, sampleRate * 6.0)
+      abyssalEnvelope += clamp(abyssalTarget - abyssalEnvelope, -abyssalStep, abyssalStep)
       let windTarget = target.environment == "wind" && target.environmentGain > 0.0001 ? 1.0 : 0.0
       let windStep = 1 / max(1, sampleRate * 4.5)
       windEnvelope += clamp(windTarget - windEnvelope, -windStep, windStep)
@@ -969,6 +977,10 @@ private final class ProceduralAudioEngine: NSObject {
         ? nextOcean(elapsedSeconds: spatialSeconds, intensity: target.environmentIntensity)
         : (left: 0.0, right: 0.0)
       let oceanGain = target.environmentGain * oceanEnvelope
+      let abyssal = abyssalEnvelope > 0.0001
+        ? nextAbyssal(elapsedSeconds: spatialSeconds, intensity: target.environmentIntensity)
+        : (left: 0.0, right: 0.0)
+      let abyssalGain = target.environmentGain * abyssalEnvelope
       let wind = windEnvelope > 0.0001
         ? nextWind(elapsedSeconds: spatialSeconds, intensity: target.environmentIntensity)
         : (left: 0.0, right: 0.0)
@@ -1008,8 +1020,8 @@ private final class ProceduralAudioEngine: NSObject {
       let harmonicTranslation = nextHarmonicTranslation(target)
       let shepardDescent = nextThresholdShepard(progress: thresholdDepth, motion: thresholdMotion) * target.environmentGain * 0.075
       let thresholdCenter = harmonicTranslation + shepardDescent
-      let rawEnvironmentLeft = ocean.left * oceanGain + wind.left * windGain + fire.left * fireGain + cosmic.left * cosmicGain + forest.left * forestGain + templeSpace.left * templeSpaceGain + temple.left * templeLevel + thresholdCenter
-      let rawEnvironmentRight = ocean.right * oceanGain + wind.right * windGain + fire.right * fireGain + cosmic.right * cosmicGain + forest.right * forestGain + templeSpace.right * templeSpaceGain + temple.right * templeLevel + thresholdCenter
+      let rawEnvironmentLeft = ocean.left * oceanGain + abyssal.left * abyssalGain + wind.left * windGain + fire.left * fireGain + cosmic.left * cosmicGain + forest.left * forestGain + templeSpace.left * templeSpaceGain + temple.left * templeLevel + thresholdCenter
+      let rawEnvironmentRight = ocean.right * oceanGain + abyssal.right * abyssalGain + wind.right * windGain + fire.right * fireGain + cosmic.right * cosmicGain + forest.right * forestGain + templeSpace.right * templeSpaceGain + temple.right * templeLevel + thresholdCenter
       let thresholdCutoff = 5_500 / (1 + 2.928571 * thresholdDepth)
       let thresholdFilter = tau * thresholdCutoff / (sampleRate + tau * thresholdCutoff)
       thresholdEnvironmentLowLeft += thresholdFilter * (rawEnvironmentLeft - thresholdEnvironmentLowLeft)
@@ -1322,6 +1334,11 @@ private final class ProceduralAudioEngine: NSObject {
   private func nextOcean(elapsedSeconds: Double, intensity: Double) -> (left: Double, right: Double) {
     oceanModel.render(sampleRate: sampleRate, intensity: intensity, salience: worldSalience)
     return (oceanModel.left, oceanModel.right)
+  }
+
+  private func nextAbyssal(elapsedSeconds: Double, intensity: Double) -> (left: Double, right: Double) {
+    abyssalModel.render(sampleRate: sampleRate, intensity: intensity, elapsedSeconds: elapsedSeconds, salience: worldSalience)
+    return (abyssalModel.left, abyssalModel.right)
   }
 
   private func nextWind(elapsedSeconds: Double, intensity: Double) -> (left: Double, right: Double) {
@@ -1735,7 +1752,7 @@ private final class ProceduralAudioEngine: NSObject {
       binauralGain: clamp(raw.binauralGain, 0, 1),
       noiseColor: raw.noiseColor.flatMap { ["white", "pink", "brown", "grey"].contains($0) ? $0 : nil },
       noiseGain: clamp(raw.noiseGain, 0, 1),
-      environment: raw.environment == "cave" ? "cosmic" : (["ocean", "wind", "fire", "cosmic", "forest", "temple"].contains(raw.environment) ? raw.environment : "none"),
+      environment: raw.environment == "cave" ? "cosmic" : (["ocean", "wind", "fire", "cosmic", "forest", "temple", "abyssal"].contains(raw.environment) ? raw.environment : "none"),
       environmentGain: clamp(raw.environmentGain, 0, 1),
       environmentIntensity: clamp(raw.environmentIntensity, 0, 1),
       thresholdShift: clamp(raw.thresholdShift, 0, 1),
@@ -1817,6 +1834,7 @@ private final class ProceduralAudioEngine: NSObject {
     switch target.environment {
     case "cosmic": impliedFundamental = 50
     case "ocean": impliedFundamental = 60
+    case "abyssal": impliedFundamental = 42
     default: return 0
     }
     guard target.harmonicTranslation > 0.0001, target.environmentGain > 0.0001 else { return 0 }
@@ -2637,5 +2655,181 @@ final class CosmicModel {
     right = voidBody + gravity + horizonRight + fieldRight + moanRight + airRight * airLevel * (1 + motion * width * 0.16)
     renderBlooms(intensity, salience: salience)
     stateAge += 1
+  }
+}
+
+/// Enclosed deep-water world: pressure, hydrophone motion, glass, and sparse life.
+final class AbyssalModel {
+  private(set) var left = 0.0
+  private(set) var right = 0.0
+  private var random: UInt64 = 1
+  private var rate = 48_000.0
+  private var pressurePhase = 0.0
+  private var pressureUpperPhase = 0.0
+  private var pressureNoise = 0.0
+  private var hydroMid = 0.0
+  private var hydroLeft = 0.0
+  private var hydroRight = 0.0
+  private var glassPhases = [Double](repeating: 0, count: 4)
+  private static let glassFrequencies = [146.8, 233.1, 379.9, 612.4]
+  private static let glassWeights = [0.014, 0.009, 0.005, 0.0025]
+
+  private var creatureCountdown = 48_000.0 * 14
+  private var creatureActive = false
+  private var creatureAge = 0.0
+  private var creatureDuration = 0.0
+  private var creaturePhase = 0.0
+  private var creatureStartHz = 94.0
+  private var creatureEndHz = 58.0
+  private var creaturePan = 0.0
+  private var creatureLevel = 0.0
+
+  private var dropCountdown = 48_000.0 * 5.5
+  private var dropAge = 0.0
+  private var dropDuration = 0.0
+  private var dropPhase = 0.0
+  private var dropFrequency = 0.0
+  private var dropPan = 0.0
+  private var dropLevel = 0.0
+  private var dropDelay = [Double](repeating: 0, count: 48_000)
+  private var dropDelayIndex = 0
+
+  func reset(seed: UInt64, sampleRate: Double) {
+    random = seed ^ 0xbb67ae85
+    if random == 0 { random = 1 }
+    rate = sampleRate
+    pressurePhase = 0; pressureUpperPhase = 0
+    pressureNoise = 0; hydroMid = 0; hydroLeft = 0; hydroRight = 0
+    glassPhases = [Double](repeating: 0, count: 4)
+    creatureCountdown = rate * 14; creatureActive = false; creatureAge = 0
+    creatureDuration = 0; creaturePhase = 0; creaturePan = 0; creatureLevel = 0
+    dropCountdown = rate * 5.5; dropAge = 0; dropDuration = 0
+    dropPhase = 0; dropFrequency = 0; dropPan = 0; dropLevel = 0
+    dropDelay.withUnsafeMutableBufferPointer { buffer in
+      buffer.baseAddress?.update(repeating: 0, count: buffer.count)
+    }
+    dropDelayIndex = 0; left = 0; right = 0
+  }
+
+  private func unit() -> Double {
+    random ^= random << 13; random ^= random >> 7; random ^= random << 17
+    return Double(random & 0x00ff_ffff) / Double(0x00ff_ffff)
+  }
+
+  private func white() -> Double { unit() * 2 - 1 }
+  private func smooth(_ value: Double) -> Double {
+    let x = min(1, max(0, value))
+    return x * x * (3 - 2 * x)
+  }
+
+  private func nextCreature(_ intensity: Double, salience: WorldSalienceScheduler) -> (left: Double, right: Double) {
+    if !creatureActive {
+      creatureCountdown -= 1
+      if creatureCountdown <= 0 {
+        if salience.reserve(salience: 0.58, durationSeconds: 12, recoverySeconds: 5) {
+          creatureActive = true
+          creatureAge = 0
+          creatureDuration = rate * (8.5 + unit() * 3.5)
+          creaturePhase = unit() * Double.pi * 2
+          creatureStartHz = 88 + unit() * 24
+          creatureEndHz = 48 + unit() * 15
+          creaturePan = (unit() * 2 - 1) * 0.48
+          creatureLevel = (0.09 + unit() * 0.035) * (0.78 + intensity * 0.22)
+          creatureCountdown = rate * (42 + unit() * 58)
+        } else {
+          creatureCountdown = rate * (3 + unit() * 3)
+        }
+      }
+    }
+    guard creatureActive, creatureDuration > 0 else { return (0, 0) }
+    let progress = min(1, max(0, creatureAge / creatureDuration))
+    let attack = smooth(creatureAge / max(1, rate * 2.4))
+    let release = 1 - smooth((progress - 0.62) / 0.38)
+    let bend = smooth(progress)
+    let frequency = (creatureStartHz + (creatureEndHz - creatureStartHz) * bend)
+      * (1 + sin(progress * Double.pi * 9) * 0.006)
+    let voice = (sin(creaturePhase) + sin(creaturePhase * 2) * 0.23 + sin(creaturePhase * 3) * 0.07)
+      * attack * release * creatureLevel
+    creaturePhase = fmod(creaturePhase + Double.pi * 2 * frequency / rate, Double.pi * 2)
+    creatureAge += 1
+    if creatureAge >= creatureDuration { creatureActive = false }
+    let travel = creaturePan + sin(progress * Double.pi) * 0.12 * (creaturePan < 0 ? 1 : -1)
+    return (voice * (1 - travel) * 0.68, voice * (1 + travel) * 0.68)
+  }
+
+  private func nextCondensation(_ intensity: Double, salience: WorldSalienceScheduler) -> (left: Double, right: Double) {
+    if dropAge >= dropDuration {
+      dropCountdown -= 1
+      if dropCountdown <= 0 {
+        if salience.reserve(salience: 0.22, durationSeconds: 1.4, recoverySeconds: 1.5) {
+          dropAge = 0
+          dropDuration = rate * (0.16 + unit() * 0.12)
+          dropPhase = 0
+          dropFrequency = 620 + unit() * 820
+          dropPan = (unit() * 2 - 1) * 0.6
+          dropLevel = (0.018 + unit() * 0.015) * (0.75 + intensity * 0.25)
+          dropCountdown = rate * (8 + unit() * 12)
+        } else {
+          dropCountdown = rate * (2 + unit() * 2)
+        }
+      }
+    }
+    var dryLeft = 0.0
+    var dryRight = 0.0
+    if dropAge < dropDuration && dropDuration > 0 {
+      let progress = dropAge / dropDuration
+      let attack = smooth(dropAge / max(1, rate * 0.006))
+      let decay = pow(1 - progress, 3)
+      let frequency = dropFrequency * (1 - progress * 0.55)
+      let tone = (sin(dropPhase) + sin(dropPhase * 2.07) * 0.2) * attack * decay * dropLevel
+      dropPhase = fmod(dropPhase + Double.pi * 2 * frequency / rate, Double.pi * 2)
+      dropAge += 1
+      dryLeft = tone * (1 - dropPan) * 0.58
+      dryRight = tone * (1 + dropPan) * 0.58
+    }
+    let size = dropDelay.count
+    let near = dropDelay[(dropDelayIndex - min(size - 1, max(1, Int(rate * 0.19))) + size) % size]
+    let far = dropDelay[(dropDelayIndex - min(size - 1, max(1, Int(rate * 0.43))) + size) % size]
+    dropDelay[dropDelayIndex] = (dryLeft + dryRight) * 0.5 + (near * 0.26 + far * 0.18) * 0.35
+    dropDelayIndex = (dropDelayIndex + 1) % size
+    return (dryLeft + near * 0.18 + far * 0.1, dryRight + near * 0.12 + far * 0.16)
+  }
+
+  func render(sampleRate: Double, intensity: Double, elapsedSeconds: Double, salience: WorldSalienceScheduler) {
+    if rate != sampleRate { reset(seed: random, sampleRate: sampleRate) }
+    let tau = Double.pi * 2
+    let shared = white()
+    pressureNoise += (shared - pressureNoise) * (0.00055 + intensity * 0.00035)
+    hydroMid += (shared - hydroMid) * (0.004 + intensity * 0.002)
+    hydroLeft += (white() - hydroLeft) * 0.0028
+    hydroRight += (white() - hydroRight) * 0.0028
+
+    let pressureBreath = 0.72 + 0.28 * (0.5 - 0.5 * cos(elapsedSeconds * tau / 27))
+    let pressure = (sin(pressurePhase) * 0.14 + sin(pressureUpperPhase) * 0.045 + pressureNoise * 1.9)
+      * pressureBreath * (0.82 + intensity * 0.28)
+    pressurePhase = fmod(pressurePhase + tau * (39 + intensity * 4) / rate, tau)
+    pressureUpperPhase = fmod(pressureUpperPhase + tau * (78 + intensity * 8) / rate, tau)
+
+    let drift = sin(elapsedSeconds * tau / 41 + sin(elapsedSeconds / 23) * 0.5) * 0.22
+    let hydroBody = (hydroMid - pressureNoise * 0.6) * (0.45 + intensity * 0.35)
+    let waterLeft = (hydroBody + hydroLeft * 0.5) * (1 - drift)
+    let waterRight = (hydroBody + hydroRight * 0.5) * (1 + drift)
+
+    let flex = pow(0.5 - 0.5 * cos(elapsedSeconds * tau / 53), 2)
+    var glassLeft = 0.0
+    var glassRight = 0.0
+    for index in glassPhases.indices {
+      let value = sin(glassPhases[index]) * Self.glassWeights[index] * (0.28 + flex * 0.72)
+      let spread = index % 2 == 0 ? -0.22 : 0.22
+      glassLeft += value * (1 - spread)
+      glassRight += value * (1 + spread)
+      let bend = 1 + sin(elapsedSeconds / (17 + Double(index) * 4) + Double(index)) * 0.0015
+      glassPhases[index] = fmod(glassPhases[index] + tau * Self.glassFrequencies[index] * bend / rate, tau)
+    }
+
+    let creature = nextCreature(intensity, salience: salience)
+    let drop = nextCondensation(intensity, salience: salience)
+    left = pressure + waterLeft + glassLeft + creature.left + drop.left
+    right = pressure + waterRight + glassRight + creature.right + drop.right
   }
 }

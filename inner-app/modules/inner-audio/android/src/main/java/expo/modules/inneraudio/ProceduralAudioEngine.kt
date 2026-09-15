@@ -193,6 +193,7 @@ object ProceduralAudioEngine {
   private val recognitionSpaceMix = RecognitionSpaceMix()
   private val rainNoiseSample = StereoSample()
   private val oceanSample = StereoSample()
+  private val abyssalSample = StereoSample()
   private val windSample = StereoSample()
   private val fireSample = StereoSample()
   private val cosmicSample = StereoSample()
@@ -242,6 +243,8 @@ object ProceduralAudioEngine {
   private var rainMix = 0.0
   private var oceanEnvelope = 0.0
   private val oceanModel = OceanModel()
+  private var abyssalEnvelope = 0.0
+  private val abyssalModel = AbyssalModel()
   private var windEnvelope = 0.0
   private var windRandom = XORSHIFT_SEED xor 0x7f4a7c15L
   private var windBody = 0.0
@@ -549,6 +552,7 @@ object ProceduralAudioEngine {
     rainMix = 0.0
     oceanEnvelope = 0.0
     oceanModel.reset(XORSHIFT_SEED, sampleRate)
+    abyssalModel.reset(XORSHIFT_SEED, sampleRate)
     windEnvelope = 0.0
     windRandom = XORSHIFT_SEED xor 0x7f4a7c15L
     windBody = 0.0
@@ -648,6 +652,7 @@ object ProceduralAudioEngine {
     if (activeTimeline != null && renderedTimelineGeneration != generation) {
       random = activeTimeline.seed
       oceanModel.reset(activeTimeline.seed, sampleRate)
+      abyssalModel.reset(activeTimeline.seed, sampleRate)
       windRandom = activeTimeline.seed xor 0x7f4a7c15L
       fireRandom = activeTimeline.seed xor 0x2c1b3c6dL
       cosmicModel.reset(activeTimeline.seed, sampleRate)
@@ -776,6 +781,9 @@ object ProceduralAudioEngine {
       val oceanTarget = if (target.environment == "ocean" && target.environmentGain > 0.0001) 1.0 else 0.0
       val oceanStep = 1 / max(1.0, sampleRate * 4.5)
       oceanEnvelope += clamp(oceanTarget - oceanEnvelope, -oceanStep, oceanStep)
+      val abyssalTarget = if (target.environment == "abyssal" && target.environmentGain > 0.0001) 1.0 else 0.0
+      val abyssalStep = 1 / max(1.0, sampleRate * 6.0)
+      abyssalEnvelope += clamp(abyssalTarget - abyssalEnvelope, -abyssalStep, abyssalStep)
       val windTarget = if (target.environment == "wind" && target.environmentGain > 0.0001) 1.0 else 0.0
       val windStep = 1 / max(1.0, sampleRate * 4.5)
       windEnvelope += clamp(windTarget - windEnvelope, -windStep, windStep)
@@ -828,6 +836,8 @@ object ProceduralAudioEngine {
       val rightNoise = (baseRightNoise * (1 - rainMix) + rainNoise.second * rainGain * rainMix) * spatialDistance
       val ocean = if (oceanEnvelope > 0.0001) nextOcean(spatialSeconds, target.environmentIntensity) else silentStereo
       val oceanGain = target.environmentGain * oceanEnvelope
+      val abyssal = if (abyssalEnvelope > 0.0001) nextAbyssal(spatialSeconds, target.environmentIntensity) else silentStereo
+      val abyssalGain = target.environmentGain * abyssalEnvelope
       val wind = if (windEnvelope > 0.0001) nextWind(spatialSeconds, target.environmentIntensity) else silentStereo
       val windGain = target.environmentGain * windEnvelope
       val fire = if (fireEnvelope > 0.0001) nextFire(spatialSeconds, target.environmentIntensity) else silentStereo
@@ -852,8 +862,8 @@ object ProceduralAudioEngine {
       val harmonicTranslation = nextHarmonicTranslation(target)
       val shepardDescent = nextThresholdShepard(thresholdDepth, thresholdMotion) * target.environmentGain * 0.075
       val thresholdCenter = harmonicTranslation + shepardDescent
-      val rawEnvironmentLeft = ocean.first * oceanGain + wind.first * windGain + fire.first * fireGain + cosmic.first * cosmicGain + forest.first * forestGain + templeSpace.first * templeSpaceGain + temple.first * templeLevel + thresholdCenter
-      val rawEnvironmentRight = ocean.second * oceanGain + wind.second * windGain + fire.second * fireGain + cosmic.second * cosmicGain + forest.second * forestGain + templeSpace.second * templeSpaceGain + temple.second * templeLevel + thresholdCenter
+      val rawEnvironmentLeft = ocean.first * oceanGain + abyssal.first * abyssalGain + wind.first * windGain + fire.first * fireGain + cosmic.first * cosmicGain + forest.first * forestGain + templeSpace.first * templeSpaceGain + temple.first * templeLevel + thresholdCenter
+      val rawEnvironmentRight = ocean.second * oceanGain + abyssal.second * abyssalGain + wind.second * windGain + fire.second * fireGain + cosmic.second * cosmicGain + forest.second * forestGain + templeSpace.second * templeSpaceGain + temple.second * templeLevel + thresholdCenter
       val thresholdCutoff = 5_500.0 / (1.0 + 2.928571 * thresholdDepth)
       val thresholdFilter = tau * thresholdCutoff / (sampleRate + tau * thresholdCutoff)
       thresholdEnvironmentLowLeft += thresholdFilter * (rawEnvironmentLeft - thresholdEnvironmentLowLeft)
@@ -1165,6 +1175,11 @@ object ProceduralAudioEngine {
   private fun nextOcean(elapsedSeconds: Double, intensity: Double): StereoSample {
     oceanModel.render(sampleRate, intensity, worldSalience)
     return oceanSample.set(oceanModel.left, oceanModel.right)
+  }
+
+  private fun nextAbyssal(elapsedSeconds: Double, intensity: Double): StereoSample {
+    abyssalModel.render(sampleRate, intensity, elapsedSeconds, worldSalience)
+    return abyssalSample.set(abyssalModel.left, abyssalModel.right)
   }
 
   private fun nextWind(elapsedSeconds: Double, intensity: Double): StereoSample {
@@ -1546,7 +1561,7 @@ object ProceduralAudioEngine {
       binauralGain = clamp(raw.binauralGain, 0.0, 1.0),
       noiseColor = noiseColor,
       noiseGain = clamp(raw.noiseGain, 0.0, 1.0),
-      environment = if (raw.environment == "cave") "cosmic" else raw.environment.takeIf { it == "ocean" || it == "wind" || it == "fire" || it == "cosmic" || it == "forest" || it == "temple" } ?: "none",
+      environment = if (raw.environment == "cave") "cosmic" else raw.environment.takeIf { it == "ocean" || it == "wind" || it == "fire" || it == "cosmic" || it == "forest" || it == "temple" || it == "abyssal" } ?: "none",
       environmentGain = clamp(raw.environmentGain, 0.0, 1.0),
       environmentIntensity = clamp(raw.environmentIntensity, 0.0, 1.0),
       thresholdShift = clamp(raw.thresholdShift, 0.0, 1.0),
@@ -1627,6 +1642,7 @@ object ProceduralAudioEngine {
     val impliedFundamental = when (target.environment) {
       "cosmic" -> 50.0
       "ocean" -> 60.0
+      "abyssal" -> 42.0
       else -> return 0.0
     }
     if (target.harmonicTranslation <= 0.0001 || target.environmentGain <= 0.0001) return 0.0

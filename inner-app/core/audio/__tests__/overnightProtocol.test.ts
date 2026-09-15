@@ -37,7 +37,7 @@ describe('overnight protocol', () => {
   });
 
   it('limits harmonic translation to environments that benefit from implied depth', () => {
-    const compile = (environment: 'ocean' | 'cosmic' | 'temple') => compileOvernightProtocol(
+    const compile = (environment: 'ocean' | 'cosmic' | 'abyssal' | 'temple') => compileOvernightProtocol(
       createRecognitionOvernightProtocol({
         sleepDurationMinutes: 8 * 60,
         environment,
@@ -48,10 +48,11 @@ describe('overnight protocol', () => {
     );
     expect(compile('ocean').phases[0].audioConfig.harmonicTranslation).toBe(0.72);
     expect(compile('cosmic').phases[0].audioConfig.harmonicTranslation).toBe(0.72);
+    expect(compile('abyssal').phases[0].audioConfig.harmonicTranslation).toBe(0.6);
     expect(compile('temple').phases[0].audioConfig.harmonicTranslation).toBe(0);
   });
 
-  it.each(['temple', 'ocean', 'forest', 'cosmic', 'fire'] as const)(
+  it.each(['temple', 'ocean', 'abyssal', 'forest', 'cosmic', 'fire'] as const)(
     'keeps the carrier beneath the %s environment',
     environment => {
       const result = compileOvernightProtocol(createRecognitionOvernightProtocol({

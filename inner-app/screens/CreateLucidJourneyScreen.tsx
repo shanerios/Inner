@@ -9,7 +9,7 @@ import { Typography } from '../core/typography';
 
 const OPTIONS = {
   intention: [['lucidity', 'Lucid recognition'], ['recall', 'Dream recall'], ['calm', 'Calm return'], ['visualization', 'Visualization']],
-  environment: [['none', 'Quiet'], ['temple', 'Temple'], ['ocean', 'Ocean'], ['forest', 'Forest'], ['cosmic', 'Cosmic'], ['fire', 'Fire']],
+  environment: [['none', 'Quiet'], ['temple', 'Temple'], ['ocean', 'Ocean'], ['abyssal', 'Abyssal Glass'], ['forest', 'Forest'], ['cosmic', 'Cosmic'], ['fire', 'Fire']],
   durationMinutes: [[5, '5 min'], [10, '10 min'], [20, '20 min'], [30, '30 min']],
   feel: [['gentle', 'Gentle'], ['immersive', 'Immersive'], ['grounded', 'Grounded'], ['minimal', 'Minimal']],
   familiarity: [['new', 'New'], ['familiar', 'Familiar'], ['experienced', 'Experienced']],
