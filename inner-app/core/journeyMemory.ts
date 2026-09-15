@@ -33,6 +33,7 @@ export type JourneyMemoryOutcome =
   | 'os_terminated'
   | 'failed'
   | 'unknown';
+export type JourneyCompletionStatus = 'completed' | 'completed_early' | 'partial' | 'abandoned';
 export type JourneyMemoryEventType =
   | 'started'
   | 'stage_changed'
@@ -114,6 +115,9 @@ export type JourneyMemorySession = {
   }>;
   outcome?: JourneyMemoryOutcome;
   endReason?: 'timeline_completed' | 'manual_stop' | 'playback_error' | 'recovered' | 'interrupted' | 'os_terminated' | 'unknown';
+  completionStatus?: JourneyCompletionStatus;
+  /** Playback position divided by planned duration, clamped to 0...1. */
+  progress?: number;
   actualDurationMs?: number;
   elapsedWallTimeMs?: number;
   /** QA sessions exercise persistence and UI but never contribute preference evidence. */
@@ -145,6 +149,27 @@ const EMPTY_STATE: JourneyMemoryState = {
 
 let writeQueue: Promise<unknown> = Promise.resolve();
 
+const completionProgress = (plannedDurationMs: number, positionMs: number) =>
+  plannedDurationMs > 0 ? Math.min(1, Math.max(0, positionMs / plannedDurationMs)) : 0;
+
+function completionStatusFor(
+  session: Pick<JourneyMemorySession, 'endPolicy' | 'plannedDurationMs'>,
+  outcome: JourneyMemoryOutcome,
+  positionMs: number,
+): JourneyCompletionStatus {
+  const progress = completionProgress(session.plannedDurationMs, positionMs);
+  if (outcome === 'completed' || outcome === 'recovered_interrupted') return 'completed';
+  if (outcome === 'user_stopped') {
+    // Initial fallback until protocols expose explicit required-phase criteria.
+    if (session.endPolicy === 'protocolControlled' && progress >= 0.85) return 'completed_early';
+    return progress > 0 ? 'partial' : 'abandoned';
+  }
+  if (outcome === 'abandoned_interrupted' || outcome === 'os_terminated' || outcome === 'unknown') {
+    return progress > 0 ? 'partial' : 'abandoned';
+  }
+  return 'abandoned';
+}
+
 function validSession(value: unknown): value is JourneyMemorySession {
   if (!value || typeof value !== 'object') return false;
   const session = value as Partial<JourneyMemorySession>;
@@ -165,7 +190,17 @@ function migrateSessionToCurrentSchema(session: any): unknown {
   const events = Array.isArray(session.events)
     ? session.events.map((event: any) => (event?.type === 'left_early' ? { ...event, type: 'user_stopped' } : event))
     : session.events;
-  return { ...session, schemaVersion: JOURNEY_MEMORY_SCHEMA_VERSION, outcome, events };
+  const positionMs = typeof session.actualDurationMs === 'number'
+    ? session.actualDurationMs
+    : Array.isArray(events) && events.length
+      ? events[events.length - 1]?.positionMs ?? 0
+      : 0;
+  const progress = typeof session.progress === 'number'
+    ? Math.min(1, Math.max(0, session.progress))
+    : completionProgress(session.plannedDurationMs, positionMs);
+  const completionStatus = session.completionStatus
+    ?? (outcome && session.endedAt ? completionStatusFor(session, outcome, positionMs) : undefined);
+  return { ...session, schemaVersion: JOURNEY_MEMORY_SCHEMA_VERSION, outcome, events, progress, completionStatus };
 }
 
 export async function loadJourneyMemory(storage: Storage = AsyncStorage): Promise<JourneyMemoryState> {
@@ -312,6 +347,8 @@ export function finishJourneyMemorySession(
         endedAt,
         outcome,
         endReason: OUTCOME_END_REASON[outcome],
+        completionStatus: completionStatusFor(session, outcome, positionMs),
+        progress: completionProgress(session.plannedDurationMs, positionMs),
         actualDurationMs: Math.max(0, positionMs),
         elapsedWallTimeMs: Math.max(0, endedAt - session.startedAt),
         events: [...session.events, event].slice(-MAX_EVENTS_PER_SESSION),
@@ -336,12 +373,18 @@ export function deriveJourneyMemoryProfile(
     .filter(session => !session.journeyId.startsWith('dev-test-'))
     // Interrupted outcomes remain useful diagnostics, but only an explicit
     // native completion is strong enough to influence personalization.
-    .filter(session => session.outcome === 'completed'
+    .filter(session => session.completionStatus === 'completed'
+      || session.completionStatus === 'completed_early'
+      || session.outcome === 'completed'
+      || session.outcome === 'recovered_interrupted'
       || session.outcome === 'user_stopped')
     .slice(0, sampleSize);
   if (!observed.length) return null;
 
-  const completed = observed.filter(session => session.outcome === 'completed');
+  const completed = observed.filter(session => session.completionStatus === 'completed'
+    || session.completionStatus === 'completed_early'
+    || session.outcome === 'completed'
+    || session.outcome === 'recovered_interrupted');
   const journeyCounts = new Map<string, number>();
   const environmentDurations = new Map<ProceduralEnvironment, number>();
   const noiseDurations = new Map<NoiseColor, number>();
@@ -411,7 +454,8 @@ export function pendingOvernightReflection(memory: JourneyMemoryState, now = Dat
     && session.endPolicy === 'protocolControlled'
     && session.outcome !== 'failed'
     && !session.morningReflection
-    && session.startedAt + session.plannedDurationMs <= now
+    && (session.startedAt + session.plannedDurationMs <= now
+      || (session.completionStatus === 'completed_early' && (session.endedAt ?? Infinity) <= now))
   ) ?? null;
 }
 

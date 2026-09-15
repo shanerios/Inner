@@ -64,6 +64,8 @@ describe('journey memory', () => {
       outcome: 'completed',
       endPolicy: 'fadeAndStop',
       endReason: 'timeline_completed',
+      completionStatus: 'completed',
+      progress: 1,
       actualDurationMs: 60_000,
       elapsedWallTimeMs: 200,
       endedAt: 300,
@@ -177,6 +179,39 @@ describe('journey memory', () => {
 describe('overnight reflection linkage', () => {
   const answers = { noticed: 'yes' as const, lucid: false, sleepImpact: 'none' as const };
   const overnight = { ...timeline, endPolicy: 'protocolControlled' as const };
+
+  it('preserves a manual stop while classifying a substantially complete night as completed early', async () => {
+    const storage = memoryStorage();
+    const session = await beginJourneyMemorySession('overnight-recognition-ocean-standard', overnight,
+      DEFAULT_PROCEDURAL_AUDIO_CONFIG, storage, () => 100);
+    await finishJourneyMemorySession(session.id, 'user_stopped', 51_000, undefined, storage, () => 200);
+
+    const saved = await loadJourneyMemory(storage);
+    expect(saved.sessions[0]).toMatchObject({
+      outcome: 'user_stopped',
+      endReason: 'manual_stop',
+      completionStatus: 'completed_early',
+      progress: 0.85,
+    });
+    expect(pendingOvernightReflection(saved, 200)?.id).toBe(session.id);
+    expect(deriveJourneyMemoryProfile(saved)?.completedSessions).toBe(1);
+  });
+
+  it('keeps an earlier manual overnight stop partial', async () => {
+    const storage = memoryStorage();
+    const session = await beginJourneyMemorySession('overnight-recognition-ocean-standard', overnight,
+      DEFAULT_PROCEDURAL_AUDIO_CONFIG, storage, () => 100);
+    await finishJourneyMemorySession(session.id, 'user_stopped', 48_000, undefined, storage, () => 200);
+
+    const saved = await loadJourneyMemory(storage);
+    expect(saved.sessions[0]).toMatchObject({
+      outcome: 'user_stopped',
+      endReason: 'manual_stop',
+      completionStatus: 'partial',
+      progress: 0.8,
+    });
+    expect(pendingOvernightReflection(saved, 200)).toBeNull();
+  });
 
   it('recovers an unreflected night after reload without inventing completion', async () => {
     const storage = memoryStorage();

@@ -2159,7 +2159,7 @@ final class CosmicModel {
   private static let fieldRatios = [1.0, 1.41421356237, phi, 2.61803398875]
   private static let fieldWeights = [0.07, 0.035, 0.027, 0.016]
   private static let horizonRatios = [1.0, phi, phi * phi]
-  private static let horizonWeights = [0.058, 0.021, 0.009]
+  private static let horizonWeights = [0.058, 0.02625, 0.01125]
   private(set) var left = 0.0
   private(set) var right = 0.0
   private var random: UInt64 = 1

@@ -9,7 +9,7 @@ internal class CosmicModel {
     val FIELD_RATIOS = doubleArrayOf(1.0, 1.41421356237, PHI, 2.61803398875)
     val FIELD_WEIGHTS = doubleArrayOf(0.07, 0.035, 0.027, 0.016)
     val HORIZON_RATIOS = doubleArrayOf(1.0, PHI, PHI * PHI)
-    val HORIZON_WEIGHTS = doubleArrayOf(0.058, 0.021, 0.009)
+    val HORIZON_WEIGHTS = doubleArrayOf(0.058, 0.02625, 0.01125)
   }
   var left = 0.0
     private set

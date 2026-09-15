@@ -72,6 +72,7 @@ function describeEvent(event: JourneyMemoryEvent): string {
 }
 
 function outcomeLabel(session: JourneyMemorySession): string {
+  if (session.completionStatus === 'completed_early') return 'Completed early';
   if (session.outcome === 'completed') return 'Completed';
   if (session.outcome === 'failed') return 'Failed';
   if (session.outcome === 'user_stopped') return 'Stopped by user';
@@ -208,11 +209,13 @@ export default function PlaybackDiagnosticsScreen() {
             <View style={styles.metricGrid}>
               <View style={styles.metric}><Text style={styles.metricLabel}>Planned</Text><Text style={styles.metricValue}>{formatDuration(selected.plannedDurationMs)}</Text></View>
               <View style={styles.metric}><Text style={styles.metricLabel}>Listened</Text><Text style={styles.metricValue}>{formatDuration(selected.actualDurationMs)}</Text></View>
+              <View style={styles.metric}><Text style={styles.metricLabel}>Progress</Text><Text style={styles.metricValue}>{Math.round((selected.progress ?? 0) * 100)}%</Text></View>
               <View style={styles.metric}><Text style={styles.metricLabel}>Wall time</Text><Text style={styles.metricValue}>{formatDuration(selected.elapsedWallTimeMs)}</Text></View>
               <View style={styles.metric}><Text style={styles.metricLabel}>Events</Text><Text style={styles.metricValue}>{selected.events.length}</Text></View>
             </View>
             <Text style={styles.identifiers}>Journey: {selected.journeyId}</Text>
             <Text style={styles.identifiers}>Protocol {selected.protocolVersion} · seed {selected.seed}</Text>
+            <Text style={styles.identifiers}>Completion: {selected.completionStatus ?? 'active'} · End: {selected.endReason ?? selected.endPolicy}</Text>
 
             <Text style={[styles.sectionHeading, styles.timelineHeading]}>Event timeline</Text>
             {selected.events.length === 0 ? (
