@@ -15,6 +15,8 @@ private struct AudioConfigRecord: Record {
   @Field var environment = "none"
   @Field var environmentGain = 0.0
   @Field var environmentIntensity = 0.5
+  @Field var thresholdShift = 0.0
+  @Field var harmonicTranslation = 0.0
   @Field var templeGain = 0.0
   @Field var templeIntensity = 0.5
   @Field var masterGain = 0.8
@@ -90,6 +92,8 @@ private struct Parameters {
   var environment = "none"
   var environmentGain = 0.0
   var environmentIntensity = 0.5
+  var thresholdShift = 0.0
+  var harmonicTranslation = 0.0
   var templeGain = 0.0
   var templeIntensity = 0.5
   var masterGain = 0.8
@@ -188,6 +192,17 @@ private final class ProceduralAudioEngine: NSObject {
   // carrier, binaural L/R, carrier harmonics, speaker carrier + pulse envelope
   private var phases = [Double](repeating: 0, count: 7)
   private var gains = [Double](repeating: 0, count: 4)
+  private var thresholdShepardPhases = [Double](repeating: 0, count: 4)
+  private var harmonicTranslationPhases = [Double](repeating: 0, count: 2)
+  private var thresholdEnvironmentLowLeft = 0.0
+  private var thresholdEnvironmentLowRight = 0.0
+  private var thresholdNoiseLowLeft = 0.0
+  private var thresholdNoiseLowRight = 0.0
+  private var thresholdDelayLeft = [Double](repeating: 0, count: 4_096)
+  private var thresholdDelayRight = [Double](repeating: 0, count: 4_096)
+  private var thresholdDelayIndex = 0
+  private var renderedTimelineStageIndex = 0
+  private var renderedTimelineStageLocalMs = 0.0
   private var privateOutputTarget = 0.0
   private var privateOutputMix = 0.0
   private var random: UInt64 = 0x9e3779b97f4a7c15
@@ -489,6 +504,7 @@ private final class ProceduralAudioEngine: NSObject {
     if let source { engine.detach(source); self.source = nil }
     phases = [Double](repeating: 0, count: 7)
     gains = [Double](repeating: 0, count: 4)
+    resetThresholdShift()
     privateOutputMix = privateOutputTarget
     pink = [Double](repeating: 0, count: 7)
     brown = 0
@@ -725,6 +741,7 @@ private final class ProceduralAudioEngine: NSObject {
       windRandom = activeTimeline.seed ^ 0x7f4a7c15
       fireRandom = activeTimeline.seed ^ 0x2c1b3c6d
       cosmicModel.reset(seed: activeTimeline.seed, sampleRate: sampleRate)
+      resetThresholdShift()
       templeRandom = activeTimeline.seed ^ 0x9c2f5a31
       rainPockets = (0..<5).map { RainPocket(random: activeTimeline.seed &+ UInt64($0 + 1) * 0x100000001b3) }
       pink = [Double](repeating: 0, count: 7)
@@ -779,6 +796,7 @@ private final class ProceduralAudioEngine: NSObject {
         $0.fadeInMs > 0 ? min(1, spatialTime * 1_000 / sampleRate / $0.fadeInMs) : 1
       } ?? 1
       let timelineElapsedMs = spatialTime * 1_000 / sampleRate
+      let threshold = activeTimeline.map { timelineThresholdState($0, target: target) }
       let recognitionSpace = activeTimeline.flatMap { timelineRecognitionSpace($0, elapsedMs: timelineElapsedMs) }
       let event = activeTimeline.flatMap { timelineSpatialEvent($0, elapsedMs: timelineElapsedMs) }
       if let activeTimeline, let cueFireMs = timelineCueEventMs(activeTimeline, elapsedMs: timelineElapsedMs, afterMs: cueTimelineThresholdMs) {
@@ -948,16 +966,43 @@ private final class ProceduralAudioEngine: NSObject {
       let speakerPulse = sin(phases[5]) * pulseEnvelope * gains[1] * spatialRoom
       let leftEntrainment = sin(phases[1]) * gains[1] * spatialRoom * privateOutputMix + speakerPulse * (1 - privateOutputMix)
       let rightEntrainment = sin(phases[2]) * gains[1] * spatialRoom * privateOutputMix + speakerPulse * (1 - privateOutputMix)
-      let rawEnvironmentLeft = ocean.left * oceanGain + wind.left * windGain + fire.left * fireGain + cosmic.left * cosmicGain + forest.left * forestGain + templeSpace.left * templeSpaceGain + temple.left * templeLevel
-      let rawEnvironmentRight = ocean.right * oceanGain + wind.right * windGain + fire.right * fireGain + cosmic.right * cosmicGain + forest.right * forestGain + templeSpace.right * templeSpaceGain + temple.right * templeLevel
-      let environmentMid = (rawEnvironmentLeft + rawEnvironmentRight) * 0.5
-      let environmentSide = (rawEnvironmentLeft - rawEnvironmentRight) * 0.5 * (recognitionSpace?.width ?? 1)
+      let thresholdDepth = threshold?.depth ?? 0
+      let thresholdMotion = threshold?.motion ?? 0
+      let harmonicTranslation = nextHarmonicTranslation(target)
+      let shepardDescent = nextThresholdShepard(progress: thresholdDepth, motion: thresholdMotion) * target.environmentGain * 0.075
+      let thresholdCenter = harmonicTranslation + shepardDescent
+      let rawEnvironmentLeft = ocean.left * oceanGain + wind.left * windGain + fire.left * fireGain + cosmic.left * cosmicGain + forest.left * forestGain + templeSpace.left * templeSpaceGain + temple.left * templeLevel + thresholdCenter
+      let rawEnvironmentRight = ocean.right * oceanGain + wind.right * windGain + fire.right * fireGain + cosmic.right * cosmicGain + forest.right * forestGain + templeSpace.right * templeSpaceGain + temple.right * templeLevel + thresholdCenter
+      let thresholdCutoff = 5_500 / (1 + 2.928571 * thresholdDepth)
+      let thresholdFilter = tau * thresholdCutoff / (sampleRate + tau * thresholdCutoff)
+      thresholdEnvironmentLowLeft += thresholdFilter * (rawEnvironmentLeft - thresholdEnvironmentLowLeft)
+      thresholdEnvironmentLowRight += thresholdFilter * (rawEnvironmentRight - thresholdEnvironmentLowRight)
+      thresholdNoiseLowLeft += thresholdFilter * (leftNoise - thresholdNoiseLowLeft)
+      thresholdNoiseLowRight += thresholdFilter * (rightNoise - thresholdNoiseLowRight)
+      let darkEnvironmentLeft = rawEnvironmentLeft * (1 - thresholdDepth) + thresholdEnvironmentLowLeft * thresholdDepth
+      let darkEnvironmentRight = rawEnvironmentRight * (1 - thresholdDepth) + thresholdEnvironmentLowRight * thresholdDepth
+      let delayLeftFrames = min(thresholdDelayLeft.count - 1, max(1, Int(sampleRate * 0.031)))
+      let delayRightFrames = min(thresholdDelayRight.count - 1, max(1, Int(sampleRate * 0.043)))
+      let delayedLeft = thresholdDelayLeft[(thresholdDelayIndex - delayLeftFrames + thresholdDelayLeft.count) % thresholdDelayLeft.count]
+      let delayedRight = thresholdDelayRight[(thresholdDelayIndex - delayRightFrames + thresholdDelayRight.count) % thresholdDelayRight.count]
+      thresholdDelayLeft[thresholdDelayIndex] = darkEnvironmentLeft + delayedRight * 0.18
+      thresholdDelayRight[thresholdDelayIndex] = darkEnvironmentRight + delayedLeft * 0.18
+      thresholdDelayIndex = (thresholdDelayIndex + 1) % thresholdDelayLeft.count
+      let thresholdWet = thresholdDepth * 0.08
+      let expandedEnvironmentLeft = darkEnvironmentLeft * (1 - thresholdWet) + delayedLeft * thresholdWet
+      let expandedEnvironmentRight = darkEnvironmentRight * (1 - thresholdWet) + delayedRight * thresholdWet
+      let environmentMid = (expandedEnvironmentLeft + expandedEnvironmentRight) * 0.5
+      let thresholdWidth = 1 + thresholdDepth * 0.12
+      let environmentSide = (expandedEnvironmentLeft - expandedEnvironmentRight) * 0.5 * thresholdWidth * (recognitionSpace?.width ?? 1)
       let recognitionGain = recognitionSpace?.gain ?? 1
       let shapedEnvironmentLeft = (environmentMid + environmentSide) * recognitionGain
       let shapedEnvironmentRight = (environmentMid - environmentSide) * recognitionGain
       let recognitionNoiseGain = 0.7 + 0.3 * recognitionGain
-      let leftMix = (leftCarrier + leftEntrainment + leftNoise * recognitionNoiseGain + shapedEnvironmentLeft + cue.left) * gains[3] * journeyFade * sleepGain * 0.32
-      let rightMix = (rightCarrier + rightEntrainment + rightNoise * recognitionNoiseGain + shapedEnvironmentRight + cue.right) * gains[3] * journeyFade * sleepGain * 0.32
+      let thresholdNoiseMix = thresholdDepth * 0.72
+      let shapedNoiseLeft = (leftNoise * (1 - thresholdNoiseMix) + thresholdNoiseLowLeft * thresholdNoiseMix) * recognitionNoiseGain
+      let shapedNoiseRight = (rightNoise * (1 - thresholdNoiseMix) + thresholdNoiseLowRight * thresholdNoiseMix) * recognitionNoiseGain
+      let leftMix = (leftCarrier + leftEntrainment + shapedNoiseLeft + shapedEnvironmentLeft + cue.left) * gains[3] * journeyFade * sleepGain * 0.32
+      let rightMix = (rightCarrier + rightEntrainment + shapedNoiseRight + shapedEnvironmentRight + cue.right) * gains[3] * journeyFade * sleepGain * 0.32
       left[frame] = Float(softLimit(leftMix))
       right[frame] = Float(softLimit(rightMix))
       phases[0] = fmod(phases[0] + tau * target.carrierHz / sampleRate, tau)
@@ -1655,6 +1700,8 @@ private final class ProceduralAudioEngine: NSObject {
       environment: raw.environment == "cave" ? "cosmic" : (["ocean", "wind", "fire", "cosmic", "forest", "temple"].contains(raw.environment) ? raw.environment : "none"),
       environmentGain: clamp(raw.environmentGain, 0, 1),
       environmentIntensity: clamp(raw.environmentIntensity, 0, 1),
+      thresholdShift: clamp(raw.thresholdShift, 0, 1),
+      harmonicTranslation: clamp(raw.harmonicTranslation, 0, 1),
       templeGain: clamp(raw.templeGain, 0, 1),
       templeIntensity: clamp(raw.templeIntensity, 0, 1),
       masterGain: clamp(raw.masterGain, 0, 1),
@@ -1680,6 +1727,8 @@ private final class ProceduralAudioEngine: NSObject {
           ? timeline.stages[index - 1].parameters
           : (timeline.loop ? last.parameters : base)
         let localMs = max(0, elapsedMs - cursor)
+        renderedTimelineStageIndex = index
+        renderedTimelineStageLocalMs = localMs
         let progress = stage.transitionMs > 0 ? min(1, localMs / stage.transitionMs) : 1
         var result = interpolate(previous, stage.parameters, progress)
         result.sleepEndMs = base.sleepEndMs
@@ -1688,8 +1737,70 @@ private final class ProceduralAudioEngine: NSObject {
       cursor = end
     }
     var result = last.parameters
+    renderedTimelineStageIndex = max(0, timeline.stages.count - 1)
+    renderedTimelineStageLocalMs = last.durationMs
     result.sleepEndMs = base.sleepEndMs
     return result
+  }
+
+  private func timelineThresholdState(_ timeline: AudioTimeline, target: Parameters) -> (depth: Double, motion: Double) {
+    let index = min(max(0, renderedTimelineStageIndex), timeline.stages.count - 1)
+    let stage = timeline.stages[index]
+    let previousShift = index > 0 ? timeline.stages[index - 1].parameters.thresholdShift : 0
+    let beginsShift = stage.parameters.thresholdShift > 0.0001 && previousShift <= 0.0001
+    guard beginsShift else { return (target.thresholdShift, 0) }
+    let progress = smoothStep(renderedTimelineStageLocalMs / max(1, stage.durationMs))
+    let edgeIn = smoothStep(progress / 0.08)
+    let edgeOut = smoothStep((1 - progress) / 0.08)
+    return (progress * stage.parameters.thresholdShift, min(edgeIn, edgeOut))
+  }
+
+  private func nextThresholdShepard(progress: Double, motion: Double) -> Double {
+    guard motion > 0.0001 else { return 0 }
+    var sum = 0.0
+    let octaveSpan = Double(thresholdShepardPhases.count)
+    let descendingScale = 1 / (1 + progress)
+    for index in thresholdShepardPhases.indices {
+      var position = Double(index) - progress
+      while position < 0 { position += octaveSpan }
+      while position >= octaveSpan { position -= octaveSpan }
+      let octaveMultiplier = index == 0 && progress > 0 ? 16.0 : Double(1 << index)
+      let frequency = 45 * octaveMultiplier * descendingScale
+      let edgeValue = sin(Double.pi * position / octaveSpan)
+      let edge = edgeValue * edgeValue
+      sum += sin(thresholdShepardPhases[index]) * edge
+      thresholdShepardPhases[index] = fmod(thresholdShepardPhases[index] + Double.pi * 2 * frequency / sampleRate, Double.pi * 2)
+    }
+    return sum * motion / 2.2
+  }
+
+  private func nextHarmonicTranslation(_ target: Parameters) -> Double {
+    let impliedFundamental: Double
+    switch target.environment {
+    case "cosmic": impliedFundamental = 50
+    case "ocean": impliedFundamental = 60
+    default: return 0
+    }
+    guard target.harmonicTranslation > 0.0001, target.environmentGain > 0.0001 else { return 0 }
+    let first = sin(harmonicTranslationPhases[0]) * 0.58
+    let second = sin(harmonicTranslationPhases[1]) * 0.34
+    harmonicTranslationPhases[0] = fmod(harmonicTranslationPhases[0] + Double.pi * 2 * impliedFundamental * 2 / sampleRate, Double.pi * 2)
+    harmonicTranslationPhases[1] = fmod(harmonicTranslationPhases[1] + Double.pi * 2 * impliedFundamental * 3 / sampleRate, Double.pi * 2)
+    return (first + second) * target.harmonicTranslation * target.environmentGain * 0.1
+  }
+
+  private func resetThresholdShift() {
+    thresholdShepardPhases = [Double](repeating: 0, count: 4)
+    harmonicTranslationPhases = [Double](repeating: 0, count: 2)
+    thresholdEnvironmentLowLeft = 0
+    thresholdEnvironmentLowRight = 0
+    thresholdNoiseLowLeft = 0
+    thresholdNoiseLowRight = 0
+    thresholdDelayLeft = [Double](repeating: 0, count: 4_096)
+    thresholdDelayRight = [Double](repeating: 0, count: 4_096)
+    thresholdDelayIndex = 0
+    renderedTimelineStageIndex = 0
+    renderedTimelineStageLocalMs = 0
   }
 
   private func interpolate(_ from: Parameters, _ to: Parameters, _ progress: Double) -> Parameters {
@@ -1707,6 +1818,8 @@ private final class ProceduralAudioEngine: NSObject {
       environment: t < 0.5 ? from.environment : to.environment,
       environmentGain: lerp(from.environmentGain, to.environmentGain),
       environmentIntensity: lerp(from.environmentIntensity, to.environmentIntensity),
+      thresholdShift: lerp(from.thresholdShift, to.thresholdShift),
+      harmonicTranslation: lerp(from.harmonicTranslation, to.harmonicTranslation),
       templeGain: lerp(from.templeGain, to.templeGain),
       templeIntensity: lerp(from.templeIntensity, to.templeIntensity),
       masterGain: lerp(from.masterGain, to.masterGain),

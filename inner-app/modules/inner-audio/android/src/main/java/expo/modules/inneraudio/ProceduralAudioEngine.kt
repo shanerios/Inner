@@ -30,6 +30,8 @@ internal data class AudioParameters(
   var environment: String = "none",
   var environmentGain: Double = 0.0,
   var environmentIntensity: Double = 0.5,
+  var thresholdShift: Double = 0.0,
+  var harmonicTranslation: Double = 0.0,
   var templeGain: Double = 0.0,
   var templeIntensity: Double = 0.5,
   var masterGain: Double = 0.8,
@@ -52,6 +54,8 @@ internal data class AudioParameters(
     environment = other.environment
     environmentGain = other.environmentGain
     environmentIntensity = other.environmentIntensity
+    thresholdShift = other.thresholdShift
+    harmonicTranslation = other.harmonicTranslation
     templeGain = other.templeGain
     templeIntensity = other.templeIntensity
     masterGain = other.masterGain
@@ -211,6 +215,18 @@ object ProceduralAudioEngine {
   // carrier, binaural L/R, carrier harmonics, speaker carrier + pulse envelope
   private val phases = DoubleArray(7)
   private val gains = DoubleArray(4)
+  private val thresholdShepardPhases = DoubleArray(4)
+  private val harmonicTranslationPhases = DoubleArray(2)
+  private var thresholdEnvironmentLowLeft = 0.0
+  private var thresholdEnvironmentLowRight = 0.0
+  private var thresholdNoiseLowLeft = 0.0
+  private var thresholdNoiseLowRight = 0.0
+  private val thresholdDelayLeft = DoubleArray(4_096)
+  private val thresholdDelayRight = DoubleArray(4_096)
+  private var thresholdDelayIndex = 0
+  private var renderedTimelineStageIndex = 0
+  private var renderedTimelineStageLocalMs = 0.0
+  private val thresholdState = ThresholdState()
   /** 1 = private stereo output (binaural), 0 = speaker-safe rhythmic pulse. */
   @Volatile private var privateOutputTarget = 0.0
   private var privateOutputMix = 0.0
@@ -519,6 +535,7 @@ object ProceduralAudioEngine {
   fun reset() {
     phases.fill(0.0)
     gains.fill(0.0)
+    resetThresholdShift()
     random = XORSHIFT_SEED
     pink.fill(0.0)
     brown = 0.0
@@ -632,6 +649,7 @@ object ProceduralAudioEngine {
       windRandom = activeTimeline.seed xor 0x7f4a7c15L
       fireRandom = activeTimeline.seed xor 0x2c1b3c6dL
       cosmicModel.reset(activeTimeline.seed, sampleRate)
+      resetThresholdShift()
       templeRandom = activeTimeline.seed xor 0x9c2f5a31L
       rainPockets = buildRainPockets(activeTimeline.seed)
       pink.fill(0.0)
@@ -682,6 +700,7 @@ object ProceduralAudioEngine {
         if (it.fadeInMs > 0) min(1.0, spatialTime * 1_000.0 / sampleRate / it.fadeInMs) else 1.0
       } ?: 1.0
       val timelineElapsedMs = spatialTime * 1_000.0 / sampleRate
+      val threshold = activeTimeline?.let { timelineThresholdState(it, target) }
       val recognitionSpace = activeTimeline?.let { timelineRecognitionSpace(it, timelineElapsedMs) }
       val event = activeTimeline?.let { timelineSpatialEvent(it, timelineElapsedMs) }
       if (activeTimeline != null) {
@@ -824,16 +843,43 @@ object ProceduralAudioEngine {
       val speakerPulse = sin(phases[5]) * pulseEnvelope * gains[1] * spatialRoom
       val leftEntrainment = sin(phases[1]) * gains[1] * spatialRoom * privateOutputMix + speakerPulse * (1 - privateOutputMix)
       val rightEntrainment = sin(phases[2]) * gains[1] * spatialRoom * privateOutputMix + speakerPulse * (1 - privateOutputMix)
-      val rawEnvironmentLeft = ocean.first * oceanGain + wind.first * windGain + fire.first * fireGain + cosmic.first * cosmicGain + forest.first * forestGain + templeSpace.first * templeSpaceGain + temple.first * templeLevel
-      val rawEnvironmentRight = ocean.second * oceanGain + wind.second * windGain + fire.second * fireGain + cosmic.second * cosmicGain + forest.second * forestGain + templeSpace.second * templeSpaceGain + temple.second * templeLevel
-      val environmentMid = (rawEnvironmentLeft + rawEnvironmentRight) * 0.5
-      val environmentSide = (rawEnvironmentLeft - rawEnvironmentRight) * 0.5 * (recognitionSpace?.width ?: 1.0)
+      val thresholdDepth = threshold?.depth ?: 0.0
+      val thresholdMotion = threshold?.motion ?: 0.0
+      val harmonicTranslation = nextHarmonicTranslation(target)
+      val shepardDescent = nextThresholdShepard(thresholdDepth, thresholdMotion) * target.environmentGain * 0.075
+      val thresholdCenter = harmonicTranslation + shepardDescent
+      val rawEnvironmentLeft = ocean.first * oceanGain + wind.first * windGain + fire.first * fireGain + cosmic.first * cosmicGain + forest.first * forestGain + templeSpace.first * templeSpaceGain + temple.first * templeLevel + thresholdCenter
+      val rawEnvironmentRight = ocean.second * oceanGain + wind.second * windGain + fire.second * fireGain + cosmic.second * cosmicGain + forest.second * forestGain + templeSpace.second * templeSpaceGain + temple.second * templeLevel + thresholdCenter
+      val thresholdCutoff = 5_500.0 / (1.0 + 2.928571 * thresholdDepth)
+      val thresholdFilter = tau * thresholdCutoff / (sampleRate + tau * thresholdCutoff)
+      thresholdEnvironmentLowLeft += thresholdFilter * (rawEnvironmentLeft - thresholdEnvironmentLowLeft)
+      thresholdEnvironmentLowRight += thresholdFilter * (rawEnvironmentRight - thresholdEnvironmentLowRight)
+      thresholdNoiseLowLeft += thresholdFilter * (leftNoise - thresholdNoiseLowLeft)
+      thresholdNoiseLowRight += thresholdFilter * (rightNoise - thresholdNoiseLowRight)
+      val darkEnvironmentLeft = rawEnvironmentLeft * (1.0 - thresholdDepth) + thresholdEnvironmentLowLeft * thresholdDepth
+      val darkEnvironmentRight = rawEnvironmentRight * (1.0 - thresholdDepth) + thresholdEnvironmentLowRight * thresholdDepth
+      val delayLeftFrames = min(thresholdDelayLeft.size - 1, max(1, (sampleRate * 0.031).toInt()))
+      val delayRightFrames = min(thresholdDelayRight.size - 1, max(1, (sampleRate * 0.043).toInt()))
+      val delayedLeft = thresholdDelayLeft[(thresholdDelayIndex - delayLeftFrames + thresholdDelayLeft.size) % thresholdDelayLeft.size]
+      val delayedRight = thresholdDelayRight[(thresholdDelayIndex - delayRightFrames + thresholdDelayRight.size) % thresholdDelayRight.size]
+      thresholdDelayLeft[thresholdDelayIndex] = darkEnvironmentLeft + delayedRight * 0.18
+      thresholdDelayRight[thresholdDelayIndex] = darkEnvironmentRight + delayedLeft * 0.18
+      thresholdDelayIndex = (thresholdDelayIndex + 1) % thresholdDelayLeft.size
+      val thresholdWet = thresholdDepth * 0.08
+      val expandedEnvironmentLeft = darkEnvironmentLeft * (1.0 - thresholdWet) + delayedLeft * thresholdWet
+      val expandedEnvironmentRight = darkEnvironmentRight * (1.0 - thresholdWet) + delayedRight * thresholdWet
+      val environmentMid = (expandedEnvironmentLeft + expandedEnvironmentRight) * 0.5
+      val thresholdWidth = 1.0 + thresholdDepth * 0.12
+      val environmentSide = (expandedEnvironmentLeft - expandedEnvironmentRight) * 0.5 * thresholdWidth * (recognitionSpace?.width ?: 1.0)
       val recognitionGain = recognitionSpace?.gain ?: 1.0
       val shapedEnvironmentLeft = (environmentMid + environmentSide) * recognitionGain
       val shapedEnvironmentRight = (environmentMid - environmentSide) * recognitionGain
       val recognitionNoiseGain = 0.7 + 0.3 * recognitionGain
-      val leftMix = (leftCarrier + leftEntrainment + leftNoise * recognitionNoiseGain + shapedEnvironmentLeft + cue.first) * gains[3] * journeyFade * sleepGain * 0.32
-      val rightMix = (rightCarrier + rightEntrainment + rightNoise * recognitionNoiseGain + shapedEnvironmentRight + cue.second) * gains[3] * journeyFade * sleepGain * 0.32
+      val thresholdNoiseMix = thresholdDepth * 0.72
+      val shapedNoiseLeft = (leftNoise * (1.0 - thresholdNoiseMix) + thresholdNoiseLowLeft * thresholdNoiseMix) * recognitionNoiseGain
+      val shapedNoiseRight = (rightNoise * (1.0 - thresholdNoiseMix) + thresholdNoiseLowRight * thresholdNoiseMix) * recognitionNoiseGain
+      val leftMix = (leftCarrier + leftEntrainment + shapedNoiseLeft + shapedEnvironmentLeft + cue.first) * gains[3] * journeyFade * sleepGain * 0.32
+      val rightMix = (rightCarrier + rightEntrainment + shapedNoiseRight + shapedEnvironmentRight + cue.second) * gains[3] * journeyFade * sleepGain * 0.32
       output[frame * 2] = softLimit(leftMix).toFloat()
       output[frame * 2 + 1] = softLimit(rightMix).toFloat()
       phases[0] = (phases[0] + tau * target.carrierHz / sampleRate) % tau
@@ -1498,6 +1544,8 @@ object ProceduralAudioEngine {
       environment = if (raw.environment == "cave") "cosmic" else raw.environment.takeIf { it == "ocean" || it == "wind" || it == "fire" || it == "cosmic" || it == "forest" || it == "temple" } ?: "none",
       environmentGain = clamp(raw.environmentGain, 0.0, 1.0),
       environmentIntensity = clamp(raw.environmentIntensity, 0.0, 1.0),
+      thresholdShift = clamp(raw.thresholdShift, 0.0, 1.0),
+      harmonicTranslation = clamp(raw.harmonicTranslation, 0.0, 1.0),
       templeGain = clamp(raw.templeGain, 0.0, 1.0),
       templeIntensity = clamp(raw.templeIntensity, 0.0, 1.0),
       masterGain = clamp(raw.masterGain, 0.0, 1.0),
@@ -1522,6 +1570,8 @@ object ProceduralAudioEngine {
       if (elapsedMs < end) {
         val previous = if (index > 0) timeline.stages[index - 1].parameters else (if (timeline.loop) last.parameters else base)
         val localMs = max(0.0, elapsedMs - cursor)
+        renderedTimelineStageIndex = index
+        renderedTimelineStageLocalMs = localMs
         val progress = if (stage.transitionMs > 0) min(1.0, localMs / stage.transitionMs) else 1.0
         val result = interpolate(previous, stage.parameters, progress, output)
         result.sleepEndMs = base.sleepEndMs
@@ -1531,9 +1581,69 @@ object ProceduralAudioEngine {
       index++
     }
     val result = output
+    renderedTimelineStageIndex = max(0, timeline.stages.lastIndex)
+    renderedTimelineStageLocalMs = last.durationMs
     result.setFrom(last.parameters)
     result.sleepEndMs = base.sleepEndMs
     return result
+  }
+
+  private fun timelineThresholdState(timeline: AudioTimelineState, target: AudioParameters): ThresholdState {
+    val index = renderedTimelineStageIndex.coerceIn(0, timeline.stages.lastIndex)
+    val stage = timeline.stages[index]
+    val previousShift = if (index > 0) timeline.stages[index - 1].parameters.thresholdShift else 0.0
+    val beginsShift = stage.parameters.thresholdShift > 0.0001 && previousShift <= 0.0001
+    if (!beginsShift) return thresholdState.set(target.thresholdShift, 0.0)
+    val progress = smoothStep(renderedTimelineStageLocalMs / max(1.0, stage.durationMs))
+    val edgeIn = smoothStep(progress / 0.08)
+    val edgeOut = smoothStep((1.0 - progress) / 0.08)
+    return thresholdState.set(progress * stage.parameters.thresholdShift, min(edgeIn, edgeOut))
+  }
+
+  private fun nextThresholdShepard(progress: Double, motion: Double): Double {
+    if (motion <= 0.0001) return 0.0
+    var sum = 0.0
+    val octaveSpan = thresholdShepardPhases.size.toDouble()
+    val descendingScale = 1.0 / (1.0 + progress)
+    for (index in thresholdShepardPhases.indices) {
+      var position = index.toDouble() - progress
+      while (position < 0.0) position += octaveSpan
+      while (position >= octaveSpan) position -= octaveSpan
+      val octaveMultiplier = if (index == 0 && progress > 0.0) 16.0 else (1 shl index).toDouble()
+      val frequency = 45.0 * octaveMultiplier * descendingScale
+      val edge = sin(Math.PI * position / octaveSpan).let { it * it }
+      sum += sin(thresholdShepardPhases[index]) * edge
+      thresholdShepardPhases[index] = (thresholdShepardPhases[index] + Math.PI * 2 * frequency / sampleRate) % (Math.PI * 2)
+    }
+    return sum * motion / 2.2
+  }
+
+  private fun nextHarmonicTranslation(target: AudioParameters): Double {
+    val impliedFundamental = when (target.environment) {
+      "cosmic" -> 50.0
+      "ocean" -> 60.0
+      else -> return 0.0
+    }
+    if (target.harmonicTranslation <= 0.0001 || target.environmentGain <= 0.0001) return 0.0
+    val first = sin(harmonicTranslationPhases[0]) * 0.58
+    val second = sin(harmonicTranslationPhases[1]) * 0.34
+    harmonicTranslationPhases[0] = (harmonicTranslationPhases[0] + Math.PI * 2 * impliedFundamental * 2.0 / sampleRate) % (Math.PI * 2)
+    harmonicTranslationPhases[1] = (harmonicTranslationPhases[1] + Math.PI * 2 * impliedFundamental * 3.0 / sampleRate) % (Math.PI * 2)
+    return (first + second) * target.harmonicTranslation * target.environmentGain * 0.1
+  }
+
+  private fun resetThresholdShift() {
+    thresholdShepardPhases.fill(0.0)
+    harmonicTranslationPhases.fill(0.0)
+    thresholdEnvironmentLowLeft = 0.0
+    thresholdEnvironmentLowRight = 0.0
+    thresholdNoiseLowLeft = 0.0
+    thresholdNoiseLowRight = 0.0
+    thresholdDelayLeft.fill(0.0)
+    thresholdDelayRight.fill(0.0)
+    thresholdDelayIndex = 0
+    renderedTimelineStageIndex = 0
+    renderedTimelineStageLocalMs = 0.0
   }
 
   private fun interpolate(from: AudioParameters, to: AudioParameters, progress: Double, output: AudioParameters): AudioParameters {
@@ -1550,6 +1660,8 @@ object ProceduralAudioEngine {
     output.environment = if (t < 0.5) from.environment else to.environment
     output.environmentGain = lerp(from.environmentGain, to.environmentGain)
     output.environmentIntensity = lerp(from.environmentIntensity, to.environmentIntensity)
+    output.thresholdShift = lerp(from.thresholdShift, to.thresholdShift)
+    output.harmonicTranslation = lerp(from.harmonicTranslation, to.harmonicTranslation)
     output.templeGain = lerp(from.templeGain, to.templeGain)
     output.templeIntensity = lerp(from.templeIntensity, to.templeIntensity)
     output.masterGain = lerp(from.masterGain, to.masterGain)
@@ -1580,6 +1692,16 @@ object ProceduralAudioEngine {
     fun set(gain: Double, width: Double): RecognitionSpaceMix {
       this.gain = gain
       this.width = width
+      return this
+    }
+  }
+
+  private class ThresholdState {
+    var depth = 0.0
+    var motion = 0.0
+    fun set(depth: Double, motion: Double): ThresholdState {
+      this.depth = depth
+      this.motion = motion
       return this
     }
   }

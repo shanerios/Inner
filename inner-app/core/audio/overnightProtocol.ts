@@ -45,7 +45,7 @@ export type OvernightProtocolPhase = {
 };
 
 export type OvernightProtocol = {
-  schemaVersion: 1;
+  schemaVersion: 2;
   id: string;
   title: string;
   intention: 'lucidity' | 'recall' | 'incubation' | 'hypnagogia' | 'sleep';
@@ -160,12 +160,15 @@ export function createRecognitionOvernightProtocol(options: RecognitionOvernight
     .map(hours => hours * 60 * 60_000)
     .filter(offset => offset < sleepDurationMs - returnMs);
   const environmentGain = options.feel === 'immersive' ? 0.2 : options.feel === 'deep' ? 0.16 : 0.12;
+  const harmonicTranslation = options.environment === 'ocean' || options.environment === 'cosmic' ? 0.72 : 0;
   const phases: OvernightProtocolPhase[] = [
     {
       id: 'preparation', label: 'Recognition Practice', kind: 'preparation', durationMs: preparationMs,
       audio: {
         environment: options.environment,
         environmentGain,
+        harmonicTranslation,
+        thresholdShift: 0,
         noiseColor: 'pink',
         noiseGain: 0.12,
         masterGain: 0.58,
@@ -175,7 +178,7 @@ export function createRecognitionOvernightProtocol(options: RecognitionOvernight
     },
     {
       id: 'descent', label: 'Descent', kind: 'descent', durationMs: descentMs,
-      audio: { binauralCarrierHz: 208, binauralDeltaHz: 5, binauralGain: 0.18, environmentGain, noiseGain: 0.13, masterGain: 0.48 },
+      audio: { binauralCarrierHz: 208, binauralDeltaHz: 5, binauralGain: 0.18, environmentGain, noiseGain: 0.13, masterGain: 0.48, thresholdShift: 1 },
     },
   ];
 
@@ -208,12 +211,12 @@ export function createRecognitionOvernightProtocol(options: RecognitionOvernight
   }
   phases.push({
     id: 'return', label: 'Return', kind: 'return', durationMs: returnMs,
-    audio: { toneGain: 0, binauralGain: 0, noiseGain: 0, environmentGain: 0, masterGain: 0 },
+    audio: { toneGain: 0, binauralGain: 0, noiseGain: 0, environmentGain: 0, masterGain: 0, thresholdShift: 0, harmonicTranslation: 0 },
     events: [{ id: 'morning-reflection', trigger: { kind: 'phaseEnd' }, actions: [{ kind: 'requestMorningReflection' }] }],
   });
 
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     id: `overnight-recognition-${options.environment}-${options.cuePlan}`,
     title: 'Lucid Journey · Recognition',
     intention: 'lucidity',

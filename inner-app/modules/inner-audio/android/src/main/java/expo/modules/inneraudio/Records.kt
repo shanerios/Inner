@@ -15,6 +15,8 @@ class AudioConfigRecord : Record {
   @Field var environment: String = "none"
   @Field var environmentGain: Double = 0.0
   @Field var environmentIntensity: Double = 0.5
+  @Field var thresholdShift: Double = 0.0
+  @Field var harmonicTranslation: Double = 0.0
   @Field var templeGain: Double = 0.0
   @Field var templeIntensity: Double = 0.5
   @Field var masterGain: Double = 0.8

@@ -36,6 +36,10 @@ export type ProceduralAudioConfig = {
   environment: ProceduralEnvironment;
   environmentGain: number;
   environmentIntensity: number;
+  /** 0 outside the overnight arc; 1 from completed descent through protected sleep. */
+  thresholdShift: number;
+  /** Adds quiet upper harmonics that imply a lower environmental fundamental. */
+  harmonicTranslation: number;
   templeGain: number;
   templeIntensity: number;
   masterGain: number;
