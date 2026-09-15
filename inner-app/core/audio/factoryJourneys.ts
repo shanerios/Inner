@@ -389,6 +389,7 @@ export function createPersonalizedLucidJourney(
   const feelGain = answers.feel === 'gentle' ? 0.86 : answers.feel === 'immersive' ? 1.12 : 1;
   const familiarityGain = answers.familiarity === 'new' ? 0.9 : answers.familiarity === 'experienced' ? 1.06 : 1;
   const gainScale = feelGain * familiarityGain;
+  const binauralWorldScale = answers.environment === 'abyssal' ? 0.6 : 1;
   const toneScale = answers.intention === 'visualization' ? 1.12
     : answers.intention === 'recall' ? 0.9
       : answers.intention === 'calm' ? 0.82 : 1;
@@ -433,7 +434,7 @@ export function createPersonalizedLucidJourney(
       toneGain: typeof item.target.toneGain === 'number'
         ? Math.min(1, toneGainForEnvironment(item.target.toneGain * toneScale, answers.environment ?? 'none'))
         : undefined,
-      binauralGain: typeof item.target.binauralGain === 'number' ? Math.min(1, item.target.binauralGain * gainScale) : undefined,
+      binauralGain: typeof item.target.binauralGain === 'number' ? Math.min(1, item.target.binauralGain * gainScale * binauralWorldScale) : undefined,
       noiseGain: answers.feel === 'minimal' ? 0.05 : item.target.noiseGain,
       noiseColor: answers.feel === 'grounded' ? 'brown' as const : item.target.noiseColor,
       binauralDeltaHz: answers.intention === 'calm' && typeof item.target.binauralDeltaHz === 'number'

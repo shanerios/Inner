@@ -2672,7 +2672,10 @@ final class AbyssalModel {
   private var hydroRight = 0.0
   private var glassPhases = [Double](repeating: 0, count: 4)
   private static let glassFrequencies = [146.8, 233.1, 379.9, 612.4]
-  private static let glassWeights = [0.014, 0.009, 0.005, 0.0025]
+  private static let glassWeights = [0.019, 0.0125, 0.007, 0.0035]
+  private var chamberLeft = [Double](repeating: 0, count: 48_000)
+  private var chamberRight = [Double](repeating: 0, count: 48_000)
+  private var chamberIndex = 0
 
   private var creatureCountdown = 48_000.0 * 14
   private var creatureActive = false
@@ -2683,6 +2686,26 @@ final class AbyssalModel {
   private var creatureEndHz = 58.0
   private var creaturePan = 0.0
   private var creatureLevel = 0.0
+  private var responseCountdown = -1.0
+  private var responseActive = false
+  private var responseAge = 0.0
+  private var responseDuration = 0.0
+  private var responsePhase = 0.0
+  private var responseStartHz = 0.0
+  private var responseEndHz = 0.0
+  private var responsePan = 0.0
+  private var responseLevel = 0.0
+
+  private var bubbleCountdown = 48_000.0 * 9.5
+  private var bubbleActive = false
+  private var bubbleAge = 0.0
+  private var bubbleDuration = 0.0
+  private var bubblePhase = 0.0
+  private var bubbleBaseHz = 0.0
+  private var bubbleCount = 0
+  private var bubblePanStart = 0.0
+  private var bubblePanEnd = 0.0
+  private var bubbleLevel = 0.0
 
   private var dropCountdown = 48_000.0 * 5.5
   private var dropAge = 0.0
@@ -2701,8 +2724,15 @@ final class AbyssalModel {
     pressurePhase = 0; pressureUpperPhase = 0
     pressureNoise = 0; hydroMid = 0; hydroLeft = 0; hydroRight = 0
     glassPhases = [Double](repeating: 0, count: 4)
+    chamberLeft.withUnsafeMutableBufferPointer { $0.baseAddress?.update(repeating: 0, count: $0.count) }
+    chamberRight.withUnsafeMutableBufferPointer { $0.baseAddress?.update(repeating: 0, count: $0.count) }
+    chamberIndex = 0
     creatureCountdown = rate * 14; creatureActive = false; creatureAge = 0
     creatureDuration = 0; creaturePhase = 0; creaturePan = 0; creatureLevel = 0
+    responseCountdown = -1; responseActive = false; responseAge = 0; responseDuration = 0
+    responsePhase = 0; responseStartHz = 0; responseEndHz = 0; responsePan = 0; responseLevel = 0
+    bubbleCountdown = rate * 9.5; bubbleActive = false; bubbleAge = 0; bubbleDuration = 0
+    bubblePhase = 0; bubbleBaseHz = 0; bubbleCount = 0; bubblePanStart = 0; bubblePanEnd = 0; bubbleLevel = 0
     dropCountdown = rate * 5.5; dropAge = 0; dropDuration = 0
     dropPhase = 0; dropFrequency = 0; dropPan = 0; dropLevel = 0
     dropDelay.withUnsafeMutableBufferPointer { buffer in
@@ -2726,7 +2756,7 @@ final class AbyssalModel {
     if !creatureActive {
       creatureCountdown -= 1
       if creatureCountdown <= 0 {
-        if salience.reserve(salience: 0.58, durationSeconds: 12, recoverySeconds: 5) {
+        if salience.reserve(salience: 0.58, durationSeconds: 25, recoverySeconds: 5) {
           creatureActive = true
           creatureAge = 0
           creatureDuration = rate * (8.5 + unit() * 3.5)
@@ -2734,14 +2764,42 @@ final class AbyssalModel {
           creatureStartHz = 88 + unit() * 24
           creatureEndHz = 48 + unit() * 15
           creaturePan = (unit() * 2 - 1) * 0.48
-          creatureLevel = (0.09 + unit() * 0.035) * (0.78 + intensity * 0.22)
+          let baseCreatureLevel = (0.09 + unit() * 0.035) * (0.78 + intensity * 0.22)
+          creatureLevel = baseCreatureLevel * 1.95
+          responseCountdown = creatureDuration + rate * (3.5 + unit() * 2.5)
+          responseStartHz = 145 + unit() * 45
+          responseEndHz = 92 + unit() * 32
+          responsePan = -creaturePan * 0.9
+          responseLevel = baseCreatureLevel * (0.4 + unit() * 0.12) * 1.75
           creatureCountdown = rate * (42 + unit() * 58)
         } else {
           creatureCountdown = rate * (3 + unit() * 3)
         }
       }
     }
-    guard creatureActive, creatureDuration > 0 else { return (0, 0) }
+    if responseCountdown > 0, !responseActive {
+      responseCountdown -= 1
+      if responseCountdown <= 0 {
+        responseActive = true
+        responseAge = 0
+        responseDuration = rate * (5 + unit() * 2)
+        responsePhase = unit() * Double.pi * 2
+      }
+    }
+    var answerLeft = 0.0
+    var answerRight = 0.0
+    if responseActive, responseDuration > 0 {
+      let progress = min(1, max(0, responseAge / responseDuration))
+      let envelope = smooth(responseAge / max(1, rate * 1.6)) * (1 - smooth((progress - 0.58) / 0.42))
+      let frequency = responseStartHz + (responseEndHz - responseStartHz) * smooth(progress)
+      let voice = (sin(responsePhase) + sin(responsePhase * 1.51) * 0.18 + sin(responsePhase * 2.03) * 0.12) * envelope * responseLevel
+      responsePhase = fmod(responsePhase + Double.pi * 2 * frequency / rate, Double.pi * 2)
+      responseAge += 1
+      if responseAge >= responseDuration { responseActive = false }
+      answerLeft = voice * (1 - responsePan) * 0.64
+      answerRight = voice * (1 + responsePan) * 0.64
+    }
+    guard creatureActive, creatureDuration > 0 else { return (answerLeft, answerRight) }
     let progress = min(1, max(0, creatureAge / creatureDuration))
     let attack = smooth(creatureAge / max(1, rate * 2.4))
     let release = 1 - smooth((progress - 0.62) / 0.38)
@@ -2754,7 +2812,41 @@ final class AbyssalModel {
     creatureAge += 1
     if creatureAge >= creatureDuration { creatureActive = false }
     let travel = creaturePan + sin(progress * Double.pi) * 0.12 * (creaturePan < 0 ? 1 : -1)
-    return (voice * (1 - travel) * 0.68, voice * (1 + travel) * 0.68)
+    return (voice * (1 - travel) * 0.68 + answerLeft, voice * (1 + travel) * 0.68 + answerRight)
+  }
+
+  private func nextBubbleTrail(_ intensity: Double, salience: WorldSalienceScheduler) -> (left: Double, right: Double) {
+    if !bubbleActive {
+      bubbleCountdown -= 1
+      if bubbleCountdown <= 0 {
+        if salience.reserve(salience: 0.18, durationSeconds: 3.2, recoverySeconds: 1.5) {
+          bubbleActive = true
+          bubbleAge = 0
+          bubbleDuration = rate * (2.1 + unit() * 1.1)
+          bubblePhase = unit() * Double.pi * 2
+          bubbleBaseHz = 310 + unit() * 210
+          bubbleCount = 5 + Int(unit() * 4)
+          bubblePanStart = (unit() * 2 - 1) * 0.58
+          bubblePanEnd = (unit() * 2 - 1) * 0.42
+          bubbleLevel = (0.026 + unit() * 0.014) * (0.8 + intensity * 0.2)
+          bubbleCountdown = rate * (22 + unit() * 28)
+        } else {
+          bubbleCountdown = rate * (2 + unit() * 2)
+        }
+      }
+    }
+    guard bubbleActive, bubbleDuration > 0 else { return (0, 0) }
+    let progress = min(1, max(0, bubbleAge / bubbleDuration))
+    let position = progress * Double(bubbleCount)
+    let pulsePosition = position - floor(position)
+    let pulseEnvelope = pow(max(0, sin(Double.pi * pulsePosition)), 5) * (1 - smooth((progress - 0.82) / 0.18))
+    let frequency = bubbleBaseHz * (1 + progress * 1.15)
+    let tone = (sin(bubblePhase) + sin(bubblePhase * 1.97) * 0.28) * pulseEnvelope * bubbleLevel
+    bubblePhase = fmod(bubblePhase + Double.pi * 2 * frequency / rate, Double.pi * 2)
+    bubbleAge += 1
+    if bubbleAge >= bubbleDuration { bubbleActive = false }
+    let pan = bubblePanStart + (bubblePanEnd - bubblePanStart) * smooth(progress)
+    return (tone * (1 - pan) * 0.62, tone * (1 + pan) * 0.62)
   }
 
   private func nextCondensation(_ intensity: Double, salience: WorldSalienceScheduler) -> (left: Double, right: Double) {
@@ -2765,7 +2857,7 @@ final class AbyssalModel {
           dropAge = 0
           dropDuration = rate * (0.16 + unit() * 0.12)
           dropPhase = 0
-          dropFrequency = 620 + unit() * 820
+          dropFrequency = 480 + unit() * 700
           dropPan = (unit() * 2 - 1) * 0.6
           dropLevel = (0.018 + unit() * 0.015) * (0.75 + intensity * 0.25)
           dropCountdown = rate * (8 + unit() * 12)
@@ -2788,11 +2880,11 @@ final class AbyssalModel {
       dryRight = tone * (1 + dropPan) * 0.58
     }
     let size = dropDelay.count
-    let near = dropDelay[(dropDelayIndex - min(size - 1, max(1, Int(rate * 0.19))) + size) % size]
-    let far = dropDelay[(dropDelayIndex - min(size - 1, max(1, Int(rate * 0.43))) + size) % size]
-    dropDelay[dropDelayIndex] = (dryLeft + dryRight) * 0.5 + (near * 0.26 + far * 0.18) * 0.35
+    let near = dropDelay[(dropDelayIndex - min(size - 1, max(1, Int(rate * 0.23))) + size) % size]
+    let far = dropDelay[(dropDelayIndex - min(size - 1, max(1, Int(rate * 0.57))) + size) % size]
+    dropDelay[dropDelayIndex] = (dryLeft + dryRight) * 0.5 + (near * 0.38 + far * 0.24) * 0.42
     dropDelayIndex = (dropDelayIndex + 1) % size
-    return (dryLeft + near * 0.18 + far * 0.1, dryRight + near * 0.12 + far * 0.16)
+    return (dryLeft + near * 0.26 + far * 0.16, dryRight + near * 0.17 + far * 0.24)
   }
 
   func render(sampleRate: Double, intensity: Double, elapsedSeconds: Double, salience: WorldSalienceScheduler) {
@@ -2805,22 +2897,24 @@ final class AbyssalModel {
     hydroRight += (white() - hydroRight) * 0.0028
 
     let pressureBreath = 0.72 + 0.28 * (0.5 - 0.5 * cos(elapsedSeconds * tau / 27))
-    let pressure = (sin(pressurePhase) * 0.14 + sin(pressureUpperPhase) * 0.045 + pressureNoise * 1.9)
+    let pressure = (sin(pressurePhase) * 0.17 + sin(pressureUpperPhase) * 0.055 + pressureNoise * 2.05)
       * pressureBreath * (0.82 + intensity * 0.28)
     pressurePhase = fmod(pressurePhase + tau * (39 + intensity * 4) / rate, tau)
     pressureUpperPhase = fmod(pressureUpperPhase + tau * (78 + intensity * 8) / rate, tau)
 
-    let drift = sin(elapsedSeconds * tau / 41 + sin(elapsedSeconds / 23) * 0.5) * 0.22
-    let hydroBody = (hydroMid - pressureNoise * 0.6) * (0.45 + intensity * 0.35)
-    let waterLeft = (hydroBody + hydroLeft * 0.5) * (1 - drift)
-    let waterRight = (hydroBody + hydroRight * 0.5) * (1 + drift)
+    let drift = sin(elapsedSeconds * tau / 41 + sin(elapsedSeconds / 23) * 0.5) * 0.28
+    let currentPass = smooth(0.5 - 0.5 * cos(elapsedSeconds * tau / 33 + 1.1))
+    let currentPan = sin(elapsedSeconds * tau / 24 + 0.7) * currentPass * 0.34
+    let hydroBody = (hydroMid - pressureNoise * 0.6) * (0.55 + intensity * 0.4) * (0.84 + currentPass * 0.32)
+    let waterLeft = (hydroBody + hydroLeft * (0.45 + currentPass * 0.2)) * (1 - drift - currentPan)
+    let waterRight = (hydroBody + hydroRight * (0.45 + currentPass * 0.2)) * (1 + drift + currentPan)
 
     let flex = pow(0.5 - 0.5 * cos(elapsedSeconds * tau / 53), 2)
     var glassLeft = 0.0
     var glassRight = 0.0
     for index in glassPhases.indices {
-      let value = sin(glassPhases[index]) * Self.glassWeights[index] * (0.28 + flex * 0.72)
-      let spread = index % 2 == 0 ? -0.22 : 0.22
+      let value = sin(glassPhases[index]) * Self.glassWeights[index] * (0.38 + flex * 0.62)
+      let spread = index % 2 == 0 ? -0.3 : 0.3
       glassLeft += value * (1 - spread)
       glassRight += value * (1 + spread)
       let bend = 1 + sin(elapsedSeconds / (17 + Double(index) * 4) + Double(index)) * 0.0015
@@ -2828,8 +2922,16 @@ final class AbyssalModel {
     }
 
     let creature = nextCreature(intensity, salience: salience)
+    let bubbles = nextBubbleTrail(intensity, salience: salience)
     let drop = nextCondensation(intensity, salience: salience)
-    left = pressure + waterLeft + glassLeft + creature.left + drop.left
-    right = pressure + waterRight + glassRight + creature.right + drop.right
+    let roomLeft = chamberLeft[(chamberIndex - min(chamberLeft.count - 1, max(1, Int(rate * 0.37))) + chamberLeft.count) % chamberLeft.count]
+    let roomRight = chamberRight[(chamberIndex - min(chamberRight.count - 1, max(1, Int(rate * 0.61))) + chamberRight.count) % chamberRight.count]
+    let resonantLeft = waterLeft + glassLeft + creature.left + bubbles.left + drop.left
+    let resonantRight = waterRight + glassRight + creature.right + bubbles.right + drop.right
+    chamberLeft[chamberIndex] = resonantLeft + roomRight * 0.2
+    chamberRight[chamberIndex] = resonantRight + roomLeft * 0.2
+    chamberIndex = (chamberIndex + 1) % chamberLeft.count
+    left = pressure + resonantLeft + roomLeft * 0.13
+    right = pressure + resonantRight + roomRight * 0.13
   }
 }

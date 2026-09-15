@@ -160,6 +160,7 @@ export function createRecognitionOvernightProtocol(options: RecognitionOvernight
     .map(hours => hours * 60 * 60_000)
     .filter(offset => offset < sleepDurationMs - returnMs);
   const environmentGain = options.feel === 'immersive' ? 0.2 : options.feel === 'deep' ? 0.16 : 0.12;
+  const binauralWorldScale = options.environment === 'abyssal' ? 0.6 : 1;
   const harmonicTranslation = options.environment === 'ocean' || options.environment === 'cosmic'
     ? 0.72
     : options.environment === 'abyssal' ? 0.6 : 0;
@@ -180,7 +181,7 @@ export function createRecognitionOvernightProtocol(options: RecognitionOvernight
     },
     {
       id: 'descent', label: 'Descent', kind: 'descent', durationMs: descentMs,
-      audio: { binauralCarrierHz: 208, binauralDeltaHz: 5, binauralGain: 0.18, environmentGain, noiseGain: 0.13, masterGain: 0.48, thresholdShift: 1 },
+      audio: { binauralCarrierHz: 208, binauralDeltaHz: 5, binauralGain: 0.18 * binauralWorldScale, environmentGain, noiseGain: 0.13, masterGain: 0.48, thresholdShift: 1 },
     },
   ];
 
@@ -190,7 +191,7 @@ export function createRecognitionOvernightProtocol(options: RecognitionOvernight
     if (protectionMs >= 1_000) {
       phases.push({
         id: `sleep-protection-${index + 1}`, label: 'Sleep Protection', kind: 'sleepProtection', durationMs: protectionMs,
-        audio: { toneGain: 0, binauralGain: 0.08, noiseGain: 0.1, environmentGain: environmentGain * 0.75, masterGain: 0.35 },
+        audio: { toneGain: 0, binauralGain: 0.08 * binauralWorldScale, noiseGain: 0.1, environmentGain: environmentGain * 0.75, masterGain: 0.35 },
       });
     }
     phases.push({
@@ -208,7 +209,7 @@ export function createRecognitionOvernightProtocol(options: RecognitionOvernight
   if (remainingSleepMs >= 1_000) {
     phases.push({
       id: 'sleep-protection-final', label: 'Sleep Protection', kind: 'sleepProtection', durationMs: remainingSleepMs,
-      audio: { toneGain: 0, binauralGain: 0.05, noiseGain: 0.08, environmentGain: environmentGain * 0.6, masterGain: 0.3 },
+      audio: { toneGain: 0, binauralGain: 0.05 * binauralWorldScale, noiseGain: 0.08, environmentGain: environmentGain * 0.6, masterGain: 0.3 },
     });
   }
   phases.push({

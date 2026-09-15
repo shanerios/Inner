@@ -9,7 +9,9 @@ export function toneGainForEnvironment(
   toneGain: number,
   environment: ProceduralAudioConfig['environment'],
 ): number {
-  return environment === 'none' ? toneGain : toneGain * ENVIRONMENT_TONE_GAIN_SCALE;
+  if (environment === 'none') return toneGain;
+  const worldScale = environment === 'abyssal' ? 0.4 : 1;
+  return toneGain * ENVIRONMENT_TONE_GAIN_SCALE * worldScale;
 }
 
 export const PROCEDURAL_AUDIO_LIMITS = {

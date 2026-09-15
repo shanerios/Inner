@@ -46,9 +46,10 @@ export const WORLD_PROFILES: Record<AudioWorld, WorldProfile> = {
     id: 'abyssal', label: 'Abyssal Glass', concept: 'A protected glass habitat resting under immense deep-ocean pressure.',
     foundation: ['pressure-drone', 'hydrophone-water', 'glass-resonance'],
     acoustics: { scale: 'vast', absorption: 0.82, diffusion: 0.7, width: 0.76 },
-    signatures: ['distant-biological-pulse', 'condensation-on-glass', 'structural-flex'], motion: 'drift',
+    signatures: ['distant-call-response', 'rising-bubble-trails', 'condensation-on-glass', 'structural-flex'], motion: 'surge',
     events: [
       { id: 'condensation-drop', role: 'texture', salience: 0.22, recoverySeconds: 1.5 },
+      { id: 'bubble-trail', role: 'texture', salience: 0.18, recoverySeconds: 1.5 },
       { id: 'abyssal-call', role: 'anchor', salience: 0.58, recoverySeconds: 5 },
     ],
     recognitionRecoverySeconds: 2,
