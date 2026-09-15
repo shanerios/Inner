@@ -40,6 +40,10 @@ internal class CosmicModel {
   private val moanPhases = DoubleArray(10)
   private val moanChoirPhases = DoubleArray(10)
   private var moanBreathPhase = 0.0
+  private var moanOrbitPhase = 0.0
+  private var moanDistanceLeft = 0.0
+  private var moanDistanceRight = 0.0
+  private var moanReverbSend = 0.6
   private var moanLeft = 0.0
   private var moanRight = 0.0
   private var moanMono = 0.0
@@ -67,7 +71,8 @@ internal class CosmicModel {
     pressure = 0.42; width = 0.3; brightness = 0.25; presence = 0.4
     gravityLevel = 0.0; gravityPhase = 0.0
     horizonLevel = 0.6; horizonPhases.fill(0.0)
-    moanPhases.fill(0.0); moanChoirPhases.fill(0.0); moanBreathPhase = 0.0
+    moanPhases.fill(0.0); moanChoirPhases.fill(0.0); moanBreathPhase = 0.0; moanOrbitPhase = 0.0
+    moanDistanceLeft = 0.0; moanDistanceRight = 0.0; moanReverbSend = 0.6
     moanLeft = 0.0; moanRight = 0.0; moanMono = 0.0
     rumble = 0.0; airLeft = 0.0; airRight = 0.0
     fieldPhases.fill(0.0); bloomPhases.fill(0.0); bloomAges.fill(0.0)
@@ -154,7 +159,7 @@ internal class CosmicModel {
 
     val near = delay[(delayIndex - min(delay.size - 1, max(1, (rate * 0.23).toInt())) + delay.size) % delay.size]
     val far = delay[(delayIndex - min(delay.size - 1, max(1, (rate * 0.61).toInt())) + delay.size) % delay.size]
-    delay[delayIndex] = mono + moanMono * 0.32 + (near * 0.34 + far * 0.24) * 0.28
+    delay[delayIndex] = mono + moanMono * moanReverbSend + (near * 0.34 + far * 0.24) * 0.28
     delayIndex = (delayIndex + 1) % delay.size
     left += bloomLeft + near * (0.26 - motion * 0.08) + far * (0.17 + motion * 0.07)
     right += bloomRight + near * (0.26 + motion * 0.08) + far * (0.17 - motion * 0.07)
@@ -163,7 +168,8 @@ internal class CosmicModel {
 
   private fun renderMoan(intensity: Double) {
     val breath = 0.5 - 0.5 * cos(moanBreathPhase)
-    val envelope = 0.38 + breath * 0.62
+    val envelope = 0.42 + breath * 0.58
+    val distancePresence = 0.72 + breath * 0.28
     val fundamental = 72.0 + mood * 7.0 + sin(moanBreathPhase) * 0.45
     var primary = 0.0
     var choir = 0.0
@@ -175,11 +181,21 @@ internal class CosmicModel {
       moanPhases[index] = (moanPhases[index] + PI * 2.0 * fundamental * harmonic * 0.9975 / rate) % (PI * 2.0)
       moanChoirPhases[index] = (moanChoirPhases[index] + PI * 2.0 * fundamental * harmonic * 1.0025 / rate) % (PI * 2.0)
     }
-    val level = envelope * (0.11 + intensity * 0.055)
-    moanLeft = (primary * 0.58 + choir * 0.42) * level
-    moanRight = (primary * 0.42 + choir * 0.58) * level
+    val choirSpread = 0.08 + (1.0 - breath) * 0.1
+    val rawLeft = primary * (0.5 + choirSpread) + choir * (0.5 - choirSpread)
+    val rawRight = primary * (0.5 - choirSpread) + choir * (0.5 + choirSpread)
+    val distanceCutoff = 340.0 + breath * 960.0
+    val distanceFilter = PI * 2.0 * distanceCutoff / (rate + PI * 2.0 * distanceCutoff)
+    moanDistanceLeft += distanceFilter * (rawLeft - moanDistanceLeft)
+    moanDistanceRight += distanceFilter * (rawRight - moanDistanceRight)
+    val orbit = sin(moanOrbitPhase) * (0.1 + breath * 0.18)
+    val level = envelope * distancePresence * (0.11 + intensity * 0.055)
+    moanLeft = moanDistanceLeft * (1.0 - orbit) * level
+    moanRight = moanDistanceRight * (1.0 + orbit) * level
     moanMono = (moanLeft + moanRight) * 0.5
+    moanReverbSend = 0.22 + (1.0 - breath) * 0.38
     moanBreathPhase = (moanBreathPhase + PI * 2.0 / (rate * 31.0)) % (PI * 2.0)
+    moanOrbitPhase = (moanOrbitPhase + PI * 2.0 / (rate * 79.0)) % (PI * 2.0)
   }
 
   fun render(sampleRate: Double, intensity: Double) {

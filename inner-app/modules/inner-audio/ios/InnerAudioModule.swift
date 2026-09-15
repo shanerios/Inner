@@ -2349,6 +2349,10 @@ final class CosmicModel {
   private var moanPhases = [Double](repeating: 0, count: 10)
   private var moanChoirPhases = [Double](repeating: 0, count: 10)
   private var moanBreathPhase = 0.0
+  private var moanOrbitPhase = 0.0
+  private var moanDistanceLeft = 0.0
+  private var moanDistanceRight = 0.0
+  private var moanReverbSend = 0.6
   private var moanLeft = 0.0
   private var moanRight = 0.0
   private var moanMono = 0.0
@@ -2379,7 +2383,9 @@ final class CosmicModel {
     horizonLevel = 0.6
     for index in horizonPhases.indices { horizonPhases[index] = 0 }
     for index in moanPhases.indices { moanPhases[index] = 0; moanChoirPhases[index] = 0 }
-    moanBreathPhase = 0; moanLeft = 0; moanRight = 0; moanMono = 0
+    moanBreathPhase = 0; moanOrbitPhase = 0
+    moanDistanceLeft = 0; moanDistanceRight = 0; moanReverbSend = 0.6
+    moanLeft = 0; moanRight = 0; moanMono = 0
     rumble = 0; airLeft = 0; airRight = 0
     for index in fieldPhases.indices { fieldPhases[index] = 0 }
     for index in bloomPhases.indices {
@@ -2471,7 +2477,7 @@ final class CosmicModel {
     let farFrames = min(delay.count - 1, max(1, Int(rate * 0.61)))
     let near = delay[(delayIndex - nearFrames + delay.count) % delay.count]
     let far = delay[(delayIndex - farFrames + delay.count) % delay.count]
-    delay[delayIndex] = mono + moanMono * 0.32 + (near * 0.34 + far * 0.24) * 0.28
+    delay[delayIndex] = mono + moanMono * moanReverbSend + (near * 0.34 + far * 0.24) * 0.28
     delayIndex = (delayIndex + 1) % delay.count
     left += bloomLeft + near * (0.26 - motion * 0.08) + far * (0.17 + motion * 0.07)
     right += bloomRight + near * (0.26 + motion * 0.08) + far * (0.17 - motion * 0.07)
@@ -2479,7 +2485,8 @@ final class CosmicModel {
 
   private func renderMoan(_ intensity: Double) {
     let breath = 0.5 - 0.5 * cos(moanBreathPhase)
-    let envelope = 0.38 + breath * 0.62
+    let envelope = 0.42 + breath * 0.58
+    let distancePresence = 0.72 + breath * 0.28
     let fundamental = 72 + mood * 7 + sin(moanBreathPhase) * 0.45
     var primary = 0.0
     var choir = 0.0
@@ -2491,11 +2498,21 @@ final class CosmicModel {
       moanPhases[index] = fmod(moanPhases[index] + Double.pi * 2 * fundamental * harmonic * 0.9975 / rate, Double.pi * 2)
       moanChoirPhases[index] = fmod(moanChoirPhases[index] + Double.pi * 2 * fundamental * harmonic * 1.0025 / rate, Double.pi * 2)
     }
-    let level = envelope * (0.11 + intensity * 0.055)
-    moanLeft = (primary * 0.58 + choir * 0.42) * level
-    moanRight = (primary * 0.42 + choir * 0.58) * level
+    let choirSpread = 0.08 + (1 - breath) * 0.1
+    let rawLeft = primary * (0.5 + choirSpread) + choir * (0.5 - choirSpread)
+    let rawRight = primary * (0.5 - choirSpread) + choir * (0.5 + choirSpread)
+    let distanceCutoff = 340 + breath * 960
+    let distanceFilter = Double.pi * 2 * distanceCutoff / (rate + Double.pi * 2 * distanceCutoff)
+    moanDistanceLeft += distanceFilter * (rawLeft - moanDistanceLeft)
+    moanDistanceRight += distanceFilter * (rawRight - moanDistanceRight)
+    let orbit = sin(moanOrbitPhase) * (0.1 + breath * 0.18)
+    let level = envelope * distancePresence * (0.11 + intensity * 0.055)
+    moanLeft = moanDistanceLeft * (1 - orbit) * level
+    moanRight = moanDistanceRight * (1 + orbit) * level
     moanMono = (moanLeft + moanRight) * 0.5
+    moanReverbSend = 0.22 + (1 - breath) * 0.38
     moanBreathPhase = fmod(moanBreathPhase + Double.pi * 2 / (rate * 31), Double.pi * 2)
+    moanOrbitPhase = fmod(moanOrbitPhase + Double.pi * 2 / (rate * 79), Double.pi * 2)
   }
 
   func render(sampleRate: Double, intensity: Double) {
