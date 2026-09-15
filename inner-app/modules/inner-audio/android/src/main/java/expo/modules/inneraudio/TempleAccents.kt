@@ -64,18 +64,20 @@ internal class TempleAccents {
     }
   }
 
-  fun render(sampleRate: Double, intensity: Double, elapsedSeconds: Double) {
+  fun render(sampleRate: Double, intensity: Double, elapsedSeconds: Double, salience: WorldSalienceScheduler) {
     if (rate != sampleRate) reset(random, sampleRate)
     nextBowl -= 1
     if (nextBowl <= 0) {
-      excite(0, true)
+      if (salience.reserve(salience = 0.72, durationSeconds = 14.0, recoverySeconds = 4.0)) excite(0, true)
       nextBowl = rate * (28 + unit() * 24)
     }
     nextCluster -= 1
     val gust = sin(elapsedSeconds * PI * 2 / 19.3)
     if (pendingChimes == 0 && nextCluster <= 0 && gust > -0.25) {
-      pendingChimes = if (unit() > 0.45) 3 else 2
-      nextChime = 0.0
+      if (salience.reserve(salience = 0.42, durationSeconds = 6.0, recoverySeconds = 2.0)) {
+        pendingChimes = if (unit() > 0.45) 3 else 2
+        nextChime = 0.0
+      }
       nextCluster = rate * (23 - intensity * 5 + unit() * 22)
     }
     if (pendingChimes > 0) {

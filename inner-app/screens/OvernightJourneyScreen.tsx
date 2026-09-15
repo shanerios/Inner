@@ -13,6 +13,7 @@ import {
   FactoryAudioJourney,
   CompiledOvernightProtocol,
   ProceduralEnvironment,
+  OVERNIGHT_WORLD_PROFILES,
   toneGainForEnvironment,
 } from '../core/audio';
 import { getLucidSignalCuePlan, LucidSignalCuePlan } from '../core/lucidSignalLearning';
@@ -29,13 +30,8 @@ import { createMorningReturnTestSession, loadJourneyMemory, type JourneyMemorySe
 type OvernightEnvironment = Exclude<ProceduralEnvironment, 'none' | 'wind'>;
 type OvernightFeel = 'gentle' | 'deep' | 'immersive';
 
-const ENVIRONMENTS: Array<{ id: OvernightEnvironment; label: string }> = [
-  { id: 'ocean', label: 'Ocean' },
-  { id: 'forest', label: 'Forest' },
-  { id: 'temple', label: 'Temple' },
-  { id: 'cosmic', label: 'Cosmic' },
-  { id: 'fire', label: 'Fire' },
-];
+const ENVIRONMENTS: Array<{ id: OvernightEnvironment; label: string }> =
+  OVERNIGHT_WORLD_PROFILES.map(({ id, label }) => ({ id, label }));
 const DURATIONS = [420, 450, 480, 540] as const;
 const FEELS: Array<{ id: OvernightFeel; label: string }> = [
   { id: 'gentle', label: 'Gentle' },

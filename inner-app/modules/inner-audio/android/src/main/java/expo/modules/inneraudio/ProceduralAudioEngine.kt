@@ -255,6 +255,7 @@ object ProceduralAudioEngine {
   private var firePopRight = 0.0
   private var cosmicEnvelope = 0.0
   private val cosmicModel = CosmicModel()
+  private val worldSalience = WorldSalienceScheduler()
   private val silentStereo = StereoSample()
   private var forestEnvelope = 0.0
   private var forestRandom = XORSHIFT_SEED xor 0xc2b2ae35L
@@ -561,6 +562,7 @@ object ProceduralAudioEngine {
     firePopRight = 0.0
     cosmicEnvelope = 0.0
     cosmicModel.reset(XORSHIFT_SEED, sampleRate)
+    worldSalience.reset(sampleRate)
     cueTimelineThresholdMs = -1.0
     checkpointSessionId = null
     firedSignalLock.withLock { firedSignalIds.clear() }
@@ -649,6 +651,7 @@ object ProceduralAudioEngine {
       windRandom = activeTimeline.seed xor 0x7f4a7c15L
       fireRandom = activeTimeline.seed xor 0x2c1b3c6dL
       cosmicModel.reset(activeTimeline.seed, sampleRate)
+      worldSalience.reset(sampleRate)
       resetThresholdShift()
       templeRandom = activeTimeline.seed xor 0x9c2f5a31L
       rainPockets = buildRainPockets(activeTimeline.seed)
@@ -718,6 +721,7 @@ object ProceduralAudioEngine {
           ))
         }
       }
+      worldSalience.beginFrame(recognitionSpace != null || cueActive)
       val orbitPhase = spatialSeconds * target.spatialRate * Math.PI * 2 / 60
       val orbitNear = (cos(orbitPhase) + 1) / 2
       // Vortex reuses orbit's "pulled toward/away from center" distance-darkening
@@ -889,6 +893,7 @@ object ProceduralAudioEngine {
       phases[4] = (phases[4] + tau * target.carrierHz * 1.5 / sampleRate) % tau
       phases[5] = (phases[5] + tau * target.binauralCarrierHz / sampleRate) % tau
       phases[6] = (phases[6] + tau * target.deltaHz / sampleRate) % tau
+      worldSalience.advanceFrame()
     }
 
     if (activeTimeline != null) {
@@ -1158,7 +1163,7 @@ object ProceduralAudioEngine {
   }
 
   private fun nextOcean(elapsedSeconds: Double, intensity: Double): StereoSample {
-    oceanModel.render(sampleRate, intensity)
+    oceanModel.render(sampleRate, intensity, worldSalience)
     return oceanSample.set(oceanModel.left, oceanModel.right)
   }
 
@@ -1217,7 +1222,7 @@ object ProceduralAudioEngine {
   }
 
   private fun nextCosmic(elapsedSeconds: Double, intensity: Double): StereoSample {
-    cosmicModel.render(sampleRate, intensity)
+    cosmicModel.render(sampleRate, intensity, worldSalience)
     return cosmicSample.set(cosmicModel.left, cosmicModel.right)
   }
 
@@ -1246,7 +1251,7 @@ object ProceduralAudioEngine {
 
     if (!forestBirdActive) {
       forestBirdFramesRemaining -= 1
-      if (forestBirdFramesRemaining <= 0) {
+      if (forestBirdFramesRemaining <= 0 && worldSalience.reserve(salience = 0.38, durationSeconds = 0.3, recoverySeconds = 1.5)) {
         forestBirdActive = true
         forestBirdDurationFrames = sampleRate * (0.12 + Math.abs(nextForestWhite()) * 0.16)
         forestBirdFramesRemaining = forestBirdDurationFrames
@@ -1438,7 +1443,7 @@ object ProceduralAudioEngine {
     val chantLeft = templeSpaceBandpass(sourceLeft, 0, formant1, 6.5) * 1.65 + templeSpaceBandpass(sourceLeft, 1, formant2, 7.5) * 1.25 * formant2Presence + sub * 0.08
     val chantRight = templeSpaceBandpass(sourceRight, 2, formant1 * 0.992, 6.5) * 1.65 + templeSpaceBandpass(sourceRight, 3, formant2 * 1.008, 7.5) * 1.25 * formant2Presence + sub * 0.08
     val chantLevel = chantEnvelope * (0.18 + intensity * 0.12)
-    val drop = nextTempleSpaceDrop(intensity)
+    val drop = nextTempleSpaceDrop(intensity, worldSalience)
     val dropEchoSize = templeSpaceDropEcho.size
     val dropEchoLeftA = templeSpaceDropEcho[(templeSpaceDropEchoIndex - (sampleRate * 0.27).toInt().coerceIn(1, dropEchoSize - 1) + dropEchoSize) % dropEchoSize]
     val dropEchoRightA = templeSpaceDropEcho[(templeSpaceDropEchoIndex - (sampleRate * 0.41).toInt().coerceIn(1, dropEchoSize - 1) + dropEchoSize) % dropEchoSize]
@@ -1447,7 +1452,7 @@ object ProceduralAudioEngine {
     templeSpaceDropEchoIndex = (templeSpaceDropEchoIndex + 1) % dropEchoSize
     val dropEchoLeft = dropEchoLeftA * 0.48 + dropEchoTail * 0.18
     val dropEchoRight = dropEchoRightA * 0.44 + dropEchoTail * 0.20
-    templeAccents.render(sampleRate, intensity, elapsedSeconds)
+    templeAccents.render(sampleRate, intensity, elapsedSeconds, worldSalience)
     val dryLeft = body + templeSpaceAirLeft * (0.22 + intensity * 0.12) + breathLeft * 0.7 + chantLeft * chantLevel + drop.first + dropEchoLeft + templeAccents.left
     val dryRight = body + templeSpaceAirRight * (0.22 + intensity * 0.12) + breathRight * 0.7 + chantRight * chantLevel + drop.second + dropEchoRight + templeAccents.right
     val size = templeSpaceDelay.size
@@ -1480,10 +1485,10 @@ object ProceduralAudioEngine {
     return v1
   }
 
-  private fun nextTempleSpaceDrop(intensity: Double): StereoSample {
+  private fun nextTempleSpaceDrop(intensity: Double, salience: WorldSalienceScheduler): StereoSample {
     if (templeSpaceDropFramesRemaining <= 0.0) {
       templeSpaceNextDropFrames -= 1.0
-      if (templeSpaceNextDropFrames <= 0.0) {
+      if (templeSpaceNextDropFrames <= 0.0 && salience.reserve(salience = 0.2, durationSeconds = 0.25, recoverySeconds = 1.2)) {
         templeSpaceDropDurationFrames = sampleRate * (0.13 + Math.abs(nextTempleSpaceWhite()) * 0.11)
         templeSpaceDropFramesRemaining = templeSpaceDropDurationFrames
         templeSpaceDropAgeFrames = 0.0

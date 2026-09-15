@@ -11,3 +11,4 @@ export * from './proceduralSession';
 export * from './routing';
 export * from './timeline';
 export * from './types';
+export * from './worldProfiles';

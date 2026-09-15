@@ -38,6 +38,7 @@ internal class OceanModel {
   private var bubbleCursor = 0
   private var bubbleCountdown = 0.0
   private var bubbleBurstRemaining = 0
+  private var bubbleSequenceAdmitted = false
   private var bubbleLeft = 0.0
   private var bubbleRight = 0.0
 
@@ -50,7 +51,7 @@ internal class OceanModel {
     low = 0.0; mid = 0.0; foamLeft = 0.0; foamRight = 0.0
     bubblePhases.fill(0.0); bubbleAges.fill(0.0); bubbleDurations.fill(0.0)
     bubbleFrequencies.fill(0.0); bubbleAmplitudes.fill(0.0); bubblePans.fill(0.0)
-    bubbleCursor = 0; bubbleCountdown = 0.0; bubbleBurstRemaining = 0
+    bubbleCursor = 0; bubbleCountdown = 0.0; bubbleBurstRemaining = 0; bubbleSequenceAdmitted = false
     left = 0.0; right = 0.0
   }
 
@@ -63,7 +64,7 @@ internal class OceanModel {
 
   private fun white(): Double = unit() * 2 - 1
 
-  private fun enter(next: Int, intensity: Double) {
+  private fun enter(next: Int, intensity: Double, salience: WorldSalienceScheduler) {
     phase = next
     phaseAge = 0.0
     when (phase) {
@@ -78,20 +79,21 @@ internal class OceanModel {
       2 -> phaseDuration = rate * (0.8 + unit() * 1.1)
       3 -> {
         phaseDuration = rate * (1.5 + unit() * 1.8)
-        bubbleBurstRemaining = 3 + (unit() * (4 + intensity * 4)).toInt()
+        bubbleSequenceAdmitted = salience.reserve(salience = 0.28, durationSeconds = 7.0, recoverySeconds = 2.0)
+        bubbleBurstRemaining = if (bubbleSequenceAdmitted) 3 + (unit() * (4 + intensity * 4)).toInt() else 0
         bubbleCountdown = rate * (0.08 + unit() * 0.18)
       }
       4 -> {
         phaseDuration = rate * (3.0 + unit() * 3.5)
-        bubbleBurstRemaining += 2 + (unit() * 4).toInt()
+        if (bubbleSequenceAdmitted) bubbleBurstRemaining += 2 + (unit() * 4).toInt()
       }
       else -> phaseDuration = rate * (4.0 + unit() * 5.0)
     }
   }
 
-  private fun advance(intensity: Double) {
+  private fun advance(intensity: Double, salience: WorldSalienceScheduler) {
     if (phaseAge < phaseDuration) return
-    enter(if (phase == 5) 0 else phase + 1, intensity)
+    enter(if (phase == 5) 0 else phase + 1, intensity, salience)
   }
 
   private fun exciteBubble() {
@@ -131,9 +133,9 @@ internal class OceanModel {
     }
   }
 
-  fun render(sampleRate: Double, intensity: Double) {
+  fun render(sampleRate: Double, intensity: Double, salience: WorldSalienceScheduler) {
     if (rate != sampleRate) reset(random, sampleRate)
-    advance(intensity)
+    advance(intensity, salience)
     moodFrames -= 1
     if (moodFrames <= 0) {
       moodTarget = 0.15 + unit() * 0.75

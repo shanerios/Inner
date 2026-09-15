@@ -178,6 +178,39 @@ private struct AudioTimeline {
   let stages: [TimelineStage]
 }
 
+final class WorldSalienceScheduler {
+  private var rate = 48_000.0
+  private var frame: UInt64 = 0
+  private var reservedUntil: UInt64 = 0
+  private var clearUntil: UInt64 = 0
+  private var suppressed = false
+
+  func reset(sampleRate: Double) {
+    rate = sampleRate
+    frame = 0
+    reservedUntil = 0
+    clearUntil = 0
+    suppressed = false
+  }
+
+  func beginFrame(suppressRareEvents: Bool) {
+    if suppressed && !suppressRareEvents {
+      clearUntil = max(clearUntil, frame + UInt64(rate * 2))
+    }
+    suppressed = suppressRareEvents
+  }
+
+  func reserve(salience: Double, durationSeconds: Double, recoverySeconds: Double) -> Bool {
+    guard !suppressed, frame >= reservedUntil, frame >= clearUntil else { return false }
+    reservedUntil = frame + UInt64(rate * durationSeconds)
+    let recoveryScale = 0.75 + min(1, max(0, salience)) * 0.5
+    clearUntil = reservedUntil + UInt64(rate * recoverySeconds * recoveryScale)
+    return true
+  }
+
+  func advanceFrame() { frame &+= 1 }
+}
+
 private final class ProceduralAudioEngine: NSObject {
   private enum PauseReason { case user, routeLoss, interruption }
   private var engine = AVAudioEngine()
@@ -230,6 +263,7 @@ private final class ProceduralAudioEngine: NSObject {
   private var firePopRight = 0.0
   private var cosmicEnvelope = 0.0
   private let cosmicModel = CosmicModel()
+  private let worldSalience = WorldSalienceScheduler()
   private var forestEnvelope = 0.0
   private var forestRandom: UInt64 = 0x9e3779b97f4a7c15 ^ 0xc2b2ae35
   private var forestCanopy = 0.0
@@ -530,6 +564,7 @@ private final class ProceduralAudioEngine: NSObject {
     firePopRight = 0
     cosmicEnvelope = 0
     cosmicModel.reset(seed: 0x9e3779b97f4a7c15, sampleRate: sampleRate)
+    worldSalience.reset(sampleRate: sampleRate)
     forestEnvelope = 0
     forestRandom = 0x9e3779b97f4a7c15 ^ 0xc2b2ae35
     forestCanopy = 0
@@ -741,6 +776,7 @@ private final class ProceduralAudioEngine: NSObject {
       windRandom = activeTimeline.seed ^ 0x7f4a7c15
       fireRandom = activeTimeline.seed ^ 0x2c1b3c6d
       cosmicModel.reset(seed: activeTimeline.seed, sampleRate: sampleRate)
+      worldSalience.reset(sampleRate: sampleRate)
       resetThresholdShift()
       templeRandom = activeTimeline.seed ^ 0x9c2f5a31
       rainPockets = (0..<5).map { RainPocket(random: activeTimeline.seed &+ UInt64($0 + 1) * 0x100000001b3) }
@@ -809,6 +845,7 @@ private final class ProceduralAudioEngine: NSObject {
           "driftMs": timelineElapsedMs - cueFireMs,
         ])
       }
+      worldSalience.beginFrame(suppressRareEvents: recognitionSpace != nil || cueActive)
       let orbitPhase = spatialSeconds * target.spatialRate * Double.pi * 2 / 60
       let orbitNear = (cos(orbitPhase) + 1) / 2
       // Vortex reuses orbit's "pulled toward/away from center" distance-darkening
@@ -1012,6 +1049,7 @@ private final class ProceduralAudioEngine: NSObject {
       phases[4] = fmod(phases[4] + tau * target.carrierHz * 1.5 / sampleRate, tau)
       phases[5] = fmod(phases[5] + tau * target.binauralCarrierHz / sampleRate, tau)
       phases[6] = fmod(phases[6] + tau * target.deltaHz / sampleRate, tau)
+      worldSalience.advanceFrame()
     }
 
     if activeTimeline != nil {
@@ -1282,7 +1320,7 @@ private final class ProceduralAudioEngine: NSObject {
   }
 
   private func nextOcean(elapsedSeconds: Double, intensity: Double) -> (left: Double, right: Double) {
-    oceanModel.render(sampleRate: sampleRate, intensity: intensity)
+    oceanModel.render(sampleRate: sampleRate, intensity: intensity, salience: worldSalience)
     return (oceanModel.left, oceanModel.right)
   }
 
@@ -1369,7 +1407,7 @@ private final class ProceduralAudioEngine: NSObject {
   }
 
   private func nextCosmic(elapsedSeconds: Double, intensity: Double) -> (left: Double, right: Double) {
-    cosmicModel.render(sampleRate: sampleRate, intensity: intensity)
+    cosmicModel.render(sampleRate: sampleRate, intensity: intensity, salience: worldSalience)
     return (cosmicModel.left, cosmicModel.right)
   }
 
@@ -1398,7 +1436,7 @@ private final class ProceduralAudioEngine: NSObject {
 
     if !forestBirdActive {
       forestBirdFramesRemaining -= 1
-      if forestBirdFramesRemaining <= 0 {
+      if forestBirdFramesRemaining <= 0 && worldSalience.reserve(salience: 0.38, durationSeconds: 0.3, recoverySeconds: 1.5) {
         forestBirdActive = true
         forestBirdDurationFrames = sampleRate * (0.12 + abs(nextForestWhite()) * 0.16)
         forestBirdFramesRemaining = forestBirdDurationFrames
@@ -1602,7 +1640,7 @@ private final class ProceduralAudioEngine: NSObject {
       + templeSpaceBandpass(sourceRight, index: 3, frequency: formant2 * 1.008, q: 7.5) * 1.25 * formant2Presence
       + sub * 0.08
     let chantLevel = chantEnvelope * (0.18 + intensity * 0.12)
-    let drop = nextTempleSpaceDrop(intensity: intensity)
+    let drop = nextTempleSpaceDrop(intensity: intensity, salience: worldSalience)
     let dropEchoSize = templeSpaceDropEcho.count
     let dropEchoLeftA = templeSpaceDropEcho[(templeSpaceDropEchoIndex - min(dropEchoSize - 1, max(1, Int(sampleRate * 0.27))) + dropEchoSize) % dropEchoSize]
     let dropEchoRightA = templeSpaceDropEcho[(templeSpaceDropEchoIndex - min(dropEchoSize - 1, max(1, Int(sampleRate * 0.41))) + dropEchoSize) % dropEchoSize]
@@ -1611,7 +1649,7 @@ private final class ProceduralAudioEngine: NSObject {
     templeSpaceDropEchoIndex = (templeSpaceDropEchoIndex + 1) % dropEchoSize
     let dropEchoLeft = dropEchoLeftA * 0.48 + dropEchoTail * 0.18
     let dropEchoRight = dropEchoRightA * 0.44 + dropEchoTail * 0.20
-    templeAccents.render(sampleRate: sampleRate, intensity: intensity, elapsedSeconds: elapsedSeconds)
+    templeAccents.render(sampleRate: sampleRate, intensity: intensity, elapsedSeconds: elapsedSeconds, salience: worldSalience)
     let dryLeft = body + templeSpaceAirLeft * (0.22 + intensity * 0.12) + breathLeft * 0.7 + chantLeft * chantLevel + drop.left + dropEchoLeft + templeAccents.left
     let dryRight = body + templeSpaceAirRight * (0.22 + intensity * 0.12) + breathRight * 0.7 + chantRight * chantLevel + drop.right + dropEchoRight + templeAccents.right
     let size = templeSpaceDelay.count
@@ -1642,10 +1680,10 @@ private final class ProceduralAudioEngine: NSObject {
     return v1
   }
 
-  private func nextTempleSpaceDrop(intensity: Double) -> (left: Double, right: Double) {
+  private func nextTempleSpaceDrop(intensity: Double, salience: WorldSalienceScheduler) -> (left: Double, right: Double) {
     if templeSpaceDropFramesRemaining <= 0 {
       templeSpaceNextDropFrames -= 1
-      if templeSpaceNextDropFrames <= 0 {
+      if templeSpaceNextDropFrames <= 0 && salience.reserve(salience: 0.2, durationSeconds: 0.25, recoverySeconds: 1.2) {
         templeSpaceDropDurationFrames = sampleRate * (0.13 + abs(nextTempleSpaceWhite()) * 0.11)
         templeSpaceDropFramesRemaining = templeSpaceDropDurationFrames
         templeSpaceDropAgeFrames = 0
@@ -2105,18 +2143,22 @@ final class TempleAccents {
     }
   }
 
-  func render(sampleRate: Double, intensity: Double, elapsedSeconds: Double) {
+  func render(sampleRate: Double, intensity: Double, elapsedSeconds: Double, salience: WorldSalienceScheduler) {
     if rate != sampleRate { reset(seed: random, sampleRate: sampleRate) }
     nextBowl -= 1
     if nextBowl <= 0 {
-      excite(slot: 0, bowl: true)
+      if salience.reserve(salience: 0.72, durationSeconds: 14, recoverySeconds: 4) {
+        excite(slot: 0, bowl: true)
+      }
       nextBowl = rate * (28 + unit() * 24)
     }
     nextCluster -= 1
     let gust = sin(elapsedSeconds * Double.pi * 2 / 19.3)
     if pendingChimes == 0 && nextCluster <= 0 && gust > -0.25 {
-      pendingChimes = unit() > 0.45 ? 3 : 2
-      nextChime = 0
+      if salience.reserve(salience: 0.42, durationSeconds: 6, recoverySeconds: 2) {
+        pendingChimes = unit() > 0.45 ? 3 : 2
+        nextChime = 0
+      }
       nextCluster = rate * (23 - intensity * 5 + unit() * 22)
     }
     if pendingChimes > 0 {
@@ -2180,6 +2222,7 @@ final class OceanModel {
   private var bubbleCursor = 0
   private var bubbleCountdown = 0.0
   private var bubbleBurstRemaining = 0
+  private var bubbleSequenceAdmitted = false
   private var bubbleLeft = 0.0
   private var bubbleRight = 0.0
 
@@ -2195,7 +2238,7 @@ final class OceanModel {
       bubblePhases[i] = 0; bubbleAges[i] = 0; bubbleDurations[i] = 0
       bubbleFrequencies[i] = 0; bubbleAmplitudes[i] = 0; bubblePans[i] = 0
     }
-    bubbleCursor = 0; bubbleCountdown = 0; bubbleBurstRemaining = 0
+    bubbleCursor = 0; bubbleCountdown = 0; bubbleBurstRemaining = 0; bubbleSequenceAdmitted = false
     bubbleLeft = 0; bubbleRight = 0; left = 0; right = 0
   }
 
@@ -2206,7 +2249,7 @@ final class OceanModel {
 
   private func white() -> Double { unit() * 2 - 1 }
 
-  private func enter(_ next: Int, intensity: Double) {
+  private func enter(_ next: Int, intensity: Double, salience: WorldSalienceScheduler) {
     phase = next
     phaseAge = 0
     switch phase {
@@ -2222,18 +2265,19 @@ final class OceanModel {
       phaseDuration = rate * (0.8 + unit() * 1.1)
     case 3:
       phaseDuration = rate * (1.5 + unit() * 1.8)
-      bubbleBurstRemaining = 3 + Int(unit() * (4 + intensity * 4))
+      bubbleSequenceAdmitted = salience.reserve(salience: 0.28, durationSeconds: 7, recoverySeconds: 2)
+      bubbleBurstRemaining = bubbleSequenceAdmitted ? 3 + Int(unit() * (4 + intensity * 4)) : 0
       bubbleCountdown = rate * (0.08 + unit() * 0.18)
     case 4:
       phaseDuration = rate * (3 + unit() * 3.5)
-      bubbleBurstRemaining += 2 + Int(unit() * 4)
+      if bubbleSequenceAdmitted { bubbleBurstRemaining += 2 + Int(unit() * 4) }
     default:
       phaseDuration = rate * (4 + unit() * 5)
     }
   }
 
-  private func advance(intensity: Double) {
-    if phaseAge >= phaseDuration { enter(phase == 5 ? 0 : phase + 1, intensity: intensity) }
+  private func advance(intensity: Double, salience: WorldSalienceScheduler) {
+    if phaseAge >= phaseDuration { enter(phase == 5 ? 0 : phase + 1, intensity: intensity, salience: salience) }
   }
 
   private func exciteBubble() {
@@ -2272,9 +2316,9 @@ final class OceanModel {
     }
   }
 
-  func render(sampleRate: Double, intensity: Double) {
+  func render(sampleRate: Double, intensity: Double, salience: WorldSalienceScheduler) {
     if rate != sampleRate { reset(seed: random, sampleRate: sampleRate) }
-    advance(intensity: intensity)
+    advance(intensity: intensity, salience: salience)
     moodFrames -= 1
     if moodFrames <= 0 {
       moodTarget = 0.15 + unit() * 0.75
@@ -2447,11 +2491,13 @@ final class CosmicModel {
     bloomPans[slot] = (unit() * 2 - 1) * 0.82
   }
 
-  private func renderBlooms(_ intensity: Double) {
+  private func renderBlooms(_ intensity: Double, salience: WorldSalienceScheduler) {
     if (1...4).contains(state) {
       bloomCountdown -= 1
       if bloomCountdown <= 0 {
-        exciteBloom(intensity)
+        if salience.reserve(salience: 0.45, durationSeconds: 12, recoverySeconds: 4) {
+          exciteBloom(intensity)
+        }
         bloomCountdown = rate * (4 + unit() * (10 - intensity * 3))
       }
     }
@@ -2515,7 +2561,7 @@ final class CosmicModel {
     moanOrbitPhase = fmod(moanOrbitPhase + Double.pi * 2 / (rate * 79), Double.pi * 2)
   }
 
-  func render(sampleRate: Double, intensity: Double) {
+  func render(sampleRate: Double, intensity: Double, salience: WorldSalienceScheduler) {
     if rate != sampleRate { reset(seed: random, sampleRate: sampleRate) }
     advance()
     moodFrames -= 1
@@ -2589,7 +2635,7 @@ final class CosmicModel {
     renderMoan(intensity)
     left = voidBody + gravity + horizonLeft + fieldLeft + moanLeft + airLeft * airLevel * (1 - motion * width * 0.16)
     right = voidBody + gravity + horizonRight + fieldRight + moanRight + airRight * airLevel * (1 + motion * width * 0.16)
-    renderBlooms(intensity)
+    renderBlooms(intensity, salience: salience)
     stateAge += 1
   }
 }

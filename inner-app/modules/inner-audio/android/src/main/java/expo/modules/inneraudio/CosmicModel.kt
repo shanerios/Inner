@@ -131,11 +131,13 @@ internal class CosmicModel {
     bloomPans[slot] = (unit() * 2.0 - 1.0) * 0.82
   }
 
-  private fun renderBlooms(intensity: Double): Double {
+  private fun renderBlooms(intensity: Double, salience: WorldSalienceScheduler): Double {
     if (state in 1..4) {
       bloomCountdown -= 1.0
       if (bloomCountdown <= 0.0) {
-        exciteBloom(intensity)
+        if (salience.reserve(salience = 0.45, durationSeconds = 12.0, recoverySeconds = 4.0)) {
+          exciteBloom(intensity)
+        }
         bloomCountdown = rate * (4.0 + unit() * (10.0 - intensity * 3.0))
       }
     }
@@ -198,7 +200,7 @@ internal class CosmicModel {
     moanOrbitPhase = (moanOrbitPhase + PI * 2.0 / (rate * 79.0)) % (PI * 2.0)
   }
 
-  fun render(sampleRate: Double, intensity: Double) {
+  fun render(sampleRate: Double, intensity: Double, salience: WorldSalienceScheduler) {
     if (rate != sampleRate) reset(random, sampleRate)
     advance()
     moodFrames -= 1.0
@@ -275,7 +277,7 @@ internal class CosmicModel {
     renderMoan(intensity)
     left = voidBody + gravity + horizonLeft + fieldLeft + moanLeft + airLeft * airLevel * (1.0 - motion * width * 0.16)
     right = voidBody + gravity + horizonRight + fieldRight + moanRight + airRight * airLevel * (1.0 + motion * width * 0.16)
-    renderBlooms(intensity)
+    renderBlooms(intensity, salience)
     stateAge += 1.0
   }
 }
