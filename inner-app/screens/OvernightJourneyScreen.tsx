@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useVideoPlayer, VideoView } from '../core/memorySafeVideo';
 import {
@@ -316,6 +317,12 @@ export default function OvernightJourneyScreen() {
           <Text style={styles.returnText}>RETURN</Text>
         </Pressable>
       </ScrollView>
+      <LinearGradient
+        colors={['rgba(2,4,11,0.98)', 'rgba(2,4,11,0.9)', 'rgba(2,4,11,0)']}
+        locations={[0, 0.72, 1]}
+        pointerEvents="none"
+        style={[styles.headerFade, { height: insets.top + (Platform.OS === 'android' ? 230 : 205) }]}
+      />
       {INNER_LAB_BUILD ? (
         <Modal visible={inspectorVisible} transparent animationType="fade" onRequestClose={() => setInspectorVisible(false)}>
           <View style={styles.inspectorBackdrop}>
@@ -378,6 +385,7 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#02040B' },
   veil: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.61)' },
   content: { paddingHorizontal: 24 },
+  headerFade: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 2 },
   fixedHeader: { position: 'absolute', left: 24, right: 24, zIndex: 3, alignItems: 'center' },
   androidFixedHeader: { transform: [{ translateY: 30 }] },
   title: { color: '#F4F1FA', fontSize: 24, textAlign: 'center' },

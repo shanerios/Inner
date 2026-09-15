@@ -2323,6 +2323,7 @@ final class CosmicModel {
   private static let fieldWeights = [0.07, 0.035, 0.027, 0.016]
   private static let horizonRatios = [1.0, phi, phi * phi]
   private static let horizonWeights = [0.058, 0.02625, 0.01125]
+  private static let moanWeights = [0.05, 0.04, 0.06, 0.1, 0.28, 0.12, 0.05, 0.04, 0.08, 0.2]
   private(set) var left = 0.0
   private(set) var right = 0.0
   private var random: UInt64 = 1
@@ -2345,6 +2346,12 @@ final class CosmicModel {
   private var gravityPhase = 0.0
   private var horizonLevel = 0.6
   private var horizonPhases = [Double](repeating: 0, count: 3)
+  private var moanPhases = [Double](repeating: 0, count: 10)
+  private var moanChoirPhases = [Double](repeating: 0, count: 10)
+  private var moanBreathPhase = 0.0
+  private var moanLeft = 0.0
+  private var moanRight = 0.0
+  private var moanMono = 0.0
   private var rumble = 0.0
   private var airLeft = 0.0
   private var airRight = 0.0
@@ -2371,6 +2378,8 @@ final class CosmicModel {
     gravityLevel = 0; gravityPhase = 0
     horizonLevel = 0.6
     for index in horizonPhases.indices { horizonPhases[index] = 0 }
+    for index in moanPhases.indices { moanPhases[index] = 0; moanChoirPhases[index] = 0 }
+    moanBreathPhase = 0; moanLeft = 0; moanRight = 0; moanMono = 0
     rumble = 0; airLeft = 0; airRight = 0
     for index in fieldPhases.indices { fieldPhases[index] = 0 }
     for index in bloomPhases.indices {
@@ -2462,10 +2471,31 @@ final class CosmicModel {
     let farFrames = min(delay.count - 1, max(1, Int(rate * 0.61)))
     let near = delay[(delayIndex - nearFrames + delay.count) % delay.count]
     let far = delay[(delayIndex - farFrames + delay.count) % delay.count]
-    delay[delayIndex] = mono + (near * 0.34 + far * 0.24) * 0.28
+    delay[delayIndex] = mono + moanMono * 0.32 + (near * 0.34 + far * 0.24) * 0.28
     delayIndex = (delayIndex + 1) % delay.count
     left += bloomLeft + near * (0.26 - motion * 0.08) + far * (0.17 + motion * 0.07)
     right += bloomRight + near * (0.26 + motion * 0.08) + far * (0.17 - motion * 0.07)
+  }
+
+  private func renderMoan(_ intensity: Double) {
+    let breath = 0.5 - 0.5 * cos(moanBreathPhase)
+    let envelope = 0.38 + breath * 0.62
+    let fundamental = 72 + mood * 7 + sin(moanBreathPhase) * 0.45
+    var primary = 0.0
+    var choir = 0.0
+    for index in moanPhases.indices {
+      let harmonic = Double(index + 1)
+      let weight = Self.moanWeights[index]
+      primary += sin(moanPhases[index]) * weight
+      choir += sin(moanChoirPhases[index]) * weight
+      moanPhases[index] = fmod(moanPhases[index] + Double.pi * 2 * fundamental * harmonic * 0.9975 / rate, Double.pi * 2)
+      moanChoirPhases[index] = fmod(moanChoirPhases[index] + Double.pi * 2 * fundamental * harmonic * 1.0025 / rate, Double.pi * 2)
+    }
+    let level = envelope * (0.11 + intensity * 0.055)
+    moanLeft = (primary * 0.58 + choir * 0.42) * level
+    moanRight = (primary * 0.42 + choir * 0.58) * level
+    moanMono = (moanLeft + moanRight) * 0.5
+    moanBreathPhase = fmod(moanBreathPhase + Double.pi * 2 / (rate * 31), Double.pi * 2)
   }
 
   func render(sampleRate: Double, intensity: Double) {
@@ -2539,8 +2569,9 @@ final class CosmicModel {
       let lensBend = 1 + motion * (Double(index) - 1.5) * 0.00045 * (0.3 + width)
       fieldPhases[index] = fmod(fieldPhases[index] + Double.pi * 2 * base * Self.fieldRatios[index] * lensBend / rate, Double.pi * 2)
     }
-    left = voidBody + gravity + horizonLeft + fieldLeft + airLeft * airLevel * (1 - motion * width * 0.16)
-    right = voidBody + gravity + horizonRight + fieldRight + airRight * airLevel * (1 + motion * width * 0.16)
+    renderMoan(intensity)
+    left = voidBody + gravity + horizonLeft + fieldLeft + moanLeft + airLeft * airLevel * (1 - motion * width * 0.16)
+    right = voidBody + gravity + horizonRight + fieldRight + moanRight + airRight * airLevel * (1 + motion * width * 0.16)
     renderBlooms(intensity)
     stateAge += 1
   }

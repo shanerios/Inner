@@ -10,6 +10,7 @@ internal class CosmicModel {
     val FIELD_WEIGHTS = doubleArrayOf(0.07, 0.035, 0.027, 0.016)
     val HORIZON_RATIOS = doubleArrayOf(1.0, PHI, PHI * PHI)
     val HORIZON_WEIGHTS = doubleArrayOf(0.058, 0.02625, 0.01125)
+    val MOAN_WEIGHTS = doubleArrayOf(0.05, 0.04, 0.06, 0.1, 0.28, 0.12, 0.05, 0.04, 0.08, 0.2)
   }
   var left = 0.0
     private set
@@ -36,6 +37,12 @@ internal class CosmicModel {
   private var gravityPhase = 0.0
   private var horizonLevel = 0.6
   private val horizonPhases = DoubleArray(3)
+  private val moanPhases = DoubleArray(10)
+  private val moanChoirPhases = DoubleArray(10)
+  private var moanBreathPhase = 0.0
+  private var moanLeft = 0.0
+  private var moanRight = 0.0
+  private var moanMono = 0.0
   private var rumble = 0.0
   private var airLeft = 0.0
   private var airRight = 0.0
@@ -60,6 +67,8 @@ internal class CosmicModel {
     pressure = 0.42; width = 0.3; brightness = 0.25; presence = 0.4
     gravityLevel = 0.0; gravityPhase = 0.0
     horizonLevel = 0.6; horizonPhases.fill(0.0)
+    moanPhases.fill(0.0); moanChoirPhases.fill(0.0); moanBreathPhase = 0.0
+    moanLeft = 0.0; moanRight = 0.0; moanMono = 0.0
     rumble = 0.0; airLeft = 0.0; airRight = 0.0
     fieldPhases.fill(0.0); bloomPhases.fill(0.0); bloomAges.fill(0.0)
     bloomDurations.fill(0.0); bloomFrequencies.fill(0.0)
@@ -145,11 +154,32 @@ internal class CosmicModel {
 
     val near = delay[(delayIndex - min(delay.size - 1, max(1, (rate * 0.23).toInt())) + delay.size) % delay.size]
     val far = delay[(delayIndex - min(delay.size - 1, max(1, (rate * 0.61).toInt())) + delay.size) % delay.size]
-    delay[delayIndex] = mono + (near * 0.34 + far * 0.24) * 0.28
+    delay[delayIndex] = mono + moanMono * 0.32 + (near * 0.34 + far * 0.24) * 0.28
     delayIndex = (delayIndex + 1) % delay.size
     left += bloomLeft + near * (0.26 - motion * 0.08) + far * (0.17 + motion * 0.07)
     right += bloomRight + near * (0.26 + motion * 0.08) + far * (0.17 - motion * 0.07)
     return mono
+  }
+
+  private fun renderMoan(intensity: Double) {
+    val breath = 0.5 - 0.5 * cos(moanBreathPhase)
+    val envelope = 0.38 + breath * 0.62
+    val fundamental = 72.0 + mood * 7.0 + sin(moanBreathPhase) * 0.45
+    var primary = 0.0
+    var choir = 0.0
+    for (index in moanPhases.indices) {
+      val harmonic = (index + 1).toDouble()
+      val weight = MOAN_WEIGHTS[index]
+      primary += sin(moanPhases[index]) * weight
+      choir += sin(moanChoirPhases[index]) * weight
+      moanPhases[index] = (moanPhases[index] + PI * 2.0 * fundamental * harmonic * 0.9975 / rate) % (PI * 2.0)
+      moanChoirPhases[index] = (moanChoirPhases[index] + PI * 2.0 * fundamental * harmonic * 1.0025 / rate) % (PI * 2.0)
+    }
+    val level = envelope * (0.11 + intensity * 0.055)
+    moanLeft = (primary * 0.58 + choir * 0.42) * level
+    moanRight = (primary * 0.42 + choir * 0.58) * level
+    moanMono = (moanLeft + moanRight) * 0.5
+    moanBreathPhase = (moanBreathPhase + PI * 2.0 / (rate * 31.0)) % (PI * 2.0)
   }
 
   fun render(sampleRate: Double, intensity: Double) {
@@ -226,8 +256,9 @@ internal class CosmicModel {
       fieldPhases[index] = (fieldPhases[index] + PI * 2.0 * base * FIELD_RATIOS[index] * lensBend / rate) % (PI * 2.0)
     }
 
-    left = voidBody + gravity + horizonLeft + fieldLeft + airLeft * airLevel * (1.0 - motion * width * 0.16)
-    right = voidBody + gravity + horizonRight + fieldRight + airRight * airLevel * (1.0 + motion * width * 0.16)
+    renderMoan(intensity)
+    left = voidBody + gravity + horizonLeft + fieldLeft + moanLeft + airLeft * airLevel * (1.0 - motion * width * 0.16)
+    right = voidBody + gravity + horizonRight + fieldRight + moanRight + airRight * airLevel * (1.0 + motion * width * 0.16)
     renderBlooms(intensity)
     stateAge += 1.0
   }
