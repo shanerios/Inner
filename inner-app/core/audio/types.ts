@@ -122,15 +122,36 @@ export type AudioEngineListener = (snapshot: AudioEngineSnapshot) => void;
 export type NativePlaybackState = 'playing' | 'paused' | 'stopped';
 
 export type NativeAudioDiagnosticEvent = {
-  type: 'playback_resumed' | 'playback_paused' | 'audio_route_changed' | 'interruption_began' | 'interruption_ended' | 'recognition_signal_fired' | 'audio_underrun' | 'error';
+  type: 'playback_resumed' | 'playback_paused' | 'playback_stopped' | 'audio_route_changed' | 'interruption_began' | 'interruption_ended' | 'recognition_signal_fired' | 'sleep_timer_fired' | 'audio_underrun' | 'error';
   atMs: number;
   reason?: string;
+  /** Short machine-readable context. Never user content. */
+  detail?: string;
   route?: string;
   signalId?: string;
   scheduledPositionMs?: number;
   actualPositionMs?: number;
   driftMs?: number;
   underrunCount?: number;
+};
+
+/**
+ * A point-in-time read of the native engine, for explaining a session that
+ * looks alive to JavaScript but is not rendering. Numbers and flags only.
+ */
+export type NativeEngineDebugState = {
+  playbackState: NativePlaybackState;
+  /** Android: whether the foreground service exists. iOS: whether AVAudioEngine is running. */
+  engineRunning: boolean;
+  timelineLoaded: boolean;
+  timelinePositionMs?: number;
+  /** The armed sleep-timer end, if any. A value in the past at session start is the stale-timer signature. */
+  sleepEndMs?: number;
+  /** Frames the render callback has produced since the last stop. Zero while "playing" means no audio is being rendered. */
+  renderedFrames: number;
+  sampleRate: number;
+  privateOutput?: boolean;
+  lastStopReason?: string;
 };
 
 /**
@@ -163,6 +184,8 @@ export interface InnerAudioEngine {
   getPlaybackState(): Promise<NativePlaybackState>;
   getTimelinePositionMs(): Promise<number | null>;
   drainDiagnosticEvents(): Promise<NativeAudioDiagnosticEvent[]>;
+  /** Null when the native build predates the debug-state call. */
+  getDebugState?(): Promise<NativeEngineDebugState | null>;
   setRecognitionSignal(signalId: string | null, uri: string | null): Promise<void>;
   triggerCue(): Promise<void>;
   /** No-op where the native side has no checkpoint concept (iOS). */

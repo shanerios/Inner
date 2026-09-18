@@ -33,8 +33,31 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.media.app.NotificationCompat.MediaStyle
 import androidx.media.session.MediaButtonReceiver
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.max
+
+/**
+ * One-shot signal from the service back to the JS-facing module, so that
+ * `play` and `stop` can resolve when the service has actually finished the work
+ * rather than when the intent was merely queued.
+ */
+internal class LifecycleAck {
+  private val latch = CountDownLatch(1)
+  @Volatile private var result: String? = null
+
+  fun complete(value: String) {
+    if (result == null) result = value
+    latch.countDown()
+  }
+
+  /** Returns the result, or null if the service did not answer in time. */
+  fun await(timeoutMs: Long): String? {
+    try { latch.await(timeoutMs, TimeUnit.MILLISECONDS) } catch (_: InterruptedException) { }
+    return result
+  }
+}
 
 /**
  * Foreground playback service backing the InnerAudio procedural engine.
@@ -71,6 +94,32 @@ class InnerAudioPlaybackService : Service() {
 
     @Volatile var playbackState = "stopped"
       private set
+
+    /** Why the service last stopped (user, sleep timer, media control, ...). Diagnostics only. */
+    @Volatile var lastStopReason: String? = null
+      private set
+
+    @Volatile private var pendingPlayAck: LifecycleAck? = null
+    @Volatile private var pendingStopAck: LifecycleAck? = null
+
+    internal fun armPlayAck(): LifecycleAck = LifecycleAck().also { pendingPlayAck = it }
+    internal fun armStopAck(): LifecycleAck = LifecycleAck().also { pendingStopAck = it }
+
+    private fun completePlayAck(result: String) {
+      pendingPlayAck?.complete(result)
+      pendingPlayAck = null
+    }
+
+    private fun completeStopAck() {
+      pendingStopAck?.complete("stopped")
+      pendingStopAck = null
+    }
+
+    fun debugState(): Map<String, Any?> = ProceduralAudioEngine.debugState() + mapOf(
+      "playbackState" to playbackState,
+      "engineRunning" to isRunning,
+      "lastStopReason" to lastStopReason,
+    )
 
     fun playIntent(context: Context): Intent = Intent(context, InnerAudioPlaybackService::class.java).setAction(ACTION_PLAY)
     fun pauseIntent(context: Context): Intent = Intent(context, InnerAudioPlaybackService::class.java).setAction(ACTION_PAUSE)
@@ -233,7 +282,7 @@ class InnerAudioPlaybackService : Service() {
     audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
     createNotificationChannel()
     registerNoisyReceiver()
-    ProceduralAudioEngine.onSleepTimerElapsed = { mainHandler.post { stop() } }
+    ProceduralAudioEngine.onSleepTimerElapsed = { mainHandler.post { stop("sleep_timer") } }
     mediaSession = MediaSessionCompat(this, "InnerAudio").apply {
       setCallback(object : MediaSessionCompat.Callback() {
         override fun onPlay() {
@@ -248,7 +297,7 @@ class InnerAudioPlaybackService : Service() {
           desiredPlaying = false
           pause(PauseReason.USER)
         }
-        override fun onStop() = stop()
+        override fun onStop() = stop("media_control")
       })
       isActive = true
     }
@@ -266,7 +315,7 @@ class InnerAudioPlaybackService : Service() {
         desiredPlaying = false
         pause(PauseReason.USER)
       }
-      ACTION_STOP -> stop()
+      ACTION_STOP -> stop("stop_request")
       ACTION_REFRESH_NOW_PLAYING -> updateNowPlaying(isPlaying())
       else -> mediaSession?.let { MediaButtonReceiver.handleIntent(it, intent) }
     }
@@ -278,12 +327,18 @@ class InnerAudioPlaybackService : Service() {
   override fun onDestroy() {
     // Preserve the last checkpoint when Android destroys the service without
     // an explicit stop; the next cold launch can then reconcile the session.
+    if (lastStopReason == null) lastStopReason = "service_destroyed"
     teardownPlayback(clearCheckpoint = false)
     mediaSession?.release()
     mediaSession = null
     ProceduralAudioEngine.onSleepTimerElapsed = null
     unregisterNoisyReceiver()
     isRunning = false
+    // The instance is fully torn down: nothing of this session can touch the
+    // engine any more, so a waiting stop() may return and a waiting play()
+    // need not wait out its timeout.
+    completePlayAck("stopped")
+    completeStopAck()
     super.onDestroy()
   }
 
@@ -292,17 +347,28 @@ class InnerAudioPlaybackService : Service() {
   private fun play(reason: String, gentleFadeIn: Boolean = false) {
     val focusGranted = requestAudioFocus()
     routeLog("play reason=$reason focusGranted=$focusGranted gentle=$gentleFadeIn")
-    if (!focusGranted) return
-    explicitAppPause = false
-    if (audioTrack == null) {
-      ProceduralAudioEngine.sampleRate = preferredSampleRate()
-      audioTrack = buildAudioTrack()
-      startRenderThread()
+    if (!focusGranted) {
+      failStart("audio_focus_denied", "focus_denied")
+      return
     }
-    pauseReason = null
-    ProceduralAudioEngine.resumeSleepTimer()
-    if (gentleFadeIn) audioTrack?.setVolume(0f) else audioTrack?.setVolume(1f)
-    audioTrack?.play()
+    explicitAppPause = false
+    try {
+      if (audioTrack == null) {
+        ProceduralAudioEngine.sampleRate = preferredSampleRate()
+        audioTrack = buildAudioTrack()
+        startRenderThread()
+      }
+      pauseReason = null
+      ProceduralAudioEngine.resumeSleepTimer()
+      if (gentleFadeIn) audioTrack?.setVolume(0f) else audioTrack?.setVolume(1f)
+      audioTrack?.play()
+    } catch (error: Exception) {
+      // A platform failure here used to escape onStartCommand and take the
+      // whole app down; report it and leave nothing half-started instead.
+      teardownPlayback(clearCheckpoint = false)
+      failStart("audio_track_start_failed:${error.javaClass.simpleName}", "error:${error.javaClass.simpleName}")
+      return
+    }
     renderThreadPaused.set(false)
     playbackState = "playing"
     registerDeviceCallbackIfNeeded()
@@ -317,6 +383,27 @@ class InnerAudioPlaybackService : Service() {
     mainHandler.removeCallbacks(checkpointRunnable)
     persistCheckpoint()
     mainHandler.postDelayed(checkpointRunnable, CHECKPOINT_INTERVAL_MS)
+    completePlayAck("playing")
+  }
+
+  /**
+   * A start that cannot produce audio must still answer the system's
+   * startForegroundService() request -- an app that never does is killed --
+   * and must say why, instead of returning without a trace. The service stays
+   * up, paused, so its notification offers Play and JS can retry or stop it.
+   */
+  private fun failStart(diagnosticReason: String, ackResult: String) {
+    ProceduralAudioEngine.recordDiagnostic("error", diagnosticReason)
+    // A denied resume leaves a live, paused track behind; only a start that
+    // never built one is truly stopped.
+    playbackState = if (audioTrack == null) "stopped" else "paused"
+    try {
+      startForegroundCompat(buildNotification(isPlaying = false))
+    } catch (error: Exception) {
+      ProceduralAudioEngine.recordDiagnostic("error", "start_foreground_failed:${error.javaClass.simpleName}")
+    }
+    updatePlaybackState(PlaybackStateCompat.STATE_PAUSED)
+    completePlayAck(ackResult)
   }
 
   /**
@@ -366,7 +453,9 @@ class InnerAudioPlaybackService : Service() {
     persistCheckpoint()
   }
 
-  private fun stop() {
+  private fun stop(reason: String = "stop_request") {
+    lastStopReason = reason
+    ProceduralAudioEngine.recordDiagnostic("playback_stopped", reason)
     desiredPlaying = false
     pauseReason = null
     explicitAppPause = false
@@ -374,6 +463,11 @@ class InnerAudioPlaybackService : Service() {
     mediaSession?.isActive = false
     stopForegroundCompat()
     stopSelf()
+    completePlayAck("stopped")
+    // The stop acknowledgement is deliberately NOT completed here: stopSelf()
+    // queues onDestroy(), which tears down and resets the engine once more.
+    // Answering only after that lets JS configure the next session without a
+    // late reset landing on top of it.
   }
 
   /**
@@ -557,6 +651,7 @@ class InnerAudioPlaybackService : Service() {
           renderThreadRunning.set(false)
           renderThreadPaused.set(true)
           playbackState = "stopped"
+          lastStopReason = "audio_track_write_failed"
           ProceduralAudioEngine.recordDiagnostic("playback_paused", "audio_track_write_failed")
           break
         }

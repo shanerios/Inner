@@ -6,11 +6,12 @@ import { useVideoPlayer, VideoView } from '../core/memorySafeVideo';
 import {
   compileAudioJourneyTimeline,
   DEFAULT_PROCEDURAL_AUDIO_CONFIG,
+  describeEngineState,
   FACTORY_AUDIO_JOURNEYS,
   proceduralAudioEngine,
   ProceduralPlaybackSession,
 } from '../core/audio';
-import type { FactoryAudioJourney } from '../core/audio';
+import type { FactoryAudioJourney, NativeAudioDiagnosticEvent, StartHealth } from '../core/audio';
 import { Typography } from '../core/typography';
 import { cancelLucidityCueNotifications, scheduleLucidityCueNotifications } from '../utils/notifications';
 import { abandonPendingLucidSignalNight } from '../core/lucidSignalLearning';
@@ -22,6 +23,11 @@ import {
 } from '../core/journeyMemory';
 
 const LUCIDITY_CUE_TRAINING_JOURNEY_ID = 'lucid-signal';
+/** How long a requested start may take before it is treated as stalled. */
+const START_WATCHDOG_MS = 8_000;
+const START_HEALTH_POLL_MS = 1_000;
+/** Bounds the whole start sequence, so a native call that never resolves is also reported. */
+const START_HANG_MS = 20_000;
 
 type Params = { journeyId?: string; journey?: FactoryAudioJourney };
 
@@ -49,8 +55,12 @@ export default function LucidJourneyPlayerScreen() {
   const lastMemoryStageIdRef = useRef<string | null>(null);
   const lastMemoryCuePositionRef = useRef(0);
   const lastNativeCompletionCheckRef = useRef(0);
+  const startStalledRef = useRef(false);
   const [positionMs, setPositionMs] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [startStalled, setStartStalled] = useState(false);
+  const [startError, setStartError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
 
   const background = useVideoPlayer(require('../assets/videos/lucidscreen.mp4'), player => {
     player.loop = true;
@@ -70,6 +80,8 @@ export default function LucidJourneyPlayerScreen() {
     }
     let mounted = true;
     let timer: ReturnType<typeof setInterval> | null = null;
+    let startWatchdog: ReturnType<typeof setInterval> | null = null;
+    let startHangTimer: ReturnType<typeof setTimeout> | null = null;
     let playbackReconciliationInFlight = false;
     let previousAppState = AppState.currentState;
     const session = sessionRef.current;
@@ -78,19 +90,69 @@ export default function LucidJourneyPlayerScreen() {
     memoryFinishedRef.current = false;
     lastMemoryStageIdRef.current = null;
     lastMemoryCuePositionRef.current = 0;
+    startStalledRef.current = false;
+
+    const traceStart = (step: string, message?: string) => {
+      const memorySessionId = memorySessionIdRef.current;
+      if (memorySessionId) void recordJourneyMemoryEvent(memorySessionId, {
+        type: 'start_step',
+        positionMs: 0,
+        reason: step,
+        ...(message ? { message } : {}),
+      });
+    };
+
+    const recordNativeEvents = (events: NativeAudioDiagnosticEvent[]) => {
+      const memorySessionId = memorySessionIdRef.current;
+      if (!memorySessionId) return;
+      for (const event of events) void recordJourneyMemoryEvent(memorySessionId, {
+        type: event.type,
+        at: event.atMs,
+        positionMs: currentPositionRef.current,
+        reason: event.reason,
+        route: event.route,
+        signalId: event.signalId,
+        scheduledPositionMs: event.scheduledPositionMs,
+        actualPositionMs: event.actualPositionMs,
+        driftMs: event.driftMs,
+        underrunCount: event.underrunCount,
+        ...(event.detail ? { message: event.detail } : {}),
+      });
+    };
 
     const finishMemory = (outcome: 'completed' | 'user_stopped' | 'failed', message?: string, positionOverrideMs?: number) => {
       const memorySessionId = memorySessionIdRef.current;
       if (!memorySessionId || memoryFinishedRef.current) return;
       memoryFinishedRef.current = true;
       // A clean finish means there's nothing left for a checkpoint to explain.
-      void proceduralAudioEngine.setCheckpointSessionId(null);
+      // Routed through the session so a stale screen cannot clear a newer one's id.
+      void session.setCheckpointSessionId(null).catch(() => {});
       void finishJourneyMemorySession(
         memorySessionId,
         outcome,
         positionOverrideMs ?? currentPositionRef.current,
         message,
       );
+    };
+
+    // One place decides what "the start did not produce audio" leaves behind:
+    // a visible retry state and the evidence, recorded once per attempt.
+    const reportStall = async (
+      reason: string,
+      health: Pick<StartHealth, 'nativeState' | 'nativePositionMs'> | null,
+    ) => {
+      if (!mounted || startStalledRef.current) return;
+      startStalledRef.current = true;
+      setStartStalled(true);
+      const debug = await session.getDebugState().catch(() => null);
+      await session.drainDiagnosticEvents().then(recordNativeEvents).catch(() => {});
+      const memorySessionId = memorySessionIdRef.current;
+      if (memorySessionId) void recordJourneyMemoryEvent(memorySessionId, {
+        type: 'start_stalled',
+        positionMs: 0,
+        reason,
+        message: describeEngineState(debug, health, Date.now()),
+      });
     };
 
     const start = async () => {
@@ -110,6 +172,29 @@ export default function LucidJourneyPlayerScreen() {
           }
           cueStageStartMs += stage.durationMs;
         }
+        // Journey Memory needs nothing from the engine, so it comes first: every
+        // later step, and any failure, is then recorded against this attempt.
+        const memorySession = await beginJourneyMemorySession(
+          journey.id,
+          playbackTimeline,
+          DEFAULT_PROCEDURAL_AUDIO_CONFIG,
+        );
+        memorySessionIdRef.current = memorySession.id;
+        if (!mounted) {
+          finishMemory('user_stopped');
+          return;
+        }
+        traceStart('attempt_begin', `attempt=${attempt}`);
+        // Take the engine (leaving it stopped and clean) before writing any
+        // native state for this journey, so an earlier session's late teardown
+        // can no longer land on top of it.
+        await session.acquire();
+        if (!mounted) {
+          finishMemory('user_stopped');
+          return;
+        }
+        traceStart('engine_acquired');
+        await session.setCheckpointSessionId(memorySession.id).catch(() => {});
         let signalName = 'the signal';
         let selectedSignalId: string | null = null;
         await session.setRecognitionSignal(null, null);
@@ -124,27 +209,36 @@ export default function LucidJourneyPlayerScreen() {
           signalName = recognitionSignalById(signalId).name;
           await session.setRecognitionSignal(signalId, await getRecognitionSignalAssetUri(signalId));
         }
-        const memorySession = await beginJourneyMemorySession(
-          journey.id,
-          playbackTimeline,
-          DEFAULT_PROCEDURAL_AUDIO_CONFIG,
-        );
-        memorySessionIdRef.current = memorySession.id;
-        void proceduralAudioEngine.setCheckpointSessionId(memorySession.id);
         if (selectedSignalId) await recordJourneyMemoryEvent(memorySession.id, {
           type: 'recognition_signal_selected',
           positionMs: 0,
           signalId: selectedSignalId,
         });
+        traceStart('signal_ready');
         if (!mounted) {
           finishMemory('user_stopped');
           return;
         }
+        startHangTimer = setTimeout(() => { void reportStall('start_hung', null); }, START_HANG_MS);
         await session.startTimeline(DEFAULT_PROCEDURAL_AUDIO_CONFIG, playbackTimeline);
+        if (startHangTimer) clearTimeout(startHangTimer);
+        startHangTimer = null;
+        const playRequestedAtMs = Date.now();
+        traceStart('engine_started');
         // The native timer keeps the ending dependable while the screen is
         // locked or JavaScript is suspended, and applies a short final fade.
         await session.setSleepTimer(Date.now() + timeline.totalDurationMs);
-        if (journey.id === LUCIDITY_CUE_TRAINING_JOURNEY_ID) {
+        traceStart('sleep_timer_set');
+        // If the screen was left while starting, its cleanup has already queued
+        // the engine stop; there is no interval to create and nothing to offer.
+        if (!mounted) return;
+
+        // `play()` resolving only proves a start was requested. Confirm that
+        // audio is genuinely being rendered, and surface it if it never is.
+        let startConfirmed = false;
+        let healthCheckInFlight = false;
+        const offerCueScheduling = () => {
+          if (journey.id !== LUCIDITY_CUE_TRAINING_JOURNEY_ID) return;
           const sleepOnsetDelayMs = journey.overnight?.sleepOnsetDelayMs ?? timeline.totalDurationMs;
           Alert.alert(
             'Schedule tonight’s cues?',
@@ -163,7 +257,31 @@ export default function LucidJourneyPlayerScreen() {
               },
             ],
           );
-        }
+        };
+        startWatchdog = setInterval(() => {
+          if (!mounted || startConfirmed || healthCheckInFlight) return;
+          healthCheckInFlight = true;
+          void (async () => {
+            const health = await session.checkStartHealth();
+            if (!mounted) return;
+            if (health.healthy) {
+              startConfirmed = true;
+              if (startWatchdog) clearInterval(startWatchdog);
+              startWatchdog = null;
+              traceStart('playing_confirmed', `latencyMs=${Date.now() - playRequestedAtMs}`);
+              if (startStalledRef.current) {
+                startStalledRef.current = false;
+                setStartStalled(false);
+              }
+              offerCueScheduling();
+              return;
+            }
+            if (Date.now() - playRequestedAtMs < START_WATCHDOG_MS) return;
+            await reportStall(health.nativeState, health);
+          })().catch(() => {}).finally(() => {
+            healthCheckInFlight = false;
+          });
+        }, START_HEALTH_POLL_MS);
         timer = setInterval(() => {
           if (!mounted || seekingRef.current) return;
           if (!playbackReconciliationInFlight) {
@@ -209,22 +327,7 @@ export default function LucidJourneyPlayerScreen() {
           const now = Date.now();
           if (now - lastNativeCompletionCheckRef.current >= 1_000) {
             lastNativeCompletionCheckRef.current = now;
-            void session.drainDiagnosticEvents().then(events => {
-              const memorySessionId = memorySessionIdRef.current;
-              if (!memorySessionId) return;
-              for (const event of events) void recordJourneyMemoryEvent(memorySessionId, {
-                type: event.type,
-                at: event.atMs,
-                positionMs: currentPositionRef.current,
-                reason: event.reason,
-                route: event.route,
-                signalId: event.signalId,
-                scheduledPositionMs: event.scheduledPositionMs,
-                actualPositionMs: event.actualPositionMs,
-                driftMs: event.driftMs,
-                underrunCount: event.underrunCount,
-              });
-            }).catch(() => {});
+            void session.drainDiagnosticEvents().then(recordNativeEvents).catch(() => {});
             void session.getLastTimerCompletionAtMs().then(completedAtMs => {
               if (completedAtMs !== null) finishMemory('completed', undefined, timeline.totalDurationMs);
             }).catch(() => {});
@@ -237,9 +340,16 @@ export default function LucidJourneyPlayerScreen() {
           if (nextPositionMs >= timeline.totalDurationMs - 500) finishMemory('completed');
           setPositionMs(nextPositionMs);
         }, 200);
-      } catch (startError) {
-        finishMemory('failed', startError instanceof Error ? startError.message : String(startError));
-        if (mounted) setError(startError instanceof Error ? startError.message : String(startError));
+      } catch (startFailure) {
+        if (startHangTimer) clearTimeout(startHangTimer);
+        startHangTimer = null;
+        const startMessage = startFailure instanceof Error ? startFailure.message : String(startFailure);
+        // The failure may have left native evidence (focus denied, a stage that
+        // failed); record it before the session is closed as failed.
+        const debug = await session.getDebugState().catch(() => null);
+        await session.drainDiagnosticEvents().then(recordNativeEvents).catch(() => {});
+        finishMemory('failed', `${startMessage} | ${describeEngineState(debug, null, Date.now())}`);
+        if (mounted) setStartError(startMessage);
       }
     };
 
@@ -258,6 +368,8 @@ export default function LucidJourneyPlayerScreen() {
       mounted = false;
       appStateSubscription.remove();
       if (timer) clearInterval(timer);
+      if (startWatchdog) clearInterval(startWatchdog);
+      if (startHangTimer) clearTimeout(startHangTimer);
       if (cueScheduleStartedRef.current && !cueTrainingCompletedRef.current) {
         // Wait for scheduling to finish before cancelling so a quick RETURN
         // cannot race the notification IDs being written to storage.
@@ -267,17 +379,30 @@ export default function LucidJourneyPlayerScreen() {
             await abandonPendingLucidSignalNight();
           });
       }
-      finishMemory('user_stopped');
+      // A start that never produced audio is a failure, not a user's choice.
+      if (startStalledRef.current) finishMemory('failed', 'start_stalled');
+      else finishMemory('user_stopped');
       void session.stop();
     };
-  }, [journey]);
+  }, [journey, attempt]);
+
+  const retryStart = () => {
+    setError(null);
+    setStartError(null);
+    setStartStalled(false);
+    startStalledRef.current = false;
+    setPositionMs(0);
+    // Re-running the effect stops this attempt and begins a fresh one.
+    setAttempt(current => current + 1);
+  };
 
   const returnToJourneys = () => {
     const memorySessionId = memorySessionIdRef.current;
     if (memorySessionId && !memoryFinishedRef.current) {
       memoryFinishedRef.current = true;
-      void proceduralAudioEngine.setCheckpointSessionId(null);
-      void finishJourneyMemorySession(memorySessionId, 'user_stopped', currentPositionRef.current);
+      void sessionRef.current.setCheckpointSessionId(null).catch(() => {});
+      if (startStalledRef.current) void finishJourneyMemorySession(memorySessionId, 'failed', currentPositionRef.current, 'start_stalled');
+      else void finishJourneyMemorySession(memorySessionId, 'user_stopped', currentPositionRef.current);
     }
     // Navigation must never wait on native audio teardown. The screen cleanup
     // issues the same idempotent stop, while this request begins immediately.
@@ -285,6 +410,8 @@ export default function LucidJourneyPlayerScreen() {
     navigation.goBack();
   };
 
+  const startFailed = startError !== null || startStalled;
+  const failureText = error ?? startError ?? (startStalled ? 'The journey did not begin. Nothing has been lost.' : null);
   const durationMs = journey?.timeline.stages.reduce((total, stage) => total + stage.durationMs, 0) ?? 0;
   currentPositionRef.current = positionMs;
   const mmss = (milliseconds: number) => {
@@ -393,8 +520,8 @@ export default function LucidJourneyPlayerScreen() {
       </View>
 
       <View pointerEvents="none" style={styles.captionArea} accessibilityLiveRegion="polite">
-        {error ? (
-          <Text style={[Typography.body, styles.error]}>{error}</Text>
+        {failureText ? (
+          <Text style={[Typography.body, styles.error]}>{failureText}</Text>
         ) : activeCue ? (
           <>
             <Text style={styles.captionHeading}>{activeCue.heading}</Text>
@@ -402,6 +529,17 @@ export default function LucidJourneyPlayerScreen() {
           </>
         ) : null}
       </View>
+
+      {startFailed ? (
+        <TouchableOpacity
+          onPress={retryStart}
+          accessibilityRole="button"
+          accessibilityLabel="Try starting the journey again"
+          style={[styles.returnButton, { bottom: insets.bottom + 76 }]}
+        >
+          <Text style={styles.retryText}>TRY AGAIN</Text>
+        </TouchableOpacity>
+      ) : null}
 
       <TouchableOpacity
         onPress={returnToJourneys}
@@ -430,4 +568,5 @@ const styles = StyleSheet.create({
   scrubLine: { width: 36, height: 1, backgroundColor: '#B9B5C9', marginHorizontal: 4 },
   returnButton: { position: 'absolute', alignSelf: 'center', paddingHorizontal: 24, paddingVertical: 13 },
   returnText: { color: '#E8E2F2', fontFamily: 'Inter-Medium', fontSize: 10, letterSpacing: 2.1 },
+  retryText: { color: '#F3EEFF', fontFamily: 'Inter-Medium', fontSize: 11, letterSpacing: 2.1 },
 });

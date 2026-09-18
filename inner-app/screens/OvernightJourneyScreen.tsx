@@ -68,6 +68,10 @@ function eventLabel(event: JourneyMemorySession['events'][number]): string {
   if (event.type === 'app_state_changed') return `App state · ${event.appState ?? event.reason ?? 'changed'}`;
   if (event.type === 'playback_paused') return `Playback paused${event.reason ? ` · ${event.reason}` : ''}`;
   if (event.type === 'playback_resumed') return `Playback resumed${event.reason ? ` · ${event.reason}` : ''}`;
+  if (event.type === 'playback_stopped') return `Playback stopped${event.reason ? ` · ${event.reason}` : ''}`;
+  if (event.type === 'start_step') return `Start · ${event.reason ?? 'step'}${event.message ? ` · ${event.message}` : ''}`;
+  if (event.type === 'start_stalled') return `Start stalled${event.reason ? ` · ${event.reason}` : ''}${event.message ? ` · ${event.message}` : ''}`;
+  if (event.type === 'sleep_timer_fired') return `Sleep timer fired${event.message ? ` · ${event.message}` : ''}`;
   if (event.type === 'audio_route_changed') return `Audio route · ${event.route ?? 'changed'}${event.reason ? ` · ${event.reason}` : ''}`;
   if (event.type === 'interruption_began') return `Interruption began${event.reason ? ` · ${event.reason}` : ''}`;
   if (event.type === 'interruption_ended') return `Interruption ended${event.reason ? ` · ${event.reason}` : ''}`;
@@ -77,7 +81,7 @@ function eventLabel(event: JourneyMemorySession['events'][number]): string {
   if (event.type === 'os_terminated') return `Ended by the OS${event.message ? ` · ${event.message}` : ''}`;
   if (event.type === 'unknown') return `Ended, reason unknown${event.message ? ` · ${event.message}` : ''}`;
   if (event.type === 'completed') return 'Journey completed';
-  if (event.type === 'error') return `Error${event.message ? ` · ${event.message}` : ''}`;
+  if (event.type === 'error') return `Error${event.message || event.reason ? ` · ${event.message ?? event.reason}` : ''}`;
   return 'Journey started';
 }
 

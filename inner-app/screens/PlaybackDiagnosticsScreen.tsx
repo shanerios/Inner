@@ -56,6 +56,10 @@ function describeEvent(event: JourneyMemoryEvent): string {
     case 'app_state_changed': return `App state · ${event.appState ?? 'unknown'}`;
     case 'playback_paused': return `Playback paused${event.reason ? ` · ${event.reason}` : ''}`;
     case 'playback_resumed': return `Playback resumed${event.reason ? ` · ${event.reason}` : ''}`;
+    case 'playback_stopped': return `Playback stopped${event.reason ? ` · ${event.reason}` : ''}`;
+    case 'start_step': return `Start · ${event.reason ?? 'step'}${event.message ? ` · ${event.message}` : ''}`;
+    case 'start_stalled': return `Start stalled${event.reason ? ` · ${event.reason}` : ''}${event.message ? ` · ${event.message}` : ''}`;
+    case 'sleep_timer_fired': return `Sleep timer fired${event.message ? ` · ${event.message}` : ''}`;
     case 'audio_route_changed': return `Audio route changed${event.route ? ` · ${event.route}` : ''}`;
     case 'interruption_began': return `Interruption began${event.reason ? ` · ${event.reason}` : ''}`;
     case 'interruption_ended': return `Interruption ended${event.reason ? ` · ${event.reason}` : ''}`;
@@ -66,7 +70,7 @@ function describeEvent(event: JourneyMemoryEvent): string {
     case 'abandoned_interrupted': return `Abandoned after interruption${event.message ? ` · ${event.message}` : ''}`;
     case 'os_terminated': return `Ended by the OS${event.message ? ` · ${event.message}` : ''}`;
     case 'unknown': return `Ended, reason unknown${event.message ? ` · ${event.message}` : ''}`;
-    case 'error': return `Playback error${event.message ? ` · ${event.message}` : ''}`;
+    case 'error': return `Playback error${event.message || event.reason ? ` · ${event.message ?? event.reason}` : ''}`;
     default: return event.type;
   }
 }

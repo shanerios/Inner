@@ -6,6 +6,7 @@ import type {
   CompiledAudioJourneyTimeline,
   InnerAudioEngine,
   NativeCheckpoint,
+  NativeEngineDebugState,
   NativePlaybackState,
   ProceduralAudioConfig,
   ProceduralAudioPatch,
@@ -23,6 +24,7 @@ type NativeInnerAudio = {
   getPlaybackState?(): NativePlaybackState;
   getTimelinePositionMs?(): number | null;
   drainDiagnosticEvents(): NativeAudioDiagnosticEvent[];
+  getEngineDebugState?(): NativeEngineDebugState;
   setRecognitionSignal(signalId: string | null, uri: string | null): Promise<void>;
   triggerCue(): Promise<void>;
   setCheckpointSessionId?(sessionId: string | null): Promise<void>;
@@ -96,6 +98,15 @@ class NativeProceduralAudioEngine implements InnerAudioEngine {
     return this.getNativeModule().drainDiagnosticEvents();
   }
 
+  async getDebugState(): Promise<NativeEngineDebugState | null> {
+    try {
+      return this.getNativeModule().getEngineDebugState?.() ?? null;
+    } catch {
+      // Diagnostics must never be the reason a session fails.
+      return null;
+    }
+  }
+
   async setRecognitionSignal(signalId: string | null, uri: string | null) {
     await this.getNativeModule().setRecognitionSignal(signalId, uri);
   }
@@ -137,8 +148,12 @@ class NativeProceduralAudioEngine implements InnerAudioEngine {
   async stop() {
     if (!this.isAvailable()) return;
     this.setState('stopping');
-    await this.getNativeModule().stop();
-    this.setState('idle');
+    try {
+      await this.getNativeModule().stop();
+    } finally {
+      // A failed native stop must not leave the snapshot stuck in 'stopping'.
+      this.setState('idle');
+    }
   }
 
   subscribe(listener: AudioEngineListener) {

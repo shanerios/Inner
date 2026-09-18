@@ -70,13 +70,14 @@ public final class InnerAudioModule: Module {
     Function("getLastTimerCompletionAtMs") { self.engine.getLastTimerCompletionAtMs() }
     Function("getPlaybackState") { self.engine.getPlaybackState() }
     Function("getTimelinePositionMs") { self.engine.getTimelinePositionMs() }
+    Function("getEngineDebugState") { self.engine.debugState() }
     Function("drainDiagnosticEvents") { self.engine.drainDiagnosticEvents() }
     AsyncFunction("setRecognitionSignal") { (signalId: String?, uri: String?) in try self.engine.setRecognitionSignal(signalId, uri) }
     AsyncFunction("triggerCue") { self.engine.triggerCue() }
     AsyncFunction("play") { try self.engine.play() }
     AsyncFunction("pause") { self.engine.pause() }
     AsyncFunction("stop") { self.engine.stop() }
-    OnDestroy { self.engine.stop() }
+    OnDestroy { self.engine.stop(reason: "module_destroyed") }
   }
 }
 
@@ -343,6 +344,10 @@ private final class ProceduralAudioEngine: NSObject {
   private var remoteTargets: [(MPRemoteCommand, Any)] = []
   private var nowPlayingRefreshTimer: DispatchSourceTimer?
   private var isSystemInterrupted = false
+  /// Why the engine last stopped (user, sleep timer, ...). Diagnostics only.
+  private var lastStopReason: String?
+  /// Frames the render callback has produced since the last stop. Guarded by `lock`.
+  private var totalRenderedFrames = 0.0
   private let diagnosticLock = NSLock()
   private var diagnosticEvents: [[String: Any]] = []
 
@@ -443,11 +448,13 @@ private final class ProceduralAudioEngine: NSObject {
       // physical iOS versions even though the simulator accepts it.
       try session.setCategory(.playback, mode: .default, options: [])
     } catch {
+      recordPlaybackError("play_setCategory_failed", error)
       throw stageError("setCategory", error)
     }
     do {
       try session.setActive(true)
     } catch {
+      recordPlaybackError("play_setActive_failed", error)
       throw stageError("setActive", error)
     }
     updatePrivateOutput(for: session.currentRoute)
@@ -459,6 +466,7 @@ private final class ProceduralAudioEngine: NSObject {
     do {
       try engine.start()
     } catch {
+      recordPlaybackError("play_engine_start_failed", error)
       throw stageError("engine.start", error)
     }
     installRemoteCommandsIfNeeded()
@@ -530,7 +538,13 @@ private final class ProceduralAudioEngine: NSObject {
     recordDiagnostic("playback_paused", reason: reason == .user ? "user_pause" : reason == .routeLoss ? "route_loss" : "interruption")
   }
 
-  func stop() {
+  func stop(reason: String = "stop_request") {
+    // Every session begins by stopping the engine; only a stop that actually
+    // ended something is worth recording as the last stop.
+    if engine.isRunning || source != nil {
+      lastStopReason = reason
+      recordDiagnostic("playback_stopped", reason: reason)
+    }
     desiredPlaying = false
     pauseReason = nil
     resumeFadeGeneration &+= 1
@@ -628,6 +642,11 @@ private final class ProceduralAudioEngine: NSObject {
     lock.lock()
     timeline = nil
     timelineElapsedFrames = 0
+    totalRenderedFrames = 0
+    // An armed timer belongs to the session that armed it. Left in place, a
+    // timer that has already expired would mute and stop the next session in
+    // its very first render buffer, before JS can arm a new one.
+    parameters.sleepEndMs = nil
     timelineGeneration &+= 1
     lock.unlock()
     removeRemoteCommands()
@@ -663,6 +682,25 @@ private final class ProceduralAudioEngine: NSObject {
     defer { lock.unlock() }
     guard timeline != nil else { return nil }
     return timelineElapsedFrames * 1_000 / sampleRate
+  }
+
+  /// A point-in-time read for diagnosing a session that looks alive but is not rendering.
+  func debugState() -> [String: Any] {
+    let playbackState = getPlaybackState()
+    lock.lock()
+    defer { lock.unlock() }
+    var state: [String: Any] = [
+      "playbackState": playbackState,
+      "engineRunning": engine.isRunning,
+      "timelineLoaded": timeline != nil,
+      "renderedFrames": totalRenderedFrames,
+      "sampleRate": sampleRate,
+      "privateOutput": privateOutputTarget > 0.5,
+    ]
+    if timeline != nil { state["timelinePositionMs"] = timelineElapsedFrames * 1_000 / sampleRate }
+    if let endMs = parameters.sleepEndMs { state["sleepEndMs"] = endMs }
+    if let lastStopReason { state["lastStopReason"] = lastStopReason }
+    return state
   }
 
   private func pauseSleepTimer() {
@@ -1064,11 +1102,11 @@ private final class ProceduralAudioEngine: NSObject {
       worldSalience.advanceFrame()
     }
 
-    if activeTimeline != nil {
-      lock.lock()
-      if generation == timelineGeneration { timelineElapsedFrames += Double(frameCount) }
-      lock.unlock()
-    }
+    lock.lock()
+    if activeTimeline != nil, generation == timelineGeneration { timelineElapsedFrames += Double(frameCount) }
+    totalRenderedFrames += Double(frameCount)
+    let renderedSoFar = totalRenderedFrames
+    lock.unlock()
     renderElapsedFrames += Double(frameCount)
 
     if let endMs = baseTarget.sleepEndMs, bufferStartMs >= endMs, !sleepStopScheduled {
@@ -1076,7 +1114,13 @@ private final class ProceduralAudioEngine: NSObject {
       sleepStopScheduled = true
       lastTimerCompletionAtMs = Date().timeIntervalSince1970 * 1_000
       lock.unlock()
-      DispatchQueue.main.async { [weak self] in self?.stop() }
+      // Rendered frames and how long past its end the timer was when it fired
+      // tell an ordinary ending (small age, many frames) from a stale timer
+      // (large age, almost no frames).
+      recordDiagnostic("sleep_timer_fired", extras: [
+        "detail": "ageMs=\(Int64(bufferStartMs - endMs)) rendered=\(Int64(renderedSoFar))"
+      ])
+      DispatchQueue.main.async { [weak self] in self?.stop(reason: "sleep_timer") }
     }
   }
 

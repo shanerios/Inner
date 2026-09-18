@@ -328,6 +328,8 @@ object ProceduralAudioEngine {
   private var renderedSpatialDistance = 1.0
   private var renderElapsedFrames = 0.0
   @Volatile private var sleepStopScheduled = false
+  /** Frames the render callback has produced since the last reset; read by [debugState] only. */
+  @Volatile private var totalRenderedFrames = 0L
   private var pausedSleepRemainingMs: Double? = null
   @Volatile var lastTimerCompletionAtMs: Double? = null
     private set
@@ -625,12 +627,28 @@ object ProceduralAudioEngine {
     privateOutputMix = privateOutputTarget
     renderElapsedFrames = 0.0
     sleepStopScheduled = false
+    totalRenderedFrames = 0L
     lock.withLock {
       timeline = null
       timelineElapsedFrames = 0.0
       pausedSleepRemainingMs = null
+      // An armed timer belongs to the session that armed it. Left in place, a
+      // timer that has already expired would mute and stop the next session
+      // in its very first render buffer, before JS can arm a new one.
+      parameters.sleepEndMs = null
       timelineGeneration++
     }
+  }
+
+  /** A point-in-time read for diagnosing a session that looks alive but is not rendering. */
+  fun debugState(): Map<String, Any?> = lock.withLock {
+    mapOf(
+      "timelineLoaded" to (timeline != null),
+      "timelinePositionMs" to timeline?.let { timelineElapsedFrames * 1_000.0 / sampleRate },
+      "sleepEndMs" to parameters.sleepEndMs,
+      "renderedFrames" to totalRenderedFrames.toDouble(),
+      "sampleRate" to sampleRate,
+    )
   }
 
   /**
@@ -912,11 +930,18 @@ object ProceduralAudioEngine {
       }
     }
     renderElapsedFrames += frameCount.toDouble()
+    totalRenderedFrames += frameCount
 
     val endMs = baseTarget.sleepEndMs
     if (endMs != null && bufferStartMs >= endMs && !sleepStopScheduled) {
       sleepStopScheduled = true
       lastTimerCompletionAtMs = System.currentTimeMillis().toDouble()
+      // Rendered frames and how long past its end the timer was when it fired
+      // tell an ordinary ending (small age, many frames) from a stale timer
+      // (large age, almost no frames).
+      recordDiagnostic("sleep_timer_fired", extras = mapOf(
+        "detail" to "ageMs=${(bufferStartMs - endMs).toLong()} rendered=$totalRenderedFrames",
+      ))
       onSleepTimerElapsed?.invoke()
     }
   }
