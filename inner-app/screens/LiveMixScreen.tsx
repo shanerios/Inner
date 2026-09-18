@@ -10,11 +10,13 @@ import {
   normalizeProceduralAudioConfig,
   proceduralAudioEngine,
   ProceduralPlaybackSession,
+  startFailureMessage,
 } from '../core/audio';
 import type { ProceduralAudioConfig, ProceduralAudioPatch } from '../core/audio';
 import { Typography } from '../core/typography';
 
 const LAST_MIX_KEY = 'inner.audio.live-mix.last.v1';
+const MIX_NOT_BEGUN_MESSAGE = 'The mix did not begin. Try again in a moment.';
 const FIRST_LIVE_MIX: ProceduralAudioConfig = normalizeProceduralAudioConfig({
   ...DEFAULT_PROCEDURAL_AUDIO_CONFIG,
   toneGain: 0,
@@ -55,7 +57,8 @@ export default function LiveMixScreen() {
         await session.start(initial, 'Inner Live Mix');
         if (active) setIsPlaying(true);
       } catch (startError) {
-        if (active) setError(startError instanceof Error ? startError.message : String(startError));
+        if (__DEV__) console.log('[LIVEMIX] start failed', startError);
+        if (active) setError(startFailureMessage(startError, MIX_NOT_BEGUN_MESSAGE));
       }
     };
     void start();
@@ -100,7 +103,8 @@ export default function LiveMixScreen() {
       else await sessionRef.current.play();
       setIsPlaying(sessionRef.current.isPlaying());
     } catch (playbackError) {
-      setError(playbackError instanceof Error ? playbackError.message : String(playbackError));
+      if (__DEV__) console.log('[LIVEMIX] playback failed', playbackError);
+      setError(startFailureMessage(playbackError, MIX_NOT_BEGUN_MESSAGE));
     }
   };
 

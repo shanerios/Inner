@@ -455,6 +455,16 @@ private final class ProceduralAudioEngine: NSObject {
       try session.setActive(true)
     } catch {
       recordPlaybackError("play_setActive_failed", error)
+      // Another app or a call holds the audio session: report it as such, with
+      // the same code Android uses, so JS can answer in one voice.
+      if let busy = AVAudioSession.ErrorCode(rawValue: (error as NSError).code),
+         busy == .isBusy || busy == .cannotInterruptOthers || busy == .insufficientPriority {
+        throw Exception(
+          name: "AudioBusy",
+          description: "Audio was not started because another app is holding the audio output.",
+          code: "ERR_AUDIO_BUSY"
+        )
+      }
       throw stageError("setActive", error)
     }
     updatePrivateOutput(for: session.currentRoute)

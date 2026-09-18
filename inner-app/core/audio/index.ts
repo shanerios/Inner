@@ -10,6 +10,7 @@ export * from './personalizedJourneyStore';
 export * from './proceduralSession';
 export * from './routing';
 export * from './startDiagnostics';
+export * from './startFailure';
 export * from './timeline';
 export * from './types';
 export * from './worldProfiles';

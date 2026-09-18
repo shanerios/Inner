@@ -14,6 +14,7 @@ import {
   proceduralAudioEngine,
   ProceduralPlaybackSession,
   SavedPersonalizedJourney,
+  startFailureMessage,
 } from '../core/audio';
 import { Typography } from '../core/typography';
 import {
@@ -147,7 +148,8 @@ export default function LucidJourneysScreen() {
       );
     } catch (previewError) {
       setPreviewingSignal(false);
-      Alert.alert('Preview unavailable', previewError instanceof Error ? previewError.message : String(previewError));
+      if (__DEV__) console.log('[LUCID] preview failed', previewError);
+      Alert.alert('Preview unavailable', startFailureMessage(previewError, 'The preview did not begin. Try again in a moment.'));
     }
   }, [recognitionSignalId, stopSignalPreview]);
 

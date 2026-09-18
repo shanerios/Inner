@@ -2,6 +2,7 @@ package expo.modules.inneraudio
 
 import android.content.Context
 import androidx.core.content.ContextCompat
+import expo.modules.kotlin.exception.CodedException
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 
@@ -9,6 +10,10 @@ import expo.modules.kotlin.modules.ModuleDefinition
 // service that never answers so the JS side is not held indefinitely.
 private const val PLAY_ACK_TIMEOUT_MS = 4_000L
 private const val STOP_ACK_TIMEOUT_MS = 1_500L
+
+// Shared with iOS and matched by JS (core/audio/startFailure.ts): another app or
+// a call is holding the audio output, so this start cannot produce sound.
+private const val AUDIO_BUSY_CODE = "ERR_AUDIO_BUSY"
 
 class InnerAudioModule : Module() {
 
@@ -91,7 +96,7 @@ class InnerAudioModule : Module() {
       when (val outcome = ack.await(PLAY_ACK_TIMEOUT_MS)) {
         "playing" -> Unit
         null -> ProceduralAudioEngine.recordDiagnostic("error", "start_ack_timeout")
-        "focus_denied" -> throw IllegalStateException("Audio was not started because another app is holding the audio output.")
+        "focus_denied" -> throw CodedException(AUDIO_BUSY_CODE, "Audio was not started because another app is holding the audio output.", null)
         else -> throw IllegalStateException("Audio could not be started ($outcome).")
       }
     }

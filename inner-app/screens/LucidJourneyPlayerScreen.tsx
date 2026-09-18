@@ -10,6 +10,7 @@ import {
   FACTORY_AUDIO_JOURNEYS,
   proceduralAudioEngine,
   ProceduralPlaybackSession,
+  startFailureMessage,
 } from '../core/audio';
 import type { FactoryAudioJourney, NativeAudioDiagnosticEvent, StartHealth } from '../core/audio';
 import { Typography } from '../core/typography';
@@ -28,6 +29,7 @@ const START_WATCHDOG_MS = 8_000;
 const START_HEALTH_POLL_MS = 1_000;
 /** Bounds the whole start sequence, so a native call that never resolves is also reported. */
 const START_HANG_MS = 20_000;
+const JOURNEY_NOT_BEGUN_MESSAGE = 'The journey did not begin. Nothing has been lost.';
 
 type Params = { journeyId?: string; journey?: FactoryAudioJourney };
 
@@ -102,8 +104,10 @@ export default function LucidJourneyPlayerScreen() {
       });
     };
 
-    const recordNativeEvents = (events: NativeAudioDiagnosticEvent[]) => {
-      const memorySessionId = memorySessionIdRef.current;
+    const recordNativeEvents = (
+      events: NativeAudioDiagnosticEvent[],
+      memorySessionId: string | null = memorySessionIdRef.current,
+    ) => {
       if (!memorySessionId) return;
       for (const event of events) void recordJourneyMemoryEvent(memorySessionId, {
         type: event.type,
@@ -194,6 +198,10 @@ export default function LucidJourneyPlayerScreen() {
           return;
         }
         traceStart('engine_acquired');
+        // Anything still buffered natively predates this attempt: the tail of an
+        // earlier journey, or a session that keeps no memory (Live Mix). It would
+        // otherwise be filed under this journey at times before it began.
+        await session.drainDiagnosticEvents().catch(() => {});
         await session.setCheckpointSessionId(memorySession.id).catch(() => {});
         let signalName = 'the signal';
         let selectedSignalId: string | null = null;
@@ -349,7 +357,7 @@ export default function LucidJourneyPlayerScreen() {
         const debug = await session.getDebugState().catch(() => null);
         await session.drainDiagnosticEvents().then(recordNativeEvents).catch(() => {});
         finishMemory('failed', `${startMessage} | ${describeEngineState(debug, null, Date.now())}`);
-        if (mounted) setStartError(startMessage);
+        if (mounted) setStartError(startFailureMessage(startFailure, JOURNEY_NOT_BEGUN_MESSAGE));
       }
     };
 
@@ -382,7 +390,13 @@ export default function LucidJourneyPlayerScreen() {
       // A start that never produced audio is a failure, not a user's choice.
       if (startStalledRef.current) finishMemory('failed', 'start_stalled');
       else finishMemory('user_stopped');
-      void session.stop();
+      // The stop, and the engine's last words about it, belong to this journey,
+      // not to whichever one starts next.
+      const closingMemorySessionId = memorySessionIdRef.current;
+      void session.stop()
+        .then(() => session.drainDiagnosticEvents())
+        .then(events => recordNativeEvents(events, closingMemorySessionId))
+        .catch(() => {});
     };
   }, [journey, attempt]);
 
@@ -411,7 +425,7 @@ export default function LucidJourneyPlayerScreen() {
   };
 
   const startFailed = startError !== null || startStalled;
-  const failureText = error ?? startError ?? (startStalled ? 'The journey did not begin. Nothing has been lost.' : null);
+  const failureText = error ?? startError ?? (startStalled ? JOURNEY_NOT_BEGUN_MESSAGE : null);
   const durationMs = journey?.timeline.stages.reduce((total, stage) => total + stage.durationMs, 0) ?? 0;
   currentPositionRef.current = positionMs;
   const mmss = (milliseconds: number) => {
