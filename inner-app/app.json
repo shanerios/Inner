@@ -2,7 +2,7 @@
   "expo": {
     "name": "Inner",
     "slug": "inner",
-    "version": "2.5",
+    "version": "2.51",
     "runtimeVersion": {
       "policy": "appVersion"
     },
