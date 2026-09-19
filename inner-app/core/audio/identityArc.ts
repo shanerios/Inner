@@ -31,13 +31,13 @@ const MEASURED_BAND_SNR_DB: Record<IdentityWorld, { preparation: number; descent
 
 /**
  * Where each sound stands above the bed in stage 1, in dB. Set by ear on a Pixel 8 Pro:
- * - abyssal: at +9.5 the call and answer were "good", "could be raised slightly" -> 11
- * - temple: at +8.1 the Aum was "audible, but barely" -> 15
- * - cosmic: at +2.6 the voice could not be heard at all -> 11, level with the whale call
+ * - abyssal: +9.5 was "good, could be raised slightly"; +11 still "another 1 or 2 dB" -> 13
+ * - temple: +8.1 was "audible, but barely"; +15 still "a bit too quiet, another 1 or 2 dB" -> 17
+ * - cosmic: +2.6 could not be heard at all; +11 is heard, with no level complaint -> 11
  */
 export const IDENTITY_STAGE_ONE_SNR_DB: Record<IdentityWorld, number> = {
-  temple: 15,
-  abyssal: 11,
+  temple: 17,
+  abyssal: 13,
   cosmic: 11,
 };
 
