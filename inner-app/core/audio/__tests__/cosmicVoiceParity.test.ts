@@ -37,8 +37,9 @@ describe('Cosmic voice: the drone and its reverb match in Kotlin and Swift', () 
   it('keeps the voice a slow shimmer rather than a pulse, with a deep recede', () => {
     // The two copies of each partial beat at 2 x detune x frequency: the 720 Hz partial must stay under 0.5 Hz.
     expect(2 * scalar(kotlin, 'MOAN_DETUNE') * 720).toBeLessThan(0.5);
-    expect(kotlin).toContain('val envelope = 0.1 + breath * 0.9');
-    expect(swift).toContain('let envelope = 0.1 + breath * 0.9');
+    // A breath with no gesture keeps the designed 0.1 floor.
+    expect(kotlin).toContain('0.1 + breath * 0.9 else');
+    expect(swift).toContain('0.1 + breath * 0.9 : gesture.floor');
     expect(kotlin).toContain('fundamental * harmonic * (1.0 - MOAN_DETUNE) / rate');
     expect(kotlin).toContain('fundamental * harmonic * (1.0 + MOAN_DETUNE) / rate');
     expect(swift).toContain('fundamental * harmonic * (1.0 - Self.moanDetune) / rate');
@@ -46,10 +47,10 @@ describe('Cosmic voice: the drone and its reverb match in Kotlin and Swift', () 
   });
 
   it('feeds the reverb at a steady level so the room keeps ringing as the voice recedes', () => {
-    expect(kotlin).toContain('val level = envelope * distancePresence * baseLevel');
-    expect(kotlin).toContain('renderMoanSpace((moanDistanceLeft + moanDistanceRight) * 0.5 * baseLevel * MOAN_SPACE_SEND)');
-    expect(swift).toContain('let level = envelope * distancePresence * baseLevel');
-    expect(swift).toContain('renderMoanSpace((moanDistanceLeft + moanDistanceRight) * 0.5 * baseLevel * Self.moanSpaceSend)');
+    expect(kotlin).toContain('val level = envelope * distancePresence * baseLevel * gesture.level * (1.0 - 0.55 * distance)');
+    expect(kotlin).toContain('renderMoanSpace((moanDistanceLeft + moanDistanceRight) * 0.5 * baseLevel * gesture.level * MOAN_SPACE_SEND * (1.0 + 1.2 * distance))');
+    expect(swift).toContain('let level = envelope * distancePresence * baseLevel * gesture.level * (1.0 - 0.55 * distance)');
+    expect(swift).toContain('renderMoanSpace((moanDistanceLeft + moanDistanceRight) * 0.5 * baseLevel * gesture.level * Self.moanSpaceSend * (1.0 + 1.2 * distance))');
     // The reverb input carries presence and the density gate but not the breath envelope.
     expect(kotlin).toContain('val baseLevel = (0.11 + intensity * 0.055) * identityPresence * moanGate');
     expect(swift).toContain('let baseLevel = (0.11 + intensity * 0.055) * identityPresence * moanGate');

@@ -1046,7 +1046,7 @@ private final class ProceduralAudioEngine: NSObject {
         : (left: 0.0, right: 0.0)
       let fireGain = target.environmentGain * fireEnvelope
       let cosmic = cosmicEnvelope > 0.0001
-        ? nextCosmic(elapsedSeconds: spatialSeconds, intensity: target.environmentIntensity, presence: target.identityPresence, density: target.identityDensity)
+        ? nextCosmic(elapsedSeconds: spatialSeconds, intensity: target.environmentIntensity, presence: target.identityPresence, density: target.identityDensity, variety: target.identityVariety)
         : (left: 0.0, right: 0.0)
       let cosmicGain = target.environmentGain * cosmicEnvelope
       let forest = forestEnvelope > 0.0001
@@ -1486,8 +1486,8 @@ private final class ProceduralAudioEngine: NSObject {
     pow(10.0, -3.0 * Double(delaySamples) / (rt60 * sampleRate))
   }
 
-  private func nextCosmic(elapsedSeconds: Double, intensity: Double, presence: Double, density: Double) -> (left: Double, right: Double) {
-    cosmicModel.render(sampleRate: sampleRate, intensity: intensity, salience: worldSalience, identityPresence: presence, density: density)
+  private func nextCosmic(elapsedSeconds: Double, intensity: Double, presence: Double, density: Double, variety: Double) -> (left: Double, right: Double) {
+    cosmicModel.render(sampleRate: sampleRate, intensity: intensity, salience: worldSalience, identityPresence: presence, density: density, variety: variety)
     return (cosmicModel.left, cosmicModel.right)
   }
 
@@ -2404,8 +2404,10 @@ enum IdentityGestures {
   static let aumKinds = 6
   static let whaleSalt: UInt64 = 0x5768616c
   static let whaleKinds = 7
-  private static var bagA = [Int](repeating: 0, count: 8)
-  private static var bagB = [Int](repeating: 0, count: 8)
+  static let cosmicSalt: UInt64 = 0x436f736d
+  static let cosmicKinds = 9
+  private static var bagA = [Int](repeating: 0, count: 10)
+  private static var bagB = [Int](repeating: 0, count: 10)
 
   private static func splitmix(_ x: UInt64) -> UInt64 {
     var z = x &+ 0x9E3779B97F4A7C15
@@ -2566,6 +2568,90 @@ final class WhaleGesture {
       durationScale *= 1.0 + variety
       callLevel *= 0.9
       echoSend = 0.6 * variety
+    default:
+      break
+    }
+  }
+}
+
+/// One breath of the Cosmic voice. The neutral gesture is exactly the voice as it has always sounded.
+final class CosmicGesture {
+  /// A fifth, a major third and a minor third above: voices that sing with the drone.
+  static let harmony = [3.0 / 2.0, 5.0 / 4.0, 6.0 / 5.0]
+  static let kindPlain = 0, kindDeepSwell = 1, kindOctaveBeneath = 2, kindSinking = 3, kindHarmony = 4
+  static let kindDrift = 5, kindCircling = 6, kindApproach = 7, kindDeepEcho = 8
+  /// How far below the drone's own note the long deep voice sings: two octaves, a fundamental of about 19 Hz
+  /// that is felt as a slow rumble while its harmonics carry the voice. Chosen by ear over 4, 7 and 12.
+  static let deepEchoSemitones = 24.0
+  /// The quietest point of a breath, as a share of its peak, in the voice as it has always been.
+  static let defaultFloor = 0.1
+
+  var kind = CosmicGesture.kindPlain
+  var level = 1.0
+  var floor = CosmicGesture.defaultFloor
+  /// Shapes the swell: 1 = as designed; below 1 it holds nearer its peak for longer.
+  var plateau = 1.0
+  var echoSend = 0.0
+  var rootRatio = 1.0
+  /// Semitones the pitch falls over the breath.
+  var glide = 0.0
+  /// Semitones the pitch wanders either side of its root over the breath.
+  var drift = 0.0
+  /// Level of a second voice singing with the first; 0 = none.
+  var second = 0.0
+  var secondRatio = 1.0
+  var secondPan = 0.0
+  var circles = false
+  /// +1 or -1: which way it circles.
+  var circleDirection = 1.0
+  var distant = false
+  /// 0 = at the listener, 1 = far off.
+  var distStart = 0.0
+
+  func neutral() {
+    kind = Self.kindPlain; level = 1; floor = Self.defaultFloor; plateau = 1; echoSend = 0; rootRatio = 1; glide = 0; drift = 0
+    second = 0; secondRatio = 1; secondPan = 0; circles = false; circleDirection = 1; distant = false; distStart = 0
+  }
+
+  /// Draws breath number `index` at the given variety (0 = none, 1 = full).
+  func draw(seed: UInt64, index: Int64, variety: Double) {
+    neutral()
+    let salt = IdentityGestures.cosmicSalt
+    func u(_ slot: Int) -> Double { IdentityGestures.draw(seed: seed, salt: salt, index: index, slot: slot) }
+    kind = IdentityGestures.kind(seed: seed, salt: salt, index: index, kinds: IdentityGestures.cosmicKinds)
+    level = 1.0 + variety * (u(0) - 0.5) * 0.24
+    // Lower is the most prominent turn: a semitone, a whole tone or a minor third below, in most breaths.
+    if u(3) < 0.35 + 0.5 * variety { rootRatio = pow(2.0, -(1.0 + (u(4) * 3.0).rounded(.down)) / 12.0) }
+    switch kind {
+    case Self.kindDeepSwell:
+      floor = Self.defaultFloor - 0.07 * variety
+      level *= 1.0 + 0.3 * variety
+    case Self.kindOctaveBeneath:
+      // A second voice an octave beneath: the deepest, most present kind.
+      second = 0.7 * variety
+      secondRatio = 0.5
+      secondPan = 0.0
+    case Self.kindSinking:
+      glide = (1.0 + u(5) * 2.0) * variety
+    case Self.kindHarmony:
+      second = 0.55 * variety
+      secondRatio = Self.harmony[min(2, Int(u(6) * 3.0))]
+      secondPan = (u(7) < 0.5 ? -1.0 : 1.0) * 0.6
+    case Self.kindDrift:
+      drift = (0.6 + 0.8 * u(8)) * variety * (u(9) < 0.5 ? -1.0 : 1.0)
+    case Self.kindCircling:
+      circles = true
+      circleDirection = u(10) < 0.5 ? -1.0 : 1.0
+    case Self.kindApproach:
+      distant = true
+      distStart = 0.85 * variety
+    case Self.kindDeepEcho:
+      // A long, very deep voice that holds near its peak and calls back to itself across the void.
+      rootRatio = pow(2.0, -Self.deepEchoSemitones / 12.0)
+      floor = 0.03
+      plateau = 1.0 - 0.5 * variety
+      level *= 0.78
+      echoSend = 0.4 * variety
     default:
       break
     }
@@ -2813,6 +2899,18 @@ final class CosmicModel {
   private var moanChoirPhases = [Double](repeating: 0, count: 10)
   private var moanBreathPhase = 0.0
   private var moanCycle: Int64 = 0
+  private var gestureSeed: UInt64 = 1
+  private let gesture = CosmicGesture()
+  private var gestureCycle: Int64 = -1
+  private var gestureNeutral = true
+  private var secondPhases = [Double](repeating: 0, count: 10)
+  private var echoBufferLeft = [Double](repeating: 0, count: 300_000)
+  private var echoBufferRight = [Double](repeating: 0, count: 300_000)
+  private var echoIndex = 0
+  private var echoDampLeft = 0.0
+  private var echoDampRight = 0.0
+  private var moanEchoLeft = 0.0
+  private var moanEchoRight = 0.0
   private var moanGate = 1.0
   private var moanOrbitPhase = 0.0
   private var moanDistanceLeft = 0.0
@@ -2856,6 +2954,12 @@ final class CosmicModel {
     for index in moanPhases.indices { moanPhases[index] = 0; moanChoirPhases[index] = 0 }
     moanBreathPhase = 0; moanOrbitPhase = 0
     moanCycle = 0; moanGate = 1
+    gestureSeed = seed ^ 0x436f736d
+    gesture.neutral(); gestureCycle = -1; gestureNeutral = true
+    secondPhases = [Double](repeating: 0, count: 10)
+    for i in echoBufferLeft.indices { echoBufferLeft[i] = 0; echoBufferRight[i] = 0 }
+    echoIndex = 0; echoDampLeft = 0; echoDampRight = 0
+    moanEchoLeft = 0; moanEchoRight = 0
     for line in moanSpaceLines.indices { for i in moanSpaceLines[line].indices { moanSpaceLines[line][i] = 0 } }
     for line in 0..<4 { moanSpaceIndex[line] = 0; moanSpaceDamp[line] = 0; moanSpaceOut[line] = 0 }
     moanSpaceLeft = 0; moanSpaceRight = 0
@@ -2960,11 +3064,26 @@ final class CosmicModel {
     right += bloomRight + near * (0.26 + motion * 0.08) + far * (0.17 - motion * 0.07)
   }
 
-  private func renderMoan(_ intensity: Double, identityPresence: Double, density: Double) {
+  private func renderMoan(_ intensity: Double, identityPresence: Double, density: Double, variety: Double) {
+    // Each breath draws its own gesture; at variety 0 every one is the voice as designed. A breath begins at
+    // the quietest point of the last, so the change is never heard as a step.
+    if variety <= 0 {
+      if !gestureNeutral { gesture.neutral(); gestureNeutral = true; gestureCycle = -1 }
+    } else if gestureNeutral || moanCycle != gestureCycle {
+      gesture.draw(seed: gestureSeed, index: moanCycle, variety: variety)
+      gestureNeutral = false
+      gestureCycle = moanCycle
+    }
+    let progress = moanBreathPhase / (Double.pi * 2)
     let breath = 0.5 - 0.5 * cos(moanBreathPhase)
-    let envelope = 0.1 + breath * 0.9
+    let swell = gesture.plateau == 1.0 ? breath : pow(breath, gesture.plateau)
+    let envelope = (gesture.floor == CosmicGesture.defaultFloor && gesture.plateau == 1.0) ? 0.1 + breath * 0.9 : gesture.floor + (1.0 - gesture.floor) * swell
     let distancePresence = 0.72 + breath * 0.28
-    let fundamental = 72 + mood * 7 + sin(moanBreathPhase) * 0.45
+    var fundamental = 72 + mood * 7 + sin(moanBreathPhase) * 0.45
+    // The pitch: a lowered root, a settling glide, or a slow wander around the root.
+    if gesture.rootRatio != 1.0 || gesture.glide != 0.0 || gesture.drift != 0.0 {
+      fundamental *= gesture.rootRatio * pow(2.0, (-gesture.glide * progress + gesture.drift * sin(Double.pi * 2 * progress)) / 12.0)
+    }
     var primary = 0.0
     var choir = 0.0
     for index in moanPhases.indices {
@@ -2976,24 +3095,55 @@ final class CosmicModel {
       moanChoirPhases[index] = fmod(moanChoirPhases[index] + Double.pi * 2 * fundamental * harmonic * (1.0 + Self.moanDetune) / rate, Double.pi * 2)
     }
     let choirSpread = 0.08 + (1 - breath) * 0.1
-    let rawLeft = primary * (0.5 + choirSpread) + choir * (0.5 - choirSpread)
-    let rawRight = primary * (0.5 - choirSpread) + choir * (0.5 + choirSpread)
-    let distanceCutoff = 340 + breath * 960
+    var rawLeft = primary * (0.5 + choirSpread) + choir * (0.5 - choirSpread)
+    var rawRight = primary * (0.5 - choirSpread) + choir * (0.5 + choirSpread)
+    if gesture.second > 0 {
+      // A second voice singing with the first: an octave beneath, or a harmony above.
+      var singing = 0.0
+      for index in secondPhases.indices {
+        let harmonic = Double(index + 1)
+        singing += sin(secondPhases[index]) * Self.moanWeights[index]
+        secondPhases[index] = fmod(secondPhases[index] + Double.pi * 2 * fundamental * gesture.secondRatio * harmonic / rate, Double.pi * 2)
+      }
+      rawLeft += singing * gesture.second * (1.0 - gesture.secondPan)
+      rawRight += singing * gesture.second * (1.0 + gesture.secondPan)
+    }
+    // Approaching: far off it is darker and quieter and sits more in the reverb; it draws near over the breath.
+    var distance = 0.0
+    if gesture.distant {
+      let travel = progress * progress * (3.0 - 2.0 * progress)
+      distance = gesture.distStart * (1.0 - travel)
+    }
+    let distanceCutoff = (340 + breath * 960) * (1.0 - 0.6 * distance)
     let distanceFilter = Double.pi * 2 * distanceCutoff / (rate + Double.pi * 2 * distanceCutoff)
     moanDistanceLeft += distanceFilter * (rawLeft - moanDistanceLeft)
     moanDistanceRight += distanceFilter * (rawRight - moanDistanceRight)
-    let orbit = sin(moanOrbitPhase) * (0.1 + breath * 0.18)
+    // Circling: it sweeps across the ears once over the breath, one way or the other.
+    let orbit = gesture.circles ? gesture.circleDirection * sin(Double.pi * 2 * progress) * 0.8 : sin(moanOrbitPhase) * (0.1 + breath * 0.18)
     // Sparser identity: the voice sounds on every Nth breath, fading over 1.5 s at the seams.
     let every = max(1, Int((1.0 / density).rounded()))
     let open = (every == 1 || moanCycle % Int64(every) == 0) ? 1.0 : 0.0
     moanGate += (open - moanGate) / max(1, rate * 1.5)
     let baseLevel = (0.11 + intensity * 0.055) * identityPresence * moanGate
-    let level = envelope * distancePresence * baseLevel
+    let level = envelope * distancePresence * baseLevel * gesture.level * (1.0 - 0.55 * distance)
     // The voice feeds its own reverb at a steady level, so as the voice itself recedes the room keeps ringing.
-    renderMoanSpace((moanDistanceLeft + moanDistanceRight) * 0.5 * baseLevel * Self.moanSpaceSend)
+    renderMoanSpace((moanDistanceLeft + moanDistanceRight) * 0.5 * baseLevel * gesture.level * Self.moanSpaceSend * (1.0 + 1.2 * distance))
     moanLeft = moanDistanceLeft * (1 - orbit) * level
     moanRight = moanDistanceRight * (1 + orbit) * level
     moanMono = (moanLeft + moanRight) * 0.5
+    if variety > 0 {
+      // The voice calls back to itself across the void, ping-ponging between the ears, each time darker.
+      let size = echoBufferLeft.count
+      let length = min(size - 1, max(1, Int(rate * 5.5)))
+      let readAt = (echoIndex - length + size) % size
+      echoDampLeft += (echoBufferLeft[readAt] - echoDampLeft) * 0.3
+      echoDampRight += (echoBufferRight[readAt] - echoDampRight) * 0.3
+      echoBufferLeft[echoIndex] = moanLeft * gesture.echoSend + echoDampRight * 0.62
+      echoBufferRight[echoIndex] = moanRight * gesture.echoSend + echoDampLeft * 0.62
+      echoIndex = (echoIndex + 1) % size
+      moanEchoLeft = echoDampLeft * 0.9
+      moanEchoRight = echoDampRight * 0.9
+    }
     moanReverbSend = 0.22 + (1 - breath) * 0.38
     let nextBreath = moanBreathPhase + Double.pi * 2 / (rate * 31)
     if nextBreath >= Double.pi * 2 { moanCycle += 1 }
@@ -3022,7 +3172,7 @@ final class CosmicModel {
     moanSpaceRight = (moanSpaceOut[0] - moanSpaceOut[1] - moanSpaceOut[2] + moanSpaceOut[3]) * 0.5 * Self.moanSpaceWet
   }
 
-  func render(sampleRate: Double, intensity: Double, salience: WorldSalienceScheduler, identityPresence: Double, density: Double) {
+  func render(sampleRate: Double, intensity: Double, salience: WorldSalienceScheduler, identityPresence: Double, density: Double, variety: Double) {
     if rate != sampleRate { reset(seed: random, sampleRate: sampleRate) }
     advance()
     moodFrames -= 1
@@ -3093,9 +3243,9 @@ final class CosmicModel {
       let lensBend = 1 + motion * (Double(index) - 1.5) * 0.00045 * (0.3 + width)
       fieldPhases[index] = fmod(fieldPhases[index] + Double.pi * 2 * base * Self.fieldRatios[index] * lensBend / rate, Double.pi * 2)
     }
-    renderMoan(intensity, identityPresence: identityPresence, density: density)
-    left = voidBody + gravity + horizonLeft + fieldLeft + moanLeft + moanSpaceLeft + airLeft * airLevel * (1 - motion * width * 0.16)
-    right = voidBody + gravity + horizonRight + fieldRight + moanRight + moanSpaceRight + airRight * airLevel * (1 + motion * width * 0.16)
+    renderMoan(intensity, identityPresence: identityPresence, density: density, variety: variety)
+    left = voidBody + gravity + horizonLeft + fieldLeft + moanLeft + moanSpaceLeft + moanEchoLeft + airLeft * airLevel * (1 - motion * width * 0.16)
+    right = voidBody + gravity + horizonRight + fieldRight + moanRight + moanSpaceRight + moanEchoRight + airRight * airLevel * (1 + motion * width * 0.16)
     renderBlooms(intensity, salience: salience)
     stateAge += 1
   }

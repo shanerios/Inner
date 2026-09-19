@@ -869,7 +869,7 @@ object ProceduralAudioEngine {
       val windGain = target.environmentGain * windEnvelope
       val fire = if (fireEnvelope > 0.0001) nextFire(spatialSeconds, target.environmentIntensity) else silentStereo
       val fireGain = target.environmentGain * fireEnvelope
-      val cosmic = if (cosmicEnvelope > 0.0001) nextCosmic(spatialSeconds, target.environmentIntensity, target.identityPresence, target.identityDensity) else silentStereo
+      val cosmic = if (cosmicEnvelope > 0.0001) nextCosmic(spatialSeconds, target.environmentIntensity, target.identityPresence, target.identityDensity, target.identityVariety) else silentStereo
       val cosmicGain = target.environmentGain * cosmicEnvelope
       val forest = if (forestEnvelope > 0.0001) nextForest(spatialSeconds, target.environmentIntensity) else silentStereo
       val forestGain = target.environmentGain * forestEnvelope
@@ -1271,8 +1271,8 @@ object ProceduralAudioEngine {
     return (fireRandom and 0x00ff_ffffL).toDouble() / 0x007f_ffffL.toDouble() - 1
   }
 
-  private fun nextCosmic(elapsedSeconds: Double, intensity: Double, presence: Double, density: Double): StereoSample {
-    cosmicModel.render(sampleRate, intensity, worldSalience, presence, density)
+  private fun nextCosmic(elapsedSeconds: Double, intensity: Double, presence: Double, density: Double, variety: Double): StereoSample {
+    cosmicModel.render(sampleRate, intensity, worldSalience, presence, density, variety)
     return cosmicSample.set(cosmicModel.left, cosmicModel.right)
   }
 

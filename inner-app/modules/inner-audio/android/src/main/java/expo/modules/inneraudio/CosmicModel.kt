@@ -52,6 +52,18 @@ internal class CosmicModel {
   private val moanChoirPhases = DoubleArray(10)
   private var moanBreathPhase = 0.0
   private var moanCycle = 0L
+  private var gestureSeed = 1L
+  private val gesture = CosmicGesture()
+  private var gestureCycle = -1L
+  private var gestureNeutral = true
+  private val secondPhases = DoubleArray(10)
+  private val echoBufferLeft = DoubleArray(300_000)
+  private val echoBufferRight = DoubleArray(300_000)
+  private var echoIndex = 0
+  private var echoDampLeft = 0.0
+  private var echoDampRight = 0.0
+  private var moanEchoLeft = 0.0
+  private var moanEchoRight = 0.0
   private var moanGate = 1.0
   private var moanOrbitPhase = 0.0
   private var moanDistanceLeft = 0.0
@@ -92,6 +104,11 @@ internal class CosmicModel {
     horizonLevel = 0.6; horizonPhases.fill(0.0)
     moanPhases.fill(0.0); moanChoirPhases.fill(0.0); moanBreathPhase = 0.0; moanOrbitPhase = 0.0
     moanCycle = 0L; moanGate = 1.0
+    gestureSeed = seed xor 0x436f736dL
+    gesture.neutral(); gestureCycle = -1L; gestureNeutral = true
+    secondPhases.fill(0.0)
+    echoBufferLeft.fill(0.0); echoBufferRight.fill(0.0); echoIndex = 0; echoDampLeft = 0.0; echoDampRight = 0.0
+    moanEchoLeft = 0.0; moanEchoRight = 0.0
     moanDistanceLeft = 0.0; moanDistanceRight = 0.0; moanReverbSend = 0.6
     moanLeft = 0.0; moanRight = 0.0; moanMono = 0.0
     for (line in moanSpaceLines) line.fill(0.0)
@@ -191,11 +208,26 @@ internal class CosmicModel {
     return mono
   }
 
-  private fun renderMoan(intensity: Double, identityPresence: Double, density: Double) {
+  private fun renderMoan(intensity: Double, identityPresence: Double, density: Double, variety: Double) {
+    // Each breath draws its own gesture; at variety 0 every one is the voice as designed. A breath begins at
+    // the quietest point of the last, so the change is never heard as a step.
+    if (variety <= 0.0) {
+      if (!gestureNeutral) { gesture.neutral(); gestureNeutral = true; gestureCycle = -1L }
+    } else if (gestureNeutral || moanCycle != gestureCycle) {
+      gesture.draw(gestureSeed, moanCycle, variety)
+      gestureNeutral = false
+      gestureCycle = moanCycle
+    }
+    val progress = moanBreathPhase / (PI * 2.0)
     val breath = 0.5 - 0.5 * cos(moanBreathPhase)
-    val envelope = 0.1 + breath * 0.9
+    val swell = if (gesture.plateau == 1.0) breath else Math.pow(breath, gesture.plateau)
+    val envelope = if (gesture.floor == CosmicGesture.DEFAULT_FLOOR && gesture.plateau == 1.0) 0.1 + breath * 0.9 else gesture.floor + (1.0 - gesture.floor) * swell
     val distancePresence = 0.72 + breath * 0.28
-    val fundamental = 72.0 + mood * 7.0 + sin(moanBreathPhase) * 0.45
+    var fundamental = 72.0 + mood * 7.0 + sin(moanBreathPhase) * 0.45
+    // The pitch: a lowered root, a settling glide, or a slow wander around the root.
+    if (gesture.rootRatio != 1.0 || gesture.glide != 0.0 || gesture.drift != 0.0) {
+      fundamental *= gesture.rootRatio * Math.pow(2.0, (-gesture.glide * progress + gesture.drift * sin(PI * 2.0 * progress)) / 12.0)
+    }
     var primary = 0.0
     var choir = 0.0
     for (index in moanPhases.indices) {
@@ -207,24 +239,55 @@ internal class CosmicModel {
       moanChoirPhases[index] = (moanChoirPhases[index] + PI * 2.0 * fundamental * harmonic * (1.0 + MOAN_DETUNE) / rate) % (PI * 2.0)
     }
     val choirSpread = 0.08 + (1.0 - breath) * 0.1
-    val rawLeft = primary * (0.5 + choirSpread) + choir * (0.5 - choirSpread)
-    val rawRight = primary * (0.5 - choirSpread) + choir * (0.5 + choirSpread)
-    val distanceCutoff = 340.0 + breath * 960.0
+    var rawLeft = primary * (0.5 + choirSpread) + choir * (0.5 - choirSpread)
+    var rawRight = primary * (0.5 - choirSpread) + choir * (0.5 + choirSpread)
+    if (gesture.second > 0.0) {
+      // A second voice singing with the first: an octave beneath, or a harmony above.
+      var singing = 0.0
+      for (index in secondPhases.indices) {
+        val harmonic = (index + 1).toDouble()
+        singing += sin(secondPhases[index]) * MOAN_WEIGHTS[index]
+        secondPhases[index] = (secondPhases[index] + PI * 2.0 * fundamental * gesture.secondRatio * harmonic / rate) % (PI * 2.0)
+      }
+      rawLeft += singing * gesture.second * (1.0 - gesture.secondPan)
+      rawRight += singing * gesture.second * (1.0 + gesture.secondPan)
+    }
+    // Approaching: far off it is darker and quieter and sits more in the reverb; it draws near over the breath.
+    var distance = 0.0
+    if (gesture.distant) {
+      val travel = progress * progress * (3.0 - 2.0 * progress)
+      distance = gesture.distStart * (1.0 - travel)
+    }
+    val distanceCutoff = (340.0 + breath * 960.0) * (1.0 - 0.6 * distance)
     val distanceFilter = PI * 2.0 * distanceCutoff / (rate + PI * 2.0 * distanceCutoff)
     moanDistanceLeft += distanceFilter * (rawLeft - moanDistanceLeft)
     moanDistanceRight += distanceFilter * (rawRight - moanDistanceRight)
-    val orbit = sin(moanOrbitPhase) * (0.1 + breath * 0.18)
+    // Circling: it sweeps across the ears once over the breath, one way or the other.
+    val orbit = if (gesture.circles) gesture.circleDirection * sin(PI * 2.0 * progress) * 0.8 else sin(moanOrbitPhase) * (0.1 + breath * 0.18)
     // Sparser identity: the voice sounds on every Nth breath, fading over 1.5 s at the seams.
     val every = max(1, Math.round(1.0 / density).toInt())
     val open = if (every == 1 || moanCycle % every == 0L) 1.0 else 0.0
     moanGate += (open - moanGate) / max(1.0, rate * 1.5)
     val baseLevel = (0.11 + intensity * 0.055) * identityPresence * moanGate
-    val level = envelope * distancePresence * baseLevel
+    val level = envelope * distancePresence * baseLevel * gesture.level * (1.0 - 0.55 * distance)
     // The voice feeds its own reverb at a steady level, so as the voice itself recedes the room keeps ringing.
-    renderMoanSpace((moanDistanceLeft + moanDistanceRight) * 0.5 * baseLevel * MOAN_SPACE_SEND)
+    renderMoanSpace((moanDistanceLeft + moanDistanceRight) * 0.5 * baseLevel * gesture.level * MOAN_SPACE_SEND * (1.0 + 1.2 * distance))
     moanLeft = moanDistanceLeft * (1.0 - orbit) * level
     moanRight = moanDistanceRight * (1.0 + orbit) * level
     moanMono = (moanLeft + moanRight) * 0.5
+    if (variety > 0.0) {
+      // The voice calls back to itself across the void, ping-ponging between the ears, each time darker.
+      val size = echoBufferLeft.size
+      val length = min(size - 1, max(1, (rate * 5.5).toInt()))
+      val readAt = (echoIndex - length + size) % size
+      echoDampLeft += (echoBufferLeft[readAt] - echoDampLeft) * 0.3
+      echoDampRight += (echoBufferRight[readAt] - echoDampRight) * 0.3
+      echoBufferLeft[echoIndex] = moanLeft * gesture.echoSend + echoDampRight * 0.62
+      echoBufferRight[echoIndex] = moanRight * gesture.echoSend + echoDampLeft * 0.62
+      echoIndex = (echoIndex + 1) % size
+      moanEchoLeft = echoDampLeft * 0.9
+      moanEchoRight = echoDampRight * 0.9
+    }
     moanReverbSend = 0.22 + (1.0 - breath) * 0.38
     val nextBreath = moanBreathPhase + PI * 2.0 / (rate * 31.0)
     if (nextBreath >= PI * 2.0) moanCycle++
@@ -253,7 +316,7 @@ internal class CosmicModel {
     moanSpaceRight = (moanSpaceOut[0] - moanSpaceOut[1] - moanSpaceOut[2] + moanSpaceOut[3]) * 0.5 * MOAN_SPACE_WET
   }
 
-  fun render(sampleRate: Double, intensity: Double, salience: WorldSalienceScheduler, identityPresence: Double, density: Double) {
+  fun render(sampleRate: Double, intensity: Double, salience: WorldSalienceScheduler, identityPresence: Double, density: Double, variety: Double) {
     if (rate != sampleRate) reset(random, sampleRate)
     advance()
     moodFrames -= 1.0
@@ -327,9 +390,9 @@ internal class CosmicModel {
       fieldPhases[index] = (fieldPhases[index] + PI * 2.0 * base * FIELD_RATIOS[index] * lensBend / rate) % (PI * 2.0)
     }
 
-    renderMoan(intensity, identityPresence, density)
-    left = voidBody + gravity + horizonLeft + fieldLeft + moanLeft + moanSpaceLeft + airLeft * airLevel * (1.0 - motion * width * 0.16)
-    right = voidBody + gravity + horizonRight + fieldRight + moanRight + moanSpaceRight + airRight * airLevel * (1.0 + motion * width * 0.16)
+    renderMoan(intensity, identityPresence, density, variety)
+    left = voidBody + gravity + horizonLeft + fieldLeft + moanLeft + moanSpaceLeft + moanEchoLeft + airLeft * airLevel * (1.0 - motion * width * 0.16)
+    right = voidBody + gravity + horizonRight + fieldRight + moanRight + moanSpaceRight + moanEchoRight + airRight * airLevel * (1.0 + motion * width * 0.16)
     renderBlooms(intensity, salience)
     stateAge += 1.0
   }

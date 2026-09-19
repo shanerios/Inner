@@ -15,9 +15,11 @@ internal object IdentityGestures {
   const val AUM_KINDS = 6
   const val WHALE_SALT = 0x5768616cL
   const val WHALE_KINDS = 7
+  const val COSMIC_SALT = 0x436f736dL
+  const val COSMIC_KINDS = 9
 
-  private val bagA = IntArray(8)
-  private val bagB = IntArray(8)
+  private val bagA = IntArray(10)
+  private val bagB = IntArray(10)
 
   private fun splitmix(x: Long): Long {
     var z = x + -0x61c8864680b583ebL
@@ -183,6 +185,90 @@ internal class WhaleGesture {
       KIND_ANSWER_ONLY -> { callLevel = 0.0; answerLevel = 1.0 + 0.35 * variety }
       // Longer than it should be: up to twice the length, and it calls back to itself across the water.
       KIND_LONG_ECHO -> { durationScale *= 1.0 + variety; callLevel *= 0.9; echoSend = 0.6 * variety }
+    }
+  }
+}
+
+/** One breath of the Cosmic voice. The neutral gesture is exactly the voice as it has always sounded. */
+internal class CosmicGesture {
+  companion object {
+    /** A fifth, a major third and a minor third above: voices that sing with the drone. */
+    val HARMONY = doubleArrayOf(3.0 / 2.0, 5.0 / 4.0, 6.0 / 5.0)
+    const val KIND_PLAIN = 0
+    const val KIND_DEEP_SWELL = 1
+    const val KIND_OCTAVE_BENEATH = 2
+    const val KIND_SINKING = 3
+    const val KIND_HARMONY = 4
+    const val KIND_DRIFT = 5
+    const val KIND_CIRCLING = 6
+    const val KIND_APPROACH = 7
+    const val KIND_DEEP_ECHO = 8
+    /**
+     * How far below the drone's own note the long deep voice sings: two octaves, a fundamental of about 19 Hz
+     * that is felt as a slow rumble while its harmonics carry the voice. Chosen by ear over 4, 7 and 12.
+     */
+    const val DEEP_ECHO_SEMITONES = 24.0
+    /** The quietest point of a breath, as a share of its peak, in the voice as it has always been. */
+    const val DEFAULT_FLOOR = 0.1
+  }
+
+  var kind = KIND_PLAIN
+  var level = 1.0
+  var floor = DEFAULT_FLOOR
+  /** Shapes the swell: 1 = as designed; below 1 it holds nearer its peak for longer. */
+  var plateau = 1.0
+  var echoSend = 0.0
+  var rootRatio = 1.0
+  /** Semitones the pitch falls over the breath. */
+  var glide = 0.0
+  /** Semitones the pitch wanders either side of its root over the breath. */
+  var drift = 0.0
+  /** Level of a second voice singing with the first; 0 = none. */
+  var second = 0.0
+  var secondRatio = 1.0
+  var secondPan = 0.0
+  var circles = false
+  /** +1 or -1: which way it circles. */
+  var circleDirection = 1.0
+  var distant = false
+  /** 0 = at the listener, 1 = far off. */
+  var distStart = 0.0
+
+  fun neutral() {
+    kind = KIND_PLAIN; level = 1.0; floor = DEFAULT_FLOOR; plateau = 1.0; echoSend = 0.0; rootRatio = 1.0; glide = 0.0; drift = 0.0
+    second = 0.0; secondRatio = 1.0; secondPan = 0.0; circles = false; circleDirection = 1.0; distant = false; distStart = 0.0
+  }
+
+  /** Draws breath number `index` at the given variety (0 = none, 1 = full). */
+  fun draw(seed: Long, index: Long, variety: Double) {
+    neutral()
+    val salt = IdentityGestures.COSMIC_SALT
+    fun u(slot: Int) = IdentityGestures.draw(seed, salt, index, slot)
+    kind = IdentityGestures.kind(seed, salt, index, IdentityGestures.COSMIC_KINDS)
+    level = 1.0 + variety * (u(0) - 0.5) * 0.24
+    // Lower is the most prominent turn: a semitone, a whole tone or a minor third below, in most breaths.
+    if (u(3) < 0.35 + 0.5 * variety) rootRatio = Math.pow(2.0, -(1.0 + Math.floor(u(4) * 3.0)) / 12.0)
+    when (kind) {
+      KIND_DEEP_SWELL -> { floor = DEFAULT_FLOOR - 0.07 * variety; level *= 1.0 + 0.3 * variety }
+      // A second voice an octave beneath: the deepest, most present kind.
+      KIND_OCTAVE_BENEATH -> { second = 0.7 * variety; secondRatio = 0.5; secondPan = 0.0 }
+      KIND_SINKING -> glide = (1.0 + u(5) * 2.0) * variety
+      KIND_HARMONY -> {
+        second = 0.55 * variety
+        secondRatio = HARMONY[min(2, (u(6) * 3.0).toInt())]
+        secondPan = (if (u(7) < 0.5) -1.0 else 1.0) * 0.6
+      }
+      KIND_DRIFT -> drift = (0.6 + 0.8 * u(8)) * variety * (if (u(9) < 0.5) -1.0 else 1.0)
+      KIND_CIRCLING -> { circles = true; circleDirection = if (u(10) < 0.5) -1.0 else 1.0 }
+      KIND_APPROACH -> { distant = true; distStart = 0.85 * variety }
+      // A long, very deep voice that holds near its peak and calls back to itself across the void.
+      KIND_DEEP_ECHO -> {
+        rootRatio = Math.pow(2.0, -DEEP_ECHO_SEMITONES / 12.0)
+        floor = 0.03
+        plateau = 1.0 - 0.5 * variety
+        level *= 0.78
+        echoSend = 0.4 * variety
+      }
     }
   }
 }
