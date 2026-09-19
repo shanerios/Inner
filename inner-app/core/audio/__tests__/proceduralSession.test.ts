@@ -266,6 +266,18 @@ describe('ProceduralPlaybackSession engine lifecycle', () => {
   });
 });
 
+describe('ProceduralPlaybackSession recognition signal level', () => {
+  it('passes the signal level trim to the engine, defaulting to unchanged', async () => {
+    const native = engine();
+    const session = new ProceduralPlaybackSession(native);
+    await session.acquire();
+    await session.setRecognitionSignal('ascending', null, 0.2113);
+    expect(native.setRecognitionSignal).toHaveBeenLastCalledWith('ascending', null, 0.2113);
+    await session.setRecognitionSignal(null, null);
+    expect(native.setRecognitionSignal).toHaveBeenLastCalledWith(null, null, 1);
+  });
+});
+
 describe('ProceduralPlaybackSession start health', () => {
   it('treats a resolved play() with no rendered audio as unhealthy', async () => {
     const native = engine();

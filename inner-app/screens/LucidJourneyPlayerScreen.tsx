@@ -16,7 +16,13 @@ import type { FactoryAudioJourney, NativeAudioDiagnosticEvent, StartHealth } fro
 import { Typography } from '../core/typography';
 import { cancelLucidityCueNotifications, scheduleLucidityCueNotifications } from '../utils/notifications';
 import { abandonPendingLucidSignalNight } from '../core/lucidSignalLearning';
-import { getRecognitionSignalAssetUri, getRecognitionSignalId, recognitionSignalById } from '../core/recognitionSignals';
+import {
+  getRecognitionSignalId,
+  RECOGNITION_SIGNAL_TRIM_DB,
+  recognitionSignalById,
+  recognitionSignalPlayback,
+  RecognitionSignalId,
+} from '../core/recognitionSignals';
 import {
   beginJourneyMemorySession,
   finishJourneyMemorySession,
@@ -204,23 +210,27 @@ export default function LucidJourneyPlayerScreen() {
         await session.drainDiagnosticEvents().catch(() => {});
         await session.setCheckpointSessionId(memorySession.id).catch(() => {});
         let signalName = 'the signal';
-        let selectedSignalId: string | null = null;
+        let selectedSignalId: RecognitionSignalId | null = null;
         await session.setRecognitionSignal(null, null);
         if (journey.overnight) {
           const overnightSignalId = await getRecognitionSignalId();
           selectedSignalId = overnightSignalId;
-          await session.setRecognitionSignal(overnightSignalId, await getRecognitionSignalAssetUri(overnightSignalId));
+          const overnightSignal = await recognitionSignalPlayback(overnightSignalId);
+          await session.setRecognitionSignal(overnightSignal.signalId, overnightSignal.uri, overnightSignal.gain);
         }
         if (journey.id === LUCIDITY_CUE_TRAINING_JOURNEY_ID) {
           const signalId = await getRecognitionSignalId();
           selectedSignalId = signalId;
           signalName = recognitionSignalById(signalId).name;
-          await session.setRecognitionSignal(signalId, await getRecognitionSignalAssetUri(signalId));
+          const trainingSignal = await recognitionSignalPlayback(signalId);
+          await session.setRecognitionSignal(trainingSignal.signalId, trainingSignal.uri, trainingSignal.gain);
         }
         if (selectedSignalId) await recordJourneyMemoryEvent(memorySession.id, {
           type: 'recognition_signal_selected',
           positionMs: 0,
           signalId: selectedSignalId,
+          // The level the signal was played at, so a loudness report can be checked against it.
+          message: `trimDb=${RECOGNITION_SIGNAL_TRIM_DB[selectedSignalId]}`,
         });
         traceStart('signal_ready');
         if (!mounted) {

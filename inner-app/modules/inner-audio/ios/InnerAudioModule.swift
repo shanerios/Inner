@@ -72,7 +72,7 @@ public final class InnerAudioModule: Module {
     Function("getTimelinePositionMs") { self.engine.getTimelinePositionMs() }
     Function("getEngineDebugState") { self.engine.debugState() }
     Function("drainDiagnosticEvents") { self.engine.drainDiagnosticEvents() }
-    AsyncFunction("setRecognitionSignal") { (signalId: String?, uri: String?) in try self.engine.setRecognitionSignal(signalId, uri) }
+    AsyncFunction("setRecognitionSignal") { (signalId: String?, uri: String?, gain: Double?) in try self.engine.setRecognitionSignal(signalId, uri, gain ?? 1) }
     AsyncFunction("triggerCue") { self.engine.triggerCue() }
     AsyncFunction("play") { try self.engine.play() }
     AsyncFunction("pause") { self.engine.pause() }
@@ -326,7 +326,10 @@ private final class ProceduralAudioEngine: NSObject {
   private var recognitionSignalSamples: [Float] = []
   private var recognitionSignalSampleRate = 0.0
   private var recognitionSignalId: String?
+  /// Linear level trim for the selected signal, set from JS (see recognitionSignals.ts).
+  private var recognitionSignalGain = 1.0
   private var activeCueSamples: [Float] = []
+  private var activeCueGain = 1.0
   private var activeCueSampleRate = 0.0
   private var orbitMix = 0.0
   private var orbitNoiseFilter = 0.0
@@ -750,12 +753,15 @@ private final class ProceduralAudioEngine: NSObject {
     return events
   }
 
-  func setRecognitionSignal(_ signalId: String?, _ uri: String?) throws {
+  func setRecognitionSignal(_ signalId: String?, _ uri: String?, _ gain: Double) throws {
+    // Bounded so a bad value can never turn a cue into something jarring: at most +6 dB.
+    let signalGain = gain.isFinite ? min(2, max(0, gain)) : 1
     guard let uri, !uri.isEmpty else {
       lock.lock()
       recognitionSignalSamples = []
       recognitionSignalSampleRate = 0
       recognitionSignalId = signalId
+      recognitionSignalGain = signalGain
       lock.unlock()
       return
     }
@@ -775,6 +781,7 @@ private final class ProceduralAudioEngine: NSObject {
     recognitionSignalSamples = samples
     recognitionSignalSampleRate = file.processingFormat.sampleRate
     recognitionSignalId = signalId
+    recognitionSignalGain = signalGain
     lock.unlock()
   }
 
@@ -1303,6 +1310,7 @@ private final class ProceduralAudioEngine: NSObject {
     lock.lock()
     activeCueSamples = recognitionSignalSamples
     activeCueSampleRate = recognitionSignalSampleRate
+    activeCueGain = recognitionSignalGain
     lock.unlock()
     cueActive = true
     cueElapsedFrames = 0
@@ -1561,7 +1569,7 @@ private final class ProceduralAudioEngine: NSObject {
       let sample = Double(activeCueSamples[lower]) * (1 - fraction) + Double(activeCueSamples[upper]) * fraction
       cueElapsedFrames += 1
       if cueElapsedFrames >= cueTotalFrames { cueActive = false }
-      return (sample * 1.45, sample * 1.45)
+      return (sample * 1.45 * activeCueGain, sample * 1.45 * activeCueGain)
     }
     let t = cueElapsedFrames / sampleRate
     var dry = 0.0
@@ -1578,7 +1586,7 @@ private final class ProceduralAudioEngine: NSObject {
     let side = (mixedLeft - mixedRight) / 2 * Self.cueStereoWidth
     cueElapsedFrames += 1
     if cueElapsedFrames >= cueTotalFrames { cueActive = false }
-    return ((mid + side) * Self.cueOutputGain, (mid - side) * Self.cueOutputGain)
+    return ((mid + side) * Self.cueOutputGain * activeCueGain, (mid - side) * Self.cueOutputGain * activeCueGain)
   }
 
   private func cueNoteEnvelope(_ t: Double) -> Double {

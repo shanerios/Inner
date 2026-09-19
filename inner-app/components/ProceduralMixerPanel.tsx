@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Slider from '@react-native-community/slider';
 import { Typography } from '../core/typography';
+import { getRecognitionSignalId, recognitionSignalPlayback } from '../core/recognitionSignals';
 import ProceduralJourneyBuilder from './ProceduralJourneyBuilder';
 import {
   deleteMixerPreset,
@@ -132,10 +133,16 @@ export default function ProceduralMixerPanel({
     if (restore) queue(restore, true);
   }, [draft, queue, spatialSolo]);
 
-  const previewCue = useCallback(() => {
-    proceduralAudioEngine.triggerCue().catch(error => {
+  const previewCue = useCallback(async () => {
+    try {
+      // Preview the signal the listener actually chose, at its intended level,
+      // rather than whatever an earlier session happened to leave loaded.
+      const signal = await recognitionSignalPlayback(await getRecognitionSignalId());
+      await proceduralAudioEngine.setRecognitionSignal(signal.signalId, signal.uri, signal.gain);
+      await proceduralAudioEngine.triggerCue();
+    } catch (error) {
       Alert.alert('Preview unavailable', error instanceof Error ? error.message : String(error));
-    });
+    }
   }, []);
 
   const startChannelTest = useCallback(() => {

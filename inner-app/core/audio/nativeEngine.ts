@@ -25,7 +25,7 @@ type NativeInnerAudio = {
   getTimelinePositionMs?(): number | null;
   drainDiagnosticEvents(): NativeAudioDiagnosticEvent[];
   getEngineDebugState?(): NativeEngineDebugState;
-  setRecognitionSignal(signalId: string | null, uri: string | null): Promise<void>;
+  setRecognitionSignal(signalId: string | null, uri: string | null, gain: number): Promise<void>;
   triggerCue(): Promise<void>;
   setCheckpointSessionId?(sessionId: string | null): Promise<void>;
   getCheckpoint?(): NativeCheckpoint | null;
@@ -107,8 +107,8 @@ class NativeProceduralAudioEngine implements InnerAudioEngine {
     }
   }
 
-  async setRecognitionSignal(signalId: string | null, uri: string | null) {
-    await this.getNativeModule().setRecognitionSignal(signalId, uri);
+  async setRecognitionSignal(signalId: string | null, uri: string | null, gain = 1) {
+    await this.getNativeModule().setRecognitionSignal(signalId, uri, gain);
   }
 
   async triggerCue() {

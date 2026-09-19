@@ -319,7 +319,10 @@ object ProceduralAudioEngine {
   private var recognitionSignalSamples = FloatArray(0)
   private var recognitionSignalSampleRate = 0.0
   private var recognitionSignalId: String? = null
+  /** Linear level trim for the selected signal, set from JS (see recognitionSignals.ts). */
+  private var recognitionSignalGain = 1.0
   private var activeCueSamples = FloatArray(0)
+  private var activeCueGain = 1.0
   private var activeCueSampleRate = 0.0
   private var orbitMix = 0.0
   private var orbitNoiseFilter = 0.0
@@ -366,12 +369,15 @@ object ProceduralAudioEngine {
     diagnosticEvents.toList()
   }
 
-  fun setRecognitionSignal(signalId: String?, uri: String?) {
+  fun setRecognitionSignal(signalId: String?, uri: String?, gain: Double = 1.0) {
+    // Bounded so a bad value can never turn a cue into something jarring: at most +6 dB.
+    val signalGain = if (gain.isFinite()) clamp(gain, 0.0, 2.0) else 1.0
     if (uri.isNullOrEmpty()) {
       lock.withLock {
         recognitionSignalSamples = FloatArray(0)
         recognitionSignalSampleRate = 0.0
         recognitionSignalId = signalId
+        recognitionSignalGain = signalGain
       }
       return
     }
@@ -412,6 +418,7 @@ object ProceduralAudioEngine {
       recognitionSignalSamples = samples
       recognitionSignalSampleRate = sourceRate.toDouble()
       recognitionSignalId = signalId
+      recognitionSignalGain = signalGain
     }
   }
 
@@ -1106,6 +1113,7 @@ object ProceduralAudioEngine {
     lock.withLock {
       activeCueSamples = recognitionSignalSamples
       activeCueSampleRate = recognitionSignalSampleRate
+      activeCueGain = recognitionSignalGain
     }
     cueActive = true
     cueElapsedFrames = 0.0
@@ -1347,7 +1355,7 @@ object ProceduralAudioEngine {
       val sample = activeCueSamples[lower] * (1 - fraction) + activeCueSamples[upper] * fraction
       cueElapsedFrames += 1
       if (cueElapsedFrames >= cueTotalFrames) cueActive = false
-      return cueSample.set(sample * 1.45, sample * 1.45)
+      return cueSample.set(sample * 1.45 * activeCueGain, sample * 1.45 * activeCueGain)
     }
     val t = cueElapsedFrames / sampleRate
     var dry = 0.0
@@ -1364,7 +1372,7 @@ object ProceduralAudioEngine {
     val side = (mixedLeft - mixedRight) / 2 * CUE_STEREO_WIDTH
     cueElapsedFrames += 1
     if (cueElapsedFrames >= cueTotalFrames) cueActive = false
-    return cueSample.set((mid + side) * CUE_OUTPUT_GAIN, (mid - side) * CUE_OUTPUT_GAIN)
+    return cueSample.set((mid + side) * CUE_OUTPUT_GAIN * activeCueGain, (mid - side) * CUE_OUTPUT_GAIN * activeCueGain)
   }
 
   private fun cueNoteEnvelope(t: Double): Double {

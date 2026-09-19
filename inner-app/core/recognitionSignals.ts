@@ -30,6 +30,33 @@ const SIGNAL_ASSETS: Record<RecognitionSignalId, AVPlaybackSource> = {
 
 type Storage = Pick<typeof AsyncStorage, 'getItem' | 'setItem'>;
 
+/**
+ * Level trim applied where each signal enters the native mix, in dB.
+ *
+ * The signals were never level-matched: as they reach the mix (before master
+ * gain, K-weighted) the built-in Ascending Tone sat about 14 dB above Bell and
+ * about 20 dB above Chimes. In a quiet overnight bed that made Ascending read
+ * as an alarm. Bell is the reference; trims pull every signal to within ~3 dB
+ * of it while keeping their character. Tune a signal here, never in native
+ * code, so Android and iOS cannot drift apart.
+ *
+ * Levels measured by rendering each signal through the real Kotlin engine
+ * (dB LU, before trim): ascending -4.9, bell -18.4, chimes -25.2, droplets
+ * -24.0. core/audio/__tests__/recognitionSignalLevels.test.ts re-measures the
+ * WAV signals from the shipped assets and fails if a trim stops matching them.
+ */
+export const RECOGNITION_SIGNAL_TRIM_DB: Record<RecognitionSignalId, number> = {
+  ascending: -13.5,
+  bell: 0,
+  chimes: 4,
+  droplets: 3,
+};
+
+/** Linear gain the native engine applies to a signal. */
+export function recognitionSignalGain(id: RecognitionSignalId): number {
+  return 10 ** (RECOGNITION_SIGNAL_TRIM_DB[id] / 20);
+}
+
 export function recognitionSignalById(id: RecognitionSignalId): RecognitionSignal {
   return RECOGNITION_SIGNALS.find(signal => signal.id === id) ?? RECOGNITION_SIGNALS[0];
 }
@@ -58,4 +85,13 @@ export async function getRecognitionSignalAssetUri(id: RecognitionSignalId): Pro
   const asset = Asset.fromModule(SIGNAL_ASSETS[id] as number);
   await asset.downloadAsync();
   return asset.localUri ?? asset.uri ?? null;
+}
+
+/** Everything the native engine needs to play a signal at its intended level. */
+export async function recognitionSignalPlayback(id: RecognitionSignalId): Promise<{
+  signalId: RecognitionSignalId;
+  uri: string | null;
+  gain: number;
+}> {
+  return { signalId: id, uri: await getRecognitionSignalAssetUri(id), gain: recognitionSignalGain(id) };
 }

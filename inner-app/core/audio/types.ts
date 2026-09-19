@@ -186,7 +186,8 @@ export interface InnerAudioEngine {
   drainDiagnosticEvents(): Promise<NativeAudioDiagnosticEvent[]>;
   /** Null when the native build predates the debug-state call. */
   getDebugState?(): Promise<NativeEngineDebugState | null>;
-  setRecognitionSignal(signalId: string | null, uri: string | null): Promise<void>;
+  /** `gain` is a linear level trim for the signal (1 = unchanged). */
+  setRecognitionSignal(signalId: string | null, uri: string | null, gain?: number): Promise<void>;
   triggerCue(): Promise<void>;
   /** No-op where the native side has no checkpoint concept (iOS). */
   setCheckpointSessionId(sessionId: string | null): Promise<void>;

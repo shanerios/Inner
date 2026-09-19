@@ -214,10 +214,10 @@ export class ProceduralPlaybackSession {
     return this.engine.drainDiagnosticEvents();
   }
 
-  async setRecognitionSignal(signalId: string | null, uri: string | null) {
+  async setRecognitionSignal(signalId: string | null, uri: string | null, gain = 1) {
     await this.exclusive(async () => {
       this.assertOwner();
-      await this.engine.setRecognitionSignal(signalId, uri);
+      await this.engine.setRecognitionSignal(signalId, uri, gain);
     });
   }
 
