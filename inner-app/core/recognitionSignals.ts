@@ -36,20 +36,22 @@ type Storage = Pick<typeof AsyncStorage, 'getItem' | 'setItem'>;
  * The signals were never level-matched: as they reach the mix (before master
  * gain, K-weighted) the built-in Ascending Tone sat about 14 dB above Bell and
  * about 20 dB above Chimes. In a quiet overnight bed that made Ascending read
- * as an alarm. Bell is the reference; trims pull every signal to within ~3 dB
- * of it while keeping their character. Tune a signal here, never in native
- * code, so Android and iOS cannot drift apart.
+ * as an alarm. Every signal is now trimmed to land at about -21.5 LU at the
+ * mix (the target window is -21 to -22), so they stay distinct in character
+ * but equal in weight. Tune a signal here, never in native code, so Android and
+ * iOS cannot drift apart.
  *
  * Levels measured by rendering each signal through the real Kotlin engine
  * (dB LU, before trim): ascending -4.9, bell -18.4, chimes -25.2, droplets
  * -24.0. core/audio/__tests__/recognitionSignalLevels.test.ts re-measures the
- * WAV signals from the shipped assets and fails if a trim stops matching them.
+ * WAV signals from the shipped assets and fails if a trim stops landing a
+ * signal in the target window.
  */
 export const RECOGNITION_SIGNAL_TRIM_DB: Record<RecognitionSignalId, number> = {
-  ascending: -13.5,
-  bell: 0,
-  chimes: 4,
-  droplets: 3,
+  ascending: -16.6,
+  bell: -3.1,
+  chimes: 3.7,
+  droplets: 2.5,
 };
 
 /** Linear gain the native engine applies to a signal. */

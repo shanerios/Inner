@@ -27,8 +27,9 @@ const ENGINE_RATE = 48_000;
 const WAV_PLAYBACK_FACTOR = 1.45;
 /** Ascending Tone as the engine synthesizes it, before trim. Re-measure if the native constants change. */
 const ASCENDING_SYNTH_LU = -4.9;
-/** How close (dB) every signal must sit to Bell, the reference. */
-const MAX_SPREAD_DB = 3.0;
+/** Every signal should land in -21 to -22 LU at the mix: centre, and the half-width allowed around it. */
+const TARGET_LU = -21.5;
+const TARGET_HALF_WINDOW_DB = 0.75;
 
 const WAV_FILES: Partial<Record<RecognitionSignalId, string>> = {
   bell: 'signal_bell.wav',
@@ -137,22 +138,20 @@ describe('recognition signal loudness', () => {
   });
 
   it('converts trims to linear gain', () => {
-    expect(recognitionSignalGain('bell')).toBe(1);
-    expect(recognitionSignalGain('ascending')).toBeCloseTo(0.2113, 3);
-    expect(recognitionSignalGain('chimes')).toBeCloseTo(1.5849, 3);
+    expect(recognitionSignalGain('ascending')).toBeCloseTo(0.1479, 3);
+    expect(recognitionSignalGain('bell')).toBeCloseTo(0.6998, 3);
+    expect(recognitionSignalGain('chimes')).toBeCloseTo(1.531, 3);
+    expect(recognitionSignalGain('droplets')).toBeCloseTo(1.3335, 3);
   });
 
-  it('brings Ascending Tone down to Bell, which it used to exceed by ~14 dB', () => {
+  it('brings Ascending Tone far below its untrimmed level, which read as an alarm', () => {
     expect(RECOGNITION_SIGNAL_TRIM_DB.ascending).toBeLessThan(-12);
-    const ascending = levelAtMix('ascending') + RECOGNITION_SIGNAL_TRIM_DB.ascending;
-    expect(Math.abs(ascending - levelAtMix('bell'))).toBeLessThanOrEqual(0.5);
   });
 
-  it('keeps every signal within a few dB of Bell after trims', () => {
-    const reference = levelAtMix('bell') + RECOGNITION_SIGNAL_TRIM_DB.bell;
+  it('lands every signal in the -21 to -22 LU target window', () => {
     for (const { id } of RECOGNITION_SIGNALS) {
       const level = levelAtMix(id) + RECOGNITION_SIGNAL_TRIM_DB[id];
-      expect(Math.abs(level - reference)).toBeLessThanOrEqual(MAX_SPREAD_DB);
+      expect(Math.abs(level - TARGET_LU)).toBeLessThanOrEqual(TARGET_HALF_WINDOW_DB);
     }
   });
 

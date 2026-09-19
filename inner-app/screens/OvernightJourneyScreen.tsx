@@ -267,7 +267,7 @@ export default function OvernightJourneyScreen() {
         style={[styles.fixedHeader, { top: insets.top + 66 }, Platform.OS === 'android' && styles.androidFixedHeader]}
       >
         <Text style={[Typography.display, styles.title]}>Overnight Journey</Text>
-        <Text style={[Typography.body, styles.subtitle]}>Tell Inner where you want to go. The complexity stays beneath the surface.</Text>
+        <Text style={[Typography.body, styles.subtitle]}>Tell Inner where you’d like to go.</Text>
       </View>
       <ScrollView contentContainerStyle={[styles.content, { paddingTop: insets.top + (Platform.OS === 'android' ? 210 : 180), paddingBottom: insets.bottom + 34 }]} showsVerticalScrollIndicator={false}>
         <View style={styles.intention}>
