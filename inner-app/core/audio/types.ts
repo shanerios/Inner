@@ -45,6 +45,8 @@ export type ProceduralAudioConfig = {
   identityPresence: number;
   /** How often the identity sound speaks, 1 = every occasion, 0.5 = about every other one. */
   identityDensity: number;
+  /** How much each appearance differs from the last (level, pitch, ear to ear, distance, echo): 0 = identical every time. */
+  identityVariety: number;
   /** Adds quiet upper harmonics that imply a lower environmental fundamental. */
   harmonicTranslation: number;
   templeGain: number;

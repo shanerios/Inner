@@ -62,6 +62,11 @@ export const IDENTITY_STAGE_DENSITY: Record<IdentityStage, number> = {
   recognitionWindow: 0.5,
 };
 
+/** How much each appearance of an identity sound differs from the last, by feel. Gentle stays as it always was. */
+export const IDENTITY_FEEL_VARIETY = { gentle: 0, deep: 0.6, immersive: 1 } as const;
+
+export type IdentityFeel = keyof typeof IDENTITY_FEEL_VARIETY;
+
 /** The native engines clamp presence to this; the arc must stay under it. */
 export const IDENTITY_PRESENCE_MAX = 12;
 
@@ -96,10 +101,15 @@ export function identityAchievedDb(world: IdentityWorld, stage: IdentityStage): 
  * The audio patch that sets a stage's identity presence and density. Worlds with no identity sound
  * get an empty patch so their audio stays exactly as it was.
  */
-export function identityPatch(environment: ProceduralEnvironment, stage: IdentityStage): ProceduralAudioPatch {
+export function identityPatch(
+  environment: ProceduralEnvironment,
+  stage: IdentityStage,
+  feel: IdentityFeel = 'gentle',
+): ProceduralAudioPatch {
   if (!isIdentityWorld(environment)) return {};
   return {
     identityPresence: identityPresenceFor(environment, stage),
     identityDensity: IDENTITY_STAGE_DENSITY[stage],
+    identityVariety: IDENTITY_FEEL_VARIETY[feel],
   };
 }

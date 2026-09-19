@@ -44,6 +44,8 @@ internal data class AudioParameters(
   var identityPresence: Double = 1.0,
   /** How often those signature sounds appear, 1 = as designed, lower = sparser. */
   var identityDensity: Double = 1.0,
+  /** How much each appearance of an identity sound differs from the last: 0 = identical every time, 1 = fullest. */
+  var identityVariety: Double = 0.0,
   var sleepEndMs: Double? = null,
 ) {
   fun setFrom(other: AudioParameters) {
@@ -70,6 +72,7 @@ internal data class AudioParameters(
     spatialRate = other.spatialRate
     identityPresence = other.identityPresence
     identityDensity = other.identityDensity
+    identityVariety = other.identityVariety
     sleepEndMs = other.sleepEndMs
   }
 }
@@ -280,7 +283,7 @@ object ProceduralAudioEngine {
   private var forestBirdAmp = 0.0
   private var forestBirdPan = 0.0
   private var templeSpaceEnvelope = 0.0
-  private var templeChantGate = 1.0
+  private val aumChant = AumChant()
   private var templeSpaceRandom = XORSHIFT_SEED xor 0x6a09e667L
   private var templeSpaceAirLeft = 0.0
   private var templeSpaceAirRight = 0.0
@@ -291,11 +294,6 @@ object ProceduralAudioEngine {
   private val templeSpacePhases = DoubleArray(3)
   private val templeSpaceFreqs = doubleArrayOf(73.42, 110.0, 164.81)
   private val templeSpaceWeights = doubleArrayOf(0.46, 0.25, 0.13)
-  private val templeSpaceChantPhases = DoubleArray(3)
-  private val templeSpaceChantFreqs = doubleArrayOf(104.0, 108.0, 111.5)
-  private val templeSpaceChantWeights = doubleArrayOf(0.34, 0.28, 0.23)
-  private val templeSpaceFormantIc1 = DoubleArray(4)
-  private val templeSpaceFormantIc2 = DoubleArray(4)
   private var templeSpaceDropFramesRemaining = 0.0
   private var templeSpaceDropAgeFrames = 0.0
   private var templeSpaceDropDurationFrames = 0.0
@@ -601,7 +599,7 @@ object ProceduralAudioEngine {
     forestBirdAmp = 0.0
     forestBirdPan = 0.0
     templeSpaceEnvelope = 0.0
-    templeChantGate = 1.0
+    aumChant.reset(XORSHIFT_SEED)
     templeSpaceRandom = XORSHIFT_SEED xor 0x6a09e667L
     templeSpaceAirLeft = 0.0
     templeSpaceAirRight = 0.0
@@ -610,9 +608,6 @@ object ProceduralAudioEngine {
     templeSpaceBreathMidLeft = 0.0
     templeSpaceBreathMidRight = 0.0
     templeSpacePhases.fill(0.0)
-    templeSpaceChantPhases.fill(0.0)
-    templeSpaceFormantIc1.fill(0.0)
-    templeSpaceFormantIc2.fill(0.0)
     templeSpaceDropFramesRemaining = 0.0
     templeSpaceDropAgeFrames = 0.0
     templeSpaceDropDurationFrames = 0.0
@@ -701,7 +696,7 @@ object ProceduralAudioEngine {
       forestBirdActive = false
       forestBirdFramesRemaining = 0.0
       templeSpaceRandom = activeTimeline.seed xor 0x6a09e667L
-      templeChantGate = 1.0
+      aumChant.reset(activeTimeline.seed)
       templeSpaceAirLeft = 0.0
       templeSpaceAirRight = 0.0
       templeSpaceBreathLowLeft = 0.0
@@ -709,9 +704,6 @@ object ProceduralAudioEngine {
       templeSpaceBreathMidLeft = 0.0
       templeSpaceBreathMidRight = 0.0
       templeSpacePhases.fill(0.0)
-      templeSpaceChantPhases.fill(0.0)
-      templeSpaceFormantIc1.fill(0.0)
-      templeSpaceFormantIc2.fill(0.0)
       templeSpaceDropFramesRemaining = 0.0
       templeSpaceDropAgeFrames = 0.0
       templeSpaceDropDurationFrames = 0.0
@@ -881,7 +873,7 @@ object ProceduralAudioEngine {
       val cosmicGain = target.environmentGain * cosmicEnvelope
       val forest = if (forestEnvelope > 0.0001) nextForest(spatialSeconds, target.environmentIntensity) else silentStereo
       val forestGain = target.environmentGain * forestEnvelope
-      val templeSpace = if (templeSpaceEnvelope > 0.0001) nextTempleSpace(spatialSeconds, target.environmentIntensity, target.identityPresence, target.identityDensity) else silentStereo
+      val templeSpace = if (templeSpaceEnvelope > 0.0001) nextTempleSpace(spatialSeconds, target.environmentIntensity, target.identityPresence, target.identityDensity, target.identityVariety) else silentStereo
       val templeSpaceGain = target.environmentGain * templeSpaceEnvelope
       val temple = if (templeEnvelope > 0.0001) nextTemple(spatialSeconds, target.templeIntensity) else silentStereo
       val templeLevel = target.templeGain * templeEnvelope
@@ -1441,7 +1433,7 @@ object ProceduralAudioEngine {
   }
 
   /** A quiet stone chamber: modal body, filtered air, and long asymmetric reflections. */
-  private fun nextTempleSpace(elapsedSeconds: Double, intensity: Double, presence: Double, density: Double): StereoSample {
+  private fun nextTempleSpace(elapsedSeconds: Double, intensity: Double, presence: Double, density: Double, variety: Double): StereoSample {
     val tau = Math.PI * 2
     var body = 0.0
     for (index in 0 until 3) {
@@ -1466,47 +1458,9 @@ object ProceduralAudioEngine {
     val breathLeft = (templeSpaceBreathMidLeft - templeSpaceBreathLowLeft) * breathEnvelope
     val breathRight = (templeSpaceBreathMidRight - templeSpaceBreathLowRight) * breathEnvelope
 
-    // Three imperfect virtual voices move from an open "O" spectrum toward a
-    // closed nasal hum. The sound stays distant because its dry level is low and
-    // most of it reaches the listener through the room taps below.
-    val chantPosition = elapsedSeconds + 26.0
-    val chantTime = chantPosition % 31.0
-    // Sparser identity: the Aum sounds on every Nth 31 s cycle. The gate fades over a
-    // quarter second, so a change of density mid-chant can never click.
-    val chantEvery = max(1, Math.round(1.0 / density).toInt())
-    val chantOpen = if (chantEvery == 1 || (chantPosition / 31.0).toLong() % chantEvery == 0L) 1.0 else 0.0
-    templeChantGate += (chantOpen - templeChantGate) / max(1.0, sampleRate * 0.25)
-    val chantEnvelope = when {
-      chantTime >= 9.0 -> 0.0
-      chantTime < 2.2 -> 0.5 - 0.5 * cos(Math.PI * chantTime / 2.2)
-      chantTime > 6.0 -> 0.5 + 0.5 * cos(Math.PI * (chantTime - 6.0) / 3.0)
-      else -> 1.0
-    } * templeChantGate
-    val chantProgress = clamp(chantTime / 9.0, 0.0, 1.0)
-    val firstTransition = clamp(chantProgress / 0.56, 0.0, 1.0)
-    val finalTransition = clamp((chantProgress - 0.56) / 0.44, 0.0, 1.0)
-    val formant1 = if (chantProgress < 0.56) 700.0 + (300.0 - 700.0) * firstTransition else 300.0 + (250.0 - 300.0) * finalTransition
-    val formant2 = if (chantProgress < 0.56) 1_200.0 + (800.0 - 1_200.0) * firstTransition else 800.0 + (2_500.0 - 800.0) * finalTransition
-    val formant2Presence = 1.0 - finalTransition * 0.82
-    var sourceLeft = 0.0
-    var sourceRight = 0.0
-    var sub = 0.0
-    for (index in 0 until 3) {
-      val phase = templeSpaceChantPhases[index]
-      // A compact band-limited glottal source: richer than a sine but without
-      // the high-frequency aliasing of a naive sawtooth.
-      val glottal = sin(phase) + sin(phase * 2) * 0.42 + sin(phase * 3) * 0.18 + sin(phase * 4) * 0.08
-      val shimmer = 0.96 + 0.04 * sin(elapsedSeconds * tau * (5.1 + index * 0.47) + index)
-      val voice = glottal * templeSpaceChantWeights[index] * shimmer
-      sourceLeft += voice * if (index == 2) 0.62 else 1.0
-      sourceRight += voice * if (index == 0) 0.62 else 1.0
-      sub += sin(phase) * templeSpaceChantWeights[index]
-      val jitter = 1.0 + 0.0014 * sin(elapsedSeconds * tau * (6.0 + index * 0.31) + index * 1.7)
-      templeSpaceChantPhases[index] = (phase + tau * templeSpaceChantFreqs[index] * jitter / sampleRate) % tau
-    }
-    val chantLeft = templeSpaceBandpass(sourceLeft, 0, formant1, 6.5) * 1.65 + templeSpaceBandpass(sourceLeft, 1, formant2, 7.5) * 1.25 * formant2Presence + sub * 0.08
-    val chantRight = templeSpaceBandpass(sourceRight, 2, formant1 * 0.992, 6.5) * 1.65 + templeSpaceBandpass(sourceRight, 3, formant2 * 1.008, 7.5) * 1.25 * formant2Presence + sub * 0.08
-    val chantLevel = chantEnvelope * (0.18 + intensity * 0.12) * presence
+    // The chant (three imperfect virtual voices, once every 31 s, each appearance its own gesture) lives in
+    // AumChant. The room places its dry voice and echo, and sends a far-off chant to the reverb alone.
+    aumChant.render(sampleRate, elapsedSeconds, intensity, presence, density, variety)
     val drop = nextTempleSpaceDrop(intensity, worldSalience)
     val dropEchoSize = templeSpaceDropEcho.size
     val dropEchoLeftA = templeSpaceDropEcho[(templeSpaceDropEchoIndex - (sampleRate * 0.27).toInt().coerceIn(1, dropEchoSize - 1) + dropEchoSize) % dropEchoSize]
@@ -1517,8 +1471,8 @@ object ProceduralAudioEngine {
     val dropEchoLeft = dropEchoLeftA * 0.48 + dropEchoTail * 0.18
     val dropEchoRight = dropEchoRightA * 0.44 + dropEchoTail * 0.20
     templeAccents.render(sampleRate, intensity, elapsedSeconds, worldSalience)
-    val dryLeft = body + templeSpaceAirLeft * (0.22 + intensity * 0.12) + breathLeft * 0.7 + chantLeft * chantLevel + drop.first + dropEchoLeft + templeAccents.left
-    val dryRight = body + templeSpaceAirRight * (0.22 + intensity * 0.12) + breathRight * 0.7 + chantRight * chantLevel + drop.second + dropEchoRight + templeAccents.right
+    val dryLeft = body + templeSpaceAirLeft * (0.22 + intensity * 0.12) + breathLeft * 0.7 + aumChant.voiceLeft + aumChant.echoLeft + drop.first + dropEchoLeft + templeAccents.left
+    val dryRight = body + templeSpaceAirRight * (0.22 + intensity * 0.12) + breathRight * 0.7 + aumChant.voiceRight + aumChant.echoRight + drop.second + dropEchoRight + templeAccents.right
     val size = templeSpaceDelay.size
     val tap71 = templeSpaceDelay[(templeSpaceDelayIndex - (sampleRate * 0.071).toInt().coerceIn(1, size - 1) + size) % size]
     val tap89 = templeSpaceDelay[(templeSpaceDelayIndex - (sampleRate * 0.089).toInt().coerceIn(1, size - 1) + size) % size]
@@ -1526,7 +1480,7 @@ object ProceduralAudioEngine {
     val tap137 = templeSpaceDelay[(templeSpaceDelayIndex - (sampleRate * 0.137).toInt().coerceIn(1, size - 1) + size) % size]
     val wetLeft = tap71 * 0.58 + tap137 * 0.34
     val wetRight = tap89 * 0.56 + tap113 * 0.36
-    templeSpaceDelay[templeSpaceDelayIndex] = (dryLeft + dryRight) * 0.5 + (wetLeft + wetRight) * 0.45
+    templeSpaceDelay[templeSpaceDelayIndex] = (dryLeft + dryRight) * 0.5 + (wetLeft + wetRight) * 0.45 + aumChant.farWet
     templeSpaceDelayIndex = (templeSpaceDelayIndex + 1) % size
     return templeSpaceSample.set(dryLeft * 0.42 + wetLeft * 0.62, dryRight * 0.42 + wetRight * 0.62)
   }
@@ -1536,17 +1490,6 @@ object ProceduralAudioEngine {
     templeSpaceRandom = templeSpaceRandom xor (templeSpaceRandom ushr 7)
     templeSpaceRandom = templeSpaceRandom xor (templeSpaceRandom shl 17)
     return (templeSpaceRandom and 0x00ff_ffffL).toDouble() / 0x007f_ffffL.toDouble() - 1
-  }
-
-  /** Topology-preserving state-variable bandpass; stable while formants move. */
-  private fun templeSpaceBandpass(input: Double, index: Int, frequency: Double, q: Double): Double {
-    val g = kotlin.math.tan(Math.PI * frequency / sampleRate)
-    val k = 1.0 / q
-    val v1 = (templeSpaceFormantIc1[index] + g * (input - templeSpaceFormantIc2[index])) / (1.0 + g * (g + k))
-    val v2 = templeSpaceFormantIc2[index] + g * v1
-    templeSpaceFormantIc1[index] = 2.0 * v1 - templeSpaceFormantIc1[index]
-    templeSpaceFormantIc2[index] = 2.0 * v2 - templeSpaceFormantIc2[index]
-    return v1
   }
 
   private fun nextTempleSpaceDrop(intensity: Double, salience: WorldSalienceScheduler): StereoSample {
@@ -1625,6 +1568,7 @@ object ProceduralAudioEngine {
       spatialRate = clamp(raw.spatialRate, 0.1, 3.0),
       identityPresence = clamp(raw.identityPresence, 0.0, 12.0),
       identityDensity = clamp(raw.identityDensity, 0.2, 1.0),
+      identityVariety = clamp(raw.identityVariety, 0.0, 1.0),
       sleepEndMs = sleepEndMs,
     )
   }
@@ -1744,6 +1688,7 @@ object ProceduralAudioEngine {
     output.spatialRate = lerp(from.spatialRate, to.spatialRate)
     output.identityPresence = lerp(from.identityPresence, to.identityPresence)
     output.identityDensity = lerp(from.identityDensity, to.identityDensity)
+    output.identityVariety = lerp(from.identityVariety, to.identityVariety)
     output.sleepEndMs = null
     return output
   }

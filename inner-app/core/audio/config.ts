@@ -24,6 +24,7 @@ export const PROCEDURAL_AUDIO_LIMITS = {
   spatialRate: { min: 0.1, max: 3 },
   identityPresence: { min: 0, max: 12 },
   identityDensity: { min: 0.2, max: 1 },
+  identityVariety: { min: 0, max: 1 },
 } as const;
 
 export const DEFAULT_PROCEDURAL_AUDIO_CONFIG: ProceduralAudioConfig = {
@@ -41,6 +42,7 @@ export const DEFAULT_PROCEDURAL_AUDIO_CONFIG: ProceduralAudioConfig = {
   thresholdShift: 0,
   identityPresence: 1,
   identityDensity: 1,
+  identityVariety: 0,
   harmonicTranslation: 0,
   templeGain: 0,
   templeIntensity: 0.5,
@@ -100,6 +102,11 @@ export function normalizeProceduralAudioConfig(
       value.identityDensity ?? DEFAULT_PROCEDURAL_AUDIO_CONFIG.identityDensity,
       PROCEDURAL_AUDIO_LIMITS.identityDensity.min,
       PROCEDURAL_AUDIO_LIMITS.identityDensity.max,
+    ),
+    identityVariety: clamp(
+      value.identityVariety ?? DEFAULT_PROCEDURAL_AUDIO_CONFIG.identityVariety,
+      PROCEDURAL_AUDIO_LIMITS.identityVariety.min,
+      PROCEDURAL_AUDIO_LIMITS.identityVariety.max,
     ),
     harmonicTranslation: clamp(value.harmonicTranslation ?? DEFAULT_PROCEDURAL_AUDIO_CONFIG.harmonicTranslation, gain.min, gain.max),
     templeGain: clamp(value.templeGain ?? DEFAULT_PROCEDURAL_AUDIO_CONFIG.templeGain, gain.min, gain.max),

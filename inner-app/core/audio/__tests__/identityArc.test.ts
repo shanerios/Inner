@@ -7,6 +7,7 @@ import {
   identityPatch,
   identityPresenceFor,
   identityTargetDb,
+  IDENTITY_FEEL_VARIETY,
   IDENTITY_PRESENCE_MAX,
   IDENTITY_STAGE_DENSITY,
   type IdentityStage,
@@ -87,6 +88,19 @@ describe('identity arc', () => {
     }
   });
 
+  it('sets how much each appearance varies by feel: Gentle none, Deep some, Immersive the most', () => {
+    const varietyFor = (feel: 'gentle' | 'deep' | 'immersive') => compileOvernightProtocol(createRecognitionOvernightProtocol({
+      sleepDurationMinutes: 8 * 60, environment: 'temple', signalId: 'chimes', cuePlan: 'standard', feel,
+    }), DEFAULT_PROCEDURAL_AUDIO_CONFIG).phases.map(phase => phase.audioConfig.identityVariety);
+    expect(new Set(varietyFor('gentle'))).toEqual(new Set([0]));
+    expect(new Set(varietyFor('deep'))).toEqual(new Set([IDENTITY_FEEL_VARIETY.deep]));
+    expect(new Set(varietyFor('immersive'))).toEqual(new Set([IDENTITY_FEEL_VARIETY.immersive]));
+    expect(IDENTITY_FEEL_VARIETY.gentle).toBe(0);
+    expect(IDENTITY_FEEL_VARIETY.deep).toBeLessThan(IDENTITY_FEEL_VARIETY.immersive);
+    // No feel is left at the default when none is chosen: the plan without a feel is Gentle.
+    expect(new Set(compile('temple').phases.map(phase => phase.audioConfig.identityVariety))).toEqual(new Set([0]));
+  });
+
   it('treats sleep after the first signal as REM, including on the gentle plan', () => {
     const gentle = compile('cosmic', 'gentle').phases;
     const early = gentle.find(phase => phase.id === 'sleep-protection-1')!.audioConfig.identityPresence;
@@ -106,6 +120,10 @@ describe('identity controls across JS and both native engines', () => {
     expect(normalizeProceduralAudioConfig({ identityPresence: -2 }).identityPresence).toBe(0);
     expect(normalizeProceduralAudioConfig({ identityDensity: 0 }).identityDensity).toBe(PROCEDURAL_AUDIO_LIMITS.identityDensity.min);
     expect(normalizeProceduralAudioConfig({ identityDensity: 3 }).identityDensity).toBe(1);
+    expect(DEFAULT_PROCEDURAL_AUDIO_CONFIG.identityVariety).toBe(0);
+    expect(normalizeProceduralAudioConfig({}).identityVariety).toBe(0);
+    expect(normalizeProceduralAudioConfig({ identityVariety: 7 }).identityVariety).toBe(PROCEDURAL_AUDIO_LIMITS.identityVariety.max);
+    expect(normalizeProceduralAudioConfig({ identityVariety: -1 }).identityVariety).toBe(0);
   });
 
   it('uses the same limits in Kotlin, Swift and JS', () => {
@@ -114,6 +132,11 @@ describe('identity controls across JS and both native engines', () => {
     const engine = kotlin('ProceduralAudioEngine.kt');
     expect(engine).toContain(`identityPresence = clamp(raw.identityPresence, ${identityPresence.min.toFixed(1)}, ${identityPresence.max.toFixed(1)})`);
     expect(engine).toContain(`identityDensity = clamp(raw.identityDensity, ${identityDensity.min.toFixed(1)}, ${identityDensity.max.toFixed(1)})`);
+    const { identityVariety } = PROCEDURAL_AUDIO_LIMITS;
+    expect(engine).toContain(`identityVariety = clamp(raw.identityVariety, ${identityVariety.min.toFixed(1)}, ${identityVariety.max.toFixed(1)})`);
+    expect(swift).toContain(`identityVariety: clamp(raw.identityVariety, ${identityVariety.min}, ${identityVariety.max})`);
+    expect(kotlin('Records.kt')).toMatch(/@Field var identityVariety: Double = 0\.0/);
+    expect(swift).toMatch(/@Field var identityVariety = 0\.0/);
     expect(swift).toContain(`identityPresence: clamp(raw.identityPresence, ${identityPresence.min}, ${identityPresence.max})`);
     expect(swift).toContain(`identityDensity: clamp(raw.identityDensity, ${identityDensity.min}, ${identityDensity.max})`);
     // Records default to "unchanged" so an older JS bundle keeps today's sound.
@@ -126,19 +149,21 @@ describe('identity controls across JS and both native engines', () => {
   it('interpolates both controls between stages in both engines', () => {
     expect(kotlin('ProceduralAudioEngine.kt')).toContain('output.identityPresence = lerp(from.identityPresence, to.identityPresence)');
     expect(kotlin('ProceduralAudioEngine.kt')).toContain('output.identityDensity = lerp(from.identityDensity, to.identityDensity)');
+    expect(kotlin('ProceduralAudioEngine.kt')).toContain('output.identityVariety = lerp(from.identityVariety, to.identityVariety)');
+    expect(swift).toContain('identityVariety: lerp(from.identityVariety, to.identityVariety)');
     expect(swift).toContain('identityPresence: lerp(from.identityPresence, to.identityPresence)');
     expect(swift).toContain('identityDensity: lerp(from.identityDensity, to.identityDensity)');
   });
 
   it('applies presence and density to the Aum the same way in both engines', () => {
-    const engine = kotlin('ProceduralAudioEngine.kt');
+    const chant = kotlin('AumChant.kt');
     // Every Nth 31 s cycle, gated over a quarter second, level scaled by presence.
-    expect(engine).toContain('val chantEvery = max(1, Math.round(1.0 / density).toInt())');
-    expect(engine).toContain('templeChantGate += (chantOpen - templeChantGate) / max(1.0, sampleRate * 0.25)');
-    expect(engine).toContain('val chantLevel = chantEnvelope * (0.18 + intensity * 0.12) * presence');
+    expect(chant).toContain('val chantEvery = max(1, Math.round(1.0 / density).toInt())');
+    expect(chant).toContain('gate += (chantOpen - gate) / max(1.0, sampleRate * 0.25)');
+    expect(chant).toContain('val chantLevel = chantEnvelope * (0.18 + intensity * 0.12) * presence * gesture.level');
     expect(swift).toContain('let chantEvery = max(1, Int((1.0 / density).rounded()))');
-    expect(swift).toContain('templeChantGate += (chantOpen - templeChantGate) / max(1, sampleRate * 0.25)');
-    expect(swift).toContain('let chantLevel = chantGated * (0.18 + intensity * 0.12) * presence');
+    expect(swift).toContain('gate += (chantOpen - gate) / max(1, sampleRate * 0.25)');
+    expect(swift).toContain('let chantLevel = chantGated * (0.18 + intensity * 0.12) * presence * gesture.level');
   });
 
   it('applies presence and density to the whale call the same way in both engines', () => {

@@ -18,6 +18,7 @@ private struct AudioConfigRecord: Record {
   @Field var thresholdShift = 0.0
   @Field var identityPresence = 1.0
   @Field var identityDensity = 1.0
+  @Field var identityVariety = 0.0
   @Field var harmonicTranslation = 0.0
   @Field var templeGain = 0.0
   @Field var templeIntensity = 0.5
@@ -100,6 +101,8 @@ private struct Parameters {
   var identityPresence = 1.0
   /// How often those signature sounds appear, 1 = as designed, lower = sparser.
   var identityDensity = 1.0
+  /// How much each appearance of an identity sound differs from the last: 0 = identical every time, 1 = fullest.
+  var identityVariety = 0.0
   var harmonicTranslation = 0.0
   var templeGain = 0.0
   var templeIntensity = 0.5
@@ -287,7 +290,7 @@ private final class ProceduralAudioEngine: NSObject {
   private var forestBirdAmp = 0.0
   private var forestBirdPan = 0.0
   private var templeSpaceEnvelope = 0.0
-  private var templeChantGate = 1.0
+  private let aumChant = AumChant()
   private var templeSpaceRandom: UInt64 = 0x9e3779b97f4a7c15 ^ 0x6a09e667
   private var templeSpaceAirLeft = 0.0
   private var templeSpaceAirRight = 0.0
@@ -298,11 +301,6 @@ private final class ProceduralAudioEngine: NSObject {
   private var templeSpacePhases = [Double](repeating: 0, count: 3)
   private static let templeSpaceFreqs = [73.42, 110.0, 164.81]
   private static let templeSpaceWeights = [0.46, 0.25, 0.13]
-  private var templeSpaceChantPhases = [Double](repeating: 0, count: 3)
-  private static let templeSpaceChantFreqs = [104.0, 108.0, 111.5]
-  private static let templeSpaceChantWeights = [0.34, 0.28, 0.23]
-  private var templeSpaceFormantIc1 = [Double](repeating: 0, count: 4)
-  private var templeSpaceFormantIc2 = [Double](repeating: 0, count: 4)
   private var templeSpaceDropFramesRemaining = 0.0
   private var templeSpaceDropAgeFrames = 0.0
   private var templeSpaceDropDurationFrames = 0.0
@@ -624,11 +622,8 @@ private final class ProceduralAudioEngine: NSObject {
     templeSpaceBreathLowRight = 0
     templeSpaceBreathMidLeft = 0
     templeSpaceBreathMidRight = 0
-    templeChantGate = 1.0
+    aumChant.reset(seed: 0x9e3779b97f4a7c15)
     templeSpacePhases = [Double](repeating: 0, count: 3)
-    templeSpaceChantPhases = [Double](repeating: 0, count: 3)
-    templeSpaceFormantIc1 = [Double](repeating: 0, count: 4)
-    templeSpaceFormantIc2 = [Double](repeating: 0, count: 4)
     templeSpaceDropFramesRemaining = 0
     templeSpaceDropAgeFrames = 0
     templeSpaceDropDurationFrames = 0
@@ -861,11 +856,8 @@ private final class ProceduralAudioEngine: NSObject {
       templeSpaceBreathLowRight = 0
       templeSpaceBreathMidLeft = 0
       templeSpaceBreathMidRight = 0
-      templeChantGate = 1.0
+      aumChant.reset(seed: activeTimeline.seed)
       templeSpacePhases = [Double](repeating: 0, count: 3)
-      templeSpaceChantPhases = [Double](repeating: 0, count: 3)
-      templeSpaceFormantIc1 = [Double](repeating: 0, count: 4)
-      templeSpaceFormantIc2 = [Double](repeating: 0, count: 4)
       templeSpaceDropFramesRemaining = 0
       templeSpaceDropAgeFrames = 0
       templeSpaceDropDurationFrames = 0
@@ -1062,7 +1054,7 @@ private final class ProceduralAudioEngine: NSObject {
         : (left: 0.0, right: 0.0)
       let forestGain = target.environmentGain * forestEnvelope
       let templeSpace = templeSpaceEnvelope > 0.0001
-        ? nextTempleSpace(elapsedSeconds: spatialSeconds, intensity: target.environmentIntensity, presence: target.identityPresence, density: target.identityDensity)
+        ? nextTempleSpace(elapsedSeconds: spatialSeconds, intensity: target.environmentIntensity, presence: target.identityPresence, density: target.identityDensity, variety: target.identityVariety)
         : (left: 0.0, right: 0.0)
       let templeSpaceGain = target.environmentGain * templeSpaceEnvelope
       let temple = templeEnvelope > 0.0001
@@ -1656,7 +1648,7 @@ private final class ProceduralAudioEngine: NSObject {
   }
 
   /// A quiet stone chamber: modal body, filtered air, and long asymmetric reflections.
-  private func nextTempleSpace(elapsedSeconds: Double, intensity: Double, presence: Double, density: Double) -> (left: Double, right: Double) {
+  private func nextTempleSpace(elapsedSeconds: Double, intensity: Double, presence: Double, density: Double, variety: Double) -> (left: Double, right: Double) {
     let tau = Double.pi * 2
     var body = 0.0
     for index in 0..<3 {
@@ -1681,60 +1673,9 @@ private final class ProceduralAudioEngine: NSObject {
     let breathLeft = (templeSpaceBreathMidLeft - templeSpaceBreathLowLeft) * breathEnvelope
     let breathRight = (templeSpaceBreathMidRight - templeSpaceBreathLowRight) * breathEnvelope
 
-    // Three imperfect virtual voices move from an open "O" spectrum toward a
-    // closed nasal hum. The sound stays distant because its dry level is low and
-    // most of it reaches the listener through the room taps below.
-    let chantPosition = elapsedSeconds + 26.0
-    let chantTime = fmod(chantPosition, 31.0)
-    // Sparser identity: the Aum sounds on every Nth 31 s cycle. The gate fades over a
-    // quarter second, so a change of density mid-chant can never click.
-    let chantEvery = max(1, Int((1.0 / density).rounded()))
-    let chantOpen = (chantEvery == 1 || Int64(chantPosition / 31.0) % Int64(chantEvery) == 0) ? 1.0 : 0.0
-    templeChantGate += (chantOpen - templeChantGate) / max(1, sampleRate * 0.25)
-    let chantEnvelope: Double
-    if chantTime >= 9.0 {
-      chantEnvelope = 0
-    } else if chantTime < 2.2 {
-      chantEnvelope = 0.5 - 0.5 * cos(Double.pi * chantTime / 2.2)
-    } else if chantTime > 6.0 {
-      chantEnvelope = 0.5 + 0.5 * cos(Double.pi * (chantTime - 6.0) / 3.0)
-    } else {
-      chantEnvelope = 1
-    }
-    let chantGated = chantEnvelope * templeChantGate
-    let chantProgress = clamp(chantTime / 9.0, 0, 1)
-    let firstTransition = clamp(chantProgress / 0.56, 0, 1)
-    let finalTransition = clamp((chantProgress - 0.56) / 0.44, 0, 1)
-    let formant1 = chantProgress < 0.56
-      ? 700.0 + (300.0 - 700.0) * firstTransition
-      : 300.0 + (250.0 - 300.0) * finalTransition
-    let formant2 = chantProgress < 0.56
-      ? 1_200.0 + (800.0 - 1_200.0) * firstTransition
-      : 800.0 + (2_500.0 - 800.0) * finalTransition
-    let formant2Presence = 1.0 - finalTransition * 0.82
-    var sourceLeft = 0.0
-    var sourceRight = 0.0
-    var sub = 0.0
-    for index in 0..<3 {
-      let phase = templeSpaceChantPhases[index]
-      // A compact band-limited glottal source: richer than a sine but without
-      // the high-frequency aliasing of a naive sawtooth.
-      let glottal = sin(phase) + sin(phase * 2) * 0.42 + sin(phase * 3) * 0.18 + sin(phase * 4) * 0.08
-      let shimmer = 0.96 + 0.04 * sin(elapsedSeconds * tau * (5.1 + Double(index) * 0.47) + Double(index))
-      let voice = glottal * Self.templeSpaceChantWeights[index] * shimmer
-      sourceLeft += voice * (index == 2 ? 0.62 : 1)
-      sourceRight += voice * (index == 0 ? 0.62 : 1)
-      sub += sin(phase) * Self.templeSpaceChantWeights[index]
-      let jitter = 1.0 + 0.0014 * sin(elapsedSeconds * tau * (6.0 + Double(index) * 0.31) + Double(index) * 1.7)
-      templeSpaceChantPhases[index] = fmod(phase + tau * Self.templeSpaceChantFreqs[index] * jitter / sampleRate, tau)
-    }
-    let chantLeft = templeSpaceBandpass(sourceLeft, index: 0, frequency: formant1, q: 6.5) * 1.65
-      + templeSpaceBandpass(sourceLeft, index: 1, frequency: formant2, q: 7.5) * 1.25 * formant2Presence
-      + sub * 0.08
-    let chantRight = templeSpaceBandpass(sourceRight, index: 2, frequency: formant1 * 0.992, q: 6.5) * 1.65
-      + templeSpaceBandpass(sourceRight, index: 3, frequency: formant2 * 1.008, q: 7.5) * 1.25 * formant2Presence
-      + sub * 0.08
-    let chantLevel = chantGated * (0.18 + intensity * 0.12) * presence
+    // The chant (three imperfect virtual voices, once every 31 s, each appearance its own gesture) lives in
+    // AumChant. The room places its dry voice and echo, and sends a far-off chant to the reverb alone.
+    aumChant.render(sampleRate: sampleRate, elapsedSeconds: elapsedSeconds, intensity: intensity, presence: presence, density: density, variety: variety)
     let drop = nextTempleSpaceDrop(intensity: intensity, salience: worldSalience)
     let dropEchoSize = templeSpaceDropEcho.count
     let dropEchoLeftA = templeSpaceDropEcho[(templeSpaceDropEchoIndex - min(dropEchoSize - 1, max(1, Int(sampleRate * 0.27))) + dropEchoSize) % dropEchoSize]
@@ -1745,8 +1686,8 @@ private final class ProceduralAudioEngine: NSObject {
     let dropEchoLeft = dropEchoLeftA * 0.48 + dropEchoTail * 0.18
     let dropEchoRight = dropEchoRightA * 0.44 + dropEchoTail * 0.20
     templeAccents.render(sampleRate: sampleRate, intensity: intensity, elapsedSeconds: elapsedSeconds, salience: worldSalience)
-    let dryLeft = body + templeSpaceAirLeft * (0.22 + intensity * 0.12) + breathLeft * 0.7 + chantLeft * chantLevel + drop.left + dropEchoLeft + templeAccents.left
-    let dryRight = body + templeSpaceAirRight * (0.22 + intensity * 0.12) + breathRight * 0.7 + chantRight * chantLevel + drop.right + dropEchoRight + templeAccents.right
+    let dryLeft = body + templeSpaceAirLeft * (0.22 + intensity * 0.12) + breathLeft * 0.7 + aumChant.voiceLeft + aumChant.echoLeft + drop.left + dropEchoLeft + templeAccents.left
+    let dryRight = body + templeSpaceAirRight * (0.22 + intensity * 0.12) + breathRight * 0.7 + aumChant.voiceRight + aumChant.echoRight + drop.right + dropEchoRight + templeAccents.right
     let size = templeSpaceDelay.count
     let tap71 = templeSpaceDelay[(templeSpaceDelayIndex - min(size - 1, max(1, Int(sampleRate * 0.071))) + size) % size]
     let tap89 = templeSpaceDelay[(templeSpaceDelayIndex - min(size - 1, max(1, Int(sampleRate * 0.089))) + size) % size]
@@ -1754,7 +1695,7 @@ private final class ProceduralAudioEngine: NSObject {
     let tap137 = templeSpaceDelay[(templeSpaceDelayIndex - min(size - 1, max(1, Int(sampleRate * 0.137))) + size) % size]
     let wetLeft = tap71 * 0.58 + tap137 * 0.34
     let wetRight = tap89 * 0.56 + tap113 * 0.36
-    templeSpaceDelay[templeSpaceDelayIndex] = (dryLeft + dryRight) * 0.5 + (wetLeft + wetRight) * 0.45
+    templeSpaceDelay[templeSpaceDelayIndex] = (dryLeft + dryRight) * 0.5 + (wetLeft + wetRight) * 0.45 + aumChant.farWet
     templeSpaceDelayIndex = (templeSpaceDelayIndex + 1) % size
     return (dryLeft * 0.42 + wetLeft * 0.62, dryRight * 0.42 + wetRight * 0.62)
   }
@@ -1762,17 +1703,6 @@ private final class ProceduralAudioEngine: NSObject {
   private func nextTempleSpaceWhite() -> Double {
     templeSpaceRandom ^= templeSpaceRandom << 13; templeSpaceRandom ^= templeSpaceRandom >> 7; templeSpaceRandom ^= templeSpaceRandom << 17
     return Double(templeSpaceRandom & 0x00ff_ffff) / Double(0x007f_ffff) - 1
-  }
-
-  /// Topology-preserving state-variable bandpass; stable while formants move.
-  private func templeSpaceBandpass(_ input: Double, index: Int, frequency: Double, q: Double) -> Double {
-    let g = tan(Double.pi * frequency / sampleRate)
-    let k = 1 / q
-    let v1 = (templeSpaceFormantIc1[index] + g * (input - templeSpaceFormantIc2[index])) / (1 + g * (g + k))
-    let v2 = templeSpaceFormantIc2[index] + g * v1
-    templeSpaceFormantIc1[index] = 2 * v1 - templeSpaceFormantIc1[index]
-    templeSpaceFormantIc2[index] = 2 * v2 - templeSpaceFormantIc2[index]
-    return v1
   }
 
   private func nextTempleSpaceDrop(intensity: Double, salience: WorldSalienceScheduler) -> (left: Double, right: Double) {
@@ -1836,6 +1766,7 @@ private final class ProceduralAudioEngine: NSObject {
       thresholdShift: clamp(raw.thresholdShift, 0, 1),
       identityPresence: clamp(raw.identityPresence, 0, 12),
       identityDensity: clamp(raw.identityDensity, 0.2, 1),
+      identityVariety: clamp(raw.identityVariety, 0, 1),
       harmonicTranslation: clamp(raw.harmonicTranslation, 0, 1),
       templeGain: clamp(raw.templeGain, 0, 1),
       templeIntensity: clamp(raw.templeIntensity, 0, 1),
@@ -1957,6 +1888,7 @@ private final class ProceduralAudioEngine: NSObject {
       thresholdShift: lerp(from.thresholdShift, to.thresholdShift),
       identityPresence: lerp(from.identityPresence, to.identityPresence),
       identityDensity: lerp(from.identityDensity, to.identityDensity),
+      identityVariety: lerp(from.identityVariety, to.identityVariety),
       harmonicTranslation: lerp(from.harmonicTranslation, to.harmonicTranslation),
       templeGain: lerp(from.templeGain, to.templeGain),
       templeIntensity: lerp(from.templeIntensity, to.templeIntensity),
@@ -2461,6 +2393,308 @@ final class OceanModel {
 }
 
 /// Liminal harmonic environment with no fixed-period environmental motion.
+// Per-appearance variation for a world's identity sound. Each time the sound appears it draws a small
+// gesture: how loud, how long, how deep, where it sits and moves, whether it doubles or echoes itself.
+//
+// Everything is a pure function of (night seed, sound, appearance number), with no state of its own. A seek
+// or a resume therefore lands on the same gesture, and no other random stream in the engine is disturbed.
+// Two appearances in a row are never the same kind. The Kotlin engine mirrors this.
+enum IdentityGestures {
+  static let aumSalt: UInt64 = 0x41756d01
+  static let kinds = 6
+  private static var bagA = [Int](repeating: 0, count: 6)
+  private static var bagB = [Int](repeating: 0, count: 6)
+
+  private static func splitmix(_ x: UInt64) -> UInt64 {
+    var z = x &+ 0x9E3779B97F4A7C15
+    z = (z ^ (z >> 30)) &* 0xBF58476D1CE4E5B9
+    z = (z ^ (z >> 27)) &* 0x94D049BB133111EB
+    return z ^ (z >> 31)
+  }
+
+  /// A uniform draw in [0, 1) for one detail (`slot`) of one appearance.
+  static func draw(seed: UInt64, salt: UInt64, index: Int64, slot: Int) -> Double {
+    let bits = splitmix(splitmix(seed ^ salt) &+ UInt64(index) &* 32 &+ UInt64(slot))
+    return Double(bits >> 11) / 9007199254740992.0
+  }
+
+  private static func permutation(seed: UInt64, salt: UInt64, bag: Int64, into out: inout [Int]) {
+    for i in 0..<kinds { out[i] = i }
+    for i in stride(from: kinds - 1, through: 1, by: -1) {
+      let j = min(i, Int(draw(seed: seed, salt: salt ^ 0x62616700, index: bag, slot: 16 + i) * Double(i + 1)))
+      out.swapAt(i, j)
+    }
+  }
+
+  /// The kind of appearance number `index`. Kinds are dealt from a shuffled bag, so each turns up once in
+  /// every `kinds` appearances; a bag's first kind is swapped if it would repeat the previous bag's last.
+  static func kind(seed: UInt64, salt: UInt64, index: Int64) -> Int {
+    let bag = index / Int64(kinds)
+    let position = Int(index % Int64(kinds))
+    permutation(seed: seed, salt: salt, bag: bag, into: &bagA)
+    if bag > 0 {
+      permutation(seed: seed, salt: salt, bag: bag - 1, into: &bagB)
+      if bagA[0] == bagB[kinds - 1] { bagA.swapAt(0, 1) }
+    }
+    return bagA[position]
+  }
+}
+
+/// One appearance of the Aum. The neutral gesture is exactly the Aum as it has always sounded.
+final class AumGesture {
+  /// Consonant roots below the chant's own (A2): a whole tone, a fourth and a fifth below, and an octave down.
+  static let deeper = [8.0 / 9.0, 3.0 / 4.0, 2.0 / 3.0, 1.0 / 2.0]
+  static let kindPlain = 0, kindDoubled = 1, kindTraveller = 2, kindApproach = 3, kindEcho = 4, kindDeepening = 5
+
+  var kind = AumGesture.kindPlain
+  var level = 1.0
+  /// Seconds after the start of its 31 s cycle before the chant begins.
+  var startDelay = 0.0
+  /// 1 = the designed 9 s chant; above 1 it is longer.
+  var stretch = 1.0
+  var rootRatio = 1.0
+  /// Semitones the pitch falls over the chant.
+  var glide = 0.0
+  /// Level of a doubled Aum an octave beneath.
+  var sub = 0.0
+  var pans = false
+  var panStart = 0.0
+  var panEnd = 0.0
+  var distant = false
+  /// 0 = at the listener, 1 = far off.
+  var distStart = 0.0
+  var distEnd = 0.0
+  var echoSend = 0.0
+
+  func neutral() {
+    kind = Self.kindPlain; level = 1; startDelay = 0; stretch = 1; rootRatio = 1; glide = 0
+    sub = 0; pans = false; panStart = 0; panEnd = 0; distant = false; distStart = 0; distEnd = 0; echoSend = 0
+  }
+
+  /// Draws appearance number `index` at the given variety (0 = none, 1 = full).
+  func draw(seed: UInt64, index: Int64, variety: Double) {
+    neutral()
+    let salt = IdentityGestures.aumSalt
+    func u(_ slot: Int) -> Double { IdentityGestures.draw(seed: seed, salt: salt, index: index, slot: slot) }
+    kind = IdentityGestures.kind(seed: seed, salt: salt, index: index)
+    level = 1.0 + variety * (u(0) - 0.5) * 0.3
+    startDelay = variety * u(1) * 9.0
+    stretch = 1.0 + variety * (u(2) - 0.4) * 0.3
+    // A different group, a different root: most appearances stay on the chant's own note.
+    if u(3) < 0.2 + 0.45 * variety { rootRatio = Self.deeper[min(2, Int(u(4) * 3.0))] }
+    switch kind {
+    case Self.kindDoubled:
+      level *= 1.0 + 0.4 * variety
+      sub = 0.6 * variety
+    case Self.kindTraveller:
+      pans = true
+      panStart = (u(5) < 0.5 ? -1.0 : 1.0) * variety
+      panEnd = -panStart
+    case Self.kindApproach:
+      distant = true
+      distStart = 0.9 * variety
+      distEnd = 0.0
+    case Self.kindEcho:
+      echoSend = 0.55 * variety
+    case Self.kindDeepening:
+      // The group settles lower as it chants. The octave is kept for the fullest variety.
+      rootRatio = Self.deeper[min(variety > 0.7 ? 3 : 2, Int(u(6) * 4.0))]
+      glide = (1.0 + u(7) * 2.0) * variety
+    default:
+      break
+    }
+  }
+}
+
+/// The Temple world's chant: three imperfect virtual voices that move from an open "O" toward a closed nasal
+/// hum, once every 31 seconds. Each appearance draws its own gesture (see AumGesture); at variety 0 every
+/// appearance is the designed chant. The Kotlin engine mirrors this.
+///
+/// The chant is kept apart from the room: it returns its dry voice, its echo, and how much of it goes only to
+/// the room's reverb, and the Temple world places them.
+final class AumChant {
+  private static let freqs = [104.0, 108.0, 111.5]
+  private static let weights = [0.34, 0.28, 0.23]
+  private static let echoSeconds = 2.75
+
+  /// The chant's dry voice for this sample, already scaled by its level.
+  private(set) var voiceLeft = 0.0
+  private(set) var voiceRight = 0.0
+  /// The chant's echo of itself.
+  private(set) var echoLeft = 0.0
+  private(set) var echoRight = 0.0
+  /// Level sent only to the room's reverb, so a far-off chant is mostly reverb.
+  private(set) var farWet = 0.0
+
+  private var seed: UInt64 = 1
+  private var gate = 1.0
+  private var phases = [Double](repeating: 0, count: 3)
+  private var formantIc1 = [Double](repeating: 0, count: 4)
+  private var formantIc2 = [Double](repeating: 0, count: 4)
+  private let gesture = AumGesture()
+  private var gestureCycle: Int64 = -1
+  private var gestureNeutral = true
+  private var subPhases = [Double](repeating: 0, count: 3)
+  private var farLeft = 0.0
+  private var farRight = 0.0
+  private var echoBufferLeft = [Double](repeating: 0, count: 200_000)
+  private var echoBufferRight = [Double](repeating: 0, count: 200_000)
+  private var echoIndex = 0
+  private var echoDampLeft = 0.0
+  private var echoDampRight = 0.0
+
+  /// Starts a night: clears every voice and reverb tail, and sets the seed its gestures are drawn from.
+  func reset(seed nightSeed: UInt64) {
+    seed = nightSeed ^ 0x1d3f9a5b
+    gate = 1
+    phases = [Double](repeating: 0, count: 3)
+    formantIc1 = [Double](repeating: 0, count: 4)
+    formantIc2 = [Double](repeating: 0, count: 4)
+    gesture.neutral(); gestureNeutral = true; gestureCycle = -1
+    subPhases = [Double](repeating: 0, count: 3)
+    farLeft = 0; farRight = 0
+    for i in echoBufferLeft.indices { echoBufferLeft[i] = 0; echoBufferRight[i] = 0 }
+    echoIndex = 0; echoDampLeft = 0; echoDampRight = 0
+    voiceLeft = 0; voiceRight = 0; echoLeft = 0; echoRight = 0; farWet = 0
+  }
+
+  private func clamp(_ value: Double, _ low: Double, _ high: Double) -> Double { min(high, max(low, value)) }
+
+  func render(sampleRate: Double, elapsedSeconds: Double, intensity: Double, presence: Double, density: Double, variety: Double) {
+    let tau = Double.pi * 2
+    let chantPosition = elapsedSeconds + 26.0
+    let cycle = Int64(chantPosition / 31.0)
+    // Each appearance of the Aum draws its own gesture; at variety 0 every one is the designed chant.
+    if variety <= 0 {
+      if !gestureNeutral { gesture.neutral(); gestureNeutral = true; gestureCycle = -1 }
+    } else if gestureNeutral || cycle != gestureCycle {
+      gesture.draw(seed: seed, index: cycle, variety: variety)
+      gestureNeutral = false
+      gestureCycle = cycle
+    }
+    let chantTime = (fmod(chantPosition, 31.0) - gesture.startDelay) / gesture.stretch
+    // Sparser identity: the Aum sounds on every Nth 31 s cycle. The gate fades over a
+    // quarter second, so a change of density mid-chant can never click.
+    let chantEvery = max(1, Int((1.0 / density).rounded()))
+    let chantOpen = (chantEvery == 1 || cycle % Int64(chantEvery) == 0) ? 1.0 : 0.0
+    gate += (chantOpen - gate) / max(1, sampleRate * 0.25)
+    let chantEnvelope: Double
+    if chantTime < 0 || chantTime >= 9.0 {
+      chantEnvelope = 0
+    } else if chantTime < 2.2 {
+      chantEnvelope = 0.5 - 0.5 * cos(Double.pi * chantTime / 2.2)
+    } else if chantTime > 6.0 {
+      chantEnvelope = 0.5 + 0.5 * cos(Double.pi * (chantTime - 6.0) / 3.0)
+    } else {
+      chantEnvelope = 1
+    }
+    let chantGated = chantEnvelope * gate
+    let chantProgress = clamp(chantTime / 9.0, 0, 1)
+    let firstTransition = clamp(chantProgress / 0.56, 0, 1)
+    let finalTransition = clamp((chantProgress - 0.56) / 0.44, 0, 1)
+    let formant1 = chantProgress < 0.56
+      ? 700.0 + (300.0 - 700.0) * firstTransition
+      : 300.0 + (250.0 - 300.0) * finalTransition
+    let formant2 = chantProgress < 0.56
+      ? 1_200.0 + (800.0 - 1_200.0) * firstTransition
+      : 800.0 + (2_500.0 - 800.0) * finalTransition
+    let formant2Presence = 1.0 - finalTransition * 0.82
+    var sourceLeft = 0.0
+    var sourceRight = 0.0
+    var sub = 0.0
+    // The group's pitch: a deeper root, and sometimes a settling glide over the chant.
+    let pitchRatio = gesture.glide == 0 ? gesture.rootRatio : gesture.rootRatio * pow(2.0, -gesture.glide * chantProgress / 12.0)
+    for index in 0..<3 {
+      let phase = phases[index]
+      // A compact band-limited glottal source: richer than a sine but without
+      // the high-frequency aliasing of a naive sawtooth.
+      let glottal = sin(phase) + sin(phase * 2) * 0.42 + sin(phase * 3) * 0.18 + sin(phase * 4) * 0.08
+      let shimmer = 0.96 + 0.04 * sin(elapsedSeconds * tau * (5.1 + Double(index) * 0.47) + Double(index))
+      let voice = glottal * Self.weights[index] * shimmer
+      sourceLeft += voice * (index == 2 ? 0.62 : 1.0)
+      sourceRight += voice * (index == 0 ? 0.62 : 1.0)
+      sub += sin(phase) * Self.weights[index]
+      let jitter = 1.0 + 0.0014 * sin(elapsedSeconds * tau * (6.0 + Double(index) * 0.31) + Double(index) * 1.7)
+      phases[index] = fmod(phase + tau * Self.freqs[index] * jitter * pitchRatio / sampleRate, tau)
+    }
+    let chantLeft = bandpass(sampleRate, sourceLeft, index: 0, frequency: formant1, q: 6.5) * 1.65
+      + bandpass(sampleRate, sourceLeft, index: 1, frequency: formant2, q: 7.5) * 1.25 * formant2Presence
+      + sub * 0.08
+    let chantRight = bandpass(sampleRate, sourceRight, index: 2, frequency: formant1 * 0.992, q: 6.5) * 1.65
+      + bandpass(sampleRate, sourceRight, index: 3, frequency: formant2 * 1.008, q: 7.5) * 1.25 * formant2Presence
+      + sub * 0.08
+    var left = chantLeft
+    var right = chantRight
+    if gesture.sub > 0 {
+      // A doubled Aum an octave beneath, for presence.
+      var beneath = 0.0
+      for index in 0..<3 {
+        let phase = subPhases[index]
+        beneath += (sin(phase) + sin(phase * 2) * 0.4) * Self.weights[index]
+        subPhases[index] = fmod(phase + tau * Self.freqs[index] * 0.5 * pitchRatio / sampleRate, tau)
+      }
+      left += beneath * gesture.sub * 0.9
+      right += beneath * gesture.sub * 0.9
+    }
+    if gesture.pans {
+      // It enters in one ear and crosses to the other over the chant (equal power). The move is
+      // timed to the loud part of the chant, so it is heard rather than spent in the fades.
+      let panProgress = clamp((chantTime - 1.2) / 6.6, 0, 1)
+      let pan = gesture.panStart + (gesture.panEnd - gesture.panStart) * panProgress
+      let angle = (pan + 1.0) * Double.pi / 4.0
+      left *= cos(angle) * 1.4142135623730951
+      right *= sin(angle) * 1.4142135623730951
+    }
+    var dryMix = 1.0
+    var farSend = 0.0
+    if gesture.distant {
+      // Far off it is quieter, darker and mostly reverb; it draws near as the chant goes on.
+      let travel = chantProgress * chantProgress * (3.0 - 2.0 * chantProgress)
+      let distance = gesture.distStart + (gesture.distEnd - gesture.distStart) * travel
+      let farCoefficient = 1.0 - exp(-tau * (6_000.0 - 5_300.0 * distance) / sampleRate)
+      farLeft += (left - farLeft) * farCoefficient
+      farRight += (right - farRight) * farCoefficient
+      let farGain = 1.0 - 0.7 * distance
+      left = farLeft * farGain
+      right = farRight * farGain
+      dryMix = 1.0 - 0.65 * distance
+      farSend = 0.6 * distance
+    }
+    let chantLevel = chantGated * (0.18 + intensity * 0.12) * presence * gesture.level
+    var echoOutLeft = 0.0
+    var echoOutRight = 0.0
+    if variety > 0 {
+      // The chant answers itself a few seconds later, ping-ponging between the ears.
+      let size = echoBufferLeft.count
+      let length = min(size - 1, max(1, Int(sampleRate * Self.echoSeconds)))
+      let readAt = (echoIndex - length + size) % size
+      echoDampLeft += (echoBufferLeft[readAt] - echoDampLeft) * 0.3
+      echoDampRight += (echoBufferRight[readAt] - echoDampRight) * 0.3
+      echoBufferLeft[echoIndex] = left * chantLevel * gesture.echoSend + echoDampRight * 0.45
+      echoBufferRight[echoIndex] = right * chantLevel * gesture.echoSend + echoDampLeft * 0.45
+      echoIndex = (echoIndex + 1) % size
+      echoOutLeft = echoDampLeft * 0.8
+      echoOutRight = echoDampRight * 0.8
+    }
+    voiceLeft = left * chantLevel * dryMix
+    voiceRight = right * chantLevel * dryMix
+    echoLeft = echoOutLeft
+    echoRight = echoOutRight
+    farWet = farSend > 0 ? (left + right) * 0.5 * chantLevel * farSend : 0
+  }
+
+  /// Topology-preserving state-variable bandpass; stable while formants move.
+  private func bandpass(_ sampleRate: Double, _ input: Double, index: Int, frequency: Double, q: Double) -> Double {
+    let g = tan(Double.pi * frequency / sampleRate)
+    let k = 1 / q
+    let v1 = (formantIc1[index] + g * (input - formantIc2[index])) / (1 + g * (g + k))
+    let v2 = formantIc2[index] + g * v1
+    formantIc1[index] = 2 * v1 - formantIc1[index]
+    formantIc2[index] = 2 * v2 - formantIc2[index]
+    return v1
+  }
+}
+
 final class CosmicModel {
   private static let phi = 1.61803398875
   private static let fieldRatios = [1.0, 1.41421356237, phi, 2.61803398875]

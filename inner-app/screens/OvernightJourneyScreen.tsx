@@ -172,7 +172,7 @@ function overnightJourney(
             environment,
             environmentGain: stage.id === 'release' ? gain * 0.55 : gain,
             environmentIntensity: feel === 'immersive' ? 0.68 : feel === 'deep' ? 0.5 : 0.34,
-            ...identityPatch(environment, 'preparation'),
+            ...identityPatch(environment, 'preparation', feel),
           },
         })),
         ...overnightStages,

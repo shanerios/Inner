@@ -27,6 +27,7 @@ class AudioConfigRecord : Record {
   @Field var spatialRate: Double = 0.3
   @Field var identityPresence: Double = 1.0
   @Field var identityDensity: Double = 1.0
+  @Field var identityVariety: Double = 0.0
 }
 
 class SpatialEventRecord : Record {
