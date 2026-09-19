@@ -1030,7 +1030,7 @@ private final class ProceduralAudioEngine: NSObject {
       let leftNoise = (baseLeftNoise * (1 - rainMix) + rainNoise.left * rainGain * rainMix) * spatialDistance
       let rightNoise = (baseRightNoise * (1 - rainMix) + rainNoise.right * rainGain * rainMix) * spatialDistance
       let ocean = oceanEnvelope > 0.0001
-        ? nextOcean(elapsedSeconds: spatialSeconds, intensity: target.environmentIntensity, presence: target.identityPresence)
+        ? nextOcean(elapsedSeconds: spatialSeconds, intensity: target.environmentIntensity, presence: target.identityPresence, density: target.identityDensity, variety: target.identityVariety)
         : (left: 0.0, right: 0.0)
       let oceanGain = target.environmentGain * oceanEnvelope
       let abyssal = abyssalEnvelope > 0.0001
@@ -1394,8 +1394,8 @@ private final class ProceduralAudioEngine: NSObject {
     return Double(state & 0x00ff_ffff) / Double(0x007f_ffff) - 1
   }
 
-  private func nextOcean(elapsedSeconds: Double, intensity: Double, presence: Double) -> (left: Double, right: Double) {
-    oceanModel.render(sampleRate: sampleRate, intensity: intensity, salience: worldSalience, identityPresence: presence)
+  private func nextOcean(elapsedSeconds: Double, intensity: Double, presence: Double, density: Double, variety: Double) -> (left: Double, right: Double) {
+    oceanModel.render(sampleRate: sampleRate, intensity: intensity, salience: worldSalience, identityPresence: presence, identityDensity: density, identityVariety: variety)
     return (oceanModel.left, oceanModel.right)
   }
 
@@ -2262,12 +2262,24 @@ final class OceanModel {
   private var beaconAge = -1.0
   private var beaconBaseHz = 88.0
   private var beaconPan = 0.0
+  private var beaconCurrentPan = 0.0
   private var beaconPhase = 0.0
   private var beaconEcho = [Double](repeating: 0, count: 24_000)
   private var beaconEchoIndex = 0
   private var beaconWet = 0.0
   private var beaconLeft = 0.0
   private var beaconRight = 0.0
+  private var beaconGestureSeed: UInt64 = 1
+  private var beaconAppearance: Int64 = 0
+  private var beaconRootRatio = 1.0
+  private var beaconGlide = 0.0
+  private var beaconBrightness = 1.0
+  private var beaconLevel = 1.0
+  private var beaconTravel = 0.0
+  private var beaconApproach = 0.0
+  private var beaconAnswer = 0.0
+  private var beaconAnswerPhase = 0.0
+  private var beaconEchoBoost = 0.0
 
   func reset(seed: UInt64, sampleRate: Double) {
     random = seed ^ 0x510e527f
@@ -2284,9 +2296,12 @@ final class OceanModel {
     bubbleCursor = 0; bubbleCountdown = 0; bubbleBurstRemaining = 0; bubbleSequenceAdmitted = false
     beaconRandom = seed ^ 0x626561636f6e
     if beaconRandom == 0 { beaconRandom = 1 }
-    beaconCountdown = rate * 16; beaconAge = -1; beaconBaseHz = 88; beaconPan = 0; beaconPhase = 0
+    beaconCountdown = rate * 16; beaconAge = -1; beaconBaseHz = 88; beaconPan = 0; beaconCurrentPan = 0; beaconPhase = 0
     beaconEcho = [Double](repeating: 0, count: max(2, Int(rate * 0.5)))
     beaconEchoIndex = 0; beaconWet = 0; beaconLeft = 0; beaconRight = 0
+    beaconGestureSeed = seed; beaconAppearance = 0
+    beaconRootRatio = 1; beaconGlide = 0; beaconBrightness = 1; beaconLevel = 1
+    beaconTravel = 0; beaconApproach = 0; beaconAnswer = 0; beaconAnswerPhase = 0; beaconEchoBoost = 0
     bubbleLeft = 0; bubbleRight = 0; left = 0; right = 0
   }
 
@@ -2302,7 +2317,31 @@ final class OceanModel {
     return Double(beaconRandom & 0x00ff_ffff) / Double(0x00ff_ffff)
   }
 
-  private func renderBeacon(salience: WorldSalienceScheduler, presence: Double) {
+  private func drawBeaconGesture(variety: Double) {
+    beaconRootRatio = 1; beaconGlide = 0; beaconBrightness = 1; beaconLevel = 1
+    beaconTravel = 0; beaconApproach = 0; beaconAnswer = 0; beaconAnswerPhase = 0; beaconEchoBoost = 0
+    let index = beaconAppearance
+    beaconAppearance += 1
+    if variety <= 0 { return }
+    let salt = IdentityGestures.oceanSalt
+    func u(_ slot: Int) -> Double { IdentityGestures.draw(seed: beaconGestureSeed, salt: salt, index: index, slot: slot) }
+    let kind = IdentityGestures.kind(seed: beaconGestureSeed, salt: salt, index: index, kinds: IdentityGestures.oceanKinds)
+    beaconLevel = 1 + variety * (u(0) - 0.5) * 0.16
+    // 0 plain; 1 darker; 2 falling; 3 crossing; 4 approaching; 5 answered; 6 longer echo.
+    switch kind {
+    case 1:
+      beaconRootRatio = pow(2, -(1 + u(1) * 2) * variety / 12)
+      beaconBrightness = 1 - 0.24 * variety
+    case 2: beaconGlide = -(1 + u(2) * 1.5) * variety
+    case 3: beaconTravel = (u(3) < 0.5 ? -1 : 1) * 0.3 * variety
+    case 4: beaconApproach = 0.75 * variety
+    case 5: beaconAnswer = 0.32 * variety
+    case 6: beaconEchoBoost = 0.3 * variety
+    default: break
+    }
+  }
+
+  private func renderBeacon(salience: WorldSalienceScheduler, presence: Double, density: Double, variety: Double) {
     if beaconAge < 0 {
       beaconCountdown -= 1
       if beaconCountdown <= 0 {
@@ -2310,7 +2349,9 @@ final class OceanModel {
           beaconAge = 0
           beaconBaseHz = 82 + beaconUnit() * 14
           beaconPan = (beaconUnit() * 2 - 1) * 0.28
-          beaconCountdown = rate * (105 + beaconUnit() * 55)
+          beaconCountdown = rate * (105 + beaconUnit() * 55) / max(0.2, min(1, density)) *
+            (1 - 0.25 * max(0, min(1, (variety - 0.6) / 0.4)))
+          drawBeaconGesture(variety: variety)
         } else {
           beaconCountdown = rate * 3
         }
@@ -2319,13 +2360,25 @@ final class OceanModel {
     var dry = 0.0
     if beaconAge >= 0 {
       let seconds = beaconAge / rate
+      let progress = max(0, min(1, seconds / 16))
       let attack = max(0, min(1, seconds / 3.2))
       let release = max(0, min(1, (16 - seconds) / 8))
       let envelope = (0.5 - 0.5 * cos(Double.pi * attack)) * (release * release * (3 - 2 * release))
       let swell = 1 + 0.004 * sin(seconds * 2 * Double.pi / 9)
-      beaconPhase = fmod(beaconPhase + 2 * Double.pi * beaconBaseHz * swell / rate, 2 * Double.pi)
-      let horn = sin(beaconPhase) * 0.56 + sin(beaconPhase * 2) * 0.28 + sin(beaconPhase * 3) * 0.12 + sin(beaconPhase * 4) * 0.04
-      dry = horn * envelope * 0.25 * max(0, min(1.5, presence))
+      let glideRatio = beaconGlide == 0 ? 1 : pow(2, beaconGlide * progress / 12)
+      beaconPhase = fmod(beaconPhase + 2 * Double.pi * beaconBaseHz * beaconRootRatio * glideRatio * swell / rate, 2 * Double.pi)
+      let horn = sin(beaconPhase) * 0.56 + sin(beaconPhase * 2) * (0.28 * beaconBrightness) +
+        sin(beaconPhase * 3) * (0.12 * beaconBrightness) + sin(beaconPhase * 4) * (0.04 * beaconBrightness)
+      let distance = beaconApproach * abs(progress * 2 - 1)
+      dry = horn * envelope * beaconLevel * (1 - 0.3 * distance) * 0.25 * max(0, min(1.5, presence))
+      beaconCurrentPan = beaconPan + beaconTravel * (progress * 2 - 1)
+      if beaconAnswer > 0 && seconds >= 6 && seconds <= 15 {
+        let answerProgress = (seconds - 6) / 9
+        let answerEnvelope = pow(sin(Double.pi * answerProgress), 2)
+        beaconAnswerPhase = fmod(beaconAnswerPhase + 2 * Double.pi * beaconBaseHz * 0.75 / rate, 2 * Double.pi)
+        let answerHorn = sin(beaconAnswerPhase) * 0.65 + sin(beaconAnswerPhase * 2) * 0.35
+        dry += answerHorn * answerEnvelope * beaconAnswer * 0.25 * max(0, min(1.5, presence))
+      }
       beaconAge += 1
       if seconds >= 16 { beaconAge = -1 }
     }
@@ -2335,9 +2388,9 @@ final class OceanModel {
     beaconWet += ((first + second) * 0.5 - beaconWet) * 0.018
     beaconEcho[beaconEchoIndex] = dry + beaconWet * 0.35
     beaconEchoIndex = (beaconEchoIndex + 1) % echoSize
-    let distant = dry * 0.72 + beaconWet * 0.46
-    beaconLeft = distant * (1 - beaconPan)
-    beaconRight = distant * (1 + beaconPan)
+    let distant = dry * 0.72 + beaconWet * (0.46 + beaconEchoBoost)
+    beaconLeft = distant * (1 - beaconCurrentPan)
+    beaconRight = distant * (1 + beaconCurrentPan)
   }
 
   private func enter(_ next: Int, intensity: Double, salience: WorldSalienceScheduler) {
@@ -2407,7 +2460,7 @@ final class OceanModel {
     }
   }
 
-  func render(sampleRate: Double, intensity: Double, salience: WorldSalienceScheduler, identityPresence: Double) {
+  func render(sampleRate: Double, intensity: Double, salience: WorldSalienceScheduler, identityPresence: Double, identityDensity: Double, identityVariety: Double) {
     if rate != sampleRate { reset(seed: random, sampleRate: sampleRate) }
     advance(intensity: intensity, salience: salience)
     moodFrames -= 1
@@ -2445,7 +2498,7 @@ final class OceanModel {
     let brightLeft = (leftWhite - foamLeft * 0.66) * foamLevel * (0.72 + intensity * 0.38)
     let brightRight = (rightWhite - foamRight * 0.66) * foamLevel * (0.72 + intensity * 0.38)
     renderBubbles()
-    renderBeacon(salience: salience, presence: identityPresence)
+    renderBeacon(salience: salience, presence: identityPresence, density: identityDensity, variety: identityVariety)
     left = undertow * (1 - renderedPan * 0.12) + brightLeft * (0.72 + renderedWidth * 0.35) * (1 - renderedPan * 0.3) + bubbleLeft + beaconLeft
     right = undertow * (1 + renderedPan * 0.12) + brightRight * (0.72 + renderedWidth * 0.35) * (1 + renderedPan * 0.3) + bubbleRight + beaconRight
     phaseAge += 1
@@ -2466,6 +2519,8 @@ enum IdentityGestures {
   static let whaleKinds = 7
   static let cosmicSalt: UInt64 = 0x436f736d
   static let cosmicKinds = 9
+  static let oceanSalt: UInt64 = 0x4f6365616e
+  static let oceanKinds = 6
   private static var bagA = [Int](repeating: 0, count: 10)
   private static var bagB = [Int](repeating: 0, count: 10)
 

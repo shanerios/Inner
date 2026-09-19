@@ -17,6 +17,8 @@ internal object IdentityGestures {
   const val WHALE_KINDS = 7
   const val COSMIC_SALT = 0x436f736dL
   const val COSMIC_KINDS = 9
+  const val OCEAN_SALT = 0x4f6365616eL
+  const val OCEAN_KINDS = 6
 
   private val bagA = IntArray(10)
   private val bagB = IntArray(10)

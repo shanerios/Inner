@@ -60,14 +60,27 @@ describe('identity arc', () => {
   });
 
   it('leaves worlds without an identity sound exactly as they were', () => {
-    for (const environment of ['ocean', 'forest', 'fire', 'wind', 'none'] as const) {
+    for (const environment of ['forest', 'fire', 'wind', 'none'] as const) {
       for (const stage of STAGES) expect(identityPatch(environment, stage)).toEqual({});
     }
-    const ocean = compile('ocean');
-    for (const phase of ocean.phases) {
-      expect(phase.audioConfig.identityPresence).toBe(1);
-      expect(phase.audioConfig.identityDensity).toBe(1);
+  });
+
+  it('gives Ocean the shared night arc and +2 dB Immersive lift from its approved level', () => {
+    const oceanPatch = (stage: IdentityStage, feel: 'gentle' | 'deep' | 'immersive' = 'gentle') => identityPatch('ocean', stage, feel);
+    expect(oceanPatch('preparation').identityPresence).toBe(1);
+    expect(oceanPatch('descent').identityPresence).toBe(1);
+    expect(oceanPatch('earlySleep').identityPresence).toBeCloseTo(10 ** (-3 / 20), 10);
+    expect(oceanPatch('remSleep').identityPresence).toBeCloseTo(10 ** (-5 / 20), 10);
+    expect(oceanPatch('recognitionWindow').identityPresence).toBeCloseTo(10 ** (-14 / 20), 10);
+    for (const stage of STAGES) {
+      expect(oceanPatch(stage, 'deep').identityPresence).toBeCloseTo(oceanPatch(stage).identityPresence!, 10);
+      expect(oceanPatch(stage, 'immersive').identityPresence! / oceanPatch(stage).identityPresence!).toBeCloseTo(10 ** (2 / 20), 10);
+      expect(oceanPatch(stage, 'immersive').identityVariety).toBe(1);
     }
+    expect(oceanPatch('remSleep').identityDensity).toBe(0.5);
+    const ocean = compile('ocean');
+    expect(ocean.phases.find(phase => phase.id === 'sleep-protection-1')!.audioConfig.identityPresence).toBeCloseTo(oceanPatch('earlySleep').identityPresence!, 10);
+    expect(ocean.phases.find(phase => phase.id === 'sleep-protection-2')!.audioConfig.identityDensity).toBe(0.5);
   });
 
   it('sets each protocol phase from its stage: 1 preparation and descent, 2 early sleep, 3 from the first signal', () => {
@@ -216,8 +229,8 @@ describe('identity controls across JS and both native engines', () => {
 
   it('routes Ocean beacon presence while leaving worlds without identity sounds unchanged', () => {
     const engine = kotlin('ProceduralAudioEngine.kt');
-    expect(engine).toMatch(/nextOcean\([^)]*target\.identityPresence/);
-    expect(swift).toMatch(/nextOcean\([^)]*presence: target\.identityPresence/);
+    expect(engine).toMatch(/nextOcean\([^)]*target\.identityPresence, target\.identityDensity, target\.identityVariety/);
+    expect(swift).toMatch(/nextOcean\([^)]*presence: target\.identityPresence, density: target\.identityDensity, variety: target\.identityVariety/);
     for (const world of ['Wind', 'Fire', 'Forest']) {
       expect(engine).not.toMatch(new RegExp(`next${world}\\([^)]*presence`));
     }
