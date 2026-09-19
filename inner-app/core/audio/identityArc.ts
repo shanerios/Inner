@@ -67,6 +67,17 @@ export const IDENTITY_FEEL_VARIETY = { gentle: 0, deep: 0.6, immersive: 1 } as c
 
 export type IdentityFeel = keyof typeof IDENTITY_FEEL_VARIETY;
 
+/**
+ * Extra level for a fuller feel, in dB, per sound. Someone who chooses Immersive wants to be in the room:
+ * the Aum stands 2 dB higher there (Deep was right as it was). The whale call and Cosmic voice get their
+ * feel offsets when their gestures are designed.
+ */
+export const IDENTITY_FEEL_OFFSET_DB: Record<IdentityWorld, Record<IdentityFeel, number>> = {
+  temple: { gentle: 0, deep: 0, immersive: 2 },
+  abyssal: { gentle: 0, deep: 0, immersive: 0 },
+  cosmic: { gentle: 0, deep: 0, immersive: 0 },
+};
+
 /** The native engines clamp presence to this; the arc must stay under it. */
 export const IDENTITY_PRESENCE_MAX = 12;
 
@@ -80,21 +91,21 @@ function measuredDb(world: IdentityWorld, stage: IdentityStage): number {
 }
 
 /** Where the identity sound should stand above the bed at this stage, in dB. */
-export function identityTargetDb(world: IdentityWorld, stage: IdentityStage): number {
+export function identityTargetDb(world: IdentityWorld, stage: IdentityStage, feel: IdentityFeel = 'gentle'): number {
   const offset = stage === 'recognitionWindow'
     ? IDENTITY_STAGE_OFFSET_DB.remSleep + IDENTITY_WINDOW_YIELD_DB
     : IDENTITY_STAGE_OFFSET_DB[stage];
-  return IDENTITY_STAGE_ONE_SNR_DB[world] + offset;
+  return IDENTITY_STAGE_ONE_SNR_DB[world] + offset + IDENTITY_FEEL_OFFSET_DB[world][feel];
 }
 
-export function identityPresenceFor(world: IdentityWorld, stage: IdentityStage): number {
-  const gainDb = identityTargetDb(world, stage) - measuredDb(world, stage);
+export function identityPresenceFor(world: IdentityWorld, stage: IdentityStage, feel: IdentityFeel = 'gentle'): number {
+  const gainDb = identityTargetDb(world, stage, feel) - measuredDb(world, stage);
   return Math.min(IDENTITY_PRESENCE_MAX, 10 ** (gainDb / 20));
 }
 
 /** Where the identity sound actually lands above the bed once presence is applied, in dB. */
-export function identityAchievedDb(world: IdentityWorld, stage: IdentityStage): number {
-  return measuredDb(world, stage) + 20 * Math.log10(identityPresenceFor(world, stage));
+export function identityAchievedDb(world: IdentityWorld, stage: IdentityStage, feel: IdentityFeel = 'gentle'): number {
+  return measuredDb(world, stage) + 20 * Math.log10(identityPresenceFor(world, stage, feel));
 }
 
 /**
@@ -108,7 +119,7 @@ export function identityPatch(
 ): ProceduralAudioPatch {
   if (!isIdentityWorld(environment)) return {};
   return {
-    identityPresence: identityPresenceFor(environment, stage),
+    identityPresence: identityPresenceFor(environment, stage, feel),
     identityDensity: IDENTITY_STAGE_DENSITY[stage],
     identityVariety: IDENTITY_FEEL_VARIETY[feel],
   };

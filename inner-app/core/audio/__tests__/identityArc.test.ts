@@ -7,6 +7,7 @@ import {
   identityPatch,
   identityPresenceFor,
   identityTargetDb,
+  IDENTITY_FEEL_OFFSET_DB,
   IDENTITY_FEEL_VARIETY,
   IDENTITY_PRESENCE_MAX,
   IDENTITY_STAGE_DENSITY,
@@ -86,6 +87,33 @@ describe('identity arc', () => {
         expect(window.audioConfig.identityPresence).toBeLessThan(presence('sleep-protection-2'));
       }
     }
+  });
+
+  it('raises the Aum 2 dB in Immersive only, and leaves Gentle and Deep exactly as they were', () => {
+    expect(IDENTITY_FEEL_OFFSET_DB.temple).toEqual({ gentle: 0, deep: 0, immersive: 2 });
+    for (const stage of STAGES) {
+      const gentle = identityPresenceFor('temple', stage);
+      expect(identityPresenceFor('temple', stage, 'gentle')).toBe(gentle);
+      expect(identityPresenceFor('temple', stage, 'deep')).toBe(gentle);
+      expect(identityPresenceFor('temple', stage, 'immersive') / gentle).toBeCloseTo(10 ** (2 / 20), 10);
+      expect(identityAchievedDb('temple', stage, 'immersive') - identityAchievedDb('temple', stage)).toBeCloseTo(2, 8);
+    }
+    // The other sounds are unchanged until their gestures are designed, and no feel reaches the cap.
+    for (const world of WORLDS) {
+      for (const feel of ['gentle', 'deep', 'immersive'] as const) {
+        for (const stage of STAGES) expect(identityPresenceFor(world, stage, feel)).toBeLessThan(IDENTITY_PRESENCE_MAX);
+        if (world !== 'temple') expect(identityPresenceFor(world, 'preparation', feel)).toBe(identityPresenceFor(world, 'preparation'));
+      }
+    }
+  });
+
+  it('carries the Immersive Aum level into every protocol phase', () => {
+    const presences = (feel: 'gentle' | 'deep' | 'immersive') => compileOvernightProtocol(createRecognitionOvernightProtocol({
+      sleepDurationMinutes: 8 * 60, environment: 'temple', signalId: 'chimes', cuePlan: 'standard', feel,
+    }), DEFAULT_PROCEDURAL_AUDIO_CONFIG).phases.map(phase => phase.audioConfig.identityPresence);
+    const gentle = presences('gentle');
+    expect(presences('deep')).toEqual(gentle);
+    presences('immersive').forEach((value, index) => expect(value / gentle[index]).toBeCloseTo(10 ** (2 / 20), 8));
   });
 
   it('sets how much each appearance varies by feel: Gentle none, Deep some, Immersive the most', () => {

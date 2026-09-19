@@ -1,6 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 import * as fs from 'fs';
 import * as path from 'path';
+import { IDENTITY_FEEL_VARIETY } from '../identityArc';
 
 const ROOT = path.resolve(__dirname, '../../..');
 const kotlinDir = path.join(ROOT, 'modules/inner-audio/android/src/main/java/expo/modules/inneraudio');
@@ -81,7 +82,14 @@ describe('Aum chant: the gestures are shaped the same way in Kotlin and Swift', 
       ['private val FREQS = doubleArrayOf(104.0, 108.0, 111.5)', 'private static let freqs = [104.0, 108.0, 111.5]'],
       ['private val WEIGHTS = doubleArrayOf(0.34, 0.28, 0.23)', 'private static let weights = [0.34, 0.28, 0.23]'],
       ['private const val ECHO_SECONDS = 2.75', 'private static let echoSeconds = 2.75'],
-      ['val chantTime = ((chantPosition % 31.0) - gesture.startDelay) / gesture.stretch', 'let chantTime = (fmod(chantPosition, 31.0) - gesture.startDelay) / gesture.stretch'],
+      ['private const val PERIOD_SECONDS = 31.0', 'private static let periodSeconds = 31.0'],
+      ['private const val PERIOD_FULL_SECONDS = 25.0', 'private static let periodFullSeconds = 25.0'],
+      ['private const val PERIOD_SHORTENS_FROM = 0.6', 'private static let periodShortensFrom = 0.6'],
+      ['val period = PERIOD_SECONDS - (PERIOD_SECONDS - PERIOD_FULL_SECONDS) * clamp((variety - PERIOD_SHORTENS_FROM) / (1.0 - PERIOD_SHORTENS_FROM), 0.0, 1.0)', 'let period = Self.periodSeconds - (Self.periodSeconds - Self.periodFullSeconds) * clamp((variety - Self.periodShortensFrom) / (1.0 - Self.periodShortensFrom), 0, 1)'],
+      ['val chantPosition = elapsedSeconds + (period - 5.0)', 'let chantPosition = elapsedSeconds + (period - 5.0)'],
+      ['val cycle = (chantPosition / period).toLong()', 'let cycle = Int64(chantPosition / period)'],
+      ['val chantTime = ((chantPosition % period) - gesture.startDelay) / gesture.stretch', 'let chantTime = (fmod(chantPosition, period) - gesture.startDelay) / gesture.stretch'],
+      ['cycle % chantEvery == 0L', 'cycle % Int64(chantEvery) == 0'],
       ['gesture.rootRatio * 2.0.pow(-gesture.glide * chantProgress / 12.0)', 'gesture.rootRatio * pow(2.0, -gesture.glide * chantProgress / 12.0)'],
       ['left += beneath * gesture.sub * 0.9', 'left += beneath * gesture.sub * 0.9'],
       ['val panProgress = clamp((chantTime - 1.2) / 6.6, 0.0, 1.0)', 'let panProgress = clamp((chantTime - 1.2) / 6.6, 0, 1)'],
@@ -94,6 +102,15 @@ describe('Aum chant: the gestures are shaped the same way in Kotlin and Swift', 
       expect(chant).toContain(kotlinLine);
       expect(swift).toContain(swiftLine);
     }
+  });
+
+  it('keeps the designed 31 s cycle for Gentle and Deep and shortens it only for Immersive', () => {
+    const from = Number(chant.match(/PERIOD_SHORTENS_FROM = ([0-9.]+)/)![1]);
+    expect(IDENTITY_FEEL_VARIETY.gentle).toBeLessThanOrEqual(from);
+    expect(IDENTITY_FEEL_VARIETY.deep).toBeLessThanOrEqual(from);
+    expect(IDENTITY_FEEL_VARIETY.immersive).toBeGreaterThan(from);
+    // The first chant is always 5 s in, whatever the period.
+    expect(chant).toContain('elapsedSeconds + (period - 5.0)');
   });
 
   it('is placed the same way by the Temple room, with variety 0 leaving the chant exactly as designed', () => {

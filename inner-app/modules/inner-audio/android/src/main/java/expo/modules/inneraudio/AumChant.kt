@@ -23,6 +23,11 @@ internal class AumChant {
     private val FREQS = doubleArrayOf(104.0, 108.0, 111.5)
     private val WEIGHTS = doubleArrayOf(0.34, 0.28, 0.23)
     private const val ECHO_SECONDS = 2.75
+    /** Seconds between appearances up to variety 0.6 (Gentle and Deep). */
+    private const val PERIOD_SECONDS = 31.0
+    /** Seconds between appearances at the fullest variety (Immersive): about a quarter more often. */
+    private const val PERIOD_FULL_SECONDS = 25.0
+    private const val PERIOD_SHORTENS_FROM = 0.6
   }
 
   /** The chant's dry voice for this sample, already scaled by its level. */
@@ -72,8 +77,11 @@ internal class AumChant {
 
   fun render(sampleRate: Double, elapsedSeconds: Double, intensity: Double, presence: Double, density: Double, variety: Double) {
     val tau = PI * 2
-    val chantPosition = elapsedSeconds + 26.0
-    val cycle = (chantPosition / 31.0).toLong()
+    // The period is fixed for a night (a feel's variety does not change during it); from variety 0.6 it
+    // shortens, so a fuller feel hears the chant more often. The first chant stays 5 s in.
+    val period = PERIOD_SECONDS - (PERIOD_SECONDS - PERIOD_FULL_SECONDS) * clamp((variety - PERIOD_SHORTENS_FROM) / (1.0 - PERIOD_SHORTENS_FROM), 0.0, 1.0)
+    val chantPosition = elapsedSeconds + (period - 5.0)
+    val cycle = (chantPosition / period).toLong()
     // Each appearance of the Aum draws its own gesture; at variety 0 every one is the designed chant.
     if (variety <= 0.0) {
       if (!gestureNeutral) { gesture.neutral(); gestureNeutral = true; gestureCycle = -1L }
@@ -82,11 +90,11 @@ internal class AumChant {
       gestureNeutral = false
       gestureCycle = cycle
     }
-    val chantTime = ((chantPosition % 31.0) - gesture.startDelay) / gesture.stretch
+    val chantTime = ((chantPosition % period) - gesture.startDelay) / gesture.stretch
     // Sparser identity: the Aum sounds on every Nth 31 s cycle. The gate fades over a
     // quarter second, so a change of density mid-chant can never click.
     val chantEvery = max(1, Math.round(1.0 / density).toInt())
-    val chantOpen = if (chantEvery == 1 || (chantPosition / 31.0).toLong() % chantEvery == 0L) 1.0 else 0.0
+    val chantOpen = if (chantEvery == 1 || cycle % chantEvery == 0L) 1.0 else 0.0
     gate += (chantOpen - gate) / max(1.0, sampleRate * 0.25)
     val chantEnvelope = when {
       chantTime < 0.0 || chantTime >= 9.0 -> 0.0

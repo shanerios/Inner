@@ -2516,6 +2516,11 @@ final class AumChant {
   private static let freqs = [104.0, 108.0, 111.5]
   private static let weights = [0.34, 0.28, 0.23]
   private static let echoSeconds = 2.75
+  /// Seconds between appearances up to variety 0.6 (Gentle and Deep).
+  private static let periodSeconds = 31.0
+  /// Seconds between appearances at the fullest variety (Immersive): about a quarter more often.
+  private static let periodFullSeconds = 25.0
+  private static let periodShortensFrom = 0.6
 
   /// The chant's dry voice for this sample, already scaled by its level.
   private(set) var voiceLeft = 0.0
@@ -2562,8 +2567,11 @@ final class AumChant {
 
   func render(sampleRate: Double, elapsedSeconds: Double, intensity: Double, presence: Double, density: Double, variety: Double) {
     let tau = Double.pi * 2
-    let chantPosition = elapsedSeconds + 26.0
-    let cycle = Int64(chantPosition / 31.0)
+    // The period is fixed for a night (a feel's variety does not change during it); from variety 0.6 it
+    // shortens, so a fuller feel hears the chant more often. The first chant stays 5 s in.
+    let period = Self.periodSeconds - (Self.periodSeconds - Self.periodFullSeconds) * clamp((variety - Self.periodShortensFrom) / (1.0 - Self.periodShortensFrom), 0, 1)
+    let chantPosition = elapsedSeconds + (period - 5.0)
+    let cycle = Int64(chantPosition / period)
     // Each appearance of the Aum draws its own gesture; at variety 0 every one is the designed chant.
     if variety <= 0 {
       if !gestureNeutral { gesture.neutral(); gestureNeutral = true; gestureCycle = -1 }
@@ -2572,7 +2580,7 @@ final class AumChant {
       gestureNeutral = false
       gestureCycle = cycle
     }
-    let chantTime = (fmod(chantPosition, 31.0) - gesture.startDelay) / gesture.stretch
+    let chantTime = (fmod(chantPosition, period) - gesture.startDelay) / gesture.stretch
     // Sparser identity: the Aum sounds on every Nth 31 s cycle. The gate fades over a
     // quarter second, so a change of density mid-chant can never click.
     let chantEvery = max(1, Int((1.0 / density).rounded()))
