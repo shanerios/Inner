@@ -193,10 +193,10 @@ describe('identity controls across JS and both native engines', () => {
 
   it('applies presence and density to the whale call the same way in both engines', () => {
     const abyssal = kotlin('AbyssalModel.kt');
-    expect(abyssal).toContain('creatureCountdown = rate * (42.0 + unit() * 58.0) / density * (1.0 - 0.2 * ((variety - 0.6) / 0.4).coerceIn(0.0, 1.0))');
+    expect(abyssal).toContain('creatureCountdown = rate * (42.0 + unit() * 58.0) / density * (1.0 - 0.5 * ((variety - 0.6) / 0.4).coerceIn(0.0, 1.0))');
     expect(abyssal).toContain('creatureLeft = (callLeft + answerLeft) * presence');
     expect(abyssal).toContain('creatureLeft = (shapedLeft + answerLeft + gestureExtraLeft) * presence');
-    expect(swift).toContain('creatureCountdown = rate * (42 + unit() * 58) / density * (1.0 - 0.2 * min(1, max(0, (variety - 0.6) / 0.4)))');
+    expect(swift).toContain('creatureCountdown = rate * (42 + unit() * 58) / density * (1.0 - 0.5 * min(1, max(0, (variety - 0.6) / 0.4)))');
     expect(swift).toContain('return ((callLeft + answerLeft) * presence, (callRight + answerRight) * presence)');
     expect(swift).toContain('return ((shapedLeft + answerLeft + gestureExtraLeft) * presence, (shapedRight + answerRight + gestureExtraRight) * presence)');
   });

@@ -81,7 +81,8 @@ describe('whale gestures: Kotlin and Swift draw the same appearance and shape th
     expect(IDENTITY_FEEL_VARIETY.gentle).toBeLessThanOrEqual(0.6);
     expect(IDENTITY_FEEL_VARIETY.deep).toBeLessThanOrEqual(0.6);
     expect(IDENTITY_FEEL_VARIETY.immersive).toBeGreaterThan(0.6);
-    expect(model).toContain('(1.0 - 0.2 * ((variety - 0.6) / 0.4).coerceIn(0.0, 1.0))');
+    expect(model).toContain('(1.0 - 0.5 * ((variety - 0.6) / 0.4).coerceIn(0.0, 1.0))');
+    expect(swift).toContain('(1.0 - 0.5 * min(1, max(0, (variety - 0.6) / 0.4)))');
   });
 
   it('does no work at variety 0, and answers with the original expression', () => {

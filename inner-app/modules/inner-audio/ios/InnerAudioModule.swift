@@ -3260,9 +3260,9 @@ final class AbyssalModel {
           responseEndHz = 92 + unit() * 32
           responsePan = -creaturePan * 0.9
           responseLevel = baseCreatureLevel * (0.4 + unit() * 0.12) * 1.75
-          // Sparser identity: longer silences between calls. From variety 0.6 the silences shorten, so a
-          // fuller feel hears the whale about a quarter more often (Gentle and Deep are unchanged).
-          creatureCountdown = rate * (42 + unit() * 58) / density * (1.0 - 0.2 * min(1, max(0, (variety - 0.6) / 0.4)))
+          // Sparser identity: longer silences between calls. From variety 0.6 the silences shorten, down to
+          // half at the fullest feel, so Immersive is populated rather than sparse (Gentle and Deep are unchanged).
+          creatureCountdown = rate * (42 + unit() * 58) / density * (1.0 - 0.5 * min(1, max(0, (variety - 0.6) / 0.4)))
           beginGesture(variety)
         } else {
           creatureCountdown = rate * (3 + unit() * 3)
