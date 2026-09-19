@@ -42,6 +42,18 @@ internal class OceanModel {
   private var bubbleLeft = 0.0
   private var bubbleRight = 0.0
 
+  private var beaconRandom = 1L
+  private var beaconCountdown = 0.0
+  private var beaconAge = -1.0
+  private var beaconBaseHz = 88.0
+  private var beaconPan = 0.0
+  private var beaconPhase = 0.0
+  private var beaconEcho = DoubleArray(24_000)
+  private var beaconEchoIndex = 0
+  private var beaconWet = 0.0
+  private var beaconLeft = 0.0
+  private var beaconRight = 0.0
+
   fun reset(seed: Long, sampleRate: Double) {
     random = (seed xor 0x510e527fL).let { if (it == 0L) 1L else it }
     rate = sampleRate
@@ -52,6 +64,10 @@ internal class OceanModel {
     bubblePhases.fill(0.0); bubbleAges.fill(0.0); bubbleDurations.fill(0.0)
     bubbleFrequencies.fill(0.0); bubbleAmplitudes.fill(0.0); bubblePans.fill(0.0)
     bubbleCursor = 0; bubbleCountdown = 0.0; bubbleBurstRemaining = 0; bubbleSequenceAdmitted = false
+    beaconRandom = (seed xor 0x626561636f6eL).let { if (it == 0L) 1L else it }
+    beaconCountdown = rate * 16.0; beaconAge = -1.0; beaconBaseHz = 88.0; beaconPan = 0.0; beaconPhase = 0.0
+    beaconEcho = DoubleArray(max(2, (rate * 0.5).toInt()))
+    beaconEchoIndex = 0; beaconWet = 0.0; beaconLeft = 0.0; beaconRight = 0.0
     left = 0.0; right = 0.0
   }
 
@@ -63,6 +79,51 @@ internal class OceanModel {
   }
 
   private fun white(): Double = unit() * 2 - 1
+
+  private fun beaconUnit(): Double {
+    beaconRandom = beaconRandom xor (beaconRandom shl 13)
+    beaconRandom = beaconRandom xor (beaconRandom ushr 7)
+    beaconRandom = beaconRandom xor (beaconRandom shl 17)
+    return (beaconRandom and 0x00ff_ffffL).toDouble() / 0x00ff_ffffL
+  }
+
+  private fun renderBeacon(salience: WorldSalienceScheduler, presence: Double) {
+    if (beaconAge < 0.0) {
+      beaconCountdown -= 1.0
+      if (beaconCountdown <= 0.0) {
+        if (presence > 0.0001 && salience.reserve(salience = 0.46, durationSeconds = 16.0, recoverySeconds = 5.0)) {
+          beaconAge = 0.0
+          beaconBaseHz = 82.0 + beaconUnit() * 14.0
+          beaconPan = (beaconUnit() * 2.0 - 1.0) * 0.28
+          beaconCountdown = rate * (105.0 + beaconUnit() * 55.0)
+        } else {
+          beaconCountdown = rate * 3.0
+        }
+      }
+    }
+    var dry = 0.0
+    if (beaconAge >= 0.0) {
+      val seconds = beaconAge / rate
+      val attack = (seconds / 3.2).coerceIn(0.0, 1.0)
+      val release = ((16.0 - seconds) / 8.0).coerceIn(0.0, 1.0)
+      val envelope = (0.5 - 0.5 * cos(PI * attack)) * (release * release * (3.0 - 2.0 * release))
+      val swell = 1.0 + 0.004 * sin(seconds * 2.0 * PI / 9.0)
+      beaconPhase = (beaconPhase + 2.0 * PI * beaconBaseHz * swell / rate) % (2.0 * PI)
+      val horn = sin(beaconPhase) * 0.56 + sin(beaconPhase * 2.0) * 0.28 + sin(beaconPhase * 3.0) * 0.12 + sin(beaconPhase * 4.0) * 0.04
+      dry = horn * envelope * 0.25 * presence.coerceIn(0.0, 1.5)
+      beaconAge += 1.0
+      if (seconds >= 16.0) beaconAge = -1.0
+    }
+    val echoSize = beaconEcho.size
+    val first = beaconEcho[(beaconEchoIndex - (rate * 0.19).toInt().coerceIn(1, echoSize - 1) + echoSize) % echoSize]
+    val second = beaconEcho[(beaconEchoIndex - (rate * 0.37).toInt().coerceIn(1, echoSize - 1) + echoSize) % echoSize]
+    beaconWet += ((first + second) * 0.5 - beaconWet) * 0.018
+    beaconEcho[beaconEchoIndex] = dry + beaconWet * 0.35
+    beaconEchoIndex = (beaconEchoIndex + 1) % echoSize
+    val distant = dry * 0.72 + beaconWet * 0.46
+    beaconLeft = distant * (1.0 - beaconPan)
+    beaconRight = distant * (1.0 + beaconPan)
+  }
 
   private fun enter(next: Int, intensity: Double, salience: WorldSalienceScheduler) {
     phase = next
@@ -133,7 +194,7 @@ internal class OceanModel {
     }
   }
 
-  fun render(sampleRate: Double, intensity: Double, salience: WorldSalienceScheduler) {
+  fun render(sampleRate: Double, intensity: Double, salience: WorldSalienceScheduler, identityPresence: Double) {
     if (rate != sampleRate) reset(random, sampleRate)
     advance(intensity, salience)
     moodFrames -= 1
@@ -172,8 +233,9 @@ internal class OceanModel {
     val brightLeft = (leftWhite - foamLeft * 0.66) * foamLevel * (0.72 + intensity * 0.38)
     val brightRight = (rightWhite - foamRight * 0.66) * foamLevel * (0.72 + intensity * 0.38)
     renderBubbles()
-    left = undertow * (1 - renderedPan * 0.12) + brightLeft * (0.72 + renderedWidth * 0.35) * (1 - renderedPan * 0.3) + bubbleLeft
-    right = undertow * (1 + renderedPan * 0.12) + brightRight * (0.72 + renderedWidth * 0.35) * (1 + renderedPan * 0.3) + bubbleRight
+    renderBeacon(salience, identityPresence)
+    left = undertow * (1 - renderedPan * 0.12) + brightLeft * (0.72 + renderedWidth * 0.35) * (1 - renderedPan * 0.3) + bubbleLeft + beaconLeft
+    right = undertow * (1 + renderedPan * 0.12) + brightRight * (0.72 + renderedWidth * 0.35) * (1 + renderedPan * 0.3) + bubbleRight + beaconRight
     phaseAge += 1
   }
 }

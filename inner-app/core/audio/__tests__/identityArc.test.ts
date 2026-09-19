@@ -214,9 +214,11 @@ describe('identity controls across JS and both native engines', () => {
     expect(swift).toContain('if nextBreath >= Double.pi * 2 { moanCycle += 1 }');
   });
 
-  it('gives the other worlds no identity control', () => {
+  it('routes Ocean beacon presence while leaving worlds without identity sounds unchanged', () => {
     const engine = kotlin('ProceduralAudioEngine.kt');
-    for (const world of ['Ocean', 'Wind', 'Fire', 'Forest']) {
+    expect(engine).toMatch(/nextOcean\([^)]*target\.identityPresence/);
+    expect(swift).toMatch(/nextOcean\([^)]*presence: target\.identityPresence/);
+    for (const world of ['Wind', 'Fire', 'Forest']) {
       expect(engine).not.toMatch(new RegExp(`next${world}\\([^)]*presence`));
     }
   });

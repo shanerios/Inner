@@ -1030,7 +1030,7 @@ private final class ProceduralAudioEngine: NSObject {
       let leftNoise = (baseLeftNoise * (1 - rainMix) + rainNoise.left * rainGain * rainMix) * spatialDistance
       let rightNoise = (baseRightNoise * (1 - rainMix) + rainNoise.right * rainGain * rainMix) * spatialDistance
       let ocean = oceanEnvelope > 0.0001
-        ? nextOcean(elapsedSeconds: spatialSeconds, intensity: target.environmentIntensity)
+        ? nextOcean(elapsedSeconds: spatialSeconds, intensity: target.environmentIntensity, presence: target.identityPresence)
         : (left: 0.0, right: 0.0)
       let oceanGain = target.environmentGain * oceanEnvelope
       let abyssal = abyssalEnvelope > 0.0001
@@ -1394,8 +1394,8 @@ private final class ProceduralAudioEngine: NSObject {
     return Double(state & 0x00ff_ffff) / Double(0x007f_ffff) - 1
   }
 
-  private func nextOcean(elapsedSeconds: Double, intensity: Double) -> (left: Double, right: Double) {
-    oceanModel.render(sampleRate: sampleRate, intensity: intensity, salience: worldSalience)
+  private func nextOcean(elapsedSeconds: Double, intensity: Double, presence: Double) -> (left: Double, right: Double) {
+    oceanModel.render(sampleRate: sampleRate, intensity: intensity, salience: worldSalience, identityPresence: presence)
     return (oceanModel.left, oceanModel.right)
   }
 
@@ -2257,6 +2257,17 @@ final class OceanModel {
   private var bubbleSequenceAdmitted = false
   private var bubbleLeft = 0.0
   private var bubbleRight = 0.0
+  private var beaconRandom: UInt64 = 1
+  private var beaconCountdown = 0.0
+  private var beaconAge = -1.0
+  private var beaconBaseHz = 88.0
+  private var beaconPan = 0.0
+  private var beaconPhase = 0.0
+  private var beaconEcho = [Double](repeating: 0, count: 24_000)
+  private var beaconEchoIndex = 0
+  private var beaconWet = 0.0
+  private var beaconLeft = 0.0
+  private var beaconRight = 0.0
 
   func reset(seed: UInt64, sampleRate: Double) {
     random = seed ^ 0x510e527f
@@ -2271,6 +2282,11 @@ final class OceanModel {
       bubbleFrequencies[i] = 0; bubbleAmplitudes[i] = 0; bubblePans[i] = 0
     }
     bubbleCursor = 0; bubbleCountdown = 0; bubbleBurstRemaining = 0; bubbleSequenceAdmitted = false
+    beaconRandom = seed ^ 0x626561636f6e
+    if beaconRandom == 0 { beaconRandom = 1 }
+    beaconCountdown = rate * 16; beaconAge = -1; beaconBaseHz = 88; beaconPan = 0; beaconPhase = 0
+    beaconEcho = [Double](repeating: 0, count: max(2, Int(rate * 0.5)))
+    beaconEchoIndex = 0; beaconWet = 0; beaconLeft = 0; beaconRight = 0
     bubbleLeft = 0; bubbleRight = 0; left = 0; right = 0
   }
 
@@ -2280,6 +2296,49 @@ final class OceanModel {
   }
 
   private func white() -> Double { unit() * 2 - 1 }
+
+  private func beaconUnit() -> Double {
+    beaconRandom ^= beaconRandom << 13; beaconRandom ^= beaconRandom >> 7; beaconRandom ^= beaconRandom << 17
+    return Double(beaconRandom & 0x00ff_ffff) / Double(0x00ff_ffff)
+  }
+
+  private func renderBeacon(salience: WorldSalienceScheduler, presence: Double) {
+    if beaconAge < 0 {
+      beaconCountdown -= 1
+      if beaconCountdown <= 0 {
+        if presence > 0.0001 && salience.reserve(salience: 0.46, durationSeconds: 16, recoverySeconds: 5) {
+          beaconAge = 0
+          beaconBaseHz = 82 + beaconUnit() * 14
+          beaconPan = (beaconUnit() * 2 - 1) * 0.28
+          beaconCountdown = rate * (105 + beaconUnit() * 55)
+        } else {
+          beaconCountdown = rate * 3
+        }
+      }
+    }
+    var dry = 0.0
+    if beaconAge >= 0 {
+      let seconds = beaconAge / rate
+      let attack = max(0, min(1, seconds / 3.2))
+      let release = max(0, min(1, (16 - seconds) / 8))
+      let envelope = (0.5 - 0.5 * cos(Double.pi * attack)) * (release * release * (3 - 2 * release))
+      let swell = 1 + 0.004 * sin(seconds * 2 * Double.pi / 9)
+      beaconPhase = fmod(beaconPhase + 2 * Double.pi * beaconBaseHz * swell / rate, 2 * Double.pi)
+      let horn = sin(beaconPhase) * 0.56 + sin(beaconPhase * 2) * 0.28 + sin(beaconPhase * 3) * 0.12 + sin(beaconPhase * 4) * 0.04
+      dry = horn * envelope * 0.25 * max(0, min(1.5, presence))
+      beaconAge += 1
+      if seconds >= 16 { beaconAge = -1 }
+    }
+    let echoSize = beaconEcho.count
+    let first = beaconEcho[(beaconEchoIndex - min(echoSize - 1, max(1, Int(rate * 0.19))) + echoSize) % echoSize]
+    let second = beaconEcho[(beaconEchoIndex - min(echoSize - 1, max(1, Int(rate * 0.37))) + echoSize) % echoSize]
+    beaconWet += ((first + second) * 0.5 - beaconWet) * 0.018
+    beaconEcho[beaconEchoIndex] = dry + beaconWet * 0.35
+    beaconEchoIndex = (beaconEchoIndex + 1) % echoSize
+    let distant = dry * 0.72 + beaconWet * 0.46
+    beaconLeft = distant * (1 - beaconPan)
+    beaconRight = distant * (1 + beaconPan)
+  }
 
   private func enter(_ next: Int, intensity: Double, salience: WorldSalienceScheduler) {
     phase = next
@@ -2348,7 +2407,7 @@ final class OceanModel {
     }
   }
 
-  func render(sampleRate: Double, intensity: Double, salience: WorldSalienceScheduler) {
+  func render(sampleRate: Double, intensity: Double, salience: WorldSalienceScheduler, identityPresence: Double) {
     if rate != sampleRate { reset(seed: random, sampleRate: sampleRate) }
     advance(intensity: intensity, salience: salience)
     moodFrames -= 1
@@ -2386,8 +2445,9 @@ final class OceanModel {
     let brightLeft = (leftWhite - foamLeft * 0.66) * foamLevel * (0.72 + intensity * 0.38)
     let brightRight = (rightWhite - foamRight * 0.66) * foamLevel * (0.72 + intensity * 0.38)
     renderBubbles()
-    left = undertow * (1 - renderedPan * 0.12) + brightLeft * (0.72 + renderedWidth * 0.35) * (1 - renderedPan * 0.3) + bubbleLeft
-    right = undertow * (1 + renderedPan * 0.12) + brightRight * (0.72 + renderedWidth * 0.35) * (1 + renderedPan * 0.3) + bubbleRight
+    renderBeacon(salience: salience, presence: identityPresence)
+    left = undertow * (1 - renderedPan * 0.12) + brightLeft * (0.72 + renderedWidth * 0.35) * (1 - renderedPan * 0.3) + bubbleLeft + beaconLeft
+    right = undertow * (1 + renderedPan * 0.12) + brightRight * (0.72 + renderedWidth * 0.35) * (1 + renderedPan * 0.3) + bubbleRight + beaconRight
     phaseAge += 1
   }
 }

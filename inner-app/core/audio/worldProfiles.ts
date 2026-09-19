@@ -38,8 +38,11 @@ export const WORLD_PROFILES: Record<AudioWorld, WorldProfile> = {
     id: 'ocean', label: 'Ocean', concept: 'A living shoreline with rolling pressure, foam, and small water detail.',
     foundation: ['undertow', 'surf-body', 'foam-air'],
     acoustics: { scale: 'vast', absorption: 0.32, diffusion: 0.62, width: 0.82 },
-    signatures: ['asymmetric-wave-sets', 'micro-bubbles'], motion: 'surge',
-    events: [{ id: 'bubble-burst', role: 'accent', salience: 0.28, recoverySeconds: 2 }],
+    signatures: ['asymmetric-wave-sets', 'micro-bubbles', 'distant-beacon'], motion: 'surge',
+    events: [
+      { id: 'bubble-burst', role: 'accent', salience: 0.28, recoverySeconds: 2 },
+      { id: 'distant-beacon', role: 'anchor', salience: 0.46, recoverySeconds: 5 },
+    ],
     recognitionRecoverySeconds: 2,
   },
   abyssal: {
