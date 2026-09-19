@@ -1623,7 +1623,7 @@ object ProceduralAudioEngine {
       spatialTarget = spatialTarget,
       spatialDepth = clamp(raw.spatialDepth, 0.0, 0.8),
       spatialRate = clamp(raw.spatialRate, 0.1, 3.0),
-      identityPresence = clamp(raw.identityPresence, 0.0, 4.0),
+      identityPresence = clamp(raw.identityPresence, 0.0, 12.0),
       identityDensity = clamp(raw.identityDensity, 0.2, 1.0),
       sleepEndMs = sleepEndMs,
     )

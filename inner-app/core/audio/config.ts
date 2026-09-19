@@ -22,7 +22,7 @@ export const PROCEDURAL_AUDIO_LIMITS = {
   rampMs: { min: 20, max: 5000 },
   spatialDepth: { min: 0, max: 0.8 },
   spatialRate: { min: 0.1, max: 3 },
-  identityPresence: { min: 0, max: 4 },
+  identityPresence: { min: 0, max: 12 },
   identityDensity: { min: 0.2, max: 1 },
 } as const;
 

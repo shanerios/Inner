@@ -1834,7 +1834,7 @@ private final class ProceduralAudioEngine: NSObject {
       environmentGain: clamp(raw.environmentGain, 0, 1),
       environmentIntensity: clamp(raw.environmentIntensity, 0, 1),
       thresholdShift: clamp(raw.thresholdShift, 0, 1),
-      identityPresence: clamp(raw.identityPresence, 0, 4),
+      identityPresence: clamp(raw.identityPresence, 0, 12),
       identityDensity: clamp(raw.identityDensity, 0.2, 1),
       harmonicTranslation: clamp(raw.harmonicTranslation, 0, 1),
       templeGain: clamp(raw.templeGain, 0, 1),

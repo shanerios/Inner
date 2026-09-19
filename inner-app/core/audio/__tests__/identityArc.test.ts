@@ -33,7 +33,7 @@ function compile(environment: 'temple' | 'abyssal' | 'cosmic' | 'ocean', cuePlan
 }
 
 describe('identity arc', () => {
-  it('lands every stage on its target against the bed, never hitting the presence cap', () => {
+  it('lands every stage on its target above the bed, never hitting the presence cap', () => {
     for (const world of WORLDS) {
       for (const stage of STAGES) {
         expect(identityPresenceFor(world, stage)).toBeLessThan(IDENTITY_PRESENCE_MAX);
@@ -49,8 +49,8 @@ describe('identity arc', () => {
       expect(db('descent')).toBeGreaterThan(db('earlySleep'));
       expect(db('earlySleep')).toBeGreaterThan(db('remSleep'));
       expect(db('remSleep')).toBeGreaterThan(db('recognitionWindow'));
-      // Always audible: never below the level where it disappears into the bed.
-      expect(db('remSleep')).toBeGreaterThan(-20);
+      // Always audible: even in REM the sound stands clearly above the bed in its own band.
+      expect(db('remSleep')).toBeGreaterThanOrEqual(5);
       expect(IDENTITY_STAGE_DENSITY.earlySleep).toBe(1);
       expect(IDENTITY_STAGE_DENSITY.remSleep).toBeLessThan(1);
       expect(IDENTITY_STAGE_DENSITY.remSleep).toBeGreaterThanOrEqual(PROCEDURAL_AUDIO_LIMITS.identityDensity.min);
@@ -102,7 +102,7 @@ describe('identity controls across JS and both native engines', () => {
     expect(DEFAULT_PROCEDURAL_AUDIO_CONFIG.identityPresence).toBe(1);
     expect(DEFAULT_PROCEDURAL_AUDIO_CONFIG.identityDensity).toBe(1);
     expect(normalizeProceduralAudioConfig({}).identityPresence).toBe(1);
-    expect(normalizeProceduralAudioConfig({ identityPresence: 9 }).identityPresence).toBe(PROCEDURAL_AUDIO_LIMITS.identityPresence.max);
+    expect(normalizeProceduralAudioConfig({ identityPresence: 99 }).identityPresence).toBe(PROCEDURAL_AUDIO_LIMITS.identityPresence.max);
     expect(normalizeProceduralAudioConfig({ identityPresence: -2 }).identityPresence).toBe(0);
     expect(normalizeProceduralAudioConfig({ identityDensity: 0 }).identityDensity).toBe(PROCEDURAL_AUDIO_LIMITS.identityDensity.min);
     expect(normalizeProceduralAudioConfig({ identityDensity: 3 }).identityDensity).toBe(1);
