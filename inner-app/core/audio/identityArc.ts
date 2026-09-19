@@ -26,19 +26,20 @@ export type IdentityStage =
 const MEASURED_BAND_SNR_DB: Record<IdentityWorld, { preparation: number; descent: number; earlySleep: number; remSleep: number }> = {
   temple: { preparation: 1.21, descent: 0.90, earlySleep: 0.68, remSleep: 0.68 },
   abyssal: { preparation: 1.87, descent: 1.37, earlySleep: 1.16, remSleep: 1.16 },
-  cosmic: { preparation: -6.89, descent: -7.77, earlySleep: -7.99, remSleep: -7.99 },
+  cosmic: { preparation: -5.15, descent: -5.98, earlySleep: -6.20, remSleep: -6.20 },
 };
 
 /**
  * Where each sound stands above the bed in stage 1, in dB. Set by ear on a Pixel 8 Pro:
  * - abyssal: +9.5 was "good, could be raised slightly"; +11 still "another 1 or 2 dB" -> 13
  * - temple: +8.1 was "audible, but barely"; +15 still "a bit too quiet, another 1 or 2 dB" -> 17
- * - cosmic: +2.6 could not be heard at all; +11 is heard, with no level complaint -> 11
+ * - cosmic: +2.6 could not be heard at all; +11 was heard as pulsing, so the voice became a slow drone in
+ *   a long reverb, auditioned at +12.7 and chosen -> 12.5
  */
 export const IDENTITY_STAGE_ONE_SNR_DB: Record<IdentityWorld, number> = {
   temple: 17,
   abyssal: 13,
-  cosmic: 11,
+  cosmic: 12.5,
 };
 
 /** Change from stage 1 in each later stage, in dB. */

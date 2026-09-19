@@ -2468,6 +2468,17 @@ final class CosmicModel {
   private static let horizonRatios = [1.0, phi, phi * phi]
   private static let horizonWeights = [0.058, 0.02625, 0.01125]
   private static let moanWeights = [0.05, 0.04, 0.06, 0.1, 0.28, 0.12, 0.05, 0.04, 0.08, 0.2]
+  /// The two copies of each voice differ by this fraction, so they shimmer slowly rather than pulse.
+  private static let moanDetune = 0.0003
+  /// The voice's own long reverb: four looped delays (seconds), unequal so the tail stays smooth.
+  private static let moanSpaceDelays = [0.0301, 0.0373, 0.0449, 0.0545]
+  private static let moanSpaceInput = [0.6, -0.5, 0.5, -0.6]
+  private static let moanSpaceDecaySeconds = 15.0
+  /// Per-pass loop gain that gives every line the same decay time.
+  private static let moanSpaceGains = moanSpaceDelays.map { pow(10.0, -3.0 * $0 / moanSpaceDecaySeconds) }
+  private static let moanSpaceDamping = 0.32
+  private static let moanSpaceSend = 0.24
+  private static let moanSpaceWet = 1.0
   private(set) var left = 0.0
   private(set) var right = 0.0
   private var random: UInt64 = 1
@@ -2499,6 +2510,12 @@ final class CosmicModel {
   private var moanDistanceLeft = 0.0
   private var moanDistanceRight = 0.0
   private var moanReverbSend = 0.6
+  private var moanSpaceLines = [[Double]](repeating: [Double](repeating: 0, count: 8192), count: 4)
+  private var moanSpaceIndex = [Int](repeating: 0, count: 4)
+  private var moanSpaceDamp = [Double](repeating: 0, count: 4)
+  private var moanSpaceOut = [Double](repeating: 0, count: 4)
+  private var moanSpaceLeft = 0.0
+  private var moanSpaceRight = 0.0
   private var moanLeft = 0.0
   private var moanRight = 0.0
   private var moanMono = 0.0
@@ -2531,6 +2548,9 @@ final class CosmicModel {
     for index in moanPhases.indices { moanPhases[index] = 0; moanChoirPhases[index] = 0 }
     moanBreathPhase = 0; moanOrbitPhase = 0
     moanCycle = 0; moanGate = 1
+    for line in moanSpaceLines.indices { for i in moanSpaceLines[line].indices { moanSpaceLines[line][i] = 0 } }
+    for line in 0..<4 { moanSpaceIndex[line] = 0; moanSpaceDamp[line] = 0; moanSpaceOut[line] = 0 }
+    moanSpaceLeft = 0; moanSpaceRight = 0
     moanDistanceLeft = 0; moanDistanceRight = 0; moanReverbSend = 0.6
     moanLeft = 0; moanRight = 0; moanMono = 0
     rumble = 0; airLeft = 0; airRight = 0
@@ -2634,7 +2654,7 @@ final class CosmicModel {
 
   private func renderMoan(_ intensity: Double, identityPresence: Double, density: Double) {
     let breath = 0.5 - 0.5 * cos(moanBreathPhase)
-    let envelope = 0.42 + breath * 0.58
+    let envelope = 0.1 + breath * 0.9
     let distancePresence = 0.72 + breath * 0.28
     let fundamental = 72 + mood * 7 + sin(moanBreathPhase) * 0.45
     var primary = 0.0
@@ -2644,8 +2664,8 @@ final class CosmicModel {
       let weight = Self.moanWeights[index]
       primary += sin(moanPhases[index]) * weight
       choir += sin(moanChoirPhases[index]) * weight
-      moanPhases[index] = fmod(moanPhases[index] + Double.pi * 2 * fundamental * harmonic * 0.9975 / rate, Double.pi * 2)
-      moanChoirPhases[index] = fmod(moanChoirPhases[index] + Double.pi * 2 * fundamental * harmonic * 1.0025 / rate, Double.pi * 2)
+      moanPhases[index] = fmod(moanPhases[index] + Double.pi * 2 * fundamental * harmonic * (1.0 - Self.moanDetune) / rate, Double.pi * 2)
+      moanChoirPhases[index] = fmod(moanChoirPhases[index] + Double.pi * 2 * fundamental * harmonic * (1.0 + Self.moanDetune) / rate, Double.pi * 2)
     }
     let choirSpread = 0.08 + (1 - breath) * 0.1
     let rawLeft = primary * (0.5 + choirSpread) + choir * (0.5 - choirSpread)
@@ -2659,7 +2679,10 @@ final class CosmicModel {
     let every = max(1, Int((1.0 / density).rounded()))
     let open = (every == 1 || moanCycle % Int64(every) == 0) ? 1.0 : 0.0
     moanGate += (open - moanGate) / max(1, rate * 1.5)
-    let level = envelope * distancePresence * (0.11 + intensity * 0.055) * identityPresence * moanGate
+    let baseLevel = (0.11 + intensity * 0.055) * identityPresence * moanGate
+    let level = envelope * distancePresence * baseLevel
+    // The voice feeds its own reverb at a steady level, so as the voice itself recedes the room keeps ringing.
+    renderMoanSpace((moanDistanceLeft + moanDistanceRight) * 0.5 * baseLevel * Self.moanSpaceSend)
     moanLeft = moanDistanceLeft * (1 - orbit) * level
     moanRight = moanDistanceRight * (1 + orbit) * level
     moanMono = (moanLeft + moanRight) * 0.5
@@ -2668,6 +2691,27 @@ final class CosmicModel {
     if nextBreath >= Double.pi * 2 { moanCycle += 1 }
     moanBreathPhase = fmod(nextBreath, Double.pi * 2)
     moanOrbitPhase = fmod(moanOrbitPhase + Double.pi * 2 / (rate * 79), Double.pi * 2)
+  }
+
+  /// A four-line feedback delay network: orthogonal mixing, damped highs, long low-frequency decay.
+  private func renderMoanSpace(_ input: Double) {
+    let size = moanSpaceLines[0].count
+    var sum = 0.0
+    for line in 0..<4 {
+      let length = min(size - 1, max(1, Int(rate * Self.moanSpaceDelays[line])))
+      let read = moanSpaceLines[line][(moanSpaceIndex[line] - length + size) % size]
+      moanSpaceDamp[line] += (read - moanSpaceDamp[line]) * Self.moanSpaceDamping
+      let value = moanSpaceDamp[line] * Self.moanSpaceGains[line]
+      moanSpaceOut[line] = value
+      sum += value
+    }
+    let half = sum * 0.5
+    for line in 0..<4 {
+      moanSpaceLines[line][moanSpaceIndex[line]] = moanSpaceOut[line] - half + input * Self.moanSpaceInput[line]
+      moanSpaceIndex[line] = (moanSpaceIndex[line] + 1) % size
+    }
+    moanSpaceLeft = (moanSpaceOut[0] + moanSpaceOut[1] - moanSpaceOut[2] - moanSpaceOut[3]) * 0.5 * Self.moanSpaceWet
+    moanSpaceRight = (moanSpaceOut[0] - moanSpaceOut[1] - moanSpaceOut[2] + moanSpaceOut[3]) * 0.5 * Self.moanSpaceWet
   }
 
   func render(sampleRate: Double, intensity: Double, salience: WorldSalienceScheduler, identityPresence: Double, density: Double) {
@@ -2742,8 +2786,8 @@ final class CosmicModel {
       fieldPhases[index] = fmod(fieldPhases[index] + Double.pi * 2 * base * Self.fieldRatios[index] * lensBend / rate, Double.pi * 2)
     }
     renderMoan(intensity, identityPresence: identityPresence, density: density)
-    left = voidBody + gravity + horizonLeft + fieldLeft + moanLeft + airLeft * airLevel * (1 - motion * width * 0.16)
-    right = voidBody + gravity + horizonRight + fieldRight + moanRight + airRight * airLevel * (1 + motion * width * 0.16)
+    left = voidBody + gravity + horizonLeft + fieldLeft + moanLeft + moanSpaceLeft + airLeft * airLevel * (1 - motion * width * 0.16)
+    right = voidBody + gravity + horizonRight + fieldRight + moanRight + moanSpaceRight + airRight * airLevel * (1 + motion * width * 0.16)
     renderBlooms(intensity, salience: salience)
     stateAge += 1
   }
