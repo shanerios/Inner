@@ -568,6 +568,7 @@ object ProceduralAudioEngine {
     rainMix = 0.0
     oceanEnvelope = 0.0
     oceanModel.reset(XORSHIFT_SEED, sampleRate)
+    abyssalEnvelope = 0.0
     abyssalModel.reset(XORSHIFT_SEED, sampleRate)
     windEnvelope = 0.0
     windRandom = XORSHIFT_SEED xor 0x7f4a7c15L
