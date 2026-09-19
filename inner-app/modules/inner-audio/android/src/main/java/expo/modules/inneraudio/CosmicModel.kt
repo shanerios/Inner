@@ -40,6 +40,8 @@ internal class CosmicModel {
   private val moanPhases = DoubleArray(10)
   private val moanChoirPhases = DoubleArray(10)
   private var moanBreathPhase = 0.0
+  private var moanCycle = 0L
+  private var moanGate = 1.0
   private var moanOrbitPhase = 0.0
   private var moanDistanceLeft = 0.0
   private var moanDistanceRight = 0.0
@@ -72,6 +74,7 @@ internal class CosmicModel {
     gravityLevel = 0.0; gravityPhase = 0.0
     horizonLevel = 0.6; horizonPhases.fill(0.0)
     moanPhases.fill(0.0); moanChoirPhases.fill(0.0); moanBreathPhase = 0.0; moanOrbitPhase = 0.0
+    moanCycle = 0L; moanGate = 1.0
     moanDistanceLeft = 0.0; moanDistanceRight = 0.0; moanReverbSend = 0.6
     moanLeft = 0.0; moanRight = 0.0; moanMono = 0.0
     rumble = 0.0; airLeft = 0.0; airRight = 0.0
@@ -168,7 +171,7 @@ internal class CosmicModel {
     return mono
   }
 
-  private fun renderMoan(intensity: Double) {
+  private fun renderMoan(intensity: Double, identityPresence: Double, density: Double) {
     val breath = 0.5 - 0.5 * cos(moanBreathPhase)
     val envelope = 0.42 + breath * 0.58
     val distancePresence = 0.72 + breath * 0.28
@@ -191,16 +194,22 @@ internal class CosmicModel {
     moanDistanceLeft += distanceFilter * (rawLeft - moanDistanceLeft)
     moanDistanceRight += distanceFilter * (rawRight - moanDistanceRight)
     val orbit = sin(moanOrbitPhase) * (0.1 + breath * 0.18)
-    val level = envelope * distancePresence * (0.11 + intensity * 0.055)
+    // Sparser identity: the voice sounds on every Nth breath, fading over 1.5 s at the seams.
+    val every = max(1, Math.round(1.0 / density).toInt())
+    val open = if (every == 1 || moanCycle % every == 0L) 1.0 else 0.0
+    moanGate += (open - moanGate) / max(1.0, rate * 1.5)
+    val level = envelope * distancePresence * (0.11 + intensity * 0.055) * identityPresence * moanGate
     moanLeft = moanDistanceLeft * (1.0 - orbit) * level
     moanRight = moanDistanceRight * (1.0 + orbit) * level
     moanMono = (moanLeft + moanRight) * 0.5
     moanReverbSend = 0.22 + (1.0 - breath) * 0.38
-    moanBreathPhase = (moanBreathPhase + PI * 2.0 / (rate * 31.0)) % (PI * 2.0)
+    val nextBreath = moanBreathPhase + PI * 2.0 / (rate * 31.0)
+    if (nextBreath >= PI * 2.0) moanCycle++
+    moanBreathPhase = nextBreath % (PI * 2.0)
     moanOrbitPhase = (moanOrbitPhase + PI * 2.0 / (rate * 79.0)) % (PI * 2.0)
   }
 
-  fun render(sampleRate: Double, intensity: Double, salience: WorldSalienceScheduler) {
+  fun render(sampleRate: Double, intensity: Double, salience: WorldSalienceScheduler, identityPresence: Double, density: Double) {
     if (rate != sampleRate) reset(random, sampleRate)
     advance()
     moodFrames -= 1.0
@@ -274,7 +283,7 @@ internal class CosmicModel {
       fieldPhases[index] = (fieldPhases[index] + PI * 2.0 * base * FIELD_RATIOS[index] * lensBend / rate) % (PI * 2.0)
     }
 
-    renderMoan(intensity)
+    renderMoan(intensity, identityPresence, density)
     left = voidBody + gravity + horizonLeft + fieldLeft + moanLeft + airLeft * airLevel * (1.0 - motion * width * 0.16)
     right = voidBody + gravity + horizonRight + fieldRight + moanRight + airRight * airLevel * (1.0 + motion * width * 0.16)
     renderBlooms(intensity, salience)

@@ -2,6 +2,7 @@ export * from './config';
 export * from './featureFlags';
 export * from './factoryJourneys';
 export * from './factoryPresets';
+export * from './identityArc';
 export * from './journeyStore';
 export * from './nativeEngine';
 export * from './overnightProtocol';

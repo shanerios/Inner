@@ -16,6 +16,8 @@ private struct AudioConfigRecord: Record {
   @Field var environmentGain = 0.0
   @Field var environmentIntensity = 0.5
   @Field var thresholdShift = 0.0
+  @Field var identityPresence = 1.0
+  @Field var identityDensity = 1.0
   @Field var harmonicTranslation = 0.0
   @Field var templeGain = 0.0
   @Field var templeIntensity = 0.5
@@ -94,6 +96,10 @@ private struct Parameters {
   var environmentGain = 0.0
   var environmentIntensity = 0.5
   var thresholdShift = 0.0
+  /// Level of a world's signature sounds (Aum, whale call, Cosmic voice) without touching its bed. 1 = unchanged.
+  var identityPresence = 1.0
+  /// How often those signature sounds appear, 1 = as designed, lower = sparser.
+  var identityDensity = 1.0
   var harmonicTranslation = 0.0
   var templeGain = 0.0
   var templeIntensity = 0.5
@@ -281,6 +287,7 @@ private final class ProceduralAudioEngine: NSObject {
   private var forestBirdAmp = 0.0
   private var forestBirdPan = 0.0
   private var templeSpaceEnvelope = 0.0
+  private var templeChantGate = 1.0
   private var templeSpaceRandom: UInt64 = 0x9e3779b97f4a7c15 ^ 0x6a09e667
   private var templeSpaceAirLeft = 0.0
   private var templeSpaceAirRight = 0.0
@@ -617,6 +624,7 @@ private final class ProceduralAudioEngine: NSObject {
     templeSpaceBreathLowRight = 0
     templeSpaceBreathMidLeft = 0
     templeSpaceBreathMidRight = 0
+    templeChantGate = 1.0
     templeSpacePhases = [Double](repeating: 0, count: 3)
     templeSpaceChantPhases = [Double](repeating: 0, count: 3)
     templeSpaceFormantIc1 = [Double](repeating: 0, count: 4)
@@ -853,6 +861,7 @@ private final class ProceduralAudioEngine: NSObject {
       templeSpaceBreathLowRight = 0
       templeSpaceBreathMidLeft = 0
       templeSpaceBreathMidRight = 0
+      templeChantGate = 1.0
       templeSpacePhases = [Double](repeating: 0, count: 3)
       templeSpaceChantPhases = [Double](repeating: 0, count: 3)
       templeSpaceFormantIc1 = [Double](repeating: 0, count: 4)
@@ -1033,7 +1042,7 @@ private final class ProceduralAudioEngine: NSObject {
         : (left: 0.0, right: 0.0)
       let oceanGain = target.environmentGain * oceanEnvelope
       let abyssal = abyssalEnvelope > 0.0001
-        ? nextAbyssal(elapsedSeconds: spatialSeconds, intensity: target.environmentIntensity)
+        ? nextAbyssal(elapsedSeconds: spatialSeconds, intensity: target.environmentIntensity, presence: target.identityPresence, density: target.identityDensity)
         : (left: 0.0, right: 0.0)
       let abyssalGain = target.environmentGain * abyssalEnvelope
       let wind = windEnvelope > 0.0001
@@ -1045,7 +1054,7 @@ private final class ProceduralAudioEngine: NSObject {
         : (left: 0.0, right: 0.0)
       let fireGain = target.environmentGain * fireEnvelope
       let cosmic = cosmicEnvelope > 0.0001
-        ? nextCosmic(elapsedSeconds: spatialSeconds, intensity: target.environmentIntensity)
+        ? nextCosmic(elapsedSeconds: spatialSeconds, intensity: target.environmentIntensity, presence: target.identityPresence, density: target.identityDensity)
         : (left: 0.0, right: 0.0)
       let cosmicGain = target.environmentGain * cosmicEnvelope
       let forest = forestEnvelope > 0.0001
@@ -1053,7 +1062,7 @@ private final class ProceduralAudioEngine: NSObject {
         : (left: 0.0, right: 0.0)
       let forestGain = target.environmentGain * forestEnvelope
       let templeSpace = templeSpaceEnvelope > 0.0001
-        ? nextTempleSpace(elapsedSeconds: spatialSeconds, intensity: target.environmentIntensity)
+        ? nextTempleSpace(elapsedSeconds: spatialSeconds, intensity: target.environmentIntensity, presence: target.identityPresence, density: target.identityDensity)
         : (left: 0.0, right: 0.0)
       let templeSpaceGain = target.environmentGain * templeSpaceEnvelope
       let temple = templeEnvelope > 0.0001
@@ -1398,8 +1407,8 @@ private final class ProceduralAudioEngine: NSObject {
     return (oceanModel.left, oceanModel.right)
   }
 
-  private func nextAbyssal(elapsedSeconds: Double, intensity: Double) -> (left: Double, right: Double) {
-    abyssalModel.render(sampleRate: sampleRate, intensity: intensity, elapsedSeconds: elapsedSeconds, salience: worldSalience)
+  private func nextAbyssal(elapsedSeconds: Double, intensity: Double, presence: Double, density: Double) -> (left: Double, right: Double) {
+    abyssalModel.render(sampleRate: sampleRate, intensity: intensity, elapsedSeconds: elapsedSeconds, salience: worldSalience, presence: presence, density: density)
     return (abyssalModel.left, abyssalModel.right)
   }
 
@@ -1485,8 +1494,8 @@ private final class ProceduralAudioEngine: NSObject {
     pow(10.0, -3.0 * Double(delaySamples) / (rt60 * sampleRate))
   }
 
-  private func nextCosmic(elapsedSeconds: Double, intensity: Double) -> (left: Double, right: Double) {
-    cosmicModel.render(sampleRate: sampleRate, intensity: intensity, salience: worldSalience)
+  private func nextCosmic(elapsedSeconds: Double, intensity: Double, presence: Double, density: Double) -> (left: Double, right: Double) {
+    cosmicModel.render(sampleRate: sampleRate, intensity: intensity, salience: worldSalience, identityPresence: presence, density: density)
     return (cosmicModel.left, cosmicModel.right)
   }
 
@@ -1647,7 +1656,7 @@ private final class ProceduralAudioEngine: NSObject {
   }
 
   /// A quiet stone chamber: modal body, filtered air, and long asymmetric reflections.
-  private func nextTempleSpace(elapsedSeconds: Double, intensity: Double) -> (left: Double, right: Double) {
+  private func nextTempleSpace(elapsedSeconds: Double, intensity: Double, presence: Double, density: Double) -> (left: Double, right: Double) {
     let tau = Double.pi * 2
     var body = 0.0
     for index in 0..<3 {
@@ -1675,7 +1684,13 @@ private final class ProceduralAudioEngine: NSObject {
     // Three imperfect virtual voices move from an open "O" spectrum toward a
     // closed nasal hum. The sound stays distant because its dry level is low and
     // most of it reaches the listener through the room taps below.
-    let chantTime = fmod(elapsedSeconds + 26.0, 31.0)
+    let chantPosition = elapsedSeconds + 26.0
+    let chantTime = fmod(chantPosition, 31.0)
+    // Sparser identity: the Aum sounds on every Nth 31 s cycle. The gate fades over a
+    // quarter second, so a change of density mid-chant can never click.
+    let chantEvery = max(1, Int((1.0 / density).rounded()))
+    let chantOpen = (chantEvery == 1 || Int64(chantPosition / 31.0) % Int64(chantEvery) == 0) ? 1.0 : 0.0
+    templeChantGate += (chantOpen - templeChantGate) / max(1, sampleRate * 0.25)
     let chantEnvelope: Double
     if chantTime >= 9.0 {
       chantEnvelope = 0
@@ -1686,6 +1701,7 @@ private final class ProceduralAudioEngine: NSObject {
     } else {
       chantEnvelope = 1
     }
+    let chantGated = chantEnvelope * templeChantGate
     let chantProgress = clamp(chantTime / 9.0, 0, 1)
     let firstTransition = clamp(chantProgress / 0.56, 0, 1)
     let finalTransition = clamp((chantProgress - 0.56) / 0.44, 0, 1)
@@ -1718,7 +1734,7 @@ private final class ProceduralAudioEngine: NSObject {
     let chantRight = templeSpaceBandpass(sourceRight, index: 2, frequency: formant1 * 0.992, q: 6.5) * 1.65
       + templeSpaceBandpass(sourceRight, index: 3, frequency: formant2 * 1.008, q: 7.5) * 1.25 * formant2Presence
       + sub * 0.08
-    let chantLevel = chantEnvelope * (0.18 + intensity * 0.12)
+    let chantLevel = chantGated * (0.18 + intensity * 0.12) * presence
     let drop = nextTempleSpaceDrop(intensity: intensity, salience: worldSalience)
     let dropEchoSize = templeSpaceDropEcho.count
     let dropEchoLeftA = templeSpaceDropEcho[(templeSpaceDropEchoIndex - min(dropEchoSize - 1, max(1, Int(sampleRate * 0.27))) + dropEchoSize) % dropEchoSize]
@@ -1818,6 +1834,8 @@ private final class ProceduralAudioEngine: NSObject {
       environmentGain: clamp(raw.environmentGain, 0, 1),
       environmentIntensity: clamp(raw.environmentIntensity, 0, 1),
       thresholdShift: clamp(raw.thresholdShift, 0, 1),
+      identityPresence: clamp(raw.identityPresence, 0, 4),
+      identityDensity: clamp(raw.identityDensity, 0.2, 1),
       harmonicTranslation: clamp(raw.harmonicTranslation, 0, 1),
       templeGain: clamp(raw.templeGain, 0, 1),
       templeIntensity: clamp(raw.templeIntensity, 0, 1),
@@ -1937,6 +1955,8 @@ private final class ProceduralAudioEngine: NSObject {
       environmentGain: lerp(from.environmentGain, to.environmentGain),
       environmentIntensity: lerp(from.environmentIntensity, to.environmentIntensity),
       thresholdShift: lerp(from.thresholdShift, to.thresholdShift),
+      identityPresence: lerp(from.identityPresence, to.identityPresence),
+      identityDensity: lerp(from.identityDensity, to.identityDensity),
       harmonicTranslation: lerp(from.harmonicTranslation, to.harmonicTranslation),
       templeGain: lerp(from.templeGain, to.templeGain),
       templeIntensity: lerp(from.templeIntensity, to.templeIntensity),
@@ -2473,6 +2493,8 @@ final class CosmicModel {
   private var moanPhases = [Double](repeating: 0, count: 10)
   private var moanChoirPhases = [Double](repeating: 0, count: 10)
   private var moanBreathPhase = 0.0
+  private var moanCycle: Int64 = 0
+  private var moanGate = 1.0
   private var moanOrbitPhase = 0.0
   private var moanDistanceLeft = 0.0
   private var moanDistanceRight = 0.0
@@ -2508,6 +2530,7 @@ final class CosmicModel {
     for index in horizonPhases.indices { horizonPhases[index] = 0 }
     for index in moanPhases.indices { moanPhases[index] = 0; moanChoirPhases[index] = 0 }
     moanBreathPhase = 0; moanOrbitPhase = 0
+    moanCycle = 0; moanGate = 1
     moanDistanceLeft = 0; moanDistanceRight = 0; moanReverbSend = 0.6
     moanLeft = 0; moanRight = 0; moanMono = 0
     rumble = 0; airLeft = 0; airRight = 0
@@ -2609,7 +2632,7 @@ final class CosmicModel {
     right += bloomRight + near * (0.26 + motion * 0.08) + far * (0.17 - motion * 0.07)
   }
 
-  private func renderMoan(_ intensity: Double) {
+  private func renderMoan(_ intensity: Double, identityPresence: Double, density: Double) {
     let breath = 0.5 - 0.5 * cos(moanBreathPhase)
     let envelope = 0.42 + breath * 0.58
     let distancePresence = 0.72 + breath * 0.28
@@ -2632,16 +2655,22 @@ final class CosmicModel {
     moanDistanceLeft += distanceFilter * (rawLeft - moanDistanceLeft)
     moanDistanceRight += distanceFilter * (rawRight - moanDistanceRight)
     let orbit = sin(moanOrbitPhase) * (0.1 + breath * 0.18)
-    let level = envelope * distancePresence * (0.11 + intensity * 0.055)
+    // Sparser identity: the voice sounds on every Nth breath, fading over 1.5 s at the seams.
+    let every = max(1, Int((1.0 / density).rounded()))
+    let open = (every == 1 || moanCycle % Int64(every) == 0) ? 1.0 : 0.0
+    moanGate += (open - moanGate) / max(1, rate * 1.5)
+    let level = envelope * distancePresence * (0.11 + intensity * 0.055) * identityPresence * moanGate
     moanLeft = moanDistanceLeft * (1 - orbit) * level
     moanRight = moanDistanceRight * (1 + orbit) * level
     moanMono = (moanLeft + moanRight) * 0.5
     moanReverbSend = 0.22 + (1 - breath) * 0.38
-    moanBreathPhase = fmod(moanBreathPhase + Double.pi * 2 / (rate * 31), Double.pi * 2)
+    let nextBreath = moanBreathPhase + Double.pi * 2 / (rate * 31)
+    if nextBreath >= Double.pi * 2 { moanCycle += 1 }
+    moanBreathPhase = fmod(nextBreath, Double.pi * 2)
     moanOrbitPhase = fmod(moanOrbitPhase + Double.pi * 2 / (rate * 79), Double.pi * 2)
   }
 
-  func render(sampleRate: Double, intensity: Double, salience: WorldSalienceScheduler) {
+  func render(sampleRate: Double, intensity: Double, salience: WorldSalienceScheduler, identityPresence: Double, density: Double) {
     if rate != sampleRate { reset(seed: random, sampleRate: sampleRate) }
     advance()
     moodFrames -= 1
@@ -2712,7 +2741,7 @@ final class CosmicModel {
       let lensBend = 1 + motion * (Double(index) - 1.5) * 0.00045 * (0.3 + width)
       fieldPhases[index] = fmod(fieldPhases[index] + Double.pi * 2 * base * Self.fieldRatios[index] * lensBend / rate, Double.pi * 2)
     }
-    renderMoan(intensity)
+    renderMoan(intensity, identityPresence: identityPresence, density: density)
     left = voidBody + gravity + horizonLeft + fieldLeft + moanLeft + airLeft * airLevel * (1 - motion * width * 0.16)
     right = voidBody + gravity + horizonRight + fieldRight + moanRight + airRight * airLevel * (1 + motion * width * 0.16)
     renderBlooms(intensity, salience: salience)
@@ -2814,7 +2843,7 @@ final class AbyssalModel {
     return x * x * (3 - 2 * x)
   }
 
-  private func nextCreature(_ intensity: Double, salience: WorldSalienceScheduler) -> (left: Double, right: Double) {
+  private func nextCreature(_ intensity: Double, salience: WorldSalienceScheduler, presence: Double, density: Double) -> (left: Double, right: Double) {
     if !creatureActive {
       creatureCountdown -= 1
       if creatureCountdown <= 0 {
@@ -2833,7 +2862,8 @@ final class AbyssalModel {
           responseEndHz = 92 + unit() * 32
           responsePan = -creaturePan * 0.9
           responseLevel = baseCreatureLevel * (0.4 + unit() * 0.12) * 1.75
-          creatureCountdown = rate * (42 + unit() * 58)
+          // Sparser identity: longer silences between calls.
+          creatureCountdown = rate * (42 + unit() * 58) / density
         } else {
           creatureCountdown = rate * (3 + unit() * 3)
         }
@@ -2861,7 +2891,7 @@ final class AbyssalModel {
       answerLeft = voice * (1 - responsePan) * 0.64
       answerRight = voice * (1 + responsePan) * 0.64
     }
-    guard creatureActive, creatureDuration > 0 else { return (answerLeft, answerRight) }
+    guard creatureActive, creatureDuration > 0 else { return (answerLeft * presence, answerRight * presence) }
     let progress = min(1, max(0, creatureAge / creatureDuration))
     let attack = smooth(creatureAge / max(1, rate * 2.4))
     let release = 1 - smooth((progress - 0.62) / 0.38)
@@ -2874,7 +2904,7 @@ final class AbyssalModel {
     creatureAge += 1
     if creatureAge >= creatureDuration { creatureActive = false }
     let travel = creaturePan + sin(progress * Double.pi) * 0.12 * (creaturePan < 0 ? 1 : -1)
-    return (voice * (1 - travel) * 0.68 + answerLeft, voice * (1 + travel) * 0.68 + answerRight)
+    return ((voice * (1 - travel) * 0.68 + answerLeft) * presence, (voice * (1 + travel) * 0.68 + answerRight) * presence)
   }
 
   private func nextBubbleTrail(_ intensity: Double, salience: WorldSalienceScheduler) -> (left: Double, right: Double) {
@@ -2949,7 +2979,7 @@ final class AbyssalModel {
     return (dryLeft + near * 0.26 + far * 0.16, dryRight + near * 0.17 + far * 0.24)
   }
 
-  func render(sampleRate: Double, intensity: Double, elapsedSeconds: Double, salience: WorldSalienceScheduler) {
+  func render(sampleRate: Double, intensity: Double, elapsedSeconds: Double, salience: WorldSalienceScheduler, presence: Double, density: Double) {
     if rate != sampleRate { reset(seed: random, sampleRate: sampleRate) }
     let tau = Double.pi * 2
     let shared = white()
@@ -2983,7 +3013,7 @@ final class AbyssalModel {
       glassPhases[index] = fmod(glassPhases[index] + tau * Self.glassFrequencies[index] * bend / rate, tau)
     }
 
-    let creature = nextCreature(intensity, salience: salience)
+    let creature = nextCreature(intensity, salience: salience, presence: presence, density: density)
     let bubbles = nextBubbleTrail(intensity, salience: salience)
     let drop = nextCondensation(intensity, salience: salience)
     let roomLeft = chamberLeft[(chamberIndex - min(chamberLeft.count - 1, max(1, Int(rate * 0.37))) + chamberLeft.count) % chamberLeft.count]

@@ -105,7 +105,7 @@ internal class AbyssalModel {
     return x * x * (3.0 - 2.0 * x)
   }
 
-  private fun nextCreature(intensity: Double, salience: WorldSalienceScheduler) {
+  private fun nextCreature(intensity: Double, salience: WorldSalienceScheduler, presence: Double, density: Double) {
     if (!creatureActive) {
       creatureCountdown -= 1.0
       if (creatureCountdown <= 0.0) {
@@ -124,7 +124,8 @@ internal class AbyssalModel {
           responseEndHz = 92.0 + unit() * 32.0
           responsePan = -creaturePan * 0.9
           responseLevel = baseCreatureLevel * (0.4 + unit() * 0.12) * 1.75
-          creatureCountdown = rate * (42.0 + unit() * 58.0)
+          // Sparser identity: longer silences between calls.
+          creatureCountdown = rate * (42.0 + unit() * 58.0) / density
         } else {
           creatureCountdown = rate * (3.0 + unit() * 3.0)
         }
@@ -153,8 +154,8 @@ internal class AbyssalModel {
       answerRight = voice * (1.0 + responsePan) * 0.64
     }
     if (!creatureActive || creatureDuration <= 0.0) {
-      creatureLeft = answerLeft
-      creatureRight = answerRight
+      creatureLeft = answerLeft * presence
+      creatureRight = answerRight * presence
       return
     }
     val progress = (creatureAge / creatureDuration).coerceIn(0.0, 1.0)
@@ -169,8 +170,8 @@ internal class AbyssalModel {
     creatureAge += 1.0
     if (creatureAge >= creatureDuration) creatureActive = false
     val travel = creaturePan + sin(progress * PI) * 0.12 * if (creaturePan < 0) 1.0 else -1.0
-    creatureLeft = voice * (1.0 - travel) * 0.68 + answerLeft
-    creatureRight = voice * (1.0 + travel) * 0.68 + answerRight
+    creatureLeft = (voice * (1.0 - travel) * 0.68 + answerLeft) * presence
+    creatureRight = (voice * (1.0 + travel) * 0.68 + answerRight) * presence
   }
 
   private fun nextBubbleTrail(intensity: Double, salience: WorldSalienceScheduler) {
@@ -249,7 +250,7 @@ internal class AbyssalModel {
     dropRight = dryRight + near * 0.17 + far * 0.24
   }
 
-  fun render(sampleRate: Double, intensity: Double, elapsedSeconds: Double, salience: WorldSalienceScheduler) {
+  fun render(sampleRate: Double, intensity: Double, elapsedSeconds: Double, salience: WorldSalienceScheduler, presence: Double, density: Double) {
     if (rate != sampleRate) reset(random, sampleRate)
     val tau = PI * 2.0
     val shared = white()
@@ -283,7 +284,7 @@ internal class AbyssalModel {
       glassPhases[index] = (glassPhases[index] + tau * glassFrequencies[index] * bend / rate) % tau
     }
 
-    nextCreature(intensity, salience)
+    nextCreature(intensity, salience, presence, density)
     nextBubbleTrail(intensity, salience)
     nextCondensation(intensity, salience)
     val roomLeft = chamberLeft[(chamberIndex - (rate * 0.37).toInt().coerceIn(1, chamberLeft.size - 1) + chamberLeft.size) % chamberLeft.size]

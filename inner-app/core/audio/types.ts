@@ -38,6 +38,13 @@ export type ProceduralAudioConfig = {
   environmentIntensity: number;
   /** 0 outside the overnight arc; 1 from completed descent through protected sleep. */
   thresholdShift: number;
+  /**
+   * Level of the world's identity sound: the Aum (temple), whale call (abyssal) and Cosmic voice (cosmic).
+   * 1 is the world's own level; other worlds ignore it. See identityArc.ts for how the overnight arc sets it.
+   */
+  identityPresence: number;
+  /** How often the identity sound speaks, 1 = every occasion, 0.5 = about every other one. */
+  identityDensity: number;
   /** Adds quiet upper harmonics that imply a lower environmental fundamental. */
   harmonicTranslation: number;
   templeGain: number;

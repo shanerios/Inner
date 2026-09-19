@@ -40,6 +40,10 @@ internal data class AudioParameters(
   var spatialTarget: String = "noise",
   var spatialDepth: Double = 0.0,
   var spatialRate: Double = 0.3,
+  /** Level of a world's signature sounds (Aum, whale call, Cosmic voice) without touching its bed. 1 = unchanged. */
+  var identityPresence: Double = 1.0,
+  /** How often those signature sounds appear, 1 = as designed, lower = sparser. */
+  var identityDensity: Double = 1.0,
   var sleepEndMs: Double? = null,
 ) {
   fun setFrom(other: AudioParameters) {
@@ -64,6 +68,8 @@ internal data class AudioParameters(
     spatialTarget = other.spatialTarget
     spatialDepth = other.spatialDepth
     spatialRate = other.spatialRate
+    identityPresence = other.identityPresence
+    identityDensity = other.identityDensity
     sleepEndMs = other.sleepEndMs
   }
 }
@@ -274,6 +280,7 @@ object ProceduralAudioEngine {
   private var forestBirdAmp = 0.0
   private var forestBirdPan = 0.0
   private var templeSpaceEnvelope = 0.0
+  private var templeChantGate = 1.0
   private var templeSpaceRandom = XORSHIFT_SEED xor 0x6a09e667L
   private var templeSpaceAirLeft = 0.0
   private var templeSpaceAirRight = 0.0
@@ -593,6 +600,7 @@ object ProceduralAudioEngine {
     forestBirdAmp = 0.0
     forestBirdPan = 0.0
     templeSpaceEnvelope = 0.0
+    templeChantGate = 1.0
     templeSpaceRandom = XORSHIFT_SEED xor 0x6a09e667L
     templeSpaceAirLeft = 0.0
     templeSpaceAirRight = 0.0
@@ -692,6 +700,7 @@ object ProceduralAudioEngine {
       forestBirdActive = false
       forestBirdFramesRemaining = 0.0
       templeSpaceRandom = activeTimeline.seed xor 0x6a09e667L
+      templeChantGate = 1.0
       templeSpaceAirLeft = 0.0
       templeSpaceAirRight = 0.0
       templeSpaceBreathLowLeft = 0.0
@@ -861,17 +870,17 @@ object ProceduralAudioEngine {
       val rightNoise = (baseRightNoise * (1 - rainMix) + rainNoise.second * rainGain * rainMix) * spatialDistance
       val ocean = if (oceanEnvelope > 0.0001) nextOcean(spatialSeconds, target.environmentIntensity) else silentStereo
       val oceanGain = target.environmentGain * oceanEnvelope
-      val abyssal = if (abyssalEnvelope > 0.0001) nextAbyssal(spatialSeconds, target.environmentIntensity) else silentStereo
+      val abyssal = if (abyssalEnvelope > 0.0001) nextAbyssal(spatialSeconds, target.environmentIntensity, target.identityPresence, target.identityDensity) else silentStereo
       val abyssalGain = target.environmentGain * abyssalEnvelope
       val wind = if (windEnvelope > 0.0001) nextWind(spatialSeconds, target.environmentIntensity) else silentStereo
       val windGain = target.environmentGain * windEnvelope
       val fire = if (fireEnvelope > 0.0001) nextFire(spatialSeconds, target.environmentIntensity) else silentStereo
       val fireGain = target.environmentGain * fireEnvelope
-      val cosmic = if (cosmicEnvelope > 0.0001) nextCosmic(spatialSeconds, target.environmentIntensity) else silentStereo
+      val cosmic = if (cosmicEnvelope > 0.0001) nextCosmic(spatialSeconds, target.environmentIntensity, target.identityPresence, target.identityDensity) else silentStereo
       val cosmicGain = target.environmentGain * cosmicEnvelope
       val forest = if (forestEnvelope > 0.0001) nextForest(spatialSeconds, target.environmentIntensity) else silentStereo
       val forestGain = target.environmentGain * forestEnvelope
-      val templeSpace = if (templeSpaceEnvelope > 0.0001) nextTempleSpace(spatialSeconds, target.environmentIntensity) else silentStereo
+      val templeSpace = if (templeSpaceEnvelope > 0.0001) nextTempleSpace(spatialSeconds, target.environmentIntensity, target.identityPresence, target.identityDensity) else silentStereo
       val templeSpaceGain = target.environmentGain * templeSpaceEnvelope
       val temple = if (templeEnvelope > 0.0001) nextTemple(spatialSeconds, target.templeIntensity) else silentStereo
       val templeLevel = target.templeGain * templeEnvelope
@@ -1210,8 +1219,8 @@ object ProceduralAudioEngine {
     return oceanSample.set(oceanModel.left, oceanModel.right)
   }
 
-  private fun nextAbyssal(elapsedSeconds: Double, intensity: Double): StereoSample {
-    abyssalModel.render(sampleRate, intensity, elapsedSeconds, worldSalience)
+  private fun nextAbyssal(elapsedSeconds: Double, intensity: Double, presence: Double, density: Double): StereoSample {
+    abyssalModel.render(sampleRate, intensity, elapsedSeconds, worldSalience, presence, density)
     return abyssalSample.set(abyssalModel.left, abyssalModel.right)
   }
 
@@ -1269,8 +1278,8 @@ object ProceduralAudioEngine {
     return (fireRandom and 0x00ff_ffffL).toDouble() / 0x007f_ffffL.toDouble() - 1
   }
 
-  private fun nextCosmic(elapsedSeconds: Double, intensity: Double): StereoSample {
-    cosmicModel.render(sampleRate, intensity, worldSalience)
+  private fun nextCosmic(elapsedSeconds: Double, intensity: Double, presence: Double, density: Double): StereoSample {
+    cosmicModel.render(sampleRate, intensity, worldSalience, presence, density)
     return cosmicSample.set(cosmicModel.left, cosmicModel.right)
   }
 
@@ -1431,7 +1440,7 @@ object ProceduralAudioEngine {
   }
 
   /** A quiet stone chamber: modal body, filtered air, and long asymmetric reflections. */
-  private fun nextTempleSpace(elapsedSeconds: Double, intensity: Double): StereoSample {
+  private fun nextTempleSpace(elapsedSeconds: Double, intensity: Double, presence: Double, density: Double): StereoSample {
     val tau = Math.PI * 2
     var body = 0.0
     for (index in 0 until 3) {
@@ -1459,13 +1468,19 @@ object ProceduralAudioEngine {
     // Three imperfect virtual voices move from an open "O" spectrum toward a
     // closed nasal hum. The sound stays distant because its dry level is low and
     // most of it reaches the listener through the room taps below.
-    val chantTime = (elapsedSeconds + 26.0) % 31.0
+    val chantPosition = elapsedSeconds + 26.0
+    val chantTime = chantPosition % 31.0
+    // Sparser identity: the Aum sounds on every Nth 31 s cycle. The gate fades over a
+    // quarter second, so a change of density mid-chant can never click.
+    val chantEvery = max(1, Math.round(1.0 / density).toInt())
+    val chantOpen = if (chantEvery == 1 || (chantPosition / 31.0).toLong() % chantEvery == 0L) 1.0 else 0.0
+    templeChantGate += (chantOpen - templeChantGate) / max(1.0, sampleRate * 0.25)
     val chantEnvelope = when {
       chantTime >= 9.0 -> 0.0
       chantTime < 2.2 -> 0.5 - 0.5 * cos(Math.PI * chantTime / 2.2)
       chantTime > 6.0 -> 0.5 + 0.5 * cos(Math.PI * (chantTime - 6.0) / 3.0)
       else -> 1.0
-    }
+    } * templeChantGate
     val chantProgress = clamp(chantTime / 9.0, 0.0, 1.0)
     val firstTransition = clamp(chantProgress / 0.56, 0.0, 1.0)
     val finalTransition = clamp((chantProgress - 0.56) / 0.44, 0.0, 1.0)
@@ -1490,7 +1505,7 @@ object ProceduralAudioEngine {
     }
     val chantLeft = templeSpaceBandpass(sourceLeft, 0, formant1, 6.5) * 1.65 + templeSpaceBandpass(sourceLeft, 1, formant2, 7.5) * 1.25 * formant2Presence + sub * 0.08
     val chantRight = templeSpaceBandpass(sourceRight, 2, formant1 * 0.992, 6.5) * 1.65 + templeSpaceBandpass(sourceRight, 3, formant2 * 1.008, 7.5) * 1.25 * formant2Presence + sub * 0.08
-    val chantLevel = chantEnvelope * (0.18 + intensity * 0.12)
+    val chantLevel = chantEnvelope * (0.18 + intensity * 0.12) * presence
     val drop = nextTempleSpaceDrop(intensity, worldSalience)
     val dropEchoSize = templeSpaceDropEcho.size
     val dropEchoLeftA = templeSpaceDropEcho[(templeSpaceDropEchoIndex - (sampleRate * 0.27).toInt().coerceIn(1, dropEchoSize - 1) + dropEchoSize) % dropEchoSize]
@@ -1607,6 +1622,8 @@ object ProceduralAudioEngine {
       spatialTarget = spatialTarget,
       spatialDepth = clamp(raw.spatialDepth, 0.0, 0.8),
       spatialRate = clamp(raw.spatialRate, 0.1, 3.0),
+      identityPresence = clamp(raw.identityPresence, 0.0, 4.0),
+      identityDensity = clamp(raw.identityDensity, 0.2, 1.0),
       sleepEndMs = sleepEndMs,
     )
   }
@@ -1724,6 +1741,8 @@ object ProceduralAudioEngine {
     output.spatialTarget = if (t < 0.5) from.spatialTarget else to.spatialTarget
     output.spatialDepth = lerp(from.spatialDepth, to.spatialDepth)
     output.spatialRate = lerp(from.spatialRate, to.spatialRate)
+    output.identityPresence = lerp(from.identityPresence, to.identityPresence)
+    output.identityDensity = lerp(from.identityDensity, to.identityDensity)
     output.sleepEndMs = null
     return output
   }
