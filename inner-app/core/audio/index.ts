@@ -4,6 +4,7 @@ export * from './factoryJourneys';
 export * from './factoryPresets';
 export * from './identityArc';
 export * from './journeyStore';
+export * from './nightSeed';
 export * from './nativeEngine';
 export * from './overnightProtocol';
 export * from './presetStore';

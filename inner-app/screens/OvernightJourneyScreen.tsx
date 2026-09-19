@@ -7,6 +7,7 @@ import { useVideoPlayer, VideoView } from '../core/memorySafeVideo';
 import {
   compileOvernightProtocol,
   createAcceleratedOvernightProtocol,
+  createNightSeed,
   createRecognitionOvernightProtocol,
   DEFAULT_PROCEDURAL_AUDIO_CONFIG,
   FACTORY_AUDIO_JOURNEYS,
@@ -91,6 +92,7 @@ function overnightJourney(
   feel: OvernightFeel,
   protocol: CompiledOvernightProtocol,
   accelerated = false,
+  seed: number = createNightSeed(),
 ): FactoryAudioJourney {
   const base = FACTORY_AUDIO_JOURNEYS.find(journey => journey.id === 'lucid-signal')!;
   const gain = feel === 'immersive' ? 0.2 : feel === 'deep' ? 0.16 : 0.12;
@@ -157,6 +159,8 @@ function overnightJourney(
       title: 'Overnight Recognition',
       endPolicy: 'protocolControlled',
       protocolVersion: protocol.schemaVersion,
+      // Fresh each night: without a seed the engine reuses one derived from the journey id.
+      seed,
       stages: [
         ...preparationStages.map(stage => ({
           ...stage,
@@ -221,7 +225,7 @@ export default function OvernightJourneyScreen() {
 
   const begin = async () => {
     await setRecognitionSignalId(signalId);
-    navigation.navigate('LucidJourneyPlayer', { journey: overnightJourney(environment, feel, compiled, accelerated && INNER_LAB_BUILD) });
+    navigation.navigate('LucidJourneyPlayer', { journey: overnightJourney(environment, feel, compiled, accelerated && INNER_LAB_BUILD, createNightSeed()) });
   };
 
   const openMemoryInspector = async () => {
