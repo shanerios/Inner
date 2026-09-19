@@ -277,6 +277,7 @@ private final class ProceduralAudioEngine: NSObject {
   private let cosmicModel = CosmicModel()
   private let worldSalience = WorldSalienceScheduler()
   private var forestEnvelope = 0.0
+  private let forestCallModel = ForestCallModel()
   private var forestRandom: UInt64 = 0x9e3779b97f4a7c15 ^ 0xc2b2ae35
   private var forestCanopy = 0.0
   private var forestLeafLeft = 0.0
@@ -614,6 +615,7 @@ private final class ProceduralAudioEngine: NSObject {
     forestBirdFreqRange = 0
     forestBirdAmp = 0
     forestBirdPan = 0
+    forestCallModel.reset(seed: 0x9e3779b97f4a7c15, sampleRate: sampleRate)
     templeSpaceEnvelope = 0
     templeSpaceRandom = 0x9e3779b97f4a7c15 ^ 0x6a09e667
     templeSpaceAirLeft = 0
@@ -849,6 +851,7 @@ private final class ProceduralAudioEngine: NSObject {
       forestRandom = activeTimeline.seed ^ 0xc2b2ae35
       forestBirdActive = false
       forestBirdFramesRemaining = 0
+      forestCallModel.reset(seed: activeTimeline.seed, sampleRate: sampleRate)
       templeSpaceRandom = activeTimeline.seed ^ 0x6a09e667
       templeSpaceAirLeft = 0
       templeSpaceAirRight = 0
@@ -1050,7 +1053,7 @@ private final class ProceduralAudioEngine: NSObject {
         : (left: 0.0, right: 0.0)
       let cosmicGain = target.environmentGain * cosmicEnvelope
       let forest = forestEnvelope > 0.0001
-        ? nextForest(elapsedSeconds: spatialSeconds, intensity: target.environmentIntensity)
+        ? nextForest(elapsedSeconds: spatialSeconds, intensity: target.environmentIntensity, presence: target.identityPresence, density: target.identityDensity, variety: target.identityVariety)
         : (left: 0.0, right: 0.0)
       let forestGain = target.environmentGain * forestEnvelope
       let templeSpace = templeSpaceEnvelope > 0.0001
@@ -1495,7 +1498,7 @@ private final class ProceduralAudioEngine: NSObject {
   // crisper high-passed leaf shimmer) carries the space, while seeded bird calls —
   // frequency-sweeping tone bursts rather than noise transients, the way an actual
   // chirp reads as pitched motion instead of a click — punctuate it at random.
-  private func nextForest(elapsedSeconds: Double, intensity: Double) -> (left: Double, right: Double) {
+  private func nextForest(elapsedSeconds: Double, intensity: Double, presence: Double, density: Double, variety: Double) -> (left: Double, right: Double) {
     let shared = nextForestWhite()
     forestCanopy += 0.02 * (shared - forestCanopy)
     let sway = clamp(
@@ -1534,24 +1537,25 @@ private final class ProceduralAudioEngine: NSObject {
       let wobble = sin(progress * Double.pi * 5) * 90
       let freq = forestBirdFreqStart + forestBirdFreqRange * progress + wobble
       forestBirdPhase = fmod(forestBirdPhase + Double.pi * 2 * freq / sampleRate, Double.pi * 2)
-      birdMono = sin(forestBirdPhase) * envelope * forestBirdAmp * (0.5 + intensity * 0.7)
+      birdMono = sin(forestBirdPhase) * envelope * forestBirdAmp * (0.5 + intensity * 0.7) * max(0, min(1, presence))
       forestBirdFramesRemaining -= 1
       if forestBirdFramesRemaining <= 0 {
         forestBirdActive = false
         let gapSeconds = (7.0 - intensity * 4.5) * (0.4 + abs(nextForestWhite()) * 1.4)
-        forestBirdFramesRemaining = sampleRate * max(0.6, gapSeconds)
+        forestBirdFramesRemaining = sampleRate * max(0.6, gapSeconds) / max(0.2, min(1, density))
       }
     }
     let birdLeft = birdMono * (1 - forestBirdPan)
     let birdRight = birdMono * (1 + forestBirdPan)
+    forestCallModel.render(sampleRate: sampleRate, salience: worldSalience, presence: presence, density: density, variety: variety)
 
     // The rustle bed is itself broadband noise, so it stacks directly with the
     // separate white/pink/brown/grey layer instead of sitting alongside it —
     // keep it as a quiet texture underneath the birds rather than a competing
     // noise floor.
     return (
-      (canopyBody + leftLeaf) * Self.forestNoiseMix + birdLeft,
-      (canopyBody + rightLeaf) * Self.forestNoiseMix + birdRight
+      (canopyBody + leftLeaf) * Self.forestNoiseMix + birdLeft + forestCallModel.left,
+      (canopyBody + rightLeaf) * Self.forestNoiseMix + birdRight + forestCallModel.right
     )
   }
 
@@ -2223,6 +2227,96 @@ final class TempleAccents {
 }
 
 /// Probabilistic surf model with a fixed micro-water voice pool.
+/// A slow wind-excited hollow trunk and a quieter answer deeper in the canopy.
+final class ForestCallModel {
+  private(set) var left = 0.0
+  private(set) var right = 0.0
+  private var rate = 48_000.0
+  private var random: UInt64 = 1
+  private var countdown = 0.0
+  private var age = -1.0
+  private var baseHz = 170.0
+  private var pan = 0.0
+  private var phase = 0.0
+  private var answerPhase = 0.0
+  private var airFast = 0.0
+  private var airSlow = 0.0
+  private var echo = [Double](repeating: 0, count: 24_000)
+  private var echoIndex = 0
+  private var echoWet = 0.0
+
+  func reset(seed: UInt64, sampleRate: Double) {
+    rate = sampleRate
+    random = seed ^ 0x466f72657374
+    if random == 0 { random = 1 }
+    countdown = rate * 14; age = -1; baseHz = 170; pan = 0
+    phase = 0; answerPhase = 0; airFast = 0; airSlow = 0
+    echo = [Double](repeating: 0, count: max(2, Int(rate * 0.5))); echoIndex = 0; echoWet = 0
+    left = 0; right = 0
+  }
+
+  private func unit() -> Double {
+    random ^= random << 13; random ^= random >> 7; random ^= random << 17
+    return Double(random & 0x00ff_ffff) / Double(0x00ff_ffff)
+  }
+
+  func render(sampleRate: Double, salience: WorldSalienceScheduler, presence: Double, density: Double, variety: Double) {
+    if rate != sampleRate { reset(seed: random, sampleRate: sampleRate) }
+    if age < 0 {
+      countdown -= 1
+      if countdown <= 0 {
+        if presence > 0.0001 && salience.reserve(salience: 0.5, durationSeconds: 11, recoverySeconds: 4) {
+          age = 0
+          baseHz = 150 + unit() * 45
+          pan = (unit() * 2 - 1) * 0.28
+          countdown = rate * (110 + unit() * 70) / max(0.2, min(1, density)) *
+            (1 - 0.25 * max(0, min(1, (variety - 0.6) / 0.4)))
+        } else {
+          countdown = rate * 3
+        }
+      }
+    }
+
+    var main = 0.0
+    var answer = 0.0
+    if age >= 0 {
+      let seconds = age / rate
+      let attack = max(0, min(1, seconds / 2))
+      let release = max(0, min(1, (10.5 - seconds) / 5))
+      let rise = attack * attack * (3 - 2 * attack)
+      let fall = release * release * (3 - 2 * release)
+      let sway = 1 + 0.003 * sin(seconds * Double.pi * 2 / 4.7)
+      phase = fmod(phase + 2 * Double.pi * baseHz * sway / rate, 2 * Double.pi)
+      let wood = sin(phase) * 0.52 + sin(phase * 3) * 0.19 + sin(phase * 5) * 0.06
+      let white = unit() * 2 - 1
+      airFast += 0.06 * (white - airFast)
+      airSlow += 0.008 * (white - airSlow)
+      let breath = (airFast - airSlow) * 0.65
+      let level = 0.34 * max(0, min(1.5, presence))
+      main = (wood * rise + breath * attack) * fall * level
+
+      if seconds >= 6 && seconds <= 10.5 {
+        let responseProgress = (seconds - 6) / 4.5
+        let responseEnvelope = pow(sin(Double.pi * responseProgress), 2)
+        answerPhase = fmod(answerPhase + 2 * Double.pi * baseHz * 0.75 / rate, 2 * Double.pi)
+        let distantWood = sin(answerPhase) * 0.6 + sin(answerPhase * 3) * 0.2
+        answer = distantWood * responseEnvelope * level * 0.32
+      }
+      age += 1
+      if seconds >= 10.5 { age = -1 }
+    }
+
+    let echoSize = echo.count
+    let first = echo[(echoIndex - min(echoSize - 1, max(1, Int(rate * 0.21))) + echoSize) % echoSize]
+    let second = echo[(echoIndex - min(echoSize - 1, max(1, Int(rate * 0.43))) + echoSize) % echoSize]
+    echoWet += ((first + second) * 0.5 - echoWet) * 0.02
+    echo[echoIndex] = main + answer + echoWet * 0.26
+    echoIndex = (echoIndex + 1) % echoSize
+    left = main * (1 - pan) + answer * (1 + pan * 1.2) + echoWet * 0.28
+    right = main * (1 + pan) + answer * (1 - pan * 1.2) + echoWet * 0.28
+  }
+}
+
 final class OceanModel {
   private(set) var left = 0.0
   private(set) var right = 0.0

@@ -78,11 +78,14 @@ export const WORLD_PROFILES: Record<AudioWorld, WorldProfile> = {
     recognitionRecoverySeconds: 2,
   },
   forest: {
-    id: 'forest', label: 'Forest', concept: 'A sheltered canopy of leaf movement punctuated by distant life.',
+    id: 'forest', label: 'Forest', concept: 'A sheltered canopy where wind gives hollow trunks a distant voice.',
     foundation: ['canopy-body', 'leaf-shimmer'],
     acoustics: { scale: 'natural', absorption: 0.58, diffusion: 0.64, width: 0.78 },
-    signatures: ['seeded-bird-calls'], motion: 'drift',
-    events: [{ id: 'bird-call', role: 'accent', salience: 0.38, recoverySeconds: 1.5 }],
+    signatures: ['seeded-bird-calls', 'hollow-tree-breath'], motion: 'drift',
+    events: [
+      { id: 'bird-call', role: 'accent', salience: 0.38, recoverySeconds: 1.5 },
+      { id: 'hollow-tree-breath', role: 'anchor', salience: 0.5, recoverySeconds: 4 },
+    ],
     recognitionRecoverySeconds: 2,
   },
   temple: {

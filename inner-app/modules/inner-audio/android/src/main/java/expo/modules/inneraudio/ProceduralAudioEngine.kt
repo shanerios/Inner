@@ -207,6 +207,7 @@ object ProceduralAudioEngine {
   private val fireSample = StereoSample()
   private val cosmicSample = StereoSample()
   private val forestSample = StereoSample()
+  private val forestCallModel = ForestCallModel()
   private val templeSpaceSample = StereoSample()
   private val cueSample = StereoSample()
   private val templeSample = StereoSample()
@@ -598,6 +599,7 @@ object ProceduralAudioEngine {
     forestBirdFreqRange = 0.0
     forestBirdAmp = 0.0
     forestBirdPan = 0.0
+    forestCallModel.reset(XORSHIFT_SEED, sampleRate)
     templeSpaceEnvelope = 0.0
     aumChant.reset(XORSHIFT_SEED)
     templeSpaceRandom = XORSHIFT_SEED xor 0x6a09e667L
@@ -695,6 +697,7 @@ object ProceduralAudioEngine {
       forestRandom = activeTimeline.seed xor 0xc2b2ae35L
       forestBirdActive = false
       forestBirdFramesRemaining = 0.0
+      forestCallModel.reset(activeTimeline.seed, sampleRate)
       templeSpaceRandom = activeTimeline.seed xor 0x6a09e667L
       aumChant.reset(activeTimeline.seed)
       templeSpaceAirLeft = 0.0
@@ -871,7 +874,7 @@ object ProceduralAudioEngine {
       val fireGain = target.environmentGain * fireEnvelope
       val cosmic = if (cosmicEnvelope > 0.0001) nextCosmic(spatialSeconds, target.environmentIntensity, target.identityPresence, target.identityDensity, target.identityVariety) else silentStereo
       val cosmicGain = target.environmentGain * cosmicEnvelope
-      val forest = if (forestEnvelope > 0.0001) nextForest(spatialSeconds, target.environmentIntensity) else silentStereo
+      val forest = if (forestEnvelope > 0.0001) nextForest(spatialSeconds, target.environmentIntensity, target.identityPresence, target.identityDensity, target.identityVariety) else silentStereo
       val forestGain = target.environmentGain * forestEnvelope
       val templeSpace = if (templeSpaceEnvelope > 0.0001) nextTempleSpace(spatialSeconds, target.environmentIntensity, target.identityPresence, target.identityDensity, target.identityVariety) else silentStereo
       val templeSpaceGain = target.environmentGain * templeSpaceEnvelope
@@ -1280,7 +1283,7 @@ object ProceduralAudioEngine {
   // crisper high-passed leaf shimmer) carries the space, while seeded bird calls —
   // frequency-sweeping tone bursts rather than noise transients, the way an actual
   // chirp reads as pitched motion instead of a click — punctuate it at random.
-  private fun nextForest(elapsedSeconds: Double, intensity: Double): StereoSample {
+  private fun nextForest(elapsedSeconds: Double, intensity: Double, presence: Double, density: Double, variety: Double): StereoSample {
     val shared = nextForestWhite()
     forestCanopy += 0.02 * (shared - forestCanopy)
     val sway = clamp(
@@ -1319,24 +1322,25 @@ object ProceduralAudioEngine {
       val wobble = sin(progress * Math.PI * 5) * 90
       val freq = forestBirdFreqStart + forestBirdFreqRange * progress + wobble
       forestBirdPhase = (forestBirdPhase + Math.PI * 2 * freq / sampleRate) % (Math.PI * 2)
-      birdMono = sin(forestBirdPhase) * envelope * forestBirdAmp * (0.5 + intensity * 0.7)
+      birdMono = sin(forestBirdPhase) * envelope * forestBirdAmp * (0.5 + intensity * 0.7) * presence.coerceIn(0.0, 1.0)
       forestBirdFramesRemaining -= 1
       if (forestBirdFramesRemaining <= 0) {
         forestBirdActive = false
         val gapSeconds = (7.0 - intensity * 4.5) * (0.4 + Math.abs(nextForestWhite()) * 1.4)
-        forestBirdFramesRemaining = sampleRate * max(0.6, gapSeconds)
+        forestBirdFramesRemaining = sampleRate * max(0.6, gapSeconds) / density.coerceIn(0.2, 1.0)
       }
     }
     val birdLeft = birdMono * (1 - forestBirdPan)
     val birdRight = birdMono * (1 + forestBirdPan)
+    forestCallModel.render(sampleRate, worldSalience, presence, density, variety)
 
     // The rustle bed is itself broadband noise, so it stacks directly with the
     // separate white/pink/brown/grey layer instead of sitting alongside it —
     // keep it as a quiet texture underneath the birds rather than a competing
     // noise floor.
     return forestSample.set(
-      (canopyBody + leftLeaf) * FOREST_NOISE_MIX + birdLeft,
-      (canopyBody + rightLeaf) * FOREST_NOISE_MIX + birdRight,
+      (canopyBody + leftLeaf) * FOREST_NOISE_MIX + birdLeft + forestCallModel.left,
+      (canopyBody + rightLeaf) * FOREST_NOISE_MIX + birdRight + forestCallModel.right,
     )
   }
 

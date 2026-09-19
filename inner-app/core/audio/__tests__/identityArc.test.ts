@@ -60,7 +60,7 @@ describe('identity arc', () => {
   });
 
   it('leaves worlds without an identity sound exactly as they were', () => {
-    for (const environment of ['forest', 'fire', 'wind', 'none'] as const) {
+    for (const environment of ['fire', 'wind', 'none'] as const) {
       for (const stage of STAGES) expect(identityPatch(environment, stage)).toEqual({});
     }
   });
@@ -81,6 +81,22 @@ describe('identity arc', () => {
     const ocean = compile('ocean');
     expect(ocean.phases.find(phase => phase.id === 'sleep-protection-1')!.audioConfig.identityPresence).toBeCloseTo(oceanPatch('earlySleep').identityPresence!, 10);
     expect(ocean.phases.find(phase => phase.id === 'sleep-protection-2')!.audioConfig.identityDensity).toBe(0.5);
+  });
+
+  it('thins the Forest signature and birds over the night with the shared feel controls', () => {
+    const forest = (stage: IdentityStage, feel: 'gentle' | 'deep' | 'immersive' = 'gentle') => identityPatch('forest', stage, feel);
+    expect(forest('preparation').identityPresence).toBe(1);
+    expect(forest('earlySleep').identityPresence).toBeCloseTo(10 ** (-3 / 20), 10);
+    expect(forest('remSleep').identityPresence).toBeCloseTo(10 ** (-5 / 20), 10);
+    expect(forest('remSleep').identityDensity).toBe(0.5);
+    expect(forest('recognitionWindow').identityPresence).toBeCloseTo(10 ** (-14 / 20), 10);
+    expect(forest('descent', 'immersive').identityPresence! / forest('descent').identityPresence!).toBeCloseTo(10 ** (2 / 20), 10);
+    expect(forest('descent', 'deep').identityVariety).toBe(0.6);
+    const phases = compileOvernightProtocol(createRecognitionOvernightProtocol({
+      sleepDurationMinutes: 8 * 60, environment: 'forest', signalId: 'chimes', cuePlan: 'standard', feel: 'immersive',
+    }), DEFAULT_PROCEDURAL_AUDIO_CONFIG).phases;
+    expect(phases.find(phase => phase.id === 'sleep-protection-2')!.audioConfig.identityDensity).toBe(0.5);
+    expect(phases.find(phase => phase.id === 'preparation')!.audioConfig.identityPresence).toBeCloseTo(10 ** (2 / 20), 10);
   });
 
   it('sets each protocol phase from its stage: 1 preparation and descent, 2 early sleep, 3 from the first signal', () => {
@@ -227,11 +243,13 @@ describe('identity controls across JS and both native engines', () => {
     expect(swift).toContain('if nextBreath >= Double.pi * 2 { moanCycle += 1 }');
   });
 
-  it('routes Ocean beacon presence while leaving worlds without identity sounds unchanged', () => {
+  it('routes Ocean and Forest identity controls while leaving the other worlds unchanged', () => {
     const engine = kotlin('ProceduralAudioEngine.kt');
     expect(engine).toMatch(/nextOcean\([^)]*target\.identityPresence, target\.identityDensity, target\.identityVariety/);
     expect(swift).toMatch(/nextOcean\([^)]*presence: target\.identityPresence, density: target\.identityDensity, variety: target\.identityVariety/);
-    for (const world of ['Wind', 'Fire', 'Forest']) {
+    expect(engine).toMatch(/nextForest\([^)]*target\.identityPresence, target\.identityDensity, target\.identityVariety/);
+    expect(swift).toMatch(/nextForest\([^)]*presence: target\.identityPresence, density: target\.identityDensity, variety: target\.identityVariety/);
+    for (const world of ['Wind', 'Fire']) {
       expect(engine).not.toMatch(new RegExp(`next${world}\\([^)]*presence`));
     }
   });
