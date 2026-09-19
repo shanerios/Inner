@@ -38,13 +38,13 @@ describe('Aum gestures: Kotlin and Swift draw the same appearance for the same n
   it('uses the same salt, kinds, bag shuffle and slots', () => {
     expect(gestures).toContain('const val AUM_SALT = 0x41756d01L');
     expect(swift).toContain('static let aumSalt: UInt64 = 0x41756d01');
-    expect(gestures).toContain('const val KINDS = 6');
-    expect(swift).toContain('static let kinds = 6');
+    expect(gestures).toContain('const val AUM_KINDS = 6');
+    expect(swift).toContain('static let aumKinds = 6');
     expect(gestures).toContain('salt xor 0x62616700L, bag, 16 + i');
     expect(swift).toContain('salt: salt ^ 0x62616700, index: bag, slot: 16 + i');
     expect(gestures).toContain('index * 32L + slot.toLong()');
     expect(swift).toContain('UInt64(index) &* 32 &+ UInt64(slot)');
-    expect(gestures).toContain('if (bagA[0] == bagB[KINDS - 1])');
+    expect(gestures).toContain('if (bagA[0] == bagB[kinds - 1])');
     expect(swift).toContain('if bagA[0] == bagB[kinds - 1]');
   });
 

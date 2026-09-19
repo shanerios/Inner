@@ -35,7 +35,36 @@ internal class AbyssalModel {
   private var creatureLevel = 0.0
   private var creatureLeft = 0.0
   private var creatureRight = 0.0
+  // Per-appearance gestures (see WhaleGesture). All idle at variety 0.
+  private var gestureSeed = 1L
+  private val gesture = WhaleGesture()
+  private var callCount = 0L
+  private var gestureIndex = 0L
+  private var callFarLeft = 0.0
+  private var callFarRight = 0.0
+  private val companionCountdown = DoubleArray(2)
+  private val companionActive = BooleanArray(2)
+  private val companionAge = DoubleArray(2)
+  private val companionDuration = DoubleArray(2)
+  private val companionPhase = DoubleArray(2)
+  private val companionStartHz = DoubleArray(2)
+  private val companionEndHz = DoubleArray(2)
+  private val companionPan = DoubleArray(2)
+  private val companionLevel = DoubleArray(2)
+  private val companionFar = DoubleArray(2)
+  private val companionFarLeft = DoubleArray(2)
+  private val companionFarRight = DoubleArray(2)
+  private val callEchoLeft = DoubleArray(300_000)
+  private val callEchoRight = DoubleArray(300_000)
+  private var callEchoIndex = 0
+  private var callEchoDampLeft = 0.0
+  private var callEchoDampRight = 0.0
+  private val farRoom = DoubleArray(48_000)
+  private var farRoomIndex = 0
   private var responseCountdown = -1.0
+  private var responseLag = 0.0
+  private var responseBright = 1.0
+  private var responseWaiting = false
   private var responseActive = false
   private var responseAge = 0.0
   private var responseDuration = 0.0
@@ -80,7 +109,16 @@ internal class AbyssalModel {
     creatureCountdown = rate * 14.0; creatureActive = false; creatureAge = 0.0
     creatureDuration = 0.0; creaturePhase = 0.0; creaturePan = 0.0; creatureLevel = 0.0
     creatureLeft = 0.0; creatureRight = 0.0
-    responseCountdown = -1.0; responseActive = false; responseAge = 0.0; responseDuration = 0.0
+    gestureSeed = seed xor 0x57484c45L
+    gesture.neutral(); callCount = 0L; gestureIndex = 0L
+    gestureExtraLeft = 0.0; gestureExtraRight = 0.0; shapedLeft = 0.0; shapedRight = 0.0
+    callFarLeft = 0.0; callFarRight = 0.0
+    companionCountdown.fill(0.0); companionActive.fill(false); companionAge.fill(0.0); companionDuration.fill(0.0)
+    companionPhase.fill(0.0); companionFarLeft.fill(0.0); companionFarRight.fill(0.0)
+    callEchoLeft.fill(0.0); callEchoRight.fill(0.0); callEchoIndex = 0; callEchoDampLeft = 0.0; callEchoDampRight = 0.0
+    farRoom.fill(0.0); farRoomIndex = 0
+    responseBright = 1.0
+    responseCountdown = -1.0; responseLag = 0.0; responseWaiting = false; responseActive = false; responseAge = 0.0; responseDuration = 0.0
     responsePhase = 0.0; responseStartHz = 0.0; responseEndHz = 0.0; responsePan = 0.0; responseLevel = 0.0
     bubbleCountdown = rate * 9.5; bubbleActive = false; bubbleAge = 0.0; bubbleDuration = 0.0
     bubblePhase = 0.0; bubbleBaseHz = 0.0; bubbleCount = 0; bubblePanStart = 0.0; bubblePanEnd = 0.0
@@ -105,7 +143,7 @@ internal class AbyssalModel {
     return x * x * (3.0 - 2.0 * x)
   }
 
-  private fun nextCreature(intensity: Double, salience: WorldSalienceScheduler, presence: Double, density: Double) {
+  private fun nextCreature(intensity: Double, salience: WorldSalienceScheduler, presence: Double, density: Double, variety: Double) {
     if (!creatureActive) {
       creatureCountdown -= 1.0
       if (creatureCountdown <= 0.0) {
@@ -124,8 +162,10 @@ internal class AbyssalModel {
           responseEndHz = 92.0 + unit() * 32.0
           responsePan = -creaturePan * 0.9
           responseLevel = baseCreatureLevel * (0.4 + unit() * 0.12) * 1.75
-          // Sparser identity: longer silences between calls.
-          creatureCountdown = rate * (42.0 + unit() * 58.0) / density
+          // Sparser identity: longer silences between calls. From variety 0.6 the silences shorten, so a
+          // fuller feel hears the whale about a quarter more often (Gentle and Deep are unchanged).
+          creatureCountdown = rate * (42.0 + unit() * 58.0) / density * (1.0 - 0.2 * ((variety - 0.6) / 0.4).coerceIn(0.0, 1.0))
+          beginGesture(variety)
         } else {
           creatureCountdown = rate * (3.0 + unit() * 3.0)
         }
@@ -134,11 +174,17 @@ internal class AbyssalModel {
     if (responseCountdown > 0.0 && !responseActive) {
       responseCountdown -= 1.0
       if (responseCountdown <= 0.0) {
-        responseActive = true
+        // The draws happen at the answer's original moment whatever the gesture, so the water's other random
+        // details keep to their own schedule; a longer call only delays when the answer is heard.
         responseAge = 0.0
         responseDuration = rate * (5.0 + unit() * 2.0)
         responsePhase = unit() * PI * 2.0
+        if (responseLag > 0.0) responseWaiting = true else responseActive = true
       }
+    }
+    if (responseWaiting) {
+      responseLag -= 1.0
+      if (responseLag <= 0.0) { responseWaiting = false; responseActive = true }
     }
     var answerLeft = 0.0
     var answerRight = 0.0
@@ -146,32 +192,182 @@ internal class AbyssalModel {
       val progress = (responseAge / responseDuration).coerceIn(0.0, 1.0)
       val envelope = smooth(responseAge / max(1.0, rate * 1.6)) * (1.0 - smooth((progress - 0.58) / 0.42))
       val frequency = responseStartHz + (responseEndHz - responseStartHz) * smooth(progress)
-      val voice = (sin(responsePhase) + sin(responsePhase * 1.51) * 0.18 + sin(responsePhase * 2.03) * 0.12) * envelope * responseLevel
+      val voice = (sin(responsePhase) + sin(responsePhase * 1.51) * 0.18 * responseBright + sin(responsePhase * 2.03) * 0.12 * responseBright) * envelope * responseLevel
       responsePhase = (responsePhase + PI * 2.0 * frequency / rate) % (PI * 2.0)
       responseAge += 1.0
       if (responseAge >= responseDuration) responseActive = false
       answerLeft = voice * (1.0 - responsePan) * 0.64
       answerRight = voice * (1.0 + responsePan) * 0.64
     }
-    if (!creatureActive || creatureDuration <= 0.0) {
-      creatureLeft = answerLeft * presence
-      creatureRight = answerRight * presence
+    var callLeft = 0.0
+    var callRight = 0.0
+    if (creatureActive && creatureDuration > 0.0) {
+      val progress = (creatureAge / creatureDuration).coerceIn(0.0, 1.0)
+      val attack = smooth(creatureAge / max(1.0, rate * 2.4))
+      val release = 1.0 - smooth((progress - 0.62) / 0.38)
+      val bend = smooth(progress)
+      val frequency = (creatureStartHz + (creatureEndHz - creatureStartHz) * bend) *
+        (1.0 + sin(progress * PI * 9.0) * 0.006)
+      val voice = (sin(creaturePhase) + sin(creaturePhase * 2.0) * 0.23 + sin(creaturePhase * 3.0) * 0.07) *
+        attack * release * creatureLevel
+      creaturePhase = (creaturePhase + PI * 2.0 * frequency / rate) % (PI * 2.0)
+      creatureAge += 1.0
+      if (creatureAge >= creatureDuration) creatureActive = false
+      val travel = creaturePan + sin(progress * PI) * 0.12 * if (creaturePan < 0) 1.0 else -1.0
+      callLeft = voice * (1.0 - travel) * 0.68
+      callRight = voice * (1.0 + travel) * 0.68
+    }
+    if (variety <= 0.0) {
+      creatureLeft = (callLeft + answerLeft) * presence
+      creatureRight = (callRight + answerRight) * presence
       return
     }
-    val progress = (creatureAge / creatureDuration).coerceIn(0.0, 1.0)
-    val attack = smooth(creatureAge / max(1.0, rate * 2.4))
-    val release = 1.0 - smooth((progress - 0.62) / 0.38)
-    val bend = smooth(progress)
-    val frequency = (creatureStartHz + (creatureEndHz - creatureStartHz) * bend) *
-      (1.0 + sin(progress * PI * 9.0) * 0.006)
-    val voice = (sin(creaturePhase) + sin(creaturePhase * 2.0) * 0.23 + sin(creaturePhase * 3.0) * 0.07) *
-      attack * release * creatureLevel
-    creaturePhase = (creaturePhase + PI * 2.0 * frequency / rate) % (PI * 2.0)
-    creatureAge += 1.0
-    if (creatureAge >= creatureDuration) creatureActive = false
-    val travel = creaturePan + sin(progress * PI) * 0.12 * if (creaturePan < 0) 1.0 else -1.0
-    creatureLeft = (voice * (1.0 - travel) * 0.68 + answerLeft) * presence
-    creatureRight = (voice * (1.0 + travel) * 0.68 + answerRight) * presence
+    shapeGestures(callLeft, callRight)
+    creatureLeft = (shapedLeft + answerLeft + gestureExtraLeft) * presence
+    creatureRight = (shapedRight + answerRight + gestureExtraRight) * presence
+  }
+
+  private var gestureExtraLeft = 0.0
+  private var gestureExtraRight = 0.0
+  private var shapedLeft = 0.0
+  private var shapedRight = 0.0
+
+  /**
+   * Draws this call's gesture and bends the call, its answer and what is around them to it. It only moves
+   * things the scheduler has already drawn, and takes its own randomness from the night's seed, so the
+   * whale calls at exactly the same moments at any variety.
+   */
+  private fun beginGesture(variety: Double) {
+    responseLag = 0.0
+    responseBright = 1.0
+    if (variety <= 0.0) { gesture.neutral(); return }
+    val index = callCount++
+    gestureIndex = index
+    gesture.draw(gestureSeed, index, variety)
+    val g = gesture
+    val oldDuration = creatureDuration
+    creatureDuration = oldDuration * g.durationScale
+    responseLag = max(0.0, creatureDuration - oldDuration)
+    // The next call's countdown only runs while nothing is sounding, so a longer or shorter call would move
+    // every later call. Take the difference off it, and the whale calls at the same moments at any variety.
+    creatureCountdown -= creatureDuration - oldDuration
+    creatureLevel *= g.callLevel
+    when (g.pitchMode) {
+      WhaleGesture.PITCH_RISING -> {
+        // Up from the bottom of its range instead of down from the top.
+        val low = creatureEndHz
+        creatureEndHz = creatureStartHz * 1.05
+        creatureStartHz = low
+      }
+      WhaleGesture.PITCH_DEEP_FALL -> {
+        creatureStartHz *= 1.25
+        creatureEndHz = max(38.0, creatureEndHz * 0.72)
+      }
+    }
+    responseLevel *= g.answerLevel
+    // Answered from close by: nearer the middle of the room, and brighter.
+    responseBright = g.answerBright
+    if (g.answerNear) responsePan *= 0.3
+    for (slot in 0 until 2) companionActive[slot] = false
+    companionCountdown.fill(0.0)
+    fun draw(slot: Int) = IdentityGestures.draw(gestureSeed, IdentityGestures.WHALE_SALT, index, slot)
+    if (g.companions >= 1) {
+      // A second whale, farther off, on the other side, joining a moment after.
+      companionCountdown[0] = rate * (1.5 + 2.0 * draw(10))
+      companionDuration[0] = creatureDuration * (0.8 + 0.3 * draw(11))
+      companionStartHz[0] = 62.0 + 30.0 * draw(12)
+      companionEndHz[0] = 40.0 + 14.0 * draw(13)
+      companionPan[0] = (if (creaturePan < 0) 1.0 else -1.0) * (0.35 + 0.35 * draw(14))
+      companionLevel[0] = creatureLevel * (0.55 + 0.25 * variety) / max(g.callLevel, 0.05)
+      companionFar[0] = 0.75
+    }
+    if (g.companions >= 2) {
+      // And a third, smaller, higher and farther still.
+      companionCountdown[1] = rate * (4.0 + 3.0 * draw(15))
+      companionDuration[1] = creatureDuration * (0.7 + 0.3 * draw(16))
+      companionStartHz[1] = 110.0 + 30.0 * draw(17)
+      companionEndHz[1] = 70.0 + 20.0 * draw(18)
+      companionPan[1] = (if (draw(19) < 0.5) -1.0 else 1.0) * (0.5 + 0.4 * draw(20))
+      companionLevel[1] = creatureLevel * 0.4 / max(g.callLevel, 0.05)
+      companionFar[1] = 0.92
+    }
+  }
+
+  /** One-pole low-pass coefficient for a distance: the farther, the darker. */
+  private fun farCoefficient(distance: Double): Double = 1.0 - exp(-PI * 2.0 * (1_200.0 - 850.0 * distance) / rate)
+
+  /** Adds the gestures' far-off voices, echo and room to the call: sets the shaped call and the extras. */
+  private fun shapeGestures(callLeft: Double, callRight: Double) {
+    val g = gesture
+    var left = callLeft
+    var right = callRight
+    var extraLeft = 0.0
+    var extraRight = 0.0
+    var roomIn = 0.0
+    if (g.callFar > 0.0) {
+      // A far call is darker, quieter, and mostly reverb.
+      val coefficient = farCoefficient(g.callFar)
+      callFarLeft += (left - callFarLeft) * coefficient
+      callFarRight += (right - callFarRight) * coefficient
+      val gain = 1.0 - 0.7 * g.callFar
+      left = callFarLeft * gain * (1.0 - 0.65 * g.callFar)
+      right = callFarRight * gain * (1.0 - 0.65 * g.callFar)
+      roomIn += (callFarLeft + callFarRight) * 0.5 * gain * 0.6 * g.callFar
+    }
+    for (slot in 0 until 2) {
+      if (!companionActive[slot] && companionCountdown[slot] > 0.0) {
+        companionCountdown[slot] -= 1.0
+        if (companionCountdown[slot] <= 0.0) {
+          companionActive[slot] = true
+          companionAge[slot] = 0.0
+          companionPhase[slot] = IdentityGestures.draw(gestureSeed, IdentityGestures.WHALE_SALT, gestureIndex, 21 + slot) * PI * 2.0
+        }
+      }
+      if (!companionActive[slot]) continue
+      val duration = companionDuration[slot]
+      val progress = (companionAge[slot] / duration).coerceIn(0.0, 1.0)
+      val attack = smooth(companionAge[slot] / max(1.0, rate * 2.4))
+      val release = 1.0 - smooth((progress - 0.62) / 0.38)
+      val bend = smooth(progress)
+      val frequency = (companionStartHz[slot] + (companionEndHz[slot] - companionStartHz[slot]) * bend) *
+        (1.0 + sin(progress * PI * 9.0 + slot) * 0.006)
+      val phase = companionPhase[slot]
+      val voice = (sin(phase) + sin(phase * 2.0) * 0.23 + sin(phase * 3.0) * 0.07) * attack * release * companionLevel[slot]
+      companionPhase[slot] = (phase + PI * 2.0 * frequency / rate) % (PI * 2.0)
+      companionAge[slot] += 1.0
+      if (companionAge[slot] >= duration) companionActive[slot] = false
+      val coefficient = farCoefficient(companionFar[slot])
+      val gain = 1.0 - 0.7 * companionFar[slot]
+      companionFarLeft[slot] += (voice * (1.0 - companionPan[slot]) * 0.68 - companionFarLeft[slot]) * coefficient
+      companionFarRight[slot] += (voice * (1.0 + companionPan[slot]) * 0.68 - companionFarRight[slot]) * coefficient
+      extraLeft += companionFarLeft[slot] * gain * (1.0 - 0.65 * companionFar[slot])
+      extraRight += companionFarRight[slot] * gain * (1.0 - 0.65 * companionFar[slot])
+      roomIn += (companionFarLeft[slot] + companionFarRight[slot]) * 0.5 * gain * 0.6 * companionFar[slot]
+    }
+    // The call calls back to itself, ping-ponging across the water, each time a little darker.
+    val echoSize = callEchoLeft.size
+    val echoLength = min(echoSize - 1, max(1, (rate * 4.6).toInt()))
+    val echoAt = (callEchoIndex - echoLength + echoSize) % echoSize
+    callEchoDampLeft += (callEchoLeft[echoAt] - callEchoDampLeft) * 0.3
+    callEchoDampRight += (callEchoRight[echoAt] - callEchoDampRight) * 0.3
+    callEchoLeft[callEchoIndex] = left * g.echoSend + callEchoDampRight * 0.62
+    callEchoRight[callEchoIndex] = right * g.echoSend + callEchoDampLeft * 0.62
+    callEchoIndex = (callEchoIndex + 1) % echoSize
+    extraLeft += callEchoDampLeft * 0.9
+    extraRight += callEchoDampRight * 0.9
+    // Far voices sit in a room of their own.
+    val roomSize = farRoom.size
+    val tapLeft = farRoom[(farRoomIndex - (rate * 0.29).toInt().coerceIn(1, roomSize - 1) + roomSize) % roomSize]
+    val tapRight = farRoom[(farRoomIndex - (rate * 0.47).toInt().coerceIn(1, roomSize - 1) + roomSize) % roomSize]
+    val tapLong = farRoom[(farRoomIndex - (rate * 0.71).toInt().coerceIn(1, roomSize - 1) + roomSize) % roomSize]
+    farRoom[farRoomIndex] = roomIn + (tapLeft + tapRight) * 0.28
+    farRoomIndex = (farRoomIndex + 1) % roomSize
+    extraLeft += tapLeft * 0.8 + tapLong * 0.4
+    extraRight += tapRight * 0.8 + tapLong * 0.4
+    gestureExtraLeft = extraLeft
+    gestureExtraRight = extraRight
+    shapedLeft = left
+    shapedRight = right
   }
 
   private fun nextBubbleTrail(intensity: Double, salience: WorldSalienceScheduler) {
@@ -250,7 +446,7 @@ internal class AbyssalModel {
     dropRight = dryRight + near * 0.17 + far * 0.24
   }
 
-  fun render(sampleRate: Double, intensity: Double, elapsedSeconds: Double, salience: WorldSalienceScheduler, presence: Double, density: Double) {
+  fun render(sampleRate: Double, intensity: Double, elapsedSeconds: Double, salience: WorldSalienceScheduler, presence: Double, density: Double, variety: Double) {
     if (rate != sampleRate) reset(random, sampleRate)
     val tau = PI * 2.0
     val shared = white()
@@ -284,7 +480,7 @@ internal class AbyssalModel {
       glassPhases[index] = (glassPhases[index] + tau * glassFrequencies[index] * bend / rate) % tau
     }
 
-    nextCreature(intensity, salience, presence, density)
+    nextCreature(intensity, salience, presence, density, variety)
     nextBubbleTrail(intensity, salience)
     nextCondensation(intensity, salience)
     val roomLeft = chamberLeft[(chamberIndex - (rate * 0.37).toInt().coerceIn(1, chamberLeft.size - 1) + chamberLeft.size) % chamberLeft.size]

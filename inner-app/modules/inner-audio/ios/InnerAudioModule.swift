@@ -1034,7 +1034,7 @@ private final class ProceduralAudioEngine: NSObject {
         : (left: 0.0, right: 0.0)
       let oceanGain = target.environmentGain * oceanEnvelope
       let abyssal = abyssalEnvelope > 0.0001
-        ? nextAbyssal(elapsedSeconds: spatialSeconds, intensity: target.environmentIntensity, presence: target.identityPresence, density: target.identityDensity)
+        ? nextAbyssal(elapsedSeconds: spatialSeconds, intensity: target.environmentIntensity, presence: target.identityPresence, density: target.identityDensity, variety: target.identityVariety)
         : (left: 0.0, right: 0.0)
       let abyssalGain = target.environmentGain * abyssalEnvelope
       let wind = windEnvelope > 0.0001
@@ -1399,8 +1399,8 @@ private final class ProceduralAudioEngine: NSObject {
     return (oceanModel.left, oceanModel.right)
   }
 
-  private func nextAbyssal(elapsedSeconds: Double, intensity: Double, presence: Double, density: Double) -> (left: Double, right: Double) {
-    abyssalModel.render(sampleRate: sampleRate, intensity: intensity, elapsedSeconds: elapsedSeconds, salience: worldSalience, presence: presence, density: density)
+  private func nextAbyssal(elapsedSeconds: Double, intensity: Double, presence: Double, density: Double, variety: Double) -> (left: Double, right: Double) {
+    abyssalModel.render(sampleRate: sampleRate, intensity: intensity, elapsedSeconds: elapsedSeconds, salience: worldSalience, presence: presence, density: density, variety: variety)
     return (abyssalModel.left, abyssalModel.right)
   }
 
@@ -2401,9 +2401,11 @@ final class OceanModel {
 // Two appearances in a row are never the same kind. The Kotlin engine mirrors this.
 enum IdentityGestures {
   static let aumSalt: UInt64 = 0x41756d01
-  static let kinds = 6
-  private static var bagA = [Int](repeating: 0, count: 6)
-  private static var bagB = [Int](repeating: 0, count: 6)
+  static let aumKinds = 6
+  static let whaleSalt: UInt64 = 0x5768616c
+  static let whaleKinds = 7
+  private static var bagA = [Int](repeating: 0, count: 8)
+  private static var bagB = [Int](repeating: 0, count: 8)
 
   private static func splitmix(_ x: UInt64) -> UInt64 {
     var z = x &+ 0x9E3779B97F4A7C15
@@ -2418,7 +2420,7 @@ enum IdentityGestures {
     return Double(bits >> 11) / 9007199254740992.0
   }
 
-  private static func permutation(seed: UInt64, salt: UInt64, bag: Int64, into out: inout [Int]) {
+  private static func permutation(seed: UInt64, salt: UInt64, bag: Int64, kinds: Int, into out: inout [Int]) {
     for i in 0..<kinds { out[i] = i }
     for i in stride(from: kinds - 1, through: 1, by: -1) {
       let j = min(i, Int(draw(seed: seed, salt: salt ^ 0x62616700, index: bag, slot: 16 + i) * Double(i + 1)))
@@ -2426,14 +2428,15 @@ enum IdentityGestures {
     }
   }
 
-  /// The kind of appearance number `index`. Kinds are dealt from a shuffled bag, so each turns up once in
-  /// every `kinds` appearances; a bag's first kind is swapped if it would repeat the previous bag's last.
-  static func kind(seed: UInt64, salt: UInt64, index: Int64) -> Int {
+  /// The kind of appearance number `index`, of `kinds` in all. Kinds are dealt from a shuffled bag, so each
+  /// turns up once in every `kinds` appearances; a bag's first kind is swapped if it would repeat the
+  /// previous bag's last.
+  static func kind(seed: UInt64, salt: UInt64, index: Int64, kinds: Int) -> Int {
     let bag = index / Int64(kinds)
     let position = Int(index % Int64(kinds))
-    permutation(seed: seed, salt: salt, bag: bag, into: &bagA)
+    permutation(seed: seed, salt: salt, bag: bag, kinds: kinds, into: &bagA)
     if bag > 0 {
-      permutation(seed: seed, salt: salt, bag: bag - 1, into: &bagB)
+      permutation(seed: seed, salt: salt, bag: bag - 1, kinds: kinds, into: &bagB)
       if bagA[0] == bagB[kinds - 1] { bagA.swapAt(0, 1) }
     }
     return bagA[position]
@@ -2476,7 +2479,7 @@ final class AumGesture {
     neutral()
     let salt = IdentityGestures.aumSalt
     func u(_ slot: Int) -> Double { IdentityGestures.draw(seed: seed, salt: salt, index: index, slot: slot) }
-    kind = IdentityGestures.kind(seed: seed, salt: salt, index: index)
+    kind = IdentityGestures.kind(seed: seed, salt: salt, index: index, kinds: IdentityGestures.aumKinds)
     level = 1.0 + variety * (u(0) - 0.5) * 0.3
     startDelay = variety * u(1) * 9.0
     stretch = 1.0 + variety * (u(2) - 0.4) * 0.3
@@ -2500,6 +2503,69 @@ final class AumGesture {
       // The group settles lower as it chants. The octave is kept for the fullest variety.
       rootRatio = Self.deeper[min(variety > 0.7 ? 3 : 2, Int(u(6) * 4.0))]
       glide = (1.0 + u(7) * 2.0) * variety
+    default:
+      break
+    }
+  }
+}
+
+/// One appearance of the whale call: the call, its answer, and whatever else is in the water.
+final class WhaleGesture {
+  static let kindPlain = 0, kindRising = 1, kindFalling = 2, kindCompanions = 3, kindFarNear = 4, kindAnswerOnly = 5, kindLongEcho = 6
+  static let pitchSteady = 0, pitchRising = 1, pitchDeepFall = 2
+
+  var kind = WhaleGesture.kindPlain
+  /// Scales the call's level; 0 leaves only the answer.
+  var callLevel = 1.0
+  /// 0 = at the listener, 1 = far off.
+  var callFar = 0.0
+  var pitchMode = WhaleGesture.pitchSteady
+  var durationScale = 1.0
+  var answerLevel = 1.0
+  /// The answer comes from close by.
+  var answerNear = false
+  /// Scales the answer's upper harmonics: above 1 it is brighter and closer.
+  var answerBright = 1.0
+  /// How many other whales answer from the distance: 0, 1 or 2.
+  var companions = 0
+  var echoSend = 0.0
+
+  func neutral() {
+    kind = Self.kindPlain; callLevel = 1; callFar = 0; pitchMode = Self.pitchSteady; durationScale = 1
+    answerLevel = 1; answerNear = false; answerBright = 1; companions = 0; echoSend = 0
+  }
+
+  /// Draws appearance number `index` at the given variety (0 = none, 1 = full).
+  func draw(seed: UInt64, index: Int64, variety: Double) {
+    neutral()
+    let salt = IdentityGestures.whaleSalt
+    func u(_ slot: Int) -> Double { IdentityGestures.draw(seed: seed, salt: salt, index: index, slot: slot) }
+    kind = IdentityGestures.kind(seed: seed, salt: salt, index: index, kinds: IdentityGestures.whaleKinds)
+    callLevel = 1.0 + variety * (u(0) - 0.5) * 0.24
+    durationScale = 1.0 + variety * (u(1) - 0.5) * 0.2
+    switch kind {
+    case Self.kindRising:
+      pitchMode = Self.pitchRising
+    case Self.kindFalling:
+      pitchMode = Self.pitchDeepFall
+      durationScale *= 1.0 + 0.3 * variety
+    case Self.kindCompanions:
+      // One more whale far off, and at the fullest variety often a second, smaller and farther still.
+      companions = u(2) < 0.25 + 0.5 * variety ? 2 : 1
+    case Self.kindFarNear:
+      callFar = 0.95 * variety
+      callLevel *= 1.0 - 0.4 * variety
+      answerLevel = 1.0 + variety
+      answerBright = 1.0 + 0.9 * variety
+      answerNear = true
+    case Self.kindAnswerOnly:
+      callLevel = 0.0
+      answerLevel = 1.0 + 0.35 * variety
+    case Self.kindLongEcho:
+      // Longer than it should be: up to twice the length, and it calls back to itself across the water.
+      durationScale *= 1.0 + variety
+      callLevel *= 0.9
+      echoSend = 0.6 * variety
     default:
       break
     }
@@ -3072,6 +3138,39 @@ final class AbyssalModel {
   private var responseEndHz = 0.0
   private var responsePan = 0.0
   private var responseLevel = 0.0
+  // Per-appearance gestures (see WhaleGesture). All idle at variety 0.
+  private var gestureSeed: UInt64 = 1
+  private let gesture = WhaleGesture()
+  private var callCount: Int64 = 0
+  private var gestureIndex: Int64 = 0
+  private var callFarLeft = 0.0
+  private var callFarRight = 0.0
+  private var companionCountdown = [Double](repeating: 0, count: 2)
+  private var companionActive = [Bool](repeating: false, count: 2)
+  private var companionAge = [Double](repeating: 0, count: 2)
+  private var companionDuration = [Double](repeating: 0, count: 2)
+  private var companionPhase = [Double](repeating: 0, count: 2)
+  private var companionStartHz = [Double](repeating: 0, count: 2)
+  private var companionEndHz = [Double](repeating: 0, count: 2)
+  private var companionPan = [Double](repeating: 0, count: 2)
+  private var companionLevel = [Double](repeating: 0, count: 2)
+  private var companionFar = [Double](repeating: 0, count: 2)
+  private var companionFarLeft = [Double](repeating: 0, count: 2)
+  private var companionFarRight = [Double](repeating: 0, count: 2)
+  private var callEchoLeft = [Double](repeating: 0, count: 300_000)
+  private var callEchoRight = [Double](repeating: 0, count: 300_000)
+  private var callEchoIndex = 0
+  private var callEchoDampLeft = 0.0
+  private var callEchoDampRight = 0.0
+  private var farRoom = [Double](repeating: 0, count: 48_000)
+  private var farRoomIndex = 0
+  private var responseLag = 0.0
+  private var responseWaiting = false
+  private var responseBright = 1.0
+  private var gestureExtraLeft = 0.0
+  private var gestureExtraRight = 0.0
+  private var shapedLeft = 0.0
+  private var shapedRight = 0.0
 
   private var bubbleCountdown = 48_000.0 * 9.5
   private var bubbleActive = false
@@ -3106,7 +3205,20 @@ final class AbyssalModel {
     chamberIndex = 0
     creatureCountdown = rate * 14; creatureActive = false; creatureAge = 0
     creatureDuration = 0; creaturePhase = 0; creaturePan = 0; creatureLevel = 0
-    responseCountdown = -1; responseActive = false; responseAge = 0; responseDuration = 0
+    gestureSeed = seed ^ 0x57484c45
+    gesture.neutral(); callCount = 0; gestureIndex = 0
+    gestureExtraLeft = 0; gestureExtraRight = 0; shapedLeft = 0; shapedRight = 0
+    callFarLeft = 0; callFarRight = 0
+    companionCountdown = [Double](repeating: 0, count: 2); companionActive = [Bool](repeating: false, count: 2)
+    companionAge = [Double](repeating: 0, count: 2); companionDuration = [Double](repeating: 0, count: 2)
+    companionPhase = [Double](repeating: 0, count: 2)
+    companionFarLeft = [Double](repeating: 0, count: 2); companionFarRight = [Double](repeating: 0, count: 2)
+    for i in callEchoLeft.indices { callEchoLeft[i] = 0; callEchoRight[i] = 0 }
+    callEchoIndex = 0; callEchoDampLeft = 0; callEchoDampRight = 0
+    for i in farRoom.indices { farRoom[i] = 0 }
+    farRoomIndex = 0
+    responseBright = 1
+    responseCountdown = -1; responseLag = 0; responseWaiting = false; responseActive = false; responseAge = 0; responseDuration = 0
     responsePhase = 0; responseStartHz = 0; responseEndHz = 0; responsePan = 0; responseLevel = 0
     bubbleCountdown = rate * 9.5; bubbleActive = false; bubbleAge = 0; bubbleDuration = 0
     bubblePhase = 0; bubbleBaseHz = 0; bubbleCount = 0; bubblePanStart = 0; bubblePanEnd = 0; bubbleLevel = 0
@@ -3129,7 +3241,7 @@ final class AbyssalModel {
     return x * x * (3 - 2 * x)
   }
 
-  private func nextCreature(_ intensity: Double, salience: WorldSalienceScheduler, presence: Double, density: Double) -> (left: Double, right: Double) {
+  private func nextCreature(_ intensity: Double, salience: WorldSalienceScheduler, presence: Double, density: Double, variety: Double) -> (left: Double, right: Double) {
     if !creatureActive {
       creatureCountdown -= 1
       if creatureCountdown <= 0 {
@@ -3148,8 +3260,10 @@ final class AbyssalModel {
           responseEndHz = 92 + unit() * 32
           responsePan = -creaturePan * 0.9
           responseLevel = baseCreatureLevel * (0.4 + unit() * 0.12) * 1.75
-          // Sparser identity: longer silences between calls.
-          creatureCountdown = rate * (42 + unit() * 58) / density
+          // Sparser identity: longer silences between calls. From variety 0.6 the silences shorten, so a
+          // fuller feel hears the whale about a quarter more often (Gentle and Deep are unchanged).
+          creatureCountdown = rate * (42 + unit() * 58) / density * (1.0 - 0.2 * min(1, max(0, (variety - 0.6) / 0.4)))
+          beginGesture(variety)
         } else {
           creatureCountdown = rate * (3 + unit() * 3)
         }
@@ -3158,11 +3272,17 @@ final class AbyssalModel {
     if responseCountdown > 0, !responseActive {
       responseCountdown -= 1
       if responseCountdown <= 0 {
-        responseActive = true
+        // The draws happen at the answer's original moment whatever the gesture, so the water's other random
+        // details keep to their own schedule; a longer call only delays when the answer is heard.
         responseAge = 0
         responseDuration = rate * (5 + unit() * 2)
         responsePhase = unit() * Double.pi * 2
+        if responseLag > 0 { responseWaiting = true } else { responseActive = true }
       }
+    }
+    if responseWaiting {
+      responseLag -= 1
+      if responseLag <= 0 { responseWaiting = false; responseActive = true }
     }
     var answerLeft = 0.0
     var answerRight = 0.0
@@ -3170,27 +3290,173 @@ final class AbyssalModel {
       let progress = min(1, max(0, responseAge / responseDuration))
       let envelope = smooth(responseAge / max(1, rate * 1.6)) * (1 - smooth((progress - 0.58) / 0.42))
       let frequency = responseStartHz + (responseEndHz - responseStartHz) * smooth(progress)
-      let voice = (sin(responsePhase) + sin(responsePhase * 1.51) * 0.18 + sin(responsePhase * 2.03) * 0.12) * envelope * responseLevel
+      let voice = (sin(responsePhase) + sin(responsePhase * 1.51) * 0.18 * responseBright + sin(responsePhase * 2.03) * 0.12 * responseBright) * envelope * responseLevel
       responsePhase = fmod(responsePhase + Double.pi * 2 * frequency / rate, Double.pi * 2)
       responseAge += 1
       if responseAge >= responseDuration { responseActive = false }
       answerLeft = voice * (1 - responsePan) * 0.64
       answerRight = voice * (1 + responsePan) * 0.64
     }
-    guard creatureActive, creatureDuration > 0 else { return (answerLeft * presence, answerRight * presence) }
-    let progress = min(1, max(0, creatureAge / creatureDuration))
-    let attack = smooth(creatureAge / max(1, rate * 2.4))
-    let release = 1 - smooth((progress - 0.62) / 0.38)
-    let bend = smooth(progress)
-    let frequency = (creatureStartHz + (creatureEndHz - creatureStartHz) * bend)
-      * (1 + sin(progress * Double.pi * 9) * 0.006)
-    let voice = (sin(creaturePhase) + sin(creaturePhase * 2) * 0.23 + sin(creaturePhase * 3) * 0.07)
-      * attack * release * creatureLevel
-    creaturePhase = fmod(creaturePhase + Double.pi * 2 * frequency / rate, Double.pi * 2)
-    creatureAge += 1
-    if creatureAge >= creatureDuration { creatureActive = false }
-    let travel = creaturePan + sin(progress * Double.pi) * 0.12 * (creaturePan < 0 ? 1 : -1)
-    return ((voice * (1 - travel) * 0.68 + answerLeft) * presence, (voice * (1 + travel) * 0.68 + answerRight) * presence)
+    var callLeft = 0.0
+    var callRight = 0.0
+    if creatureActive, creatureDuration > 0 {
+      let progress = min(1, max(0, creatureAge / creatureDuration))
+      let attack = smooth(creatureAge / max(1, rate * 2.4))
+      let release = 1 - smooth((progress - 0.62) / 0.38)
+      let bend = smooth(progress)
+      let frequency = (creatureStartHz + (creatureEndHz - creatureStartHz) * bend)
+        * (1 + sin(progress * Double.pi * 9) * 0.006)
+      let voice = (sin(creaturePhase) + sin(creaturePhase * 2) * 0.23 + sin(creaturePhase * 3) * 0.07)
+        * attack * release * creatureLevel
+      creaturePhase = fmod(creaturePhase + Double.pi * 2 * frequency / rate, Double.pi * 2)
+      creatureAge += 1
+      if creatureAge >= creatureDuration { creatureActive = false }
+      let travel = creaturePan + sin(progress * Double.pi) * 0.12 * (creaturePan < 0 ? 1 : -1)
+      callLeft = voice * (1 - travel) * 0.68
+      callRight = voice * (1 + travel) * 0.68
+    }
+    if variety <= 0 {
+      return ((callLeft + answerLeft) * presence, (callRight + answerRight) * presence)
+    }
+    shapeGestures(callLeft, callRight)
+    return ((shapedLeft + answerLeft + gestureExtraLeft) * presence, (shapedRight + answerRight + gestureExtraRight) * presence)
+  }
+
+  /// Draws this call's gesture and bends the call, its answer and what is around them to it. It only moves
+  /// things the scheduler has already drawn, and takes its own randomness from the night's seed, so the
+  /// whale calls at exactly the same moments at any variety.
+  private func beginGesture(_ variety: Double) {
+    responseLag = 0
+    responseBright = 1
+    if variety <= 0 { gesture.neutral(); return }
+    let index = callCount
+    callCount += 1
+    gestureIndex = index
+    gesture.draw(seed: gestureSeed, index: index, variety: variety)
+    let g = gesture
+    let oldDuration = creatureDuration
+    creatureDuration = oldDuration * g.durationScale
+    responseLag = max(0, creatureDuration - oldDuration)
+    // The next call's countdown only runs while nothing is sounding, so a longer or shorter call would move
+    // every later call. Take the difference off it, and the whale calls at the same moments at any variety.
+    creatureCountdown -= creatureDuration - oldDuration
+    creatureLevel *= g.callLevel
+    switch g.pitchMode {
+    case WhaleGesture.pitchRising:
+      // Up from the bottom of its range instead of down from the top.
+      let low = creatureEndHz
+      creatureEndHz = creatureStartHz * 1.05
+      creatureStartHz = low
+    case WhaleGesture.pitchDeepFall:
+      creatureStartHz *= 1.25
+      creatureEndHz = max(38, creatureEndHz * 0.72)
+    default:
+      break
+    }
+    responseLevel *= g.answerLevel
+    // Answered from close by: nearer the middle of the room, and brighter.
+    responseBright = g.answerBright
+    if g.answerNear { responsePan *= 0.3 }
+    for slot in 0..<2 { companionActive[slot] = false }
+    companionCountdown = [Double](repeating: 0, count: 2)
+    func draw(_ slot: Int) -> Double { IdentityGestures.draw(seed: gestureSeed, salt: IdentityGestures.whaleSalt, index: index, slot: slot) }
+    if g.companions >= 1 {
+      // A second whale, farther off, on the other side, joining a moment after.
+      companionCountdown[0] = rate * (1.5 + 2.0 * draw(10))
+      companionDuration[0] = creatureDuration * (0.8 + 0.3 * draw(11))
+      companionStartHz[0] = 62.0 + 30.0 * draw(12)
+      companionEndHz[0] = 40.0 + 14.0 * draw(13)
+      companionPan[0] = (creaturePan < 0 ? 1.0 : -1.0) * (0.35 + 0.35 * draw(14))
+      companionLevel[0] = creatureLevel * (0.55 + 0.25 * variety) / max(g.callLevel, 0.05)
+      companionFar[0] = 0.75
+    }
+    if g.companions >= 2 {
+      // And a third, smaller, higher and farther still.
+      companionCountdown[1] = rate * (4.0 + 3.0 * draw(15))
+      companionDuration[1] = creatureDuration * (0.7 + 0.3 * draw(16))
+      companionStartHz[1] = 110.0 + 30.0 * draw(17)
+      companionEndHz[1] = 70.0 + 20.0 * draw(18)
+      companionPan[1] = (draw(19) < 0.5 ? -1.0 : 1.0) * (0.5 + 0.4 * draw(20))
+      companionLevel[1] = creatureLevel * 0.4 / max(g.callLevel, 0.05)
+      companionFar[1] = 0.92
+    }
+  }
+
+  /// One-pole low-pass coefficient for a distance: the farther, the darker.
+  private func farCoefficient(_ distance: Double) -> Double { 1.0 - exp(-Double.pi * 2 * (1_200.0 - 850.0 * distance) / rate) }
+
+  /// Adds the gestures' far-off voices, echo and room to the call: sets the shaped call and the extras.
+  private func shapeGestures(_ callLeft: Double, _ callRight: Double) {
+    let g = gesture
+    var left = callLeft
+    var right = callRight
+    var extraLeft = 0.0
+    var extraRight = 0.0
+    var roomIn = 0.0
+    if g.callFar > 0 {
+      // A far call is darker, quieter, and mostly reverb.
+      let coefficient = farCoefficient(g.callFar)
+      callFarLeft += (left - callFarLeft) * coefficient
+      callFarRight += (right - callFarRight) * coefficient
+      let gain = 1.0 - 0.7 * g.callFar
+      left = callFarLeft * gain * (1.0 - 0.65 * g.callFar)
+      right = callFarRight * gain * (1.0 - 0.65 * g.callFar)
+      roomIn += (callFarLeft + callFarRight) * 0.5 * gain * 0.6 * g.callFar
+    }
+    for slot in 0..<2 {
+      if !companionActive[slot] && companionCountdown[slot] > 0 {
+        companionCountdown[slot] -= 1
+        if companionCountdown[slot] <= 0 {
+          companionActive[slot] = true
+          companionAge[slot] = 0
+          companionPhase[slot] = IdentityGestures.draw(seed: gestureSeed, salt: IdentityGestures.whaleSalt, index: gestureIndex, slot: 21 + slot) * Double.pi * 2
+        }
+      }
+      if !companionActive[slot] { continue }
+      let duration = companionDuration[slot]
+      let progress = min(1, max(0, companionAge[slot] / duration))
+      let attack = smooth(companionAge[slot] / max(1, rate * 2.4))
+      let release = 1.0 - smooth((progress - 0.62) / 0.38)
+      let bend = smooth(progress)
+      let frequency = (companionStartHz[slot] + (companionEndHz[slot] - companionStartHz[slot]) * bend)
+        * (1.0 + sin(progress * Double.pi * 9.0 + Double(slot)) * 0.006)
+      let phase = companionPhase[slot]
+      let voice = (sin(phase) + sin(phase * 2.0) * 0.23 + sin(phase * 3.0) * 0.07) * attack * release * companionLevel[slot]
+      companionPhase[slot] = fmod(phase + Double.pi * 2 * frequency / rate, Double.pi * 2)
+      companionAge[slot] += 1
+      if companionAge[slot] >= duration { companionActive[slot] = false }
+      let coefficient = farCoefficient(companionFar[slot])
+      let gain = 1.0 - 0.7 * companionFar[slot]
+      companionFarLeft[slot] += (voice * (1.0 - companionPan[slot]) * 0.68 - companionFarLeft[slot]) * coefficient
+      companionFarRight[slot] += (voice * (1.0 + companionPan[slot]) * 0.68 - companionFarRight[slot]) * coefficient
+      extraLeft += companionFarLeft[slot] * gain * (1.0 - 0.65 * companionFar[slot])
+      extraRight += companionFarRight[slot] * gain * (1.0 - 0.65 * companionFar[slot])
+      roomIn += (companionFarLeft[slot] + companionFarRight[slot]) * 0.5 * gain * 0.6 * companionFar[slot]
+    }
+    // The call calls back to itself, ping-ponging across the water, each time a little darker.
+    let echoSize = callEchoLeft.count
+    let echoLength = min(echoSize - 1, max(1, Int(rate * 4.6)))
+    let echoAt = (callEchoIndex - echoLength + echoSize) % echoSize
+    callEchoDampLeft += (callEchoLeft[echoAt] - callEchoDampLeft) * 0.3
+    callEchoDampRight += (callEchoRight[echoAt] - callEchoDampRight) * 0.3
+    callEchoLeft[callEchoIndex] = left * g.echoSend + callEchoDampRight * 0.62
+    callEchoRight[callEchoIndex] = right * g.echoSend + callEchoDampLeft * 0.62
+    callEchoIndex = (callEchoIndex + 1) % echoSize
+    extraLeft += callEchoDampLeft * 0.9
+    extraRight += callEchoDampRight * 0.9
+    // Far voices sit in a room of their own.
+    let roomSize = farRoom.count
+    let tapLeft = farRoom[(farRoomIndex - min(roomSize - 1, max(1, Int(rate * 0.29))) + roomSize) % roomSize]
+    let tapRight = farRoom[(farRoomIndex - min(roomSize - 1, max(1, Int(rate * 0.47))) + roomSize) % roomSize]
+    let tapLong = farRoom[(farRoomIndex - min(roomSize - 1, max(1, Int(rate * 0.71))) + roomSize) % roomSize]
+    farRoom[farRoomIndex] = roomIn + (tapLeft + tapRight) * 0.28
+    farRoomIndex = (farRoomIndex + 1) % roomSize
+    extraLeft += tapLeft * 0.8 + tapLong * 0.4
+    extraRight += tapRight * 0.8 + tapLong * 0.4
+    gestureExtraLeft = extraLeft
+    gestureExtraRight = extraRight
+    shapedLeft = left
+    shapedRight = right
   }
 
   private func nextBubbleTrail(_ intensity: Double, salience: WorldSalienceScheduler) -> (left: Double, right: Double) {
@@ -3265,7 +3531,7 @@ final class AbyssalModel {
     return (dryLeft + near * 0.26 + far * 0.16, dryRight + near * 0.17 + far * 0.24)
   }
 
-  func render(sampleRate: Double, intensity: Double, elapsedSeconds: Double, salience: WorldSalienceScheduler, presence: Double, density: Double) {
+  func render(sampleRate: Double, intensity: Double, elapsedSeconds: Double, salience: WorldSalienceScheduler, presence: Double, density: Double, variety: Double) {
     if rate != sampleRate { reset(seed: random, sampleRate: sampleRate) }
     let tau = Double.pi * 2
     let shared = white()
@@ -3299,7 +3565,7 @@ final class AbyssalModel {
       glassPhases[index] = fmod(glassPhases[index] + tau * Self.glassFrequencies[index] * bend / rate, tau)
     }
 
-    let creature = nextCreature(intensity, salience: salience, presence: presence, density: density)
+    let creature = nextCreature(intensity, salience: salience, presence: presence, density: density, variety: variety)
     let bubbles = nextBubbleTrail(intensity, salience: salience)
     let drop = nextCondensation(intensity, salience: salience)
     let roomLeft = chamberLeft[(chamberIndex - min(chamberLeft.count - 1, max(1, Int(rate * 0.37))) + chamberLeft.count) % chamberLeft.count]

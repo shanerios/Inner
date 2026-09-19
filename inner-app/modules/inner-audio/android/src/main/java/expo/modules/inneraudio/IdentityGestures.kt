@@ -12,10 +12,12 @@ import kotlin.math.min
  */
 internal object IdentityGestures {
   const val AUM_SALT = 0x41756d01L
-  const val KINDS = 6
+  const val AUM_KINDS = 6
+  const val WHALE_SALT = 0x5768616cL
+  const val WHALE_KINDS = 7
 
-  private val bagA = IntArray(KINDS)
-  private val bagB = IntArray(KINDS)
+  private val bagA = IntArray(8)
+  private val bagB = IntArray(8)
 
   private fun splitmix(x: Long): Long {
     var z = x + -0x61c8864680b583ebL
@@ -30,25 +32,26 @@ internal object IdentityGestures {
     return (bits ushr 11).toDouble() / 9007199254740992.0
   }
 
-  private fun permutation(seed: Long, salt: Long, bag: Long, out: IntArray) {
-    for (i in 0 until KINDS) out[i] = i
-    for (i in KINDS - 1 downTo 1) {
+  private fun permutation(seed: Long, salt: Long, bag: Long, kinds: Int, out: IntArray) {
+    for (i in 0 until kinds) out[i] = i
+    for (i in kinds - 1 downTo 1) {
       val j = min(i, (draw(seed, salt xor 0x62616700L, bag, 16 + i) * (i + 1)).toInt())
       val held = out[i]; out[i] = out[j]; out[j] = held
     }
   }
 
   /**
-   * The kind of appearance number `index`. Kinds are dealt from a shuffled bag, so each turns up once in
-   * every KINDS appearances; a bag's first kind is swapped if it would repeat the previous bag's last.
+   * The kind of appearance number `index`, of `kinds` in all. Kinds are dealt from a shuffled bag, so each
+   * turns up once in every `kinds` appearances; a bag's first kind is swapped if it would repeat the previous
+   * bag's last.
    */
-  fun kind(seed: Long, salt: Long, index: Long): Int {
-    val bag = index / KINDS
-    val position = (index % KINDS).toInt()
-    permutation(seed, salt, bag, bagA)
+  fun kind(seed: Long, salt: Long, index: Long, kinds: Int): Int {
+    val bag = index / kinds
+    val position = (index % kinds).toInt()
+    permutation(seed, salt, bag, kinds, bagA)
     if (bag > 0L) {
-      permutation(seed, salt, bag - 1L, bagB)
-      if (bagA[0] == bagB[KINDS - 1]) { val held = bagA[0]; bagA[0] = bagA[1]; bagA[1] = held }
+      permutation(seed, salt, bag - 1L, kinds, bagB)
+      if (bagA[0] == bagB[kinds - 1]) { val held = bagA[0]; bagA[0] = bagA[1]; bagA[1] = held }
     }
     return bagA[position]
   }
@@ -97,7 +100,7 @@ internal class AumGesture {
     neutral()
     val salt = IdentityGestures.AUM_SALT
     fun u(slot: Int) = IdentityGestures.draw(seed, salt, index, slot)
-    kind = IdentityGestures.kind(seed, salt, index)
+    kind = IdentityGestures.kind(seed, salt, index, IdentityGestures.AUM_KINDS)
     level = 1.0 + variety * (u(0) - 0.5) * 0.3
     startDelay = variety * u(1) * 9.0
     stretch = 1.0 + variety * (u(2) - 0.4) * 0.3
@@ -117,6 +120,69 @@ internal class AumGesture {
         rootRatio = DEEPER[min(if (variety > 0.7) 3 else 2, (u(6) * 4.0).toInt())]
         glide = (1.0 + u(7) * 2.0) * variety
       }
+    }
+  }
+}
+
+/** One appearance of the whale call: the call, its answer, and whatever else is in the water. */
+internal class WhaleGesture {
+  companion object {
+    const val KIND_PLAIN = 0
+    const val KIND_RISING = 1
+    const val KIND_FALLING = 2
+    const val KIND_COMPANIONS = 3
+    const val KIND_FAR_NEAR = 4
+    const val KIND_ANSWER_ONLY = 5
+    const val KIND_LONG_ECHO = 6
+    const val PITCH_STEADY = 0
+    const val PITCH_RISING = 1
+    const val PITCH_DEEP_FALL = 2
+  }
+
+  var kind = KIND_PLAIN
+  /** Scales the call's level; 0 leaves only the answer. */
+  var callLevel = 1.0
+  /** 0 = at the listener, 1 = far off. */
+  var callFar = 0.0
+  var pitchMode = PITCH_STEADY
+  var durationScale = 1.0
+  var answerLevel = 1.0
+  /** The answer comes from close by. */
+  var answerNear = false
+  /** Scales the answer's upper harmonics: above 1 it is brighter and closer. */
+  var answerBright = 1.0
+  /** How many other whales answer from the distance: 0, 1 or 2. */
+  var companions = 0
+  var echoSend = 0.0
+
+  fun neutral() {
+    kind = KIND_PLAIN; callLevel = 1.0; callFar = 0.0; pitchMode = PITCH_STEADY; durationScale = 1.0
+    answerLevel = 1.0; answerNear = false; answerBright = 1.0; companions = 0; echoSend = 0.0
+  }
+
+  /** Draws appearance number `index` at the given variety (0 = none, 1 = full). */
+  fun draw(seed: Long, index: Long, variety: Double) {
+    neutral()
+    val salt = IdentityGestures.WHALE_SALT
+    fun u(slot: Int) = IdentityGestures.draw(seed, salt, index, slot)
+    kind = IdentityGestures.kind(seed, salt, index, IdentityGestures.WHALE_KINDS)
+    callLevel = 1.0 + variety * (u(0) - 0.5) * 0.24
+    durationScale = 1.0 + variety * (u(1) - 0.5) * 0.2
+    when (kind) {
+      KIND_RISING -> pitchMode = PITCH_RISING
+      KIND_FALLING -> { pitchMode = PITCH_DEEP_FALL; durationScale *= 1.0 + 0.3 * variety }
+      // One more whale far off, and at the fullest variety often a second, smaller and farther still.
+      KIND_COMPANIONS -> companions = if (u(2) < 0.25 + 0.5 * variety) 2 else 1
+      KIND_FAR_NEAR -> {
+        callFar = 0.95 * variety
+        callLevel *= 1.0 - 0.4 * variety
+        answerLevel = 1.0 + variety
+        answerBright = 1.0 + 0.9 * variety
+        answerNear = true
+      }
+      KIND_ANSWER_ONLY -> { callLevel = 0.0; answerLevel = 1.0 + 0.35 * variety }
+      // Longer than it should be: up to twice the length, and it calls back to itself across the water.
+      KIND_LONG_ECHO -> { durationScale *= 1.0 + variety; callLevel *= 0.9; echoSend = 0.6 * variety }
     }
   }
 }

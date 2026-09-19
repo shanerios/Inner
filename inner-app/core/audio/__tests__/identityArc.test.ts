@@ -89,20 +89,17 @@ describe('identity arc', () => {
     }
   });
 
-  it('raises the Aum 2 dB in Immersive only, and leaves Gentle and Deep exactly as they were', () => {
-    expect(IDENTITY_FEEL_OFFSET_DB.temple).toEqual({ gentle: 0, deep: 0, immersive: 2 });
-    for (const stage of STAGES) {
-      const gentle = identityPresenceFor('temple', stage);
-      expect(identityPresenceFor('temple', stage, 'gentle')).toBe(gentle);
-      expect(identityPresenceFor('temple', stage, 'deep')).toBe(gentle);
-      expect(identityPresenceFor('temple', stage, 'immersive') / gentle).toBeCloseTo(10 ** (2 / 20), 10);
-      expect(identityAchievedDb('temple', stage, 'immersive') - identityAchievedDb('temple', stage)).toBeCloseTo(2, 8);
-    }
-    // The other sounds are unchanged until their gestures are designed, and no feel reaches the cap.
+  it('raises every identity sound 2 dB in Immersive only, and leaves Gentle and Deep exactly as they were', () => {
     for (const world of WORLDS) {
-      for (const feel of ['gentle', 'deep', 'immersive'] as const) {
-        for (const stage of STAGES) expect(identityPresenceFor(world, stage, feel)).toBeLessThan(IDENTITY_PRESENCE_MAX);
-        if (world !== 'temple') expect(identityPresenceFor(world, 'preparation', feel)).toBe(identityPresenceFor(world, 'preparation'));
+      expect(IDENTITY_FEEL_OFFSET_DB[world]).toEqual({ gentle: 0, deep: 0, immersive: 2 });
+      for (const stage of STAGES) {
+        const gentle = identityPresenceFor(world, stage);
+        expect(identityPresenceFor(world, stage, 'gentle')).toBe(gentle);
+        expect(identityPresenceFor(world, stage, 'deep')).toBe(gentle);
+        expect(identityPresenceFor(world, stage, 'immersive') / gentle).toBeCloseTo(10 ** (2 / 20), 10);
+        expect(identityAchievedDb(world, stage, 'immersive') - identityAchievedDb(world, stage)).toBeCloseTo(2, 8);
+        // Even the loudest stage of the fullest feel stays under the native ceiling.
+        expect(identityPresenceFor(world, stage, 'immersive')).toBeLessThan(IDENTITY_PRESENCE_MAX);
       }
     }
   });
@@ -196,12 +193,12 @@ describe('identity controls across JS and both native engines', () => {
 
   it('applies presence and density to the whale call the same way in both engines', () => {
     const abyssal = kotlin('AbyssalModel.kt');
-    expect(abyssal).toContain('creatureCountdown = rate * (42.0 + unit() * 58.0) / density');
-    expect(abyssal).toContain('creatureLeft = answerLeft * presence');
-    expect(abyssal).toContain('creatureLeft = (voice * (1.0 - travel) * 0.68 + answerLeft) * presence');
-    expect(swift).toContain('creatureCountdown = rate * (42 + unit() * 58) / density');
-    expect(swift).toContain('return (answerLeft * presence, answerRight * presence)');
-    expect(swift).toContain('return ((voice * (1 - travel) * 0.68 + answerLeft) * presence, (voice * (1 + travel) * 0.68 + answerRight) * presence)');
+    expect(abyssal).toContain('creatureCountdown = rate * (42.0 + unit() * 58.0) / density * (1.0 - 0.2 * ((variety - 0.6) / 0.4).coerceIn(0.0, 1.0))');
+    expect(abyssal).toContain('creatureLeft = (callLeft + answerLeft) * presence');
+    expect(abyssal).toContain('creatureLeft = (shapedLeft + answerLeft + gestureExtraLeft) * presence');
+    expect(swift).toContain('creatureCountdown = rate * (42 + unit() * 58) / density * (1.0 - 0.2 * min(1, max(0, (variety - 0.6) / 0.4)))');
+    expect(swift).toContain('return ((callLeft + answerLeft) * presence, (callRight + answerRight) * presence)');
+    expect(swift).toContain('return ((shapedLeft + answerLeft + gestureExtraLeft) * presence, (shapedRight + answerRight + gestureExtraRight) * presence)');
   });
 
   it('applies presence and density to the Cosmic voice the same way in both engines', () => {

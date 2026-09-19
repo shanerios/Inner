@@ -68,14 +68,14 @@ export const IDENTITY_FEEL_VARIETY = { gentle: 0, deep: 0.6, immersive: 1 } as c
 export type IdentityFeel = keyof typeof IDENTITY_FEEL_VARIETY;
 
 /**
- * Extra level for a fuller feel, in dB, per sound. Someone who chooses Immersive wants to be in the room:
- * the Aum stands 2 dB higher there (Deep was right as it was). The whale call and Cosmic voice get their
- * feel offsets when their gestures are designed.
+ * Extra level for a fuller feel, in dB, per sound. Someone who chooses Immersive wants to be in the room, so
+ * every world's own sounds (the Aum, the whale call, the Cosmic voice) stand 2 dB higher there. Deep and
+ * Gentle keep the level they were tuned at.
  */
 export const IDENTITY_FEEL_OFFSET_DB: Record<IdentityWorld, Record<IdentityFeel, number>> = {
   temple: { gentle: 0, deep: 0, immersive: 2 },
-  abyssal: { gentle: 0, deep: 0, immersive: 0 },
-  cosmic: { gentle: 0, deep: 0, immersive: 0 },
+  abyssal: { gentle: 0, deep: 0, immersive: 2 },
+  cosmic: { gentle: 0, deep: 0, immersive: 2 },
 };
 
 /** The native engines clamp presence to this; the arc must stay under it. */

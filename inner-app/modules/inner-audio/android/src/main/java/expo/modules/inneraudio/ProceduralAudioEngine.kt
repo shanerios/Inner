@@ -863,7 +863,7 @@ object ProceduralAudioEngine {
       val rightNoise = (baseRightNoise * (1 - rainMix) + rainNoise.second * rainGain * rainMix) * spatialDistance
       val ocean = if (oceanEnvelope > 0.0001) nextOcean(spatialSeconds, target.environmentIntensity) else silentStereo
       val oceanGain = target.environmentGain * oceanEnvelope
-      val abyssal = if (abyssalEnvelope > 0.0001) nextAbyssal(spatialSeconds, target.environmentIntensity, target.identityPresence, target.identityDensity) else silentStereo
+      val abyssal = if (abyssalEnvelope > 0.0001) nextAbyssal(spatialSeconds, target.environmentIntensity, target.identityPresence, target.identityDensity, target.identityVariety) else silentStereo
       val abyssalGain = target.environmentGain * abyssalEnvelope
       val wind = if (windEnvelope > 0.0001) nextWind(spatialSeconds, target.environmentIntensity) else silentStereo
       val windGain = target.environmentGain * windEnvelope
@@ -1212,8 +1212,8 @@ object ProceduralAudioEngine {
     return oceanSample.set(oceanModel.left, oceanModel.right)
   }
 
-  private fun nextAbyssal(elapsedSeconds: Double, intensity: Double, presence: Double, density: Double): StereoSample {
-    abyssalModel.render(sampleRate, intensity, elapsedSeconds, worldSalience, presence, density)
+  private fun nextAbyssal(elapsedSeconds: Double, intensity: Double, presence: Double, density: Double, variety: Double): StereoSample {
+    abyssalModel.render(sampleRate, intensity, elapsedSeconds, worldSalience, presence, density, variety)
     return abyssalSample.set(abyssalModel.left, abyssalModel.right)
   }
 
