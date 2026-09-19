@@ -4,6 +4,12 @@ import { createDreamIncubationJourney, createJourneyPreview, createPersonalizedL
 import { compileAudioJourneyTimeline } from '../timeline';
 
 describe('factory audio journeys', () => {
+  it('names Lucid Return as the Wake-Back-To-Bed practice', () => {
+    const journey = FACTORY_AUDIO_JOURNEYS.find(item => item.id === 'lucid-return-wbtb');
+    expect(journey?.title).toBe('Lucid Return');
+    expect(journey?.subtitle).toBe('Wake-Back-To-Bed');
+  });
+
   it('builds a ten-minute Dream Incubation journey around the held seed', () => {
     const journey = createDreamIncubationJourney('  the   house by the sea ');
     expect(journey.timeline.stages.reduce((total, item) => total + item.durationMs, 0)).toBe(10 * 60_000);

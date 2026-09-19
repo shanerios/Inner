@@ -4,6 +4,8 @@ import { toneGainForEnvironment } from './config';
 export type FactoryAudioJourney = {
   id: string;
   title: string;
+  /** Optional line shown under the title, e.g. what the practice is for. */
+  subtitle?: string;
   durationLabel: string;
   summary: string;
   timeline: AudioJourneyTimeline;
@@ -36,6 +38,7 @@ export const FACTORY_AUDIO_JOURNEYS: FactoryAudioJourney[] = [
   {
     id: 'lucid-return-wbtb',
     title: 'Lucid Return',
+    subtitle: 'Wake-Back-To-Bed',
     durationLabel: '8 min · WBTB',
     summary: 'A low-stimulation return-to-sleep sequence for dream recall, recognition rehearsal, and intention.',
     timeline: {

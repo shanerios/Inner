@@ -452,7 +452,7 @@ export default function LucidJourneysScreen() {
                   <Pressable
                     onPress={() => begin(journey.id)}
                     accessibilityRole="button"
-                    accessibilityLabel={`Begin ${journey.title}, ${journey.durationLabel}`}
+                    accessibilityLabel={`Begin ${journey.title}${journey.subtitle ? `, ${journey.subtitle}` : ''}, ${journey.durationLabel}`}
                     style={styles.titleButton}
                   >
                     <Text style={[Typography.display, styles.cardTitle]}>{journey.title}</Text>
@@ -468,6 +468,9 @@ export default function LucidJourneysScreen() {
                     <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={12} color="#CFC5F2" />
                   </Pressable>
                 </View>
+                {journey.subtitle ? (
+                  <Text style={styles.journeySubtitle}>{journey.subtitle.toUpperCase()}</Text>
+                ) : null}
                 {expanded ? (
                   <View style={styles.journeyDetails}>
                     <Text style={[Typography.body, styles.summary]}>{journey.summary}</Text>
@@ -1194,6 +1197,7 @@ const styles = StyleSheet.create({
   beginIncubationText: { color: '#E1D8F5', fontFamily: 'Inter-Medium', fontSize: 7, letterSpacing: 1.05 },
   createJourney: { alignItems: 'center', paddingVertical: 8 },
   createJourneyHint: { color: '#9E94BF', fontFamily: 'Inter-Medium', fontSize: 8, letterSpacing: 1.4, marginTop: 5 },
+  journeySubtitle: { color: '#9E94BF', fontFamily: 'Inter-Medium', fontSize: 8, letterSpacing: 1.4, marginTop: 4, textAlign: 'center' },
   savedSection: { alignItems: 'center', gap: 13, marginTop: -4 },
   savedHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingVertical: 9 },
   savedLabel: { color: '#B5AACF', fontFamily: 'Inter-Medium', fontSize: 9, letterSpacing: 1.5 },
