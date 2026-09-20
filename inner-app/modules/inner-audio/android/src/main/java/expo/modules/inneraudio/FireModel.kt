@@ -58,6 +58,9 @@ internal class FireModel {
     const val WIND_LIFT_AT_FULL_VARIETY = 0.26
     const val WIND_FOLLOW_AT_FULL_VARIETY = 0.2
     const val WIND_FLOOR_AT_FULL_VARIETY = 0.45
+    /** Immersive alone (variety 0.6 to 1) adds another 2 dB to the wind; Gentle and Deep are untouched by it. */
+    const val WIND_IMMERSIVE_BOOST = 1.2589254117941673
+    const val WIND_IMMERSIVE_FROM = 0.6
     /** Overtones of the flue's moan: hollow, favouring the odd partials. */
     val WIND_PARTIALS = doubleArrayOf(1.0, 0.22, 0.5, 0.1, 0.24, 0.05)
     val WIND_ROOM_INPUT = doubleArrayOf(0.5, -0.6, 0.6, -0.5)
@@ -586,7 +589,8 @@ internal class FireModel {
     val exponent = 0.85 - (0.85 - WIND_FOLLOW_AT_FULL_VARIETY) * v
     val floor = 0.15 + (WIND_FLOOR_AT_FULL_VARIETY - 0.15) * v
     val followed = max(floor, min(1.0, (a / 0.85).pow(exponent)))
-    return (1.0 + WIND_LIFT_AT_FULL_VARIETY * v) * followed / amplitudeScale
+    val immersive = WIND_IMMERSIVE_BOOST.pow(max(0.0, min(1.0, (v - WIND_IMMERSIVE_FROM) / (1.0 - WIND_IMMERSIVE_FROM))))
+    return (1.0 + WIND_LIFT_AT_FULL_VARIETY * v) * immersive * followed / amplitudeScale
   }
 
   /** One settling log: a thump and a cascade of crackle in one of eight gestures, with the steam of a damp log. */

@@ -2244,6 +2244,9 @@ final class FireModel {
   private static let windLiftAtFullVariety = 0.26
   private static let windFollowAtFullVariety = 0.2
   private static let windFloorAtFullVariety = 0.45
+  /// Immersive alone (variety 0.6 to 1) adds another 2 dB to the wind; Gentle and Deep are untouched by it.
+  private static let windImmersiveBoost = 1.2589254117941673
+  private static let windImmersiveFrom = 0.6
   /// Overtones of the flue's moan: hollow, favouring the odd partials.
   private static let windPartials = [1.0, 0.22, 0.5, 0.1, 0.24, 0.05]
   private static let windRoomInput = [0.5, -0.6, 0.6, -0.5]
@@ -2721,7 +2724,8 @@ final class FireModel {
     let exponent = 0.85 - (0.85 - FireModel.windFollowAtFullVariety) * v
     let floorLevel = 0.15 + (FireModel.windFloorAtFullVariety - 0.15) * v
     let followed = max(floorLevel, min(1.0, pow(a / 0.85, exponent)))
-    return (1.0 + FireModel.windLiftAtFullVariety * v) * followed / amplitudeScale
+    let immersive = pow(FireModel.windImmersiveBoost, max(0.0, min(1.0, (v - FireModel.windImmersiveFrom) / (1.0 - FireModel.windImmersiveFrom))))
+    return (1.0 + FireModel.windLiftAtFullVariety * v) * immersive * followed / amplitudeScale
   }
 
   /// One settling log: a thump and a cascade of crackle in one of eight gestures, with the steam of a damp log.
