@@ -2235,9 +2235,10 @@ final class ForestCallModel {
   private var random: UInt64 = 1
   private var countdown = 0.0
   private var age = -1.0
-  private var baseHz = 170.0
+  private var baseHz = 85.0
   private var pan = 0.0
   private var phase = 0.0
+  private var whistlePhase = 0.0
   private var answerPhase = 0.0
   private var airFast = 0.0
   private var airSlow = 0.0
@@ -2249,8 +2250,8 @@ final class ForestCallModel {
     rate = sampleRate
     random = seed ^ 0x466f72657374
     if random == 0 { random = 1 }
-    countdown = rate * 14; age = -1; baseHz = 170; pan = 0
-    phase = 0; answerPhase = 0; airFast = 0; airSlow = 0
+    countdown = rate * 14; age = -1; baseHz = 85; pan = 0
+    phase = 0; whistlePhase = 0; answerPhase = 0; airFast = 0; airSlow = 0
     echo = [Double](repeating: 0, count: max(2, Int(rate * 0.5))); echoIndex = 0; echoWet = 0
     left = 0; right = 0
   }
@@ -2267,7 +2268,7 @@ final class ForestCallModel {
       if countdown <= 0 {
         if presence > 0.0001 && salience.reserve(salience: 0.5, durationSeconds: 11, recoverySeconds: 4) {
           age = 0
-          baseHz = 150 + unit() * 45
+          baseHz = 75 + unit() * 22.5
           pan = (unit() * 2 - 1) * 0.28
           countdown = rate * (110 + unit() * 70) / max(0.2, min(1, density)) *
             (1 - 0.25 * max(0, min(1, (variety - 0.6) / 0.4)))
@@ -2287,13 +2288,19 @@ final class ForestCallModel {
       let fall = release * release * (3 - 2 * release)
       let sway = 1 + 0.003 * sin(seconds * Double.pi * 2 / 4.7)
       phase = fmod(phase + 2 * Double.pi * baseHz * sway / rate, 2 * Double.pi)
-      let wood = sin(phase) * 0.52 + sin(phase * 3) * 0.19 + sin(phase * 5) * 0.06
+      let wood = sin(phase) * 0.52 + sin(phase * 3) * 0.19 + sin(phase * 5) * 0.03
+      // The high hollow resonance rises with the gust, then recedes. Its independent phase keeps it
+      // airy rather than turning the whole low trunk voice into a pitch sweep.
+      let whistleArc = sin(Double.pi * max(0, min(1, seconds / 10.5)))
+      let whistleHz = baseHz * 5 * (0.93 + 0.08 * whistleArc)
+      whistlePhase = fmod(whistlePhase + 2 * Double.pi * whistleHz / rate, 2 * Double.pi)
+      let whistle = sin(whistlePhase) * 0.18 * whistleArc * whistleArc
       let white = unit() * 2 - 1
       airFast += 0.06 * (white - airFast)
       airSlow += 0.008 * (white - airSlow)
-      let breath = (airFast - airSlow) * 0.65
+      let breath = (airFast - airSlow) * 0.9
       let level = 0.34 * max(0, min(1.5, presence))
-      main = (wood * rise + breath * attack) * fall * level
+      main = (wood * rise + breath * attack + whistle) * fall * level
 
       if seconds >= 6 && seconds <= 10.5 {
         let responseProgress = (seconds - 6) / 4.5
