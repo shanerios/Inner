@@ -2237,22 +2237,27 @@ final class ForestCallModel {
   private var age = -1.0
   private var baseHz = 85.0
   private var pan = 0.0
+  private var answerPan = 0.0
   private var phase = 0.0
   private var whistlePhase = 0.0
   private var answerPhase = 0.0
   private var airFast = 0.0
   private var airSlow = 0.0
-  private var echo = [Double](repeating: 0, count: 24_000)
+  private var echoLeft = [Double](repeating: 0, count: 57_600)
+  private var echoRight = [Double](repeating: 0, count: 57_600)
   private var echoIndex = 0
-  private var echoWet = 0.0
+  private var echoWetLeft = 0.0
+  private var echoWetRight = 0.0
 
   func reset(seed: UInt64, sampleRate: Double) {
     rate = sampleRate
     random = seed ^ 0x466f72657374
     if random == 0 { random = 1 }
-    countdown = rate * 14; age = -1; baseHz = 85; pan = 0
+    countdown = rate * 14; age = -1; baseHz = 85; pan = 0; answerPan = 0
     phase = 0; whistlePhase = 0; answerPhase = 0; airFast = 0; airSlow = 0
-    echo = [Double](repeating: 0, count: max(2, Int(rate * 0.5))); echoIndex = 0; echoWet = 0
+    echoLeft = [Double](repeating: 0, count: max(2, Int(rate * 1.2)))
+    echoRight = [Double](repeating: 0, count: echoLeft.count)
+    echoIndex = 0; echoWetLeft = 0; echoWetRight = 0
     left = 0; right = 0
   }
 
@@ -2266,10 +2271,11 @@ final class ForestCallModel {
     if age < 0 {
       countdown -= 1
       if countdown <= 0 {
-        if presence > 0.0001 && salience.reserve(salience: 0.5, durationSeconds: 11, recoverySeconds: 4) {
+        if presence > 0.0001 && salience.reserve(salience: 0.5, durationSeconds: 13.2, recoverySeconds: 4) {
           age = 0
           baseHz = 75 + unit() * 22.5
           pan = (unit() * 2 - 1) * 0.28
+          answerPan = pan < 0 ? 0.52 : -0.52
           countdown = rate * (110 + unit() * 70) / max(0.2, min(1, density)) *
             (1 - 0.25 * max(0, min(1, (variety - 0.6) / 0.4)))
         } else {
@@ -2283,7 +2289,7 @@ final class ForestCallModel {
     if age >= 0 {
       let seconds = age / rate
       let attack = max(0, min(1, seconds / 2))
-      let release = max(0, min(1, (10.5 - seconds) / 5))
+      let release = max(0, min(1, (9 - seconds) / 4.5))
       let rise = attack * attack * (3 - 2 * attack)
       let fall = release * release * (3 - 2 * release)
       let sway = 1 + 0.003 * sin(seconds * Double.pi * 2 / 4.7)
@@ -2291,36 +2297,43 @@ final class ForestCallModel {
       let wood = sin(phase) * 0.52 + sin(phase * 3) * 0.19 + sin(phase * 5) * 0.03
       // The high hollow resonance rises with the gust, then recedes. Its independent phase keeps it
       // airy rather than turning the whole low trunk voice into a pitch sweep.
-      let whistleArc = sin(Double.pi * max(0, min(1, seconds / 10.5)))
-      let whistleHz = baseHz * 5 * (0.93 + 0.08 * whistleArc)
+      let whistleArc = sin(Double.pi * max(0, min(1, seconds / 9)))
+      let whistleHz = baseHz * 5 * (0.88 + 0.14 * whistleArc)
       whistlePhase = fmod(whistlePhase + 2 * Double.pi * whistleHz / rate, 2 * Double.pi)
-      let whistle = sin(whistlePhase) * 0.18 * whistleArc * whistleArc
+      let whistle = sin(whistlePhase) * 0.21 * whistleArc * whistleArc
       let white = unit() * 2 - 1
       airFast += 0.06 * (white - airFast)
       airSlow += 0.008 * (white - airSlow)
-      let breath = (airFast - airSlow) * 0.9
+      let breath = (airFast - airSlow) * 1.1
       let level = 0.34 * max(0, min(1.5, presence))
       main = (wood * rise + breath * attack + whistle) * fall * level
 
-      if seconds >= 6 && seconds <= 10.5 {
-        let responseProgress = (seconds - 6) / 4.5
+      if seconds >= 7.5 && seconds <= 13.2 {
+        let responseProgress = (seconds - 7.5) / 5.7
         let responseEnvelope = pow(sin(Double.pi * responseProgress), 2)
-        answerPhase = fmod(answerPhase + 2 * Double.pi * baseHz * 0.75 / rate, 2 * Double.pi)
+        answerPhase = fmod(answerPhase + 2 * Double.pi * baseHz * 1.5 / rate, 2 * Double.pi)
         let distantWood = sin(answerPhase) * 0.6 + sin(answerPhase * 3) * 0.2
-        answer = distantWood * responseEnvelope * level * 0.32
+        answer = (distantWood + breath * 0.28) * responseEnvelope * level * 0.72
       }
       age += 1
-      if seconds >= 10.5 { age = -1 }
+      if seconds >= 13.2 { age = -1 }
     }
 
-    let echoSize = echo.count
-    let first = echo[(echoIndex - min(echoSize - 1, max(1, Int(rate * 0.21))) + echoSize) % echoSize]
-    let second = echo[(echoIndex - min(echoSize - 1, max(1, Int(rate * 0.43))) + echoSize) % echoSize]
-    echoWet += ((first + second) * 0.5 - echoWet) * 0.02
-    echo[echoIndex] = main + answer + echoWet * 0.26
+    let dryLeft = main * (1 - pan) + answer * (1 - answerPan)
+    let dryRight = main * (1 + pan) + answer * (1 + answerPan)
+    let echoSize = echoLeft.count
+    let firstIndex = (echoIndex - min(echoSize - 1, max(1, Int(rate * 0.19))) + echoSize) % echoSize
+    let secondIndex = (echoIndex - min(echoSize - 1, max(1, Int(rate * 0.43))) + echoSize) % echoSize
+    let thirdIndex = (echoIndex - min(echoSize - 1, max(1, Int(rate * 0.79))) + echoSize) % echoSize
+    let reflectionLeft = echoLeft[firstIndex] * 0.48 + echoLeft[secondIndex] * 0.31 + echoLeft[thirdIndex] * 0.21
+    let reflectionRight = echoRight[firstIndex] * 0.48 + echoRight[secondIndex] * 0.31 + echoRight[thirdIndex] * 0.21
+    echoWetLeft += (reflectionLeft - echoWetLeft) * 0.012
+    echoWetRight += (reflectionRight - echoWetRight) * 0.012
+    echoLeft[echoIndex] = dryLeft + echoWetRight * 0.52
+    echoRight[echoIndex] = dryRight + echoWetLeft * 0.52
     echoIndex = (echoIndex + 1) % echoSize
-    left = main * (1 - pan) + answer * (1 + pan * 1.2) + echoWet * 0.28
-    right = main * (1 + pan) + answer * (1 - pan * 1.2) + echoWet * 0.28
+    left = dryLeft + echoWetLeft * 0.52
+    right = dryRight + echoWetRight * 0.52
   }
 }
 
