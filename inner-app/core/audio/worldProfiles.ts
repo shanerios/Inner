@@ -23,6 +23,8 @@ export type WorldBed = {
   noiseColor: NoiseColor;
   /** Scales the overnight noise level at every stage. 1 is the level designed for pink noise. */
   noiseGainScale: number;
+  /** Rolls the noise off above this frequency, in Hz, so hiss does not cover the world's own sound. 20000 leaves it untouched. */
+  noiseHighCutHz: number;
   /** Scales the binaural level in the descent and in sleep. 1 is the standard level. */
   binauralGainScale: number;
   /**
@@ -39,6 +41,9 @@ export type WorldBed = {
     basis: string;
   };
 };
+
+/** The bed's high cut when a world has none. */
+const NO_HIGH_CUT = 20_000;
 
 /** About a third quieter once the REM-rich hours begin. */
 const REM_NOISE_TAPER = 0.67;
@@ -83,6 +88,7 @@ export const WORLD_PROFILES: Record<AudioWorld, WorldProfile> = {
     bed: {
       noiseColor: 'brown',
       noiseGainScale: 0.5,
+      noiseHighCutHz: NO_HIGH_CUT,
       binauralGainScale: 1,
       remNoiseTaper: REM_NOISE_TAPER,
       rationale: {
@@ -106,6 +112,7 @@ export const WORLD_PROFILES: Record<AudioWorld, WorldProfile> = {
     bed: {
       noiseColor: 'brown',
       noiseGainScale: 0.75,
+      noiseHighCutHz: NO_HIGH_CUT,
       binauralGainScale: 0.6,
       remNoiseTaper: REM_NOISE_TAPER,
       rationale: {
@@ -120,7 +127,7 @@ export const WORLD_PROFILES: Record<AudioWorld, WorldProfile> = {
     foundation: ['low-air-pressure', 'filtered-air'],
     acoustics: { scale: 'vast', absorption: 0.2, diffusion: 0.45, width: 0.88 },
     signatures: ['passing-gusts'], motion: 'drift', events: [], recognitionRecoverySeconds: 2,
-    bed: { noiseColor: 'pink', noiseGainScale: 1, binauralGainScale: 1, remNoiseTaper: REM_NOISE_TAPER, rationale: SHARED_BED_RATIONALE },
+    bed: { noiseColor: 'pink', noiseGainScale: 1, noiseHighCutHz: NO_HIGH_CUT, binauralGainScale: 1, remNoiseTaper: REM_NOISE_TAPER, rationale: SHARED_BED_RATIONALE },
   },
   fire: {
     id: 'fire', label: 'Fire', concept: 'A close hearth that burns down with your night: warm body, crackle in bursts, settling logs, and wind in the chimney that the house answers.',
@@ -135,6 +142,7 @@ export const WORLD_PROFILES: Record<AudioWorld, WorldProfile> = {
     bed: {
       noiseColor: 'brown',
       noiseGainScale: 0.5,
+      noiseHighCutHz: NO_HIGH_CUT,
       binauralGainScale: 1,
       remNoiseTaper: REM_NOISE_TAPER,
       rationale: {
@@ -154,6 +162,7 @@ export const WORLD_PROFILES: Record<AudioWorld, WorldProfile> = {
     bed: {
       noiseColor: 'pink',
       noiseGainScale: 0.5,
+      noiseHighCutHz: NO_HIGH_CUT,
       binauralGainScale: 1,
       remNoiseTaper: REM_NOISE_TAPER,
       rationale: {
@@ -176,6 +185,7 @@ export const WORLD_PROFILES: Record<AudioWorld, WorldProfile> = {
     bed: {
       noiseColor: 'brown',
       noiseGainScale: 0.5,
+      noiseHighCutHz: NO_HIGH_CUT,
       binauralGainScale: 1,
       remNoiseTaper: REM_NOISE_TAPER,
       rationale: {
@@ -199,6 +209,7 @@ export const WORLD_PROFILES: Record<AudioWorld, WorldProfile> = {
     bed: {
       noiseColor: 'pink',
       noiseGainScale: 0.63,
+      noiseHighCutHz: NO_HIGH_CUT,
       binauralGainScale: 1,
       remNoiseTaper: REM_NOISE_TAPER,
       rationale: {
@@ -229,6 +240,6 @@ export function worldBed(environment: AudioWorld): WorldBed {
  */
 export function noiseForWorld(environment: AudioWorld, designed: { noiseColor: NoiseColor | null; noiseGain: number }) {
   const bed = worldBed(environment);
-  if (bed.noiseColor === 'pink' && bed.noiseGainScale === 1) return designed;
-  return { noiseColor: bed.noiseColor, noiseGain: designed.noiseGain * bed.noiseGainScale };
+  if (bed.noiseColor === 'pink' && bed.noiseGainScale === 1 && bed.noiseHighCutHz === NO_HIGH_CUT) return designed;
+  return { noiseColor: bed.noiseColor, noiseGain: designed.noiseGain * bed.noiseGainScale, noiseHighCutHz: bed.noiseHighCutHz };
 }

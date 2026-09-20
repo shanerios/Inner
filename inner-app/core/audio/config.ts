@@ -25,6 +25,7 @@ export const PROCEDURAL_AUDIO_LIMITS = {
   identityPresence: { min: 0, max: 12 },
   identityDensity: { min: 0.2, max: 1 },
   identityVariety: { min: 0, max: 1 },
+  noiseHighCutHz: { min: 300, max: 20_000 },
 } as const;
 
 export const DEFAULT_PROCEDURAL_AUDIO_CONFIG: ProceduralAudioConfig = {
@@ -43,6 +44,7 @@ export const DEFAULT_PROCEDURAL_AUDIO_CONFIG: ProceduralAudioConfig = {
   identityPresence: 1,
   identityDensity: 1,
   identityVariety: 0,
+  noiseHighCutHz: 20_000,
   harmonicTranslation: 0,
   templeGain: 0,
   templeIntensity: 0.5,
@@ -107,6 +109,11 @@ export function normalizeProceduralAudioConfig(
       value.identityVariety ?? DEFAULT_PROCEDURAL_AUDIO_CONFIG.identityVariety,
       PROCEDURAL_AUDIO_LIMITS.identityVariety.min,
       PROCEDURAL_AUDIO_LIMITS.identityVariety.max,
+    ),
+    noiseHighCutHz: clamp(
+      value.noiseHighCutHz ?? DEFAULT_PROCEDURAL_AUDIO_CONFIG.noiseHighCutHz,
+      PROCEDURAL_AUDIO_LIMITS.noiseHighCutHz.min,
+      PROCEDURAL_AUDIO_LIMITS.noiseHighCutHz.max,
     ),
     harmonicTranslation: clamp(value.harmonicTranslation ?? DEFAULT_PROCEDURAL_AUDIO_CONFIG.harmonicTranslation, gain.min, gain.max),
     templeGain: clamp(value.templeGain ?? DEFAULT_PROCEDURAL_AUDIO_CONFIG.templeGain, gain.min, gain.max),

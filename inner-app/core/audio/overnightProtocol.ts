@@ -178,6 +178,7 @@ export function createRecognitionOvernightProtocol(options: RecognitionOvernight
         thresholdShift: 0,
         noiseColor: bed.noiseColor,
         noiseGain: 0.12 * bed.noiseGainScale,
+        noiseHighCutHz: bed.noiseHighCutHz,
         masterGain: 0.58,
         toneGain: 0.01,
         ...identityPatch(options.environment, 'preparation', feel),

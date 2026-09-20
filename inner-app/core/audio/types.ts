@@ -47,6 +47,8 @@ export type ProceduralAudioConfig = {
   identityDensity: number;
   /** How much each appearance differs from the last (level, pitch, ear to ear, distance, echo): 0 = identical every time. */
   identityVariety: number;
+  /** Rolls the noise bed off above this frequency in Hz (12 dB per octave). 20000 leaves it untouched. */
+  noiseHighCutHz: number;
   /** Adds quiet upper harmonics that imply a lower environmental fundamental. */
   harmonicTranslation: number;
   templeGain: number;

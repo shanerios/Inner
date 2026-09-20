@@ -46,6 +46,8 @@ internal data class AudioParameters(
   var identityDensity: Double = 1.0,
   /** How much each appearance of an identity sound differs from the last: 0 = identical every time, 1 = fullest. */
   var identityVariety: Double = 0.0,
+  /** Rolls the noise bed off above this frequency. 20 kHz leaves it untouched. */
+  var noiseHighCutHz: Double = 20_000.0,
   var sleepEndMs: Double? = null,
 ) {
   fun setFrom(other: AudioParameters) {
@@ -73,6 +75,7 @@ internal data class AudioParameters(
     identityPresence = other.identityPresence
     identityDensity = other.identityDensity
     identityVariety = other.identityVariety
+    noiseHighCutHz = other.noiseHighCutHz
     sleepEndMs = other.sleepEndMs
   }
 }
@@ -156,6 +159,9 @@ private fun clamp(value: Double, low: Double, high: Double) = min(high, max(low,
 private val XORSHIFT_SEED: Long = java.lang.Long.parseUnsignedLong("9e3779b97f4a7c15", 16)
 
 private const val FOREST_NOISE_MIX = 0.3
+/** The bed's high cut counts as off at or above this, and moves to a new setting over this long. */
+private const val NOISE_CUT_OFF_HZ = 19_990.0
+private const val NOISE_CUT_SMOOTH_SECONDS = 3.0
 /** One color of noise blends into another over this long. */
 private const val NOISE_CROSSFADE_SECONDS = 4.5
 /** How much of the world's quieting the noise bed follows around a recognition cue: about 6 dB at the center of the quiet field. */
@@ -257,6 +263,9 @@ object ProceduralAudioEngine {
   /** While one noise color blends into another: the color being left, and how far the blend has gone (0 to 1). */
   private var fadingFromNoiseColor: String? = null
   private var noiseCrossfade = 0.0
+  private var noiseCutSmoothed = 20_000.0
+  private var noiseCutOne = 0.0
+  private var noiseCutTwo = 0.0
   private var rainMix = 0.0
   private var oceanEnvelope = 0.0
   private val oceanModel = OceanModel()
@@ -569,6 +578,9 @@ object ProceduralAudioEngine {
     isChangingNoiseColor = false
     fadingFromNoiseColor = null
     noiseCrossfade = 0.0
+    noiseCutSmoothed = 20_000.0
+    noiseCutOne = 0.0
+    noiseCutTwo = 0.0
     rainMix = 0.0
     oceanEnvelope = 0.0
     oceanModel.reset(XORSHIFT_SEED, sampleRate)
@@ -868,12 +880,24 @@ object ProceduralAudioEngine {
       val carrierBody = sin(phases[0]) + warmth * (sin(phases[3]) * 0.22 + sin(phases[4]) * 0.14)
       val carrier = carrierBody / (1 + warmth * 0.18) * gains[0]
       val leavingNoiseColor = fadingFromNoiseColor
-      val rawNoise = if (leavingNoiseColor != null) {
+      val colorNoise = if (leavingNoiseColor != null) {
         val incoming = nextNoise(renderedNoiseColor)
         val outgoing = nextNoise(leavingNoiseColor)
         val blendAngle = noiseCrossfade * Math.PI / 2
         outgoing * cos(blendAngle) + incoming * sin(blendAngle)
       } else nextNoise(renderedNoiseColor)
+      // A high cut on the bed (two poles, 12 dB per octave), so a world's own sound is not covered by hiss above it.
+      noiseCutSmoothed += (target.noiseHighCutHz - noiseCutSmoothed) / max(1.0, sampleRate * NOISE_CUT_SMOOTH_SECONDS)
+      val rawNoise = if (noiseCutSmoothed < NOISE_CUT_OFF_HZ) {
+        val cutCoefficient = 1.0 - Math.exp(-2.0 * Math.PI * noiseCutSmoothed / sampleRate)
+        noiseCutOne += cutCoefficient * (colorNoise - noiseCutOne)
+        noiseCutTwo += cutCoefficient * (noiseCutOne - noiseCutTwo)
+        noiseCutTwo
+      } else {
+        noiseCutOne = colorNoise
+        noiseCutTwo = colorNoise
+        colorNoise
+      }
       val orbitShadow = orbitMix * target.spatialDepth * (1 - orbitNear)
       val orbitFilterCoefficient = 0.06 + 0.94 * (1 - orbitShadow)
       orbitNoiseFilter += orbitFilterCoefficient * (rawNoise - orbitNoiseFilter)
@@ -1578,6 +1602,7 @@ object ProceduralAudioEngine {
       identityPresence = clamp(raw.identityPresence, 0.0, 12.0),
       identityDensity = clamp(raw.identityDensity, 0.2, 1.0),
       identityVariety = clamp(raw.identityVariety, 0.0, 1.0),
+      noiseHighCutHz = clamp(raw.noiseHighCutHz, 300.0, 20_000.0),
       sleepEndMs = sleepEndMs,
     )
   }
@@ -1698,6 +1723,7 @@ object ProceduralAudioEngine {
     output.identityPresence = lerp(from.identityPresence, to.identityPresence)
     output.identityDensity = lerp(from.identityDensity, to.identityDensity)
     output.identityVariety = lerp(from.identityVariety, to.identityVariety)
+    output.noiseHighCutHz = lerp(from.noiseHighCutHz, to.noiseHighCutHz)
     output.sleepEndMs = null
     return output
   }

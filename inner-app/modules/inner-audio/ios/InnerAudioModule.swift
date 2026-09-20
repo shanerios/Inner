@@ -19,6 +19,7 @@ private struct AudioConfigRecord: Record {
   @Field var identityPresence = 1.0
   @Field var identityDensity = 1.0
   @Field var identityVariety = 0.0
+  @Field var noiseHighCutHz = 20_000.0
   @Field var harmonicTranslation = 0.0
   @Field var templeGain = 0.0
   @Field var templeIntensity = 0.5
@@ -103,6 +104,8 @@ private struct Parameters {
   var identityDensity = 1.0
   /// How much each appearance of an identity sound differs from the last: 0 = identical every time, 1 = fullest.
   var identityVariety = 0.0
+  /// Rolls the noise bed off above this frequency. 20 kHz leaves it untouched.
+  var noiseHighCutHz = 20_000.0
   var harmonicTranslation = 0.0
   var templeGain = 0.0
   var templeIntensity = 0.5
@@ -263,6 +266,9 @@ private final class ProceduralAudioEngine: NSObject {
   /// While one noise color blends into another: the color being left, and how far the blend has gone (0 to 1).
   private var fadingFromNoiseColor: String?
   private var noiseCrossfade = 0.0
+  private var noiseCutSmoothed = 20_000.0
+  private var noiseCutOne = 0.0
+  private var noiseCutTwo = 0.0
   private var rainMix = 0.0
   private var oceanEnvelope = 0.0
   private let oceanModel = OceanModel()
@@ -587,6 +593,9 @@ private final class ProceduralAudioEngine: NSObject {
     isChangingNoiseColor = false
     fadingFromNoiseColor = nil
     noiseCrossfade = 0
+    noiseCutSmoothed = 20_000
+    noiseCutOne = 0
+    noiseCutTwo = 0
     rainMix = 0
     oceanEnvelope = 0
     oceanModel.reset(seed: 0x9e3779b97f4a7c15, sampleRate: sampleRate)
@@ -1035,14 +1044,27 @@ private final class ProceduralAudioEngine: NSObject {
       let warmth = target.harmonicWarmth
       let carrierBody = sin(phases[0]) + warmth * (sin(phases[3]) * 0.22 + sin(phases[4]) * 0.14)
       let carrier = carrierBody / (1 + warmth * 0.18) * gains[0]
-      let rawNoise: Double
+      let colorNoise: Double
       if let leavingNoiseColor = fadingFromNoiseColor {
         let incoming = nextNoise(renderedNoiseColor)
         let outgoing = nextNoise(leavingNoiseColor)
         let blendAngle = noiseCrossfade * Double.pi / 2
-        rawNoise = outgoing * cos(blendAngle) + incoming * sin(blendAngle)
+        colorNoise = outgoing * cos(blendAngle) + incoming * sin(blendAngle)
       } else {
-        rawNoise = nextNoise(renderedNoiseColor)
+        colorNoise = nextNoise(renderedNoiseColor)
+      }
+      // A high cut on the bed (two poles, 12 dB per octave), so a world's own sound is not covered by hiss above it.
+      noiseCutSmoothed += (target.noiseHighCutHz - noiseCutSmoothed) / max(1, sampleRate * Self.noiseCutSmoothSeconds)
+      let rawNoise: Double
+      if noiseCutSmoothed < Self.noiseCutOffHz {
+        let cutCoefficient = 1 - exp(-2 * Double.pi * noiseCutSmoothed / sampleRate)
+        noiseCutOne += cutCoefficient * (colorNoise - noiseCutOne)
+        noiseCutTwo += cutCoefficient * (noiseCutOne - noiseCutTwo)
+        rawNoise = noiseCutTwo
+      } else {
+        noiseCutOne = colorNoise
+        noiseCutTwo = colorNoise
+        rawNoise = colorNoise
       }
       let orbitShadow = orbitMix * target.spatialDepth * (1 - orbitNear)
       let orbitFilterCoefficient = 0.06 + 0.94 * (1 - orbitShadow)
@@ -1469,6 +1491,9 @@ private final class ProceduralAudioEngine: NSObject {
   private static let forestNoiseMix = 0.3
   /// One color of noise blends into another over this long.
   private static let noiseCrossfadeSeconds = 4.5
+  /// The bed's high cut counts as off at or above this, and moves to a new setting over this long.
+  private static let noiseCutOffHz = 19_990.0
+  private static let noiseCutSmoothSeconds = 3.0
   /// How much of the world's quieting the noise bed follows around a recognition cue: about 6 dB at the center of the quiet field.
   private static let recognitionNoiseThinning = 1.2
 
@@ -1784,6 +1809,7 @@ private final class ProceduralAudioEngine: NSObject {
       identityPresence: clamp(raw.identityPresence, 0, 12),
       identityDensity: clamp(raw.identityDensity, 0.2, 1),
       identityVariety: clamp(raw.identityVariety, 0, 1),
+      noiseHighCutHz: clamp(raw.noiseHighCutHz, 300, 20_000),
       harmonicTranslation: clamp(raw.harmonicTranslation, 0, 1),
       templeGain: clamp(raw.templeGain, 0, 1),
       templeIntensity: clamp(raw.templeIntensity, 0, 1),
@@ -1906,6 +1932,7 @@ private final class ProceduralAudioEngine: NSObject {
       identityPresence: lerp(from.identityPresence, to.identityPresence),
       identityDensity: lerp(from.identityDensity, to.identityDensity),
       identityVariety: lerp(from.identityVariety, to.identityVariety),
+      noiseHighCutHz: lerp(from.noiseHighCutHz, to.noiseHighCutHz),
       harmonicTranslation: lerp(from.harmonicTranslation, to.harmonicTranslation),
       templeGain: lerp(from.templeGain, to.templeGain),
       templeIntensity: lerp(from.templeIntensity, to.templeIntensity),
