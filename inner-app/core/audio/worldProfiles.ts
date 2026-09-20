@@ -67,7 +67,9 @@ export const WORLD_PROFILES: Record<AudioWorld, WorldProfile> = {
     id: 'fire', label: 'Fire', concept: 'A close, warm hearth built from body, hiss, and fine crackle.',
     foundation: ['warm-body', 'filtered-hiss'],
     acoustics: { scale: 'intimate', absorption: 0.7, diffusion: 0.3, width: 0.46 },
-    signatures: ['micro-crackle'], motion: 'stochastic', events: [], recognitionRecoverySeconds: 2,
+    signatures: ['micro-crackle', 'ember-resonance', 'settling-wood'], motion: 'stochastic',
+    events: [{ id: 'settling-wood', role: 'anchor', salience: 0.46, recoverySeconds: 3 }],
+    recognitionRecoverySeconds: 2,
   },
   cosmic: {
     id: 'cosmic', label: 'Cosmic', concept: 'A vast liminal field with harmonic horizons, breathing voice, and gravity.',

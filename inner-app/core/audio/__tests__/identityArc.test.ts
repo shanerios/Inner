@@ -60,7 +60,7 @@ describe('identity arc', () => {
   });
 
   it('leaves worlds without an identity sound exactly as they were', () => {
-    for (const environment of ['fire', 'wind', 'none'] as const) {
+    for (const environment of ['wind', 'none'] as const) {
       for (const stage of STAGES) expect(identityPatch(environment, stage)).toEqual({});
     }
   });
@@ -97,6 +97,16 @@ describe('identity arc', () => {
     }), DEFAULT_PROCEDURAL_AUDIO_CONFIG).phases;
     expect(phases.find(phase => phase.id === 'sleep-protection-2')!.audioConfig.identityDensity).toBe(0.5);
     expect(phases.find(phase => phase.id === 'preparation')!.audioConfig.identityPresence).toBeCloseTo(10 ** (2 / 20), 10);
+  });
+
+  it('gives Fire a quieter late-night ember and a +2 dB Immersive lift', () => {
+    const fire = (stage: IdentityStage, feel: 'gentle' | 'deep' | 'immersive' = 'gentle') => identityPatch('fire', stage, feel);
+    expect(fire('preparation').identityPresence).toBe(1);
+    expect(fire('earlySleep').identityPresence).toBeCloseTo(10 ** (-3 / 20), 10);
+    expect(fire('remSleep').identityPresence).toBeCloseTo(10 ** (-5 / 20), 10);
+    expect(fire('remSleep').identityDensity).toBe(0.5);
+    expect(fire('recognitionWindow').identityPresence).toBeCloseTo(10 ** (-14 / 20), 10);
+    expect(fire('descent', 'immersive').identityPresence! / fire('descent').identityPresence!).toBeCloseTo(10 ** (2 / 20), 10);
   });
 
   it('sets each protocol phase from its stage: 1 preparation and descent, 2 early sleep, 3 from the first signal', () => {
@@ -243,14 +253,14 @@ describe('identity controls across JS and both native engines', () => {
     expect(swift).toContain('if nextBreath >= Double.pi * 2 { moanCycle += 1 }');
   });
 
-  it('routes Ocean and Forest identity controls while leaving the other worlds unchanged', () => {
+  it('routes Ocean, Forest, and Fire identity controls while leaving Wind unchanged', () => {
     const engine = kotlin('ProceduralAudioEngine.kt');
     expect(engine).toMatch(/nextOcean\([^)]*target\.identityPresence, target\.identityDensity, target\.identityVariety/);
     expect(swift).toMatch(/nextOcean\([^)]*presence: target\.identityPresence, density: target\.identityDensity, variety: target\.identityVariety/);
     expect(engine).toMatch(/nextForest\([^)]*target\.identityPresence, target\.identityDensity, target\.identityVariety/);
     expect(swift).toMatch(/nextForest\([^)]*presence: target\.identityPresence, density: target\.identityDensity, variety: target\.identityVariety/);
-    for (const world of ['Wind', 'Fire']) {
-      expect(engine).not.toMatch(new RegExp(`next${world}\\([^)]*presence`));
-    }
+    expect(engine).toMatch(/nextFire\([^)]*target\.identityPresence, target\.identityDensity, target\.identityVariety/);
+    expect(swift).toMatch(/nextFire\([^)]*presence: target\.identityPresence, density: target\.identityDensity, variety: target\.identityVariety/);
+    expect(engine).not.toMatch(/nextWind\([^)]*presence/);
   });
 });

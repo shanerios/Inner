@@ -266,6 +266,7 @@ object ProceduralAudioEngine {
   private var fireHiss = 0.0
   private var firePopLeft = 0.0
   private var firePopRight = 0.0
+  private val fireEmberModel = FireEmberModel()
   private var cosmicEnvelope = 0.0
   private val cosmicModel = CosmicModel()
   private val worldSalience = WorldSalienceScheduler()
@@ -580,6 +581,7 @@ object ProceduralAudioEngine {
     fireHiss = 0.0
     firePopLeft = 0.0
     firePopRight = 0.0
+    fireEmberModel.reset(XORSHIFT_SEED, sampleRate)
     cosmicEnvelope = 0.0
     cosmicModel.reset(XORSHIFT_SEED, sampleRate)
     worldSalience.reset(sampleRate)
@@ -686,6 +688,7 @@ object ProceduralAudioEngine {
       abyssalModel.reset(activeTimeline.seed, sampleRate)
       windRandom = activeTimeline.seed xor 0x7f4a7c15L
       fireRandom = activeTimeline.seed xor 0x2c1b3c6dL
+      fireEmberModel.reset(activeTimeline.seed, sampleRate)
       cosmicModel.reset(activeTimeline.seed, sampleRate)
       worldSalience.reset(sampleRate)
       resetThresholdShift()
@@ -870,7 +873,7 @@ object ProceduralAudioEngine {
       val abyssalGain = target.environmentGain * abyssalEnvelope
       val wind = if (windEnvelope > 0.0001) nextWind(spatialSeconds, target.environmentIntensity) else silentStereo
       val windGain = target.environmentGain * windEnvelope
-      val fire = if (fireEnvelope > 0.0001) nextFire(spatialSeconds, target.environmentIntensity) else silentStereo
+      val fire = if (fireEnvelope > 0.0001) nextFire(spatialSeconds, target.environmentIntensity, target.identityPresence, target.identityDensity, target.identityVariety) else silentStereo
       val fireGain = target.environmentGain * fireEnvelope
       val cosmic = if (cosmicEnvelope > 0.0001) nextCosmic(spatialSeconds, target.environmentIntensity, target.identityPresence, target.identityDensity, target.identityVariety) else silentStereo
       val cosmicGain = target.environmentGain * cosmicEnvelope
@@ -1249,7 +1252,7 @@ object ProceduralAudioEngine {
     return (windRandom and 0x00ff_ffffL).toDouble() / 0x007f_ffffL.toDouble() - 1
   }
 
-  private fun nextFire(elapsedSeconds: Double, intensity: Double): StereoSample {
+  private fun nextFire(elapsedSeconds: Double, intensity: Double, presence: Double, density: Double, variety: Double): StereoSample {
     val shared = nextFireWhite()
     fireBody = (fireBody + 0.018 * shared) / 1.018
     fireHiss += 0.065 * (shared - fireHiss)
@@ -1264,7 +1267,9 @@ object ProceduralAudioEngine {
     firePopRight *= 0.99845
     val warmBody = fireBody * 4.2 * flicker
     val dryCrackle = (shared - fireHiss) * (0.08 + flicker * 0.08)
-    return fireSample.set(warmBody + dryCrackle + firePopLeft, warmBody + dryCrackle + firePopRight)
+    fireEmberModel.render(sampleRate, worldSalience, presence, density, variety)
+    return fireSample.set(warmBody + dryCrackle + firePopLeft + fireEmberModel.left,
+      warmBody + dryCrackle + firePopRight + fireEmberModel.right)
   }
 
   private fun nextFireWhite(): Double {

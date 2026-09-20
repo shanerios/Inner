@@ -273,6 +273,7 @@ private final class ProceduralAudioEngine: NSObject {
   private var fireHiss = 0.0
   private var firePopLeft = 0.0
   private var firePopRight = 0.0
+  private let fireEmberModel = FireEmberModel()
   private var cosmicEnvelope = 0.0
   private let cosmicModel = CosmicModel()
   private let worldSalience = WorldSalienceScheduler()
@@ -599,6 +600,7 @@ private final class ProceduralAudioEngine: NSObject {
     fireHiss = 0
     firePopLeft = 0
     firePopRight = 0
+    fireEmberModel.reset(seed: 0x9e3779b97f4a7c15, sampleRate: sampleRate)
     cosmicEnvelope = 0
     cosmicModel.reset(seed: 0x9e3779b97f4a7c15, sampleRate: sampleRate)
     worldSalience.reset(sampleRate: sampleRate)
@@ -840,6 +842,7 @@ private final class ProceduralAudioEngine: NSObject {
       abyssalModel.reset(seed: activeTimeline.seed, sampleRate: sampleRate)
       windRandom = activeTimeline.seed ^ 0x7f4a7c15
       fireRandom = activeTimeline.seed ^ 0x2c1b3c6d
+      fireEmberModel.reset(seed: activeTimeline.seed, sampleRate: sampleRate)
       cosmicModel.reset(seed: activeTimeline.seed, sampleRate: sampleRate)
       worldSalience.reset(sampleRate: sampleRate)
       resetThresholdShift()
@@ -1045,7 +1048,7 @@ private final class ProceduralAudioEngine: NSObject {
         : (left: 0.0, right: 0.0)
       let windGain = target.environmentGain * windEnvelope
       let fire = fireEnvelope > 0.0001
-        ? nextFire(elapsedSeconds: spatialSeconds, intensity: target.environmentIntensity)
+        ? nextFire(elapsedSeconds: spatialSeconds, intensity: target.environmentIntensity, presence: target.identityPresence, density: target.identityDensity, variety: target.identityVariety)
         : (left: 0.0, right: 0.0)
       let fireGain = target.environmentGain * fireEnvelope
       let cosmic = cosmicEnvelope > 0.0001
@@ -1434,7 +1437,7 @@ private final class ProceduralAudioEngine: NSObject {
     return Double(windRandom & 0x00ff_ffff) / Double(0x007f_ffff) - 1
   }
 
-  private func nextFire(elapsedSeconds: Double, intensity: Double) -> (left: Double, right: Double) {
+  private func nextFire(elapsedSeconds: Double, intensity: Double, presence: Double, density: Double, variety: Double) -> (left: Double, right: Double) {
     let shared = nextFireWhite()
     fireBody = (fireBody + 0.018 * shared) / 1.018
     fireHiss += 0.065 * (shared - fireHiss)
@@ -1449,7 +1452,9 @@ private final class ProceduralAudioEngine: NSObject {
     firePopRight *= 0.99845
     let warmBody = fireBody * 4.2 * flicker
     let dryCrackle = (shared - fireHiss) * (0.08 + flicker * 0.08)
-    return (warmBody + dryCrackle + firePopLeft, warmBody + dryCrackle + firePopRight)
+    fireEmberModel.render(sampleRate: sampleRate, salience: worldSalience, presence: presence, density: density, variety: variety)
+    return (warmBody + dryCrackle + firePopLeft + fireEmberModel.left,
+      warmBody + dryCrackle + firePopRight + fireEmberModel.right)
   }
 
   private func nextFireWhite() -> Double {
@@ -2226,7 +2231,81 @@ final class TempleAccents {
   }
 }
 
-/// Probabilistic surf model with a fixed micro-water voice pool.
+/// A low ember glow and occasional short, dark resonance from settling wood.
+final class FireEmberModel {
+  private(set) var left = 0.0
+  private(set) var right = 0.0
+  private var rate = 48_000.0
+  private var random: UInt64 = 1
+  private var countdown = 0.0
+  private var age = -1.0
+  private var elapsed = 0.0
+  private var emberPhase = 0.0
+  private var woodPhase = 0.0
+  private var woodHz = 110.0
+  private var woodPan = 0.0
+  private var woodAir = 0.0
+
+  func reset(seed: UInt64, sampleRate: Double) {
+    rate = sampleRate
+    random = seed ^ 0x46697265456d6265
+    if random == 0 { random = 1 }
+    countdown = rate * 12; age = -1; elapsed = 0
+    emberPhase = 0; woodPhase = 0; woodHz = 110; woodPan = 0; woodAir = 0
+    left = 0; right = 0
+  }
+
+  private func unit() -> Double {
+    random ^= random << 13; random ^= random >> 7; random ^= random << 17
+    return Double(random & 0x00ff_ffff) / Double(0x00ff_ffff)
+  }
+
+  func render(sampleRate: Double, salience: WorldSalienceScheduler, presence: Double, density: Double, variety: Double) {
+    if rate != sampleRate { reset(seed: random, sampleRate: sampleRate) }
+    let safePresence = max(0, min(1.5, presence))
+    let glow = 0.5 + 0.5 * sin(2 * Double.pi * elapsed / 13.1)
+    let emberHz = 73 + 1.8 * sin(2 * Double.pi * elapsed / 29)
+    elapsed += 1 / rate
+    emberPhase = fmod(emberPhase + 2 * Double.pi * emberHz / rate, 2 * Double.pi)
+    let ember = (sin(emberPhase) * 0.78 + sin(emberPhase * 2) * 0.22) *
+      (0.35 + 0.65 * glow) * 0.065 * safePresence
+
+    if age < 0 {
+      countdown -= 1
+      if countdown <= 0 {
+        if safePresence > 0.0001 && salience.reserve(salience: 0.46, durationSeconds: 3.4, recoverySeconds: 3) {
+          age = 0
+          woodHz = 104 + unit() * 16
+          woodPan = (unit() * 2 - 1) * 0.3
+          let immersive = max(0, min(1, (variety - 0.6) / 0.4))
+          countdown = rate * (70 - 25 * immersive + unit() * (40 - 15 * immersive)) /
+            max(0.2, min(1, density))
+        } else {
+          countdown = rate * 3
+        }
+      }
+    }
+
+    var wood = 0.0
+    if age >= 0 {
+      let seconds = age / rate
+      let attack = max(0, min(1, seconds / 0.045))
+      let release = pow(max(0, min(1, 1 - seconds / 3.4)), 2)
+      let bend = 1 + 0.14 * exp(-seconds * 3.2)
+      woodPhase = fmod(woodPhase + 2 * Double.pi * woodHz * bend / rate, 2 * Double.pi)
+      let air = unit() * 2 - 1
+      woodAir += 0.045 * (air - woodAir)
+      wood = (sin(woodPhase) * 0.72 + sin(woodPhase * 2) * 0.23 + woodAir * 0.28) *
+        attack * release * 0.29 * safePresence
+      age += 1
+      if seconds >= 3.4 { age = -1 }
+    }
+
+    left = ember + wood * (1 - woodPan)
+    right = ember + wood * (1 + woodPan)
+  }
+}
+
 /// A slow wind-excited hollow trunk and a quieter answer deeper in the canopy.
 final class ForestCallModel {
   private(set) var left = 0.0

@@ -2,7 +2,7 @@ import type { ProceduralAudioPatch, ProceduralEnvironment } from './types';
 
 /**
  * The night's arc for each world's identity sound: the Aum (temple), the whale call (abyssal), the
- * Cosmic voice (cosmic), the Ocean beacon, and the Forest call.
+ * Cosmic voice (cosmic), the Ocean beacon, the Forest call, and Fire's ember resonance.
  *
  * Whether these are heard depends on how far they stand above the bed in their own frequency band, not on
  * overall loudness: they are low and narrow, and the bed is broad. So the arc is set as a band level: the
@@ -69,7 +69,7 @@ export type IdentityFeel = keyof typeof IDENTITY_FEEL_VARIETY;
 
 /**
  * Extra level for a fuller feel, in dB, per sound. Someone who chooses Immersive wants to be in the room, so
- * every world's own sounds (the Aum, the whale call, the Cosmic voice, the Ocean beacon, the Forest call) stand 2 dB higher there. Deep and
+ * every world's own sounds (the Aum, the whale call, the Cosmic voice, the Ocean beacon, the Forest call, Fire's ember resonance) stand 2 dB higher there. Deep and
  * Gentle keep the level they were tuned at.
  */
 export const IDENTITY_FEEL_OFFSET_DB: Record<IdentityWorld, Record<IdentityFeel, number>> = {
@@ -117,9 +117,9 @@ export function identityPatch(
   stage: IdentityStage,
   feel: IdentityFeel = 'gentle',
 ): ProceduralAudioPatch {
-  // Ocean uses its approved first-listen level, and Forest its initial audition level, as references
+  // Ocean and Forest use their approved listening levels, and Fire its initial audition level, as references
   // until their band SNR is measured in the full overnight mix.
-  if (environment === 'ocean' || environment === 'forest') {
+  if (environment === 'ocean' || environment === 'forest' || environment === 'fire') {
     const offset = stage === 'recognitionWindow'
       ? IDENTITY_STAGE_OFFSET_DB.remSleep + IDENTITY_WINDOW_YIELD_DB
       : IDENTITY_STAGE_OFFSET_DB[stage];
