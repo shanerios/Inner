@@ -156,7 +156,9 @@ private fun clamp(value: Double, low: Double, high: Double) = min(high, max(low,
 private val XORSHIFT_SEED: Long = java.lang.Long.parseUnsignedLong("9e3779b97f4a7c15", 16)
 
 private const val FOREST_NOISE_MIX = 0.3
-/** How much of the world's quieting the noise bed follows around a recognition cue: about 6 dB at the centre of the quiet field. */
+/** One color of noise blends into another over this long. */
+private const val NOISE_CROSSFADE_SECONDS = 4.5
+/** How much of the world's quieting the noise bed follows around a recognition cue: about 6 dB at the center of the quiet field. */
 private const val RECOGNITION_NOISE_THINNING = 1.2
 
 // The lucidity cue: a fixed, non-seeded ascending three-note motif (the same
@@ -252,6 +254,9 @@ object ProceduralAudioEngine {
   private var renderedNoiseColor: String? = null
   private var pendingNoiseColor: String? = null
   private var isChangingNoiseColor = false
+  /** While one noise color blends into another: the color being left, and how far the blend has gone (0 to 1). */
+  private var fadingFromNoiseColor: String? = null
+  private var noiseCrossfade = 0.0
   private var rainMix = 0.0
   private var oceanEnvelope = 0.0
   private val oceanModel = OceanModel()
@@ -562,6 +567,8 @@ object ProceduralAudioEngine {
     renderedNoiseColor = null
     pendingNoiseColor = null
     isChangingNoiseColor = false
+    fadingFromNoiseColor = null
+    noiseCrossfade = 0.0
     rainMix = 0.0
     oceanEnvelope = 0.0
     oceanModel.reset(XORSHIFT_SEED, sampleRate)
@@ -784,8 +791,21 @@ object ProceduralAudioEngine {
       gains[2] += (target.noiseGain - gains[2]) * smoothing
       gains[3] += (target.masterGain - gains[3]) * smoothing
       if (target.noiseColor != renderedNoiseColor && (!isChangingNoiseColor || pendingNoiseColor != target.noiseColor)) {
-        pendingNoiseColor = target.noiseColor
-        isChangingNoiseColor = true
+        if (target.noiseColor != null && renderedNoiseColor != null && !isChangingNoiseColor && fadingFromNoiseColor == null &&
+          noiseEnvelope > 0.99 && target.noiseGain > 0.0001) {
+          // One color of noise into another: blend them, so the bed never drops out between the two.
+          fadingFromNoiseColor = renderedNoiseColor
+          renderedNoiseColor = target.noiseColor
+          noiseCrossfade = 0.0
+          when (target.noiseColor) {
+            "pink" -> pink.fill(0.0)
+            "brown" -> brown = 0.0
+            "grey" -> greyLow = 0.0
+          }
+        } else {
+          pendingNoiseColor = target.noiseColor
+          isChangingNoiseColor = true
+        }
       }
       val noiseIsPresent = renderedNoiseColor != null && target.noiseGain > 0.0001
       val noiseEnvelopeTarget = if (isChangingNoiseColor) 0.0 else if (noiseIsPresent) 1.0 else 0.0
@@ -795,9 +815,14 @@ object ProceduralAudioEngine {
         renderedNoiseColor = pendingNoiseColor
         pendingNoiseColor = null
         isChangingNoiseColor = false
+        fadingFromNoiseColor = null
         pink.fill(0.0)
         brown = 0.0
         greyLow = 0.0
+      }
+      if (fadingFromNoiseColor != null) {
+        noiseCrossfade += 1.0 / max(1.0, sampleRate * NOISE_CROSSFADE_SECONDS)
+        if (noiseCrossfade >= 1.0) fadingFromNoiseColor = null
       }
       val rainTarget = if (target.spatialMode == "rain") 1.0 else 0.0
       val rainStep = 1 / max(1.0, sampleRate * 4.5)
@@ -842,7 +867,13 @@ object ProceduralAudioEngine {
       val warmth = target.harmonicWarmth
       val carrierBody = sin(phases[0]) + warmth * (sin(phases[3]) * 0.22 + sin(phases[4]) * 0.14)
       val carrier = carrierBody / (1 + warmth * 0.18) * gains[0]
-      val rawNoise = nextNoise(renderedNoiseColor)
+      val leavingNoiseColor = fadingFromNoiseColor
+      val rawNoise = if (leavingNoiseColor != null) {
+        val incoming = nextNoise(renderedNoiseColor)
+        val outgoing = nextNoise(leavingNoiseColor)
+        val blendAngle = noiseCrossfade * Math.PI / 2
+        outgoing * cos(blendAngle) + incoming * sin(blendAngle)
+      } else nextNoise(renderedNoiseColor)
       val orbitShadow = orbitMix * target.spatialDepth * (1 - orbitNear)
       val orbitFilterCoefficient = 0.06 + 0.94 * (1 - orbitShadow)
       orbitNoiseFilter += orbitFilterCoefficient * (rawNoise - orbitNoiseFilter)

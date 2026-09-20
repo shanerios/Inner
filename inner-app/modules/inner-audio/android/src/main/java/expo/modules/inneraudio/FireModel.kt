@@ -67,7 +67,7 @@ internal class FireModel {
     /** Immersive alone (variety 0.6 to 1) adds another 2 dB to the wind; Gentle and Deep are untouched by it. */
     const val WIND_IMMERSIVE_BOOST = 1.2589254117941673
     const val WIND_IMMERSIVE_FROM = 0.6
-    /** Overtones of the flue's moan: hollow, favouring the odd partials. */
+    /** Overtones of the flue's moan: hollow, favoring the odd partials. */
     val WIND_PARTIALS = doubleArrayOf(1.0, 0.22, 0.5, 0.1, 0.24, 0.05)
     val WIND_ROOM_INPUT = doubleArrayOf(0.5, -0.6, 0.6, -0.5)
     val WIND_ROOM_SECONDS = doubleArrayOf(0.0257, 0.0331, 0.0413, 0.0509)

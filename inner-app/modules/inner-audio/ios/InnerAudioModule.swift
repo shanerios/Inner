@@ -260,6 +260,9 @@ private final class ProceduralAudioEngine: NSObject {
   private var renderedNoiseColor: String?
   private var pendingNoiseColor: String?
   private var isChangingNoiseColor = false
+  /// While one noise color blends into another: the color being left, and how far the blend has gone (0 to 1).
+  private var fadingFromNoiseColor: String?
+  private var noiseCrossfade = 0.0
   private var rainMix = 0.0
   private var oceanEnvelope = 0.0
   private let oceanModel = OceanModel()
@@ -582,6 +585,8 @@ private final class ProceduralAudioEngine: NSObject {
     renderedNoiseColor = nil
     pendingNoiseColor = nil
     isChangingNoiseColor = false
+    fadingFromNoiseColor = nil
+    noiseCrossfade = 0
     rainMix = 0
     oceanEnvelope = 0
     oceanModel.reset(seed: 0x9e3779b97f4a7c15, sampleRate: sampleRate)
@@ -948,8 +953,22 @@ private final class ProceduralAudioEngine: NSObject {
       // change first fades the old generator fully out, swaps it at silence,
       // then fades the new generator in so stage transitions cannot click.
       if target.noiseColor != renderedNoiseColor && (!isChangingNoiseColor || pendingNoiseColor != target.noiseColor) {
-        pendingNoiseColor = target.noiseColor
-        isChangingNoiseColor = true
+        if target.noiseColor != nil && renderedNoiseColor != nil && !isChangingNoiseColor && fadingFromNoiseColor == nil &&
+          noiseEnvelope > 0.99 && target.noiseGain > 0.0001 {
+          // One color of noise into another: blend them, so the bed never drops out between the two.
+          fadingFromNoiseColor = renderedNoiseColor
+          renderedNoiseColor = target.noiseColor
+          noiseCrossfade = 0
+          switch target.noiseColor {
+          case "pink": pink = [Double](repeating: 0, count: 7)
+          case "brown": brown = 0
+          case "grey": greyLow = 0
+          default: break
+          }
+        } else {
+          pendingNoiseColor = target.noiseColor
+          isChangingNoiseColor = true
+        }
       }
       let noiseIsPresent = renderedNoiseColor != nil && target.noiseGain > 0.0001
       let noiseEnvelopeTarget = isChangingNoiseColor ? 0.0 : (noiseIsPresent ? 1.0 : 0.0)
@@ -959,9 +978,14 @@ private final class ProceduralAudioEngine: NSObject {
         renderedNoiseColor = pendingNoiseColor
         pendingNoiseColor = nil
         isChangingNoiseColor = false
+        fadingFromNoiseColor = nil
         pink = [Double](repeating: 0, count: 7)
         brown = 0
         greyLow = 0
+      }
+      if fadingFromNoiseColor != nil {
+        noiseCrossfade += 1.0 / max(1, sampleRate * Self.noiseCrossfadeSeconds)
+        if noiseCrossfade >= 1.0 { fadingFromNoiseColor = nil }
       }
       // Rain is a different generator, so blend into and out of it instead of
       // swapping textures at the midpoint of a stage transition.
@@ -1011,7 +1035,15 @@ private final class ProceduralAudioEngine: NSObject {
       let warmth = target.harmonicWarmth
       let carrierBody = sin(phases[0]) + warmth * (sin(phases[3]) * 0.22 + sin(phases[4]) * 0.14)
       let carrier = carrierBody / (1 + warmth * 0.18) * gains[0]
-      let rawNoise = nextNoise(renderedNoiseColor)
+      let rawNoise: Double
+      if let leavingNoiseColor = fadingFromNoiseColor {
+        let incoming = nextNoise(renderedNoiseColor)
+        let outgoing = nextNoise(leavingNoiseColor)
+        let blendAngle = noiseCrossfade * Double.pi / 2
+        rawNoise = outgoing * cos(blendAngle) + incoming * sin(blendAngle)
+      } else {
+        rawNoise = nextNoise(renderedNoiseColor)
+      }
       let orbitShadow = orbitMix * target.spatialDepth * (1 - orbitNear)
       let orbitFilterCoefficient = 0.06 + 0.94 * (1 - orbitShadow)
       orbitNoiseFilter += orbitFilterCoefficient * (rawNoise - orbitNoiseFilter)
@@ -1435,7 +1467,9 @@ private final class ProceduralAudioEngine: NSObject {
   }
 
   private static let forestNoiseMix = 0.3
-  /// How much of the world's quieting the noise bed follows around a recognition cue: about 6 dB at the centre of the quiet field.
+  /// One color of noise blends into another over this long.
+  private static let noiseCrossfadeSeconds = 4.5
+  /// How much of the world's quieting the noise bed follows around a recognition cue: about 6 dB at the center of the quiet field.
   private static let recognitionNoiseThinning = 1.2
 
   // The lucidity cue: a fixed, non-seeded ascending three-note motif (the
@@ -2252,7 +2286,7 @@ final class FireModel {
   /// Immersive alone (variety 0.6 to 1) adds another 2 dB to the wind; Gentle and Deep are untouched by it.
   private static let windImmersiveBoost = 1.2589254117941673
   private static let windImmersiveFrom = 0.6
-  /// Overtones of the flue's moan: hollow, favouring the odd partials.
+  /// Overtones of the flue's moan: hollow, favoring the odd partials.
   private static let windPartials = [1.0, 0.22, 0.5, 0.1, 0.24, 0.05]
   private static let windRoomInput = [0.5, -0.6, 0.6, -0.5]
   private static let windRoomSeconds = [0.0257, 0.0331, 0.0413, 0.0509]

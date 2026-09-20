@@ -47,7 +47,7 @@ const REM_NOISE_TAPER = 0.67;
 const SHARED_BED_RATIONALE = {
   goal: 'A steady, even masking layer that keeps small outside sounds from reaching a sleeper.',
   atmosphere: 'Neutral and unobtrusive, equally present across the audible range.',
-  basis: 'The original shared design. Pink noise has the most sleep-lab attention of the common noise colours, in small studies; the evidence for any colour is limited.',
+  basis: 'The original shared design. Pink noise has the most sleep-lab attention of the common noise colors, in small studies; the evidence for any color is limited.',
 } as const;
 
 export type WorldProfile = {
@@ -175,7 +175,7 @@ export function worldBed(environment: AudioWorld): WorldBed {
 
 /**
  * The noise a world's stages should use, given the noise a stage was designed with for the shared pink bed. Worlds that
- * keep the shared bed are left exactly as designed; the others get their own colour at their own level.
+ * keep the shared bed are left exactly as designed; the others get their own color at their own level.
  */
 export function noiseForWorld(environment: AudioWorld, designed: { noiseColor: NoiseColor | null; noiseGain: number }) {
   const bed = worldBed(environment);
