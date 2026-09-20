@@ -31,6 +31,26 @@ describe('procedural world profiles', () => {
     }
   });
 
+  it('gives every world a bed with a stated goal, atmosphere and basis', () => {
+    for (const world of Object.values(WORLD_PROFILES)) {
+      expect(['white', 'pink', 'brown', 'grey']).toContain(world.bed.noiseColor);
+      expect(world.bed.noiseGainScale).toBeGreaterThanOrEqual(0.25);
+      expect(world.bed.noiseGainScale).toBeLessThanOrEqual(1.5);
+      expect(world.bed.binauralGainScale).toBeGreaterThanOrEqual(0);
+      expect(world.bed.binauralGainScale).toBeLessThanOrEqual(1.5);
+      for (const text of Object.values(world.bed.rationale)) expect(text.trim().length).toBeGreaterThan(20);
+    }
+  });
+
+  it('names a bed that departs from the shared one only where its basis is stated', () => {
+    // A world whose bed is not the shared pink one must say what it rests on.
+    for (const world of Object.values(WORLD_PROFILES)) {
+      if (world.bed.noiseColor !== 'pink' || world.bed.noiseGainScale !== 1) {
+        expect(world.bed.rationale.basis).toMatch(/theory|research|measur|stud/i);
+      }
+    }
+  });
+
   it('drives the overnight picker from the same world catalog', () => {
     expect(OVERNIGHT_WORLD_PROFILES.map((world) => world.id)).toEqual([
       'ocean', 'abyssal', 'forest', 'temple', 'cosmic', 'fire',

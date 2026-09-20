@@ -1,5 +1,6 @@
 import { normalizeProceduralAudioConfig } from './config';
 import { identityPatch } from './identityArc';
+import { worldBed } from './worldProfiles';
 import { LUCID_SIGNAL_CUE_OFFSETS_HOURS, type LucidSignalCuePlan } from '../lucidSignalPlans';
 import type { RecognitionSignalId } from '../recognitionSignals';
 import type { ProceduralAudioConfig, ProceduralAudioPatch, ProceduralEnvironment } from './types';
@@ -162,7 +163,8 @@ export function createRecognitionOvernightProtocol(options: RecognitionOvernight
     .filter(offset => offset < sleepDurationMs - returnMs);
   const feel = options.feel ?? 'gentle';
   const environmentGain = options.feel === 'immersive' ? 0.2 : options.feel === 'deep' ? 0.16 : 0.12;
-  const binauralWorldScale = options.environment === 'abyssal' ? 0.6 : 1;
+  const bed = worldBed(options.environment);
+  const binauralWorldScale = bed.binauralGainScale;
   const harmonicTranslation = options.environment === 'ocean' || options.environment === 'cosmic'
     ? 0.72
     : options.environment === 'abyssal' ? 0.6 : 0;
@@ -174,8 +176,8 @@ export function createRecognitionOvernightProtocol(options: RecognitionOvernight
         environmentGain,
         harmonicTranslation,
         thresholdShift: 0,
-        noiseColor: 'pink',
-        noiseGain: 0.12,
+        noiseColor: bed.noiseColor,
+        noiseGain: 0.12 * bed.noiseGainScale,
         masterGain: 0.58,
         toneGain: 0.01,
         ...identityPatch(options.environment, 'preparation', feel),
@@ -184,7 +186,7 @@ export function createRecognitionOvernightProtocol(options: RecognitionOvernight
     },
     {
       id: 'descent', label: 'Descent', kind: 'descent', durationMs: descentMs,
-      audio: { binauralCarrierHz: 208, binauralDeltaHz: 5, binauralGain: 0.18 * binauralWorldScale, environmentGain, noiseGain: 0.13, masterGain: 0.48, thresholdShift: 1, ...identityPatch(options.environment, 'descent', feel) },
+      audio: { binauralCarrierHz: 208, binauralDeltaHz: 5, binauralGain: 0.18 * binauralWorldScale, environmentGain, noiseGain: 0.13 * bed.noiseGainScale, masterGain: 0.48, thresholdShift: 1, ...identityPatch(options.environment, 'descent', feel) },
     },
   ];
 
@@ -194,7 +196,7 @@ export function createRecognitionOvernightProtocol(options: RecognitionOvernight
     if (protectionMs >= 1_000) {
       phases.push({
         id: `sleep-protection-${index + 1}`, label: 'Sleep Protection', kind: 'sleepProtection', durationMs: protectionMs,
-        audio: { toneGain: 0, binauralGain: 0.08 * binauralWorldScale, noiseGain: 0.1, environmentGain: environmentGain * 0.75, masterGain: 0.35, ...identityPatch(options.environment, index === 0 ? 'earlySleep' : 'remSleep', feel) },
+        audio: { toneGain: 0, binauralGain: 0.08 * binauralWorldScale, noiseGain: 0.1 * bed.noiseGainScale, environmentGain: environmentGain * 0.75, masterGain: 0.35, ...identityPatch(options.environment, index === 0 ? 'earlySleep' : 'remSleep', feel) },
       });
     }
     phases.push({
@@ -213,7 +215,7 @@ export function createRecognitionOvernightProtocol(options: RecognitionOvernight
   if (remainingSleepMs >= 1_000) {
     phases.push({
       id: 'sleep-protection-final', label: 'Sleep Protection', kind: 'sleepProtection', durationMs: remainingSleepMs,
-      audio: { toneGain: 0, binauralGain: 0.05 * binauralWorldScale, noiseGain: 0.08, environmentGain: environmentGain * 0.6, masterGain: 0.3, ...identityPatch(options.environment, cueOffsets.length ? 'remSleep' : 'earlySleep', feel) },
+      audio: { toneGain: 0, binauralGain: 0.05 * binauralWorldScale, noiseGain: 0.08 * bed.noiseGainScale, environmentGain: environmentGain * 0.6, masterGain: 0.3, ...identityPatch(options.environment, cueOffsets.length ? 'remSleep' : 'earlySleep', feel) },
     });
   }
   phases.push({

@@ -36,6 +36,48 @@ describe('overnight protocol', () => {
     expect(result.events.filter(event => event.id.startsWith('signal-'))).toHaveLength(2);
   });
 
+  describe('the bed under each world', () => {
+    const bedOf = (environment: 'ocean' | 'abyssal' | 'forest' | 'temple' | 'cosmic' | 'fire') => {
+      const phases = compileOvernightProtocol(createRecognitionOvernightProtocol({
+        sleepDurationMinutes: 8 * 60,
+        environment,
+        signalId: 'chimes',
+        cuePlan: 'standard',
+        feel: 'gentle',
+      }), DEFAULT_PROCEDURAL_AUDIO_CONFIG).phases;
+      const at = (kind: string, which: 'first' | 'last' = 'first') => {
+        const matching = phases.filter(phase => phase.kind === kind);
+        return (which === 'first' ? matching[0] : matching[matching.length - 1]).audioConfig;
+      };
+      return {
+        color: at('preparation').noiseColor,
+        noise: [at('preparation').noiseGain, at('descent').noiseGain, at('sleepProtection', 'first').noiseGain, at('sleepProtection', 'last').noiseGain],
+        binaural: [at('descent').binauralGain, at('sleepProtection', 'first').binauralGain, at('sleepProtection', 'last').binauralGain],
+      };
+    };
+
+    it.each(['ocean', 'temple', 'cosmic', 'fire'] as const)('leaves %s exactly as it was: pink, at the original levels', environment => {
+      const bed = bedOf(environment);
+      expect(bed.color).toBe('pink');
+      expect(bed.noise).toEqual([0.12, 0.13, 0.1, 0.08]);
+      expect(bed.binaural).toEqual([0.18, 0.08, 0.05]);
+    });
+
+    it('keeps the abyssal binaural level at 60% of the standard, as it was', () => {
+      const bed = bedOf('abyssal');
+      expect(bed.color).toBe('pink');
+      expect(bed.noise).toEqual([0.12, 0.13, 0.1, 0.08]);
+      expect(bed.binaural).toEqual([0.18 * 0.6, 0.08 * 0.6, 0.05 * 0.6]);
+    });
+
+    it('gives the forest a brown bed at half the noise level, with the standard binaural level', () => {
+      const bed = bedOf('forest');
+      expect(bed.color).toBe('brown');
+      expect(bed.noise).toEqual([0.06, 0.065, 0.05, 0.04]);
+      expect(bed.binaural).toEqual([0.18, 0.08, 0.05]);
+    });
+  });
+
   it('limits harmonic translation to environments that benefit from implied depth', () => {
     const compile = (environment: 'ocean' | 'cosmic' | 'abyssal' | 'temple') => compileOvernightProtocol(
       createRecognitionOvernightProtocol({
