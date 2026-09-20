@@ -19,8 +19,8 @@ import kotlin.math.tanh
  *
  * The fire settles with the night: the engine's `intensity` is its liveliness, so a fire given less intensity
  * has fewer crackles, fewer gusts, and a quieter roar. `presence` scales the settling logs and the wind (the
- * fire's identity), `density` how often logs settle, and `variety` gives each settle its own gesture. The
- * Swift engine mirrors this file.
+ * fire's identity), `density` how often logs settle, and `variety` gives each settle its own gesture and lifts
+ * the wind so it is heard in the fuller feels. The Swift engine mirrors this file.
  */
 internal class FireModel {
   var left = 0.0
@@ -50,6 +50,14 @@ internal class FireModel {
     /** A final lift of 1 dB, so the new fire sits close to the level of the one it replaces in every feel. */
     const val OUTPUT_TRIM = 1.1220184543019633
 
+    /**
+     * From variety 0 (Gentle, exactly as it was) to 1 (Immersive) the wind is lifted so it stays in the ear against
+     * the fire and the bed: this much more at full variety (about 2 dB), and it follows the fire's liveliness less
+     * steeply as the hearth burns down (exponent 0.85 at variety 0, this at full variety), never below its floor.
+     */
+    const val WIND_LIFT_AT_FULL_VARIETY = 0.26
+    const val WIND_FOLLOW_AT_FULL_VARIETY = 0.2
+    const val WIND_FLOOR_AT_FULL_VARIETY = 0.45
     /** Overtones of the flue's moan: hollow, favouring the odd partials. */
     val WIND_PARTIALS = doubleArrayOf(1.0, 0.22, 0.5, 0.1, 0.24, 0.05)
     val WIND_ROOM_INPUT = doubleArrayOf(0.5, -0.6, 0.6, -0.5)
@@ -106,6 +114,7 @@ internal class FireModel {
   private var gustAge = -1.0
   private var gustDuration = 0.0
   private var gustAmplitude = 0.0
+  private var gustVoice = 1.0
   private var gustEnvelope = 0.0
   private var gustDelayed = 0.0
   private var windJitter = 0.0
@@ -247,7 +256,7 @@ internal class FireModel {
     rustle = 0.0; rustleDecay = exp(-1.0 / (0.45 * rate)); rustleLow = 0.0; rustleHigh = 0.0
     sizzleAge = -1.0; sizzleLength = 0.0; sizzleHp = 0.0
     flare = 0.0; flareLeft = 0.0; flarePeak = 1.5; flareUp = false
-    gustAge = -1.0; gustDuration = 0.0; gustAmplitude = 0.0; gustEnvelope = 0.0; gustDelayed = 0.0
+    gustAge = -1.0; gustDuration = 0.0; gustAmplitude = 0.0; gustVoice = 1.0; gustEnvelope = 0.0; gustDelayed = 0.0
     windJitter = 0.0; flareAt = -1L; flareAmplitude = 1.5
     windL = 0.0; windR = 0.0
     breathLowLeft = 0.0; breathHighLeft = 0.0; breathLowRight = 0.0; breathHighRight = 0.0
@@ -444,6 +453,8 @@ internal class FireModel {
         gustAge = 0.0
         gustDuration = (4.5 + 4.5 * unit()) * rate
         gustAmplitude = (0.55 + 0.45 * unit()) * amplitudeScale
+        // The flames still answer the gust as before; only how loudly the wind itself sounds is lifted.
+        gustVoice = if (variety > 0.0) windVoice(a, variety, amplitudeScale) else 1.0
         var gap = (17.0 + 21.0 * unit()) * (0.85 / a).pow(1.15)
         if (unit() < 0.25) gap = gustDuration / rate * 0.85 + 1.0 + 2.5 * unit()      // sometimes a second gust follows on
         gustAt = i + (gap * rate).toLong()
@@ -474,8 +485,8 @@ internal class FireModel {
       breathLowRight += kBreathLow * (bnR - breathLowRight); breathHighRight += kBreathHigh * (bnR - breathHighRight)
       val breath = gustEnvelope.pow(1.6)
       val windTone = tone * amp * 0.16
-      windL = (windTone + (breathHighLeft - breathLowLeft) * 4.0 * breath * 0.5) * mult
-      windR = (windTone + (breathHighRight - breathLowRight) * 4.0 * breath * 0.5) * mult
+      windL = (windTone + (breathHighLeft - breathLowLeft) * 4.0 * breath * 0.5) * mult * gustVoice
+      windR = (windTone + (breathHighRight - breathLowRight) * 4.0 * breath * 0.5) * mult * gustVoice
     } else { windL = 0.0; windR = 0.0 }
 
     // ---- the bed's own crackle: ticks and pops, arriving in bursts
@@ -567,6 +578,15 @@ internal class FireModel {
       outRustle * GAIN_RUSTLE + outSizzleR * GAIN_SIZZLE + outSteamR * GAIN_STEAM + outWindR * GAIN_WIND
     right *= OUTPUT_TRIM
     sample = i + 1
+  }
+
+  /** How much louder a gust sounds than the fire's own liveliness alone would make it, for a feel with this [variety]. */
+  private fun windVoice(a: Double, variety: Double, amplitudeScale: Double): Double {
+    val v = min(1.0, variety)
+    val exponent = 0.85 - (0.85 - WIND_FOLLOW_AT_FULL_VARIETY) * v
+    val floor = 0.15 + (WIND_FLOOR_AT_FULL_VARIETY - 0.15) * v
+    val followed = max(floor, min(1.0, (a / 0.85).pow(exponent)))
+    return (1.0 + WIND_LIFT_AT_FULL_VARIETY * v) * followed / amplitudeScale
   }
 
   /** One settling log: a thump and a cascade of crackle in one of eight gestures, with the steam of a damp log. */

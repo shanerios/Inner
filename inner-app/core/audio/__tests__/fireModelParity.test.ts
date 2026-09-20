@@ -71,6 +71,23 @@ describe('the fire: Kotlin and Swift are the same model', () => {
     ]);
   });
 
+  it('lifts the wind for the fuller feels the same way in both engines, and leaves Gentle exactly as it was', () => {
+    for (const name of ['WIND_LIFT_AT_FULL_VARIETY', 'WIND_FOLLOW_AT_FULL_VARIETY', 'WIND_FLOOR_AT_FULL_VARIETY']) {
+      expect(scalar(swift, name, true)).toBe(scalar(fire, name, false));
+    }
+    pairs([
+      ['gustVoice = if (variety > 0.0) windVoice(a, variety, amplitudeScale) else 1.0', 'gustVoice = variety > 0.0 ? windVoice(a, variety, amplitudeScale) : 1.0'],
+      ['val exponent = 0.85 - (0.85 - WIND_FOLLOW_AT_FULL_VARIETY) * v', 'let exponent = 0.85 - (0.85 - FireModel.windFollowAtFullVariety) * v'],
+      ['val floor = 0.15 + (WIND_FLOOR_AT_FULL_VARIETY - 0.15) * v', 'let floorLevel = 0.15 + (FireModel.windFloorAtFullVariety - 0.15) * v'],
+      ['val followed = max(floor, min(1.0, (a / 0.85).pow(exponent)))', 'let followed = max(floorLevel, min(1.0, pow(a / 0.85, exponent)))'],
+      ['return (1.0 + WIND_LIFT_AT_FULL_VARIETY * v) * followed / amplitudeScale', 'return (1.0 + FireModel.windLiftAtFullVariety * v) * followed / amplitudeScale'],
+      ['* 0.5) * mult * gustVoice\n', '* 0.5) * mult * gustVoice\n'],
+    ]);
+    // Gentle keeps the wind exactly as it was, and the flames answer a gust as they always did.
+    expect(fire).toMatch(/flareAmplitude = 0\.7 \+ 1\.5 \* gustAmplitude\n/);
+    expect(fire).toMatch(/gustAmplitude = \(0\.55 \+ 0\.45 \* unit\(\)\) \* amplitudeScale\n/);
+  });
+
   it('builds the pops as broadband snaps and the settles in the same eight gestures', () => {
     pairs([
       ['val dull = unit() < 0.12', 'let dull = unit() < 0.12'],

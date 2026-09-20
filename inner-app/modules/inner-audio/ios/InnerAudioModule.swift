@@ -2238,6 +2238,12 @@ final class FireModel {
   /// A final lift of 1 dB, so the new fire sits close to the level of the one it replaces in every feel.
   private static let outputTrim = 1.1220184543019633
 
+  /// From variety 0 (Gentle, exactly as it was) to 1 (Immersive) the wind is lifted so it stays in the ear against
+  /// the fire and the bed: this much more at full variety (about 2 dB), and it follows the fire's liveliness less
+  /// steeply as the hearth burns down (exponent 0.85 at variety 0, this at full variety), never below its floor.
+  private static let windLiftAtFullVariety = 0.26
+  private static let windFollowAtFullVariety = 0.2
+  private static let windFloorAtFullVariety = 0.45
   /// Overtones of the flue's moan: hollow, favouring the odd partials.
   private static let windPartials = [1.0, 0.22, 0.5, 0.1, 0.24, 0.05]
   private static let windRoomInput = [0.5, -0.6, 0.6, -0.5]
@@ -2268,7 +2274,7 @@ final class FireModel {
 
   // the chimney wind
   private var gustAt: Int64 = 0
-  private var gustAge = -1.0, gustDuration = 0.0, gustAmplitude = 0.0, gustEnvelope = 0.0, gustDelayed = 0.0
+  private var gustAge = -1.0, gustDuration = 0.0, gustAmplitude = 0.0, gustVoice = 1.0, gustEnvelope = 0.0, gustDelayed = 0.0
   private var windJitter = 0.0
   private var flareAt: Int64 = -1
   private var flareAmplitude = 1.5
@@ -2382,7 +2388,7 @@ final class FireModel {
     rustle = 0; rustleDecay = exp(-1.0 / (0.45 * rate)); rustleLow = 0; rustleHigh = 0
     sizzleAge = -1; sizzleLength = 0; sizzleHp = 0
     flare = 0; flareLeft = 0; flarePeak = 1.5; flareUp = false
-    gustAge = -1; gustDuration = 0; gustAmplitude = 0; gustEnvelope = 0; gustDelayed = 0
+    gustAge = -1; gustDuration = 0; gustAmplitude = 0; gustVoice = 1; gustEnvelope = 0; gustDelayed = 0
     windJitter = 0; flareAt = -1; flareAmplitude = 1.5
     windL = 0; windR = 0
     breathLowLeft = 0; breathHighLeft = 0; breathLowRight = 0; breathHighRight = 0
@@ -2579,6 +2585,8 @@ final class FireModel {
         gustAge = 0.0
         gustDuration = (4.5 + 4.5 * unit()) * rate
         gustAmplitude = (0.55 + 0.45 * unit()) * amplitudeScale
+        // The flames still answer the gust as before; only how loudly the wind itself sounds is lifted.
+        gustVoice = variety > 0.0 ? windVoice(a, variety, amplitudeScale) : 1.0
         var gap = (17.0 + 21.0 * unit()) * pow(0.85 / a, 1.15)
         if unit() < 0.25 { gap = gustDuration / rate * 0.85 + 1.0 + 2.5 * unit() }      // sometimes a second gust follows on
         gustAt = i + Int64(gap * rate)
@@ -2609,8 +2617,8 @@ final class FireModel {
       breathLowRight += kBreathLow * (bnR - breathLowRight); breathHighRight += kBreathHigh * (bnR - breathHighRight)
       let breath = pow(gustEnvelope, 1.6)
       let windTone = tone * amp * 0.16
-      windL = (windTone + (breathHighLeft - breathLowLeft) * 4.0 * breath * 0.5) * mult
-      windR = (windTone + (breathHighRight - breathLowRight) * 4.0 * breath * 0.5) * mult
+      windL = (windTone + (breathHighLeft - breathLowLeft) * 4.0 * breath * 0.5) * mult * gustVoice
+      windR = (windTone + (breathHighRight - breathLowRight) * 4.0 * breath * 0.5) * mult * gustVoice
     } else { windL = 0; windR = 0 }
 
     // ---- the bed's own crackle: ticks and pops, arriving in bursts
@@ -2705,6 +2713,15 @@ final class FireModel {
       outRustle * FireModel.gainRustle + outSizzleR * FireModel.gainSizzle + outSteamR * FireModel.gainSteam + outWindR * FireModel.gainWind
     right *= FireModel.outputTrim
     sample = i + 1
+  }
+
+  /// How much louder a gust sounds than the fire's own liveliness alone would make it, for a feel with this `variety`.
+  private func windVoice(_ a: Double, _ variety: Double, _ amplitudeScale: Double) -> Double {
+    let v = min(1.0, variety)
+    let exponent = 0.85 - (0.85 - FireModel.windFollowAtFullVariety) * v
+    let floorLevel = 0.15 + (FireModel.windFloorAtFullVariety - 0.15) * v
+    let followed = max(floorLevel, min(1.0, pow(a / 0.85, exponent)))
+    return (1.0 + FireModel.windLiftAtFullVariety * v) * followed / amplitudeScale
   }
 
   /// One settling log: a thump and a cascade of crackle in one of eight gestures, with the steam of a damp log.
