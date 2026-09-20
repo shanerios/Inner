@@ -56,7 +56,7 @@ internal class ForestCallModel {
           pan = (unit() * 2.0 - 1.0) * 0.28
           answerPan = if (pan < 0.0) 0.52 else -0.52
           countdown = rate * (110.0 + unit() * 70.0) / density.coerceIn(0.2, 1.0) *
-            (1.0 - 0.25 * ((variety - 0.6) / 0.4).coerceIn(0.0, 1.0))
+            (1.0 - 0.4 * ((variety - 0.6) / 0.4).coerceIn(0.0, 1.0))
         } else {
           countdown = rate * 3.0
         }

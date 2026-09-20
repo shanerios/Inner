@@ -2277,7 +2277,7 @@ final class ForestCallModel {
           pan = (unit() * 2 - 1) * 0.28
           answerPan = pan < 0 ? 0.52 : -0.52
           countdown = rate * (110 + unit() * 70) / max(0.2, min(1, density)) *
-            (1 - 0.25 * max(0, min(1, (variety - 0.6) / 0.4)))
+            (1 - 0.4 * max(0, min(1, (variety - 0.6) / 0.4)))
         } else {
           countdown = rate * 3
         }
