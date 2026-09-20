@@ -17,8 +17,10 @@ import kotlin.math.tan
  * so often the wind finds a hollow trunk and howls through it, a breath-driven, wavering tone whose pitch rises as the
  * gust builds and sags as it fades, and a smaller tree deeper in the forest answers. The birds are the engine's own.
  *
- * `intensity` is how much the canopy stirs, `presence` the level of the howl (the forest's identity), `density` how
- * often it comes, and `variety` shortens the wait between howls in the fuller feels. The Swift engine mirrors this file.
+ * `intensity` is how much the canopy stirs (the leaves and the gusts settle as it falls, and below the level of the
+ * Gentle feel they fall away faster), `presence` the level of the howl (the forest's identity), `density` how often it
+ * comes, and `variety` shortens the wait between howls in the fuller feels and gives each its own gesture (see
+ * [ForestGesture]). The Swift engine mirrors this file.
  */
 internal class ForestModel {
   var left = 0.0
@@ -49,6 +51,16 @@ internal class ForestModel {
     /** The howl and its answer take this long from the start of the call. */
     const val HOWL_SECONDS = 13.5
     const val ANSWER_DELAY_SECONDS = 7.0
+    /** Below this intensity (the Gentle feel's) the canopy quiets faster than the gentle slope above it. */
+    const val STIR_KNEE = 0.34
+    const val STIR_FALL = 1.3
+    /** A slip of pitch takes this long to rise and settles back over this long. */
+    const val SLIP_RISE_SECONDS = 0.35
+    const val SLIP_SETTLE_SECONDS = 1.6
+    /** The third tree: how long its gust takes, and how loud it is beside the first answer. */
+    const val THIRD_RISE_SECONDS = 3.0
+    const val THIRD_FALL_SECONDS = 4.0
+    const val THIRD_LEVEL = 0.55
   }
 
   private var rate = 48_000.0
@@ -116,6 +128,21 @@ internal class ForestModel {
   // ---- the howl
   private var howlActive = false
   private var howlAge = 0L
+  private var howlCount = 0L
+  private var forestSeed = 1L
+  private val gesture = ForestGesture()
+  private var answerDelay = ANSWER_DELAY_SECONDS
+  private var howlEnd = HOWL_SECONDS
+  private var reserveSeconds = 13.2
+  private var kDistantNow = 0.0
+  private var exciteThird = 0.0
+  private var tremorThird = 0.0
+  private var airThirdHigh = 0.0
+  private var airThirdLow = 0.0
+  private var thirdDistantOne = 0.0
+  private var thirdDistantTwo = 0.0
+  private var kThirdDistant = 0.0
+  private val thirdTrunk = Array(3) { Bandpass() }
   private var countdown = 0.0
   private var base = 0.0
   private var baseAnswer = 0.0
@@ -213,6 +240,7 @@ internal class ForestModel {
 
   fun reset(seed: Long, sampleRate: Double) {
     rate = sampleRate
+    forestSeed = seed
     random = (seed xor 0x466f72657374L).let { if (it == 0L) 1L else it }
     sample = 0L
     gustCount = 0; nextGust = 3.0; gustCached = 0.0
@@ -223,7 +251,10 @@ internal class ForestModel {
     activeCount = 0; freeCount = VOICES
     for (i in 0 until VOICES) free[i] = VOICES - 1 - i
     pOn.fill(false)
-    howlActive = false; howlAge = 0L; countdown = rate * 14.0
+    howlActive = false; howlAge = 0L; howlCount = 0L; countdown = rate * 14.0
+    gesture.neutral(); answerDelay = ANSWER_DELAY_SECONDS; howlEnd = HOWL_SECONDS; reserveSeconds = 13.2
+    exciteThird = 0.0; tremorThird = 0.0; airThirdHigh = 0.0; airThirdLow = 0.0; thirdDistantOne = 0.0; thirdDistantTwo = 0.0
+    for (b in thirdTrunk) b.reset()
     tremor = 0.0; tremorAnswer = 0.0; drift = 0.0; excite = 0.0; exciteAnswer = 0.0
     airHigh = 0.0; airLow = 0.0; airAnswerHigh = 0.0; airAnswerLow = 0.0
     distant = 0.0; answerDistantOne = 0.0; answerDistantTwo = 0.0
@@ -240,6 +271,7 @@ internal class ForestModel {
     grainDecay = exp(-1.0 / (0.0022 * rate))
     kAirHigh = pole(1000.0); kAirLow = pole(200.0); kAirAnswerHigh = pole(1200.0)
     kExcite = 0.25; kDistant = pole(3600.0); kAnswerDistant = pole(1500.0); kEchoSmooth = 0.02
+    kDistantNow = kDistant; kThirdDistant = pole(1000.0)
   }
 
   private fun pole(hz: Double): Double = 1.0 - exp(-2.0 * PI * hz / rate)
@@ -262,6 +294,11 @@ internal class ForestModel {
   private fun logUniform(low: Double, high: Double): Double = low * (high / low).pow(unit())
 
   private fun clamp(value: Double, low: Double, high: Double): Double = max(low, min(high, value))
+
+  /** How much the canopy stirs at this intensity: the gentle slope the forest was tuned on, and below the Gentle feel a faster fall. */
+  private fun stir(intensity: Double): Double =
+    if (intensity >= STIR_KNEE) 0.6 + 0.8 * intensity
+    else max(0.05, (0.6 + 0.8 * STIR_KNEE) * (max(intensity, 0.0) / STIR_KNEE).pow(STIR_FALL))
 
   // ------------------------------------------------------------------ the leaves
 
@@ -336,10 +373,37 @@ internal class ForestModel {
     howlActive = true; howlAge = 0L
     base = logUniform(112.0, 168.0)
     baseAnswer = base * (1.28 + 0.24 * unit())
-    rise = 2.6 + 1.5 * unit(); fall = 4.2 + 2.2 * unit(); riseAnswer = 2.2 + 1.2 * unit(); fallAnswer = 3.0 + 1.5 * unit()
+    rise = (2.6 + 1.5 * unit()) * gesture.stretch; fall = (4.2 + 2.2 * unit()) * gesture.stretch
+    riseAnswer = 2.2 + 1.2 * unit(); fallAnswer = 3.0 + 1.5 * unit()
     pan = (unit() * 2.0 - 1.0) * 0.3
     answerPan = if (pan < 0.0) 0.5 else -0.5
-    tremor = 0.0; tremorAnswer = 0.0
+    tremor = 0.0; tremorAnswer = 0.0; tremorThird = 0.0
+    val far = gesture.distance
+    kDistantNow = if (far == 0.0) kDistant else pole(3600.0 * (if (far > 0.0) 1.0 - 0.5 * far else 1.0 - 0.6 * far))
+    howlCount += 1
+  }
+
+  /** How long this appearance lasts, when its answer comes, and how long it holds the room's attention. */
+  private fun planHowl() {
+    answerDelay = ANSWER_DELAY_SECONDS * gesture.stretch + gesture.doubleGap * 0.7
+    howlEnd = HOWL_SECONDS * gesture.stretch + gesture.doubleGap
+    reserveSeconds = 13.2 * gesture.stretch + gesture.doubleGap
+    if (gesture.thirdTree) {
+      val thirdEnd = answerDelay + gesture.thirdDelay + THIRD_RISE_SECONDS + THIRD_FALL_SECONDS + 0.5
+      howlEnd = max(howlEnd, thirdEnd)
+      reserveSeconds = max(reserveSeconds, thirdEnd - 0.3)
+    }
+  }
+
+  /** How far the pitch has slipped up at this moment of the gust. */
+  private fun slipFactor(seconds: Double): Double {
+    val since = seconds - gesture.slipAt * (rise + fall)
+    if (since < 0.0) return 1.0
+    val envelope = if (since < SLIP_RISE_SECONDS) {
+      val x = since / SLIP_RISE_SECONDS
+      x * x * (3.0 - 2.0 * x)
+    } else exp(-(since - SLIP_RISE_SECONDS) / SLIP_SETTLE_SECONDS)
+    return 1.0 + (gesture.slipRatio - 1.0) * envelope
   }
 
   fun render(sampleRate: Double, intensity: Double, presence: Double, density: Double, variety: Double, salience: WorldSalienceScheduler) {
@@ -354,14 +418,14 @@ internal class ForestModel {
       gustFall[gustCount] = 2.5 + 4.0 * unit()
       gustAmplitude[gustCount] = 0.5 + 0.5 * unit()
       gustCount += 1
-      nextGust = time + (4.0 + 13.0 * unit()) / (0.6 + 0.8 * intensity)
+      nextGust = time + (4.0 + 13.0 * unit()) / stir(intensity)
     }
     if (i % 32L == 0L) gustCached = gustLevel(time)
     if (i % 480L == 0L) {
       slow += (0.0 - slow) * 0.006 + 0.05 * gauss(); slow = clamp(slow, -1.0, 1.0)
       flutter += (0.0 - flutter) * 0.05 + 0.25 * gauss(); flutter = clamp(flutter, -1.5, 1.5)
     }
-    val activity = clamp(0.10 + 0.05 * slow + gustCached, 0.03, 1.6) * (0.75 + 0.25 * flutter * 0.5) * (0.6 + 0.8 * intensity)
+    val activity = clamp(0.10 + 0.05 * slow + gustCached, 0.03, 1.6) * (0.75 + 0.25 * flutter * 0.5) * stir(intensity)
 
     // dense hiss made of tiny grains
     val whiteLeft = white()
@@ -421,7 +485,9 @@ internal class ForestModel {
     if (!howlActive) {
       countdown -= 1.0
       if (countdown <= 0.0) {
-        if (presence > 0.0001 && salience.reserve(salience = 0.5, durationSeconds = 13.2, recoverySeconds = 4.0)) {
+        if (variety > 0.0) gesture.draw(forestSeed, howlCount, variety) else gesture.neutral()
+        planHowl()
+        if (presence > 0.0001 && salience.reserve(salience = 0.5, durationSeconds = reserveSeconds, recoverySeconds = 4.0)) {
           beginHowl()
           countdown = rate * (110.0 - 84.0 * fullness + unit() * (70.0 - 58.0 * fullness)) / clamp(density, 0.2, 1.0)
         } else {
@@ -431,15 +497,18 @@ internal class ForestModel {
     }
     var main = 0.0
     var answer = 0.0
+    var thirdTreeOut = 0.0
     if (howlActive) {
       val seconds = howlAge / rate
       if (howlAge % 240L == 0L) {
         tremor += (0.0 - tremor) * 0.08 + 0.22 * gauss(); tremor = clamp(tremor, -1.0, 1.0)
         tremorAnswer += (0.0 - tremorAnswer) * 0.08 + 0.22 * gauss(); tremorAnswer = clamp(tremorAnswer, -1.0, 1.0)
         drift += (0.0 - drift) * 0.02 + 0.12 * gauss(); drift = clamp(drift, -1.0, 1.0)
+        if (gesture.thirdTree) { tremorThird += (0.0 - tremorThird) * 0.08 + 0.22 * gauss(); tremorThird = clamp(tremorThird, -1.0, 1.0) }
       }
-      val wind = gust(seconds, rise, fall)
-      val pitch = base * (0.90 + 0.30 * wind.pow(0.8)) * (1.0 + 0.004 * drift)
+      val firstGust = gust(seconds, rise, fall)
+      val wind = if (gesture.doubleGap > 0.0) min(1.0, firstGust + 0.85 * gust(seconds - gesture.doubleGap, rise * 0.7, fall * 0.7)) else firstGust
+      val pitch = base * (0.90 + 0.30 * wind.pow(0.8)) * (1.0 + 0.004 * drift) * (if (gesture.slipRatio != 1.0) slipFactor(seconds) else 1.0)
       excite += kExcite * (white() - excite)
       val jet = excite * wind.pow(1.25) * (1.0 + 0.32 * tremor)
       val voice = trunk[0].next(jet, pitch, 26.0, rate) * sqrt(26.0) * PARTIAL_1 +
@@ -449,8 +518,8 @@ internal class ForestModel {
       val airNoise = white()
       airHigh += kAirHigh * (airNoise - airHigh); airLow += kAirLow * (airNoise - airLow)
       val whoosh = (airHigh - airLow) * wind.pow(1.8) * 0.7
-      main = voice * 0.55 + whoosh
-      val answerSeconds = seconds - ANSWER_DELAY_SECONDS
+      main = (voice * 0.55 + whoosh) * gesture.mainLevel
+      val answerSeconds = seconds - answerDelay
       val answerWind = gust(answerSeconds, riseAnswer, fallAnswer)
       if (answerWind > 0.0) {
         val answerPitch = baseAnswer * (0.9 + 0.3 * answerWind.pow(0.8)) * (1.0 + 0.004 * drift)
@@ -464,15 +533,33 @@ internal class ForestModel {
         answer = (answerVoice * 0.55 + (airAnswerHigh - airAnswerLow) * answerWind.pow(1.8) * 0.6) * 0.5
         answerDistantOne += kAnswerDistant * (answer - answerDistantOne)
         answerDistantTwo += kAnswerDistant * (answerDistantOne - answerDistantTwo)
-        answer = answerDistantTwo
+        answer = answerDistantTwo * gesture.answerLevel
+      }
+      if (gesture.thirdTree) {
+        val thirdWind = gust(answerSeconds - gesture.thirdDelay, THIRD_RISE_SECONDS, THIRD_FALL_SECONDS)
+        if (thirdWind > 0.0) {
+          val thirdPitch = base * gesture.thirdRatio * (0.9 + 0.3 * thirdWind.pow(0.8)) * (1.0 + 0.004 * drift)
+          exciteThird += kExcite * (white() - exciteThird)
+          val thirdJet = exciteThird * thirdWind.pow(1.25) * (1.0 + 0.32 * tremorThird)
+          val thirdVoice = thirdTrunk[0].next(thirdJet, thirdPitch, 26.0, rate) * sqrt(26.0) * PARTIAL_1 +
+            thirdTrunk[1].next(thirdJet, thirdPitch * 3.0, 30.0, rate) * sqrt(30.0 / 3.0) * PARTIAL_3 * 0.9 +
+            thirdTrunk[2].next(thirdJet, thirdPitch * 5.0, 24.0, rate) * sqrt(24.0 / 5.0) * PARTIAL_5 * 0.7
+          val thirdAir = white()
+          airThirdHigh += kAirAnswerHigh * (thirdAir - airThirdHigh); airThirdLow += kAirLow * (thirdAir - airThirdLow)
+          val thirdRaw = (thirdVoice * 0.55 + (airThirdHigh - airThirdLow) * thirdWind.pow(1.8) * 0.6) * 0.5 * THIRD_LEVEL
+          thirdDistantOne += kThirdDistant * (thirdRaw - thirdDistantOne)
+          thirdDistantTwo += kThirdDistant * (thirdDistantOne - thirdDistantTwo)
+          thirdTreeOut = thirdDistantTwo
+        }
       }
       howlAge += 1
-      if (seconds > HOWL_SECONDS) howlActive = false
+      if (seconds > howlEnd) howlActive = false
     }
     // distance: the trees are not next to you, so their highs are soft
-    distant += kDistant * (main - distant)
-    val dryLeft = distant * (1.0 - pan) + answer * (1.0 - answerPan)
-    val dryRight = distant * (1.0 + pan) + answer * (1.0 + answerPan)
+    distant += kDistantNow * (main - distant)
+    val thirdPan = clamp(-pan * 1.5, -0.45, 0.45)
+    val dryLeft = distant * (1.0 - pan) + answer * (1.0 - answerPan) + thirdTreeOut * (1.0 - thirdPan)
+    val dryRight = distant * (1.0 + pan) + answer * (1.0 + answerPan) + thirdTreeOut * (1.0 + thirdPan)
     val size = echoLeft.size
     val first = (echoIndex - (rate * 0.19).toInt() + size) % size
     val second = (echoIndex - (rate * 0.43).toInt() + size) % size
@@ -485,9 +572,12 @@ internal class ForestModel {
     echoRight[echoIndex] = dryRight + echoInLeft * 0.45
     echoIndex = (echoIndex + 1) % size
     room.process((dryLeft + dryRight) * 0.5, ROOM_INPUT, 0.25)
-    val level = HOWL_LEVEL * clamp(presence, 0.0, 1.5)
-    val howlLeft = (dryLeft + echoInLeft * 0.5 + room.left * 1.4) * level
-    val howlRight = (dryRight + echoInRight * 0.5 + room.right * 1.4) * level
+    // A tree close by is louder and brighter and sits in less of the room; one far off is softer, darker and mostly room.
+    val far = gesture.distance
+    val level = HOWL_LEVEL * clamp(presence, 0.0, 1.5) * gesture.level * (1.0 - (if (far > 0.0) 0.4 * far else 0.35 * far))
+    val roomSend = 1.0 + 0.6 * far
+    val howlLeft = (dryLeft + echoInLeft * 0.5 * roomSend + room.left * 1.4 * roomSend) * level
+    val howlRight = (dryRight + echoInRight * 0.5 * roomSend + room.right * 1.4 * roomSend) * level
 
     left = leavesLeft * LEAF_GAIN + howlLeft * HOWL_GAIN
     right = leavesRight * LEAF_GAIN + howlRight * HOWL_GAIN

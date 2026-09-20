@@ -9,6 +9,8 @@ import {
   identityTargetDb,
   FIRE_BASE_LIVELINESS,
   fireLiveliness,
+  FOREST_BASE_LIVELINESS,
+  forestLiveliness,
   IDENTITY_FEEL_OFFSET_DB,
   IDENTITY_FEEL_VARIETY,
   IDENTITY_PRESENCE_MAX,
@@ -310,11 +312,57 @@ describe('the fire burns down with the night', () => {
   });
 
   it('leaves every other world\'s intensity exactly as it was', () => {
-    for (const environment of ['ocean', 'forest', 'temple', 'abyssal', 'cosmic'] as const) {
+    for (const environment of ['ocean', 'temple', 'abyssal', 'cosmic'] as const) {
       const phases = compileOvernightProtocol(createRecognitionOvernightProtocol({
         sleepDurationMinutes: 8 * 60, environment, signalId: 'chimes', cuePlan: 'standard', feel: 'immersive',
       }), DEFAULT_PROCEDURAL_AUDIO_CONFIG).phases;
       for (const phase of phases) expect(phase.audioConfig.environmentIntensity).toBe(DEFAULT_PROCEDURAL_AUDIO_CONFIG.environmentIntensity);
     }
+  });
+});
+
+describe('the forest settles with the night', () => {
+  const forestNight = (feel: 'gentle' | 'deep' | 'immersive') => compileOvernightProtocol(createRecognitionOvernightProtocol({
+    sleepDurationMinutes: 8 * 60, environment: 'forest', signalId: 'chimes', cuePlan: 'standard', feel,
+  }), DEFAULT_PROCEDURAL_AUDIO_CONFIG).phases;
+  const intensity = (phases: ReturnType<typeof forestNight>, id: string) => phases.find(phase => phase.id === id)!.audioConfig.environmentIntensity;
+
+  it('starts at the stir each feel was tuned on', () => {
+    expect(forestLiveliness('preparation', 'gentle')).toBe(FOREST_BASE_LIVELINESS.gentle);
+    expect(forestLiveliness('preparation', 'deep')).toBe(0.5);
+    expect(forestLiveliness('preparation', 'immersive')).toBe(0.68);
+  });
+
+  it('keeps Gentle steady all night, and lets Deep and Immersive settle through each stage without emptying the forest', () => {
+    const stages: IdentityStage[] = ['preparation', 'descent', 'earlySleep', 'remSleep'];
+    for (const stage of stages) expect(forestLiveliness(stage, 'gentle')).toBe(0.34);
+    for (const feel of ['deep', 'immersive'] as const) {
+      const levels = stages.map(stage => forestLiveliness(stage, feel));
+      for (let i = 1; i < levels.length; i++) expect(levels[i]).toBeLessThan(levels[i - 1]);
+      expect(levels[3]).toBeGreaterThan(0.05);
+      expect(levels[3]).toBeLessThan(levels[0] * 0.25);
+      expect(forestLiveliness('recognitionWindow', feel)).toBe(levels[3]);
+    }
+  });
+
+  it('carries the settling into every phase of the night', () => {
+    for (const feel of ['gentle', 'deep', 'immersive'] as const) {
+      const phases = forestNight(feel);
+      expect(intensity(phases, 'preparation')).toBeCloseTo(forestLiveliness('preparation', feel), 10);
+      expect(intensity(phases, 'descent')).toBeCloseTo(forestLiveliness('descent', feel), 10);
+      expect(intensity(phases, 'sleep-protection-1')).toBeCloseTo(forestLiveliness('earlySleep', feel), 10);
+      expect(intensity(phases, 'sleep-protection-2')).toBeCloseTo(forestLiveliness('remSleep', feel), 10);
+      expect(intensity(phases, 'sleep-protection-final')).toBeCloseTo(forestLiveliness('remSleep', feel), 10);
+      for (const window of phases.filter(phase => phase.kind === 'recognitionWindow')) {
+        expect(window.audioConfig.environmentIntensity).toBeCloseTo(forestLiveliness('recognitionWindow', feel), 10);
+      }
+    }
+  });
+
+  it('is exactly what the screen already gave the preparation, so nothing changes before the descent', () => {
+    // OvernightJourneyScreen sets the preparation stages' intensity to these numbers, before the arc's patch is spread over them.
+    expect(forestLiveliness('preparation', 'gentle')).toBe(0.34);
+    expect(forestLiveliness('preparation', 'deep')).toBe(0.5);
+    expect(forestLiveliness('preparation', 'immersive')).toBe(0.68);
   });
 });

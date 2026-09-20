@@ -19,6 +19,8 @@ internal object IdentityGestures {
   const val FIRE_SALT = 0x46697265L
   const val FIRE_KINDS = 8
   const val COSMIC_KINDS = 9
+  const val FOREST_SALT = 0x466f7273L
+  const val FOREST_KINDS = 8
   const val OCEAN_SALT = 0x4f6365616eL
   const val OCEAN_KINDS = 6
 
@@ -126,6 +128,70 @@ internal class AumGesture {
         rootRatio = DEEPER[min(if (variety > 0.7) 3 else 2, (u(6) * 4.0).toInt())]
         glide = (1.0 + u(7) * 2.0) * variety
       }
+    }
+  }
+}
+
+/** One appearance of the forest's howl. The neutral gesture is exactly the howl as it was approved. */
+internal class ForestGesture {
+  companion object {
+    const val KIND_PLAIN = 0
+    const val KIND_SLIP = 1
+    const val KIND_ANSWER_ONLY = 2
+    const val KIND_THIRD_TREE = 3
+    const val KIND_LONG = 4
+    const val KIND_DOUBLE = 5
+    const val KIND_NEAR = 6
+    const val KIND_FAR = 7
+  }
+
+  var kind = KIND_PLAIN
+  /** Scales the whole howl. */
+  var level = 1.0
+  /** Scales the call itself; 0 leaves only the answer. */
+  var mainLevel = 1.0
+  var answerLevel = 1.0
+  /** The pitch slips up by this ratio part-way through the gust and settles back; 1 = it does not. */
+  var slipRatio = 1.0
+  /** Where in the gust the slip begins, as a fraction of it. */
+  var slipAt = 0.5
+  /** Scales how long the gust takes to build and fade. */
+  var stretch = 1.0
+  /** A second gust catches this many seconds after the first; 0 = none. */
+  var doubleGap = 0.0
+  /** A third, larger tree answers too: how much lower it sits than the call, and how long after the first answer. */
+  var thirdTree = false
+  var thirdRatio = 0.8
+  var thirdDelay = 4.0
+  /** -1 = close by, 0 = as it was, +1 = far off. */
+  var distance = 0.0
+
+  fun neutral() {
+    kind = KIND_PLAIN; level = 1.0; mainLevel = 1.0; answerLevel = 1.0; slipRatio = 1.0; slipAt = 0.5; stretch = 1.0
+    doubleGap = 0.0; thirdTree = false; thirdRatio = 0.8; thirdDelay = 4.0; distance = 0.0
+  }
+
+  /** Draws appearance number `index` at the given variety (0 = none, 1 = full). */
+  fun draw(seed: Long, index: Long, variety: Double) {
+    neutral()
+    val salt = IdentityGestures.FOREST_SALT
+    fun u(slot: Int) = IdentityGestures.draw(seed, salt, index, slot)
+    kind = IdentityGestures.kind(seed, salt, index, IdentityGestures.FOREST_KINDS)
+    level = 1.0 + variety * (u(0) - 0.5) * 0.24
+    stretch = 1.0 + variety * (u(1) - 0.5) * 0.2
+    when (kind) {
+      // The wind catches in the flue: the pitch slips up a fourth at the height of the gust and settles slowly back.
+      KIND_SLIP -> { slipRatio = 1.0 + variety * (4.0 / 3.0 - 1.0); slipAt = 0.35 + 0.25 * u(2) }
+      // No call at all: only the far tree, alone.
+      KIND_ANSWER_ONLY -> { mainLevel = 0.0; answerLevel = 1.0 + 0.6 * variety }
+      // A third, larger tree, deeper still, answers the answer.
+      KIND_THIRD_TREE -> { thirdTree = true; thirdRatio = 0.76 + 0.1 * u(2); thirdDelay = 3.5 + 1.5 * u(3) }
+      // A long, slow gust.
+      KIND_LONG -> stretch *= 1.0 + 0.7 * variety
+      // The wind catches twice.
+      KIND_DOUBLE -> doubleGap = 3.0 + 1.0 * u(2)
+      KIND_NEAR -> distance = -variety
+      KIND_FAR -> distance = variety
     }
   }
 }

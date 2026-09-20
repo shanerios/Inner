@@ -102,6 +102,27 @@ export function fireLiveliness(stage: IdentityStage, feel: IdentityFeel = 'gentl
   return feel === 'gentle' ? base : base * FIRE_BURN_DOWN[stage];
 }
 
+/** How much the forest's canopy stirs in each feel before it settles: the values the forest was tuned on. */
+export const FOREST_BASE_LIVELINESS = { gentle: 0.34, deep: 0.5, immersive: 0.68 } as const;
+
+/**
+ * How much of that the canopy keeps at each stage. It stirs while the mind is being kept gently busy, settles as sleep
+ * comes, and is a still forest with only the odd gust in REM, so nothing in it alarms. Gentle keeps a steady canopy.
+ */
+export const FOREST_BURN_DOWN: Record<IdentityStage, number> = {
+  preparation: 1,
+  descent: 0.9,
+  earlySleep: 0.55,
+  remSleep: 0.22,
+  recognitionWindow: 0.22,
+};
+
+/** The engine's `environmentIntensity` for the forest at this stage. Fewer, softer leaves and gusts, fewer birds. */
+export function forestLiveliness(stage: IdentityStage, feel: IdentityFeel = 'gentle'): number {
+  const base = FOREST_BASE_LIVELINESS[feel];
+  return feel === 'gentle' ? base : base * FOREST_BURN_DOWN[stage];
+}
+
 export function isIdentityWorld(environment: ProceduralEnvironment): environment is IdentityWorld {
   return environment === 'temple' || environment === 'abyssal' || environment === 'cosmic';
 }
@@ -149,6 +170,7 @@ export function identityPatch(
       identityDensity: IDENTITY_STAGE_DENSITY[stage],
       identityVariety: IDENTITY_FEEL_VARIETY[feel],
       ...(environment === 'fire' ? { environmentIntensity: fireLiveliness(stage, feel) } : {}),
+      ...(environment === 'forest' ? { environmentIntensity: forestLiveliness(stage, feel) } : {}),
     };
   }
   if (!isIdentityWorld(environment)) return {};

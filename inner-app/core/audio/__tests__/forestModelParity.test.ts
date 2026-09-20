@@ -31,7 +31,8 @@ const pairs = (list: Array<[string, string]>) => {
 describe('the forest: Kotlin and Swift are the same model', () => {
   it('uses the same levels, partials, room and timings', () => {
     for (const name of ['LEAF_GAIN', 'HOWL_GAIN', 'LOW_BODY', 'HOWL_LEVEL', 'PARTIAL_1', 'PARTIAL_3', 'PARTIAL_5', 'PARTIAL_7', 'ROOM_DECAY_SECONDS',
-      'GUSTS', 'VOICES', 'PENDING', 'ECHO_SIZE_SECONDS', 'HOWL_SECONDS', 'ANSWER_DELAY_SECONDS']) {
+      'GUSTS', 'VOICES', 'PENDING', 'ECHO_SIZE_SECONDS', 'HOWL_SECONDS', 'ANSWER_DELAY_SECONDS', 'STIR_KNEE', 'STIR_FALL', 'SLIP_RISE_SECONDS', 'SLIP_SETTLE_SECONDS',
+      'THIRD_RISE_SECONDS', 'THIRD_FALL_SECONDS', 'THIRD_LEVEL']) {
       expect(scalar(swift, name, true)).toBe(scalar(forest, name, false));
     }
     for (const name of ['ROOM_SECONDS', 'ROOM_INPUT']) expect(list(swift, name, true)).toEqual(list(forest, name, false));
@@ -50,10 +51,10 @@ describe('the forest: Kotlin and Swift are the same model', () => {
 
   it('runs the wind in gusts with no cycle, and lets each gust stir the leaves', () => {
     pairs([
-      ['nextGust = time + (4.0 + 13.0 * unit()) / (0.6 + 0.8 * intensity)', 'nextGust = time + (4.0 + 13.0 * unit()) / (0.6 + 0.8 * intensity)'],
+      ['nextGust = time + (4.0 + 13.0 * unit()) / stir(intensity)', 'nextGust = time + (4.0 + 13.0 * unit()) / stir(intensity)'],
       ['gustRise[gustCount] = 1.5 + 3.0 * unit()', 'gustRise[gustCount] = 1.5 + 3.0 * unit()'],
       ['gustFall[gustCount] = 2.5 + 4.0 * unit()', 'gustFall[gustCount] = 2.5 + 4.0 * unit()'],
-      ['val activity = clamp(0.10 + 0.05 * slow + gustCached, 0.03, 1.6) * (0.75 + 0.25 * flutter * 0.5) * (0.6 + 0.8 * intensity)', 'let activity = clamp(0.10 + 0.05 * slow + gustCached, 0.03, 1.6) * (0.75 + 0.25 * flutter * 0.5) * (0.6 + 0.8 * intensity)'],
+      ['val activity = clamp(0.10 + 0.05 * slow + gustCached, 0.03, 1.6) * (0.75 + 0.25 * flutter * 0.5) * stir(intensity)', 'let activity = clamp(0.10 + 0.05 * slow + gustCached, 0.03, 1.6) * (0.75 + 0.25 * flutter * 0.5) * stir(intensity)'],
       ['val grainRate = (120.0 + 2600.0 * activity.pow(1.3)) / rate', 'let grainRate = (120.0 + 2600.0 * pow(activity, 1.3)) / rate'],
       ['if (unit() < (0.4 + 11.0 * activity.pow(1.5)) / rate) crinkle()', 'if unit() < (0.4 + 11.0 * pow(activity, 1.5)) / rate { crinkle() }'],
       ['val frequency = logUniform(1800.0, 7500.0)', 'let frequency = logUniform(1800.0, 7500.0)'],
@@ -67,11 +68,11 @@ describe('the forest: Kotlin and Swift are the same model', () => {
 
   it('blows the howl through a hollow trunk: pitch follows the gust, the answer is a second, smaller tree a few seconds later', () => {
     pairs([
-      ['val pitch = base * (0.90 + 0.30 * wind.pow(0.8)) * (1.0 + 0.004 * drift)', 'let pitch = base * (0.90 + 0.30 * pow(wind, 0.8)) * (1.0 + 0.004 * drift)'],
+      ['val pitch = base * (0.90 + 0.30 * wind.pow(0.8)) * (1.0 + 0.004 * drift) * (if (gesture.slipRatio != 1.0) slipFactor(seconds) else 1.0)', 'let pitch = base * (0.90 + 0.30 * pow(wind, 0.8)) * (1.0 + 0.004 * drift) * (gesture.slipRatio != 1.0 ? slipFactor(seconds) : 1.0)'],
       ['val jet = excite * wind.pow(1.25) * (1.0 + 0.32 * tremor)', 'let jet = excite * pow(wind, 1.25) * (1.0 + 0.32 * tremor)'],
       ['base = logUniform(112.0, 168.0)', 'base = logUniform(112.0, 168.0)'],
       ['baseAnswer = base * (1.28 + 0.24 * unit())', 'baseAnswer = base * (1.28 + 0.24 * unit())'],
-      ['val answerSeconds = seconds - ANSWER_DELAY_SECONDS', 'let answerSeconds = seconds - ForestModel.answerDelaySeconds'],
+      ['val answerSeconds = seconds - answerDelay', 'let answerSeconds = seconds - answerDelay'],
       ['val first = (echoIndex - (rate * 0.19).toInt() + size) % size', 'let first = (echoIndex - Int(rate * 0.19) + size) % size'],
       ['val second = (echoIndex - (rate * 0.43).toInt() + size) % size', 'let second = (echoIndex - Int(rate * 0.43) + size) % size'],
       ['val third = (echoIndex - (rate * 0.79).toInt() + size) % size', 'let third = (echoIndex - Int(rate * 0.79) + size) % size'],
@@ -81,10 +82,10 @@ describe('the forest: Kotlin and Swift are the same model', () => {
 
   it('holds a new howl around a recognition signal, waits less in the fuller feels, and stays quiet with no presence', () => {
     pairs([
-      ['if (presence > 0.0001 && salience.reserve(salience = 0.5, durationSeconds = 13.2, recoverySeconds = 4.0)) {', 'if presence > 0.0001 && salience.reserve(salience: 0.5, durationSeconds: 13.2, recoverySeconds: 4.0) {'],
+      ['if (presence > 0.0001 && salience.reserve(salience = 0.5, durationSeconds = reserveSeconds, recoverySeconds = 4.0)) {', 'if presence > 0.0001 && salience.reserve(salience: 0.5, durationSeconds: reserveSeconds, recoverySeconds: 4.0) {'],
       ['countdown = rate * (110.0 - 84.0 * fullness + unit() * (70.0 - 58.0 * fullness)) / clamp(density, 0.2, 1.0)', 'countdown = rate * (110.0 - 84.0 * fullness + unit() * (70.0 - 58.0 * fullness)) / clamp(density, 0.2, 1.0)'],
       ['val fullness = clamp((variety - 0.6) / 0.4, 0.0, 1.0)', 'let fullness = clamp((variety - 0.6) / 0.4, 0.0, 1.0)'],
-      ['val level = HOWL_LEVEL * clamp(presence, 0.0, 1.5)', 'let level = ForestModel.howlLevel * clamp(presence, 0.0, 1.5)'],
+      ['val level = HOWL_LEVEL * clamp(presence, 0.0, 1.5) * gesture.level * (1.0 - (if (far > 0.0) 0.4 * far else 0.35 * far))', 'let level = ForestModel.howlLevel * clamp(presence, 0.0, 1.5) * gesture.level * (1.0 - (far > 0.0 ? 0.4 * far : 0.35 * far))'],
     ]);
   });
 

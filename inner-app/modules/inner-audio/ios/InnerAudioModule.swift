@@ -3064,8 +3064,10 @@ final class FireModel {
 /// so often the wind finds a hollow trunk and howls through it, a breath-driven, wavering tone whose pitch rises as the
 /// gust builds and sags as it fades, and a smaller tree deeper in the forest answers. The birds are the engine's own.
 ///
-/// `intensity` is how much the canopy stirs, `presence` the level of the howl (the forest's identity), `density` how
-/// often it comes, and `variety` shortens the wait between howls in the fuller feels. The Kotlin engine mirrors this file.
+/// `intensity` is how much the canopy stirs (the leaves and the gusts settle as it falls, and below the level of the
+/// Gentle feel they fall away faster), `presence` the level of the howl (the forest's identity), `density` how often it
+/// comes, and `variety` shortens the wait between howls in the fuller feels and gives each its own gesture (see
+/// `ForestGesture`). The Kotlin engine mirrors this file.
 final class ForestModel {
   private(set) var left = 0.0
   private(set) var right = 0.0
@@ -3092,6 +3094,16 @@ final class ForestModel {
   /// The howl and its answer take this long from the start of the call.
   static let howlSeconds = 13.5
   static let answerDelaySeconds = 7.0
+  /// Below this intensity (the Gentle feel's) the canopy quiets faster than the gentle slope above it.
+  static let stirKnee = 0.34
+  static let stirFall = 1.3
+  /// A slip of pitch takes this long to rise and settles back over this long.
+  static let slipRiseSeconds = 0.35
+  static let slipSettleSeconds = 1.6
+  /// The third tree: how long its gust takes, and how loud it is beside the first answer.
+  static let thirdRiseSeconds = 3.0
+  static let thirdFallSeconds = 4.0
+  static let thirdLevel = 0.55
 
   private var rate = 48_000.0
   private var random: UInt64 = 1
@@ -3143,6 +3155,15 @@ final class ForestModel {
   // ---- the howl
   private var howlActive = false
   private var howlAge: Int64 = 0
+  private var howlCount: Int64 = 0
+  private var forestSeed: UInt64 = 1
+  private let gesture = ForestGesture()
+  private var answerDelay = ForestModel.answerDelaySeconds
+  private var howlEnd = ForestModel.howlSeconds
+  private var reserveSeconds = 13.2
+  private var kDistantNow = 0.0
+  private var exciteThird = 0.0, tremorThird = 0.0, airThirdHigh = 0.0, airThirdLow = 0.0, thirdDistantOne = 0.0, thirdDistantTwo = 0.0, kThirdDistant = 0.0
+  private let thirdTrunk = (0..<3).map { _ in Bandpass() }
   private var countdown = 0.0
   private var base = 0.0, baseAnswer = 0.0, pan = 0.0, answerPan = 0.0
   private var rise = 0.0, fall = 0.0, riseAnswer = 0.0, fallAnswer = 0.0
@@ -3220,6 +3241,7 @@ final class ForestModel {
 
   func reset(seed: UInt64, sampleRate: Double) {
     rate = sampleRate
+    forestSeed = seed
     random = seed ^ 0x466f72657374
     if random == 0 { random = 1 }
     sample = 0
@@ -3231,7 +3253,10 @@ final class ForestModel {
     activeCount = 0; freeCount = ForestModel.voices
     for i in 0..<ForestModel.voices { free[i] = ForestModel.voices - 1 - i }
     pOn = [Bool](repeating: false, count: ForestModel.pending)
-    howlActive = false; howlAge = 0; countdown = rate * 14.0
+    howlActive = false; howlAge = 0; howlCount = 0; countdown = rate * 14.0
+    gesture.neutral(); answerDelay = ForestModel.answerDelaySeconds; howlEnd = ForestModel.howlSeconds; reserveSeconds = 13.2
+    exciteThird = 0; tremorThird = 0; airThirdHigh = 0; airThirdLow = 0; thirdDistantOne = 0; thirdDistantTwo = 0
+    for b in thirdTrunk { b.reset() }
     tremor = 0; tremorAnswer = 0; drift = 0; excite = 0; exciteAnswer = 0
     airHigh = 0; airLow = 0; airAnswerHigh = 0; airAnswerLow = 0
     distant = 0; answerDistantOne = 0; answerDistantTwo = 0
@@ -3248,6 +3273,7 @@ final class ForestModel {
     grainDecay = exp(-1.0 / (0.0022 * rate))
     kAirHigh = pole(1000.0); kAirLow = pole(200.0); kAirAnswerHigh = pole(1200.0)
     kExcite = 0.25; kDistant = pole(3600.0); kAnswerDistant = pole(1500.0); kEchoSmooth = 0.02
+    kDistantNow = kDistant; kThirdDistant = pole(1000.0)
   }
 
   private func pole(_ hz: Double) -> Double { 1.0 - exp(-2.0 * Double.pi * hz / rate) }
@@ -3268,6 +3294,12 @@ final class ForestModel {
   private func logUniform(_ low: Double, _ high: Double) -> Double { low * pow(high / low, unit()) }
 
   private func clamp(_ value: Double, _ low: Double, _ high: Double) -> Double { Swift.max(low, Swift.min(high, value)) }
+
+  /// How much the canopy stirs at this intensity: the gentle slope the forest was tuned on, and below the Gentle feel a faster fall.
+  private func stir(_ intensity: Double) -> Double {
+    if intensity >= ForestModel.stirKnee { return 0.6 + 0.8 * intensity }
+    return Swift.max(0.05, (0.6 + 0.8 * ForestModel.stirKnee) * pow(Swift.max(intensity, 0.0) / ForestModel.stirKnee, ForestModel.stirFall))
+  }
 
   // ------------------------------------------------------------------ the leaves
 
@@ -3343,10 +3375,40 @@ final class ForestModel {
     howlActive = true; howlAge = 0
     base = logUniform(112.0, 168.0)
     baseAnswer = base * (1.28 + 0.24 * unit())
-    rise = 2.6 + 1.5 * unit(); fall = 4.2 + 2.2 * unit(); riseAnswer = 2.2 + 1.2 * unit(); fallAnswer = 3.0 + 1.5 * unit()
+    rise = (2.6 + 1.5 * unit()) * gesture.stretch; fall = (4.2 + 2.2 * unit()) * gesture.stretch
+    riseAnswer = 2.2 + 1.2 * unit(); fallAnswer = 3.0 + 1.5 * unit()
     pan = (unit() * 2.0 - 1.0) * 0.3
     answerPan = pan < 0.0 ? 0.5 : -0.5
-    tremor = 0; tremorAnswer = 0
+    tremor = 0; tremorAnswer = 0; tremorThird = 0
+    let far = gesture.distance
+    kDistantNow = far == 0.0 ? kDistant : pole(3600.0 * (far > 0.0 ? 1.0 - 0.5 * far : 1.0 - 0.6 * far))
+    howlCount += 1
+  }
+
+  /// How long this appearance lasts, when its answer comes, and how long it holds the room's attention.
+  private func planHowl() {
+    answerDelay = ForestModel.answerDelaySeconds * gesture.stretch + gesture.doubleGap * 0.7
+    howlEnd = ForestModel.howlSeconds * gesture.stretch + gesture.doubleGap
+    reserveSeconds = 13.2 * gesture.stretch + gesture.doubleGap
+    if gesture.thirdTree {
+      let thirdEnd = answerDelay + gesture.thirdDelay + ForestModel.thirdRiseSeconds + ForestModel.thirdFallSeconds + 0.5
+      howlEnd = Swift.max(howlEnd, thirdEnd)
+      reserveSeconds = Swift.max(reserveSeconds, thirdEnd - 0.3)
+    }
+  }
+
+  /// How far the pitch has slipped up at this moment of the gust.
+  private func slipFactor(_ seconds: Double) -> Double {
+    let since = seconds - gesture.slipAt * (rise + fall)
+    if since < 0.0 { return 1.0 }
+    let envelope: Double
+    if since < ForestModel.slipRiseSeconds {
+      let x = since / ForestModel.slipRiseSeconds
+      envelope = x * x * (3.0 - 2.0 * x)
+    } else {
+      envelope = exp(-(since - ForestModel.slipRiseSeconds) / ForestModel.slipSettleSeconds)
+    }
+    return 1.0 + (gesture.slipRatio - 1.0) * envelope
   }
 
   func render(sampleRate: Double, intensity: Double, presence: Double, density: Double, variety: Double, salience: WorldSalienceScheduler) {
@@ -3361,14 +3423,14 @@ final class ForestModel {
       gustFall[gustCount] = 2.5 + 4.0 * unit()
       gustAmplitude[gustCount] = 0.5 + 0.5 * unit()
       gustCount += 1
-      nextGust = time + (4.0 + 13.0 * unit()) / (0.6 + 0.8 * intensity)
+      nextGust = time + (4.0 + 13.0 * unit()) / stir(intensity)
     }
     if i % 32 == 0 { gustCached = gustLevel(time) }
     if i % 480 == 0 {
       slow += (0.0 - slow) * 0.006 + 0.05 * gauss(); slow = clamp(slow, -1.0, 1.0)
       flutter += (0.0 - flutter) * 0.05 + 0.25 * gauss(); flutter = clamp(flutter, -1.5, 1.5)
     }
-    let activity = clamp(0.10 + 0.05 * slow + gustCached, 0.03, 1.6) * (0.75 + 0.25 * flutter * 0.5) * (0.6 + 0.8 * intensity)
+    let activity = clamp(0.10 + 0.05 * slow + gustCached, 0.03, 1.6) * (0.75 + 0.25 * flutter * 0.5) * stir(intensity)
 
     // dense hiss made of tiny grains
     let whiteLeft = white()
@@ -3430,7 +3492,9 @@ final class ForestModel {
     if !howlActive {
       countdown -= 1.0
       if countdown <= 0.0 {
-        if presence > 0.0001 && salience.reserve(salience: 0.5, durationSeconds: 13.2, recoverySeconds: 4.0) {
+        if variety > 0.0 { gesture.draw(seed: forestSeed, index: howlCount, variety: variety) } else { gesture.neutral() }
+        planHowl()
+        if presence > 0.0001 && salience.reserve(salience: 0.5, durationSeconds: reserveSeconds, recoverySeconds: 4.0) {
           beginHowl()
           countdown = rate * (110.0 - 84.0 * fullness + unit() * (70.0 - 58.0 * fullness)) / clamp(density, 0.2, 1.0)
         } else {
@@ -3440,15 +3504,18 @@ final class ForestModel {
     }
     var main = 0.0
     var answer = 0.0
+    var thirdTreeOut = 0.0
     if howlActive {
       let seconds = Double(howlAge) / rate
       if howlAge % 240 == 0 {
         tremor += (0.0 - tremor) * 0.08 + 0.22 * gauss(); tremor = clamp(tremor, -1.0, 1.0)
         tremorAnswer += (0.0 - tremorAnswer) * 0.08 + 0.22 * gauss(); tremorAnswer = clamp(tremorAnswer, -1.0, 1.0)
         drift += (0.0 - drift) * 0.02 + 0.12 * gauss(); drift = clamp(drift, -1.0, 1.0)
+        if gesture.thirdTree { tremorThird += (0.0 - tremorThird) * 0.08 + 0.22 * gauss(); tremorThird = clamp(tremorThird, -1.0, 1.0) }
       }
-      let wind = gust(seconds, rise, fall)
-      let pitch = base * (0.90 + 0.30 * pow(wind, 0.8)) * (1.0 + 0.004 * drift)
+      let firstGust = gust(seconds, rise, fall)
+      let wind = gesture.doubleGap > 0.0 ? Swift.min(1.0, firstGust + 0.85 * gust(seconds - gesture.doubleGap, rise * 0.7, fall * 0.7)) : firstGust
+      let pitch = base * (0.90 + 0.30 * pow(wind, 0.8)) * (1.0 + 0.004 * drift) * (gesture.slipRatio != 1.0 ? slipFactor(seconds) : 1.0)
       excite += kExcite * (white() - excite)
       let jet = excite * pow(wind, 1.25) * (1.0 + 0.32 * tremor)
       let voice = trunk[0].next(jet, frequency: pitch, q: 26.0, rate: rate) * 26.0.squareRoot() * ForestModel.partial1 +
@@ -3458,8 +3525,8 @@ final class ForestModel {
       let airNoise = white()
       airHigh += kAirHigh * (airNoise - airHigh); airLow += kAirLow * (airNoise - airLow)
       let whoosh = (airHigh - airLow) * pow(wind, 1.8) * 0.7
-      main = voice * 0.55 + whoosh
-      let answerSeconds = seconds - ForestModel.answerDelaySeconds
+      main = (voice * 0.55 + whoosh) * gesture.mainLevel
+      let answerSeconds = seconds - answerDelay
       let answerWind = gust(answerSeconds, riseAnswer, fallAnswer)
       if answerWind > 0.0 {
         let answerPitch = baseAnswer * (0.9 + 0.3 * pow(answerWind, 0.8)) * (1.0 + 0.004 * drift)
@@ -3473,15 +3540,33 @@ final class ForestModel {
         answer = (answerVoice * 0.55 + (airAnswerHigh - airAnswerLow) * pow(answerWind, 1.8) * 0.6) * 0.5
         answerDistantOne += kAnswerDistant * (answer - answerDistantOne)
         answerDistantTwo += kAnswerDistant * (answerDistantOne - answerDistantTwo)
-        answer = answerDistantTwo
+        answer = answerDistantTwo * gesture.answerLevel
+      }
+      if gesture.thirdTree {
+        let thirdWind = gust(answerSeconds - gesture.thirdDelay, ForestModel.thirdRiseSeconds, ForestModel.thirdFallSeconds)
+        if thirdWind > 0.0 {
+          let thirdPitch = base * gesture.thirdRatio * (0.9 + 0.3 * pow(thirdWind, 0.8)) * (1.0 + 0.004 * drift)
+          exciteThird += kExcite * (white() - exciteThird)
+          let thirdJet = exciteThird * pow(thirdWind, 1.25) * (1.0 + 0.32 * tremorThird)
+          let thirdVoice = thirdTrunk[0].next(thirdJet, frequency: thirdPitch, q: 26.0, rate: rate) * 26.0.squareRoot() * ForestModel.partial1 +
+            thirdTrunk[1].next(thirdJet, frequency: thirdPitch * 3.0, q: 30.0, rate: rate) * (30.0 / 3.0).squareRoot() * ForestModel.partial3 * 0.9 +
+            thirdTrunk[2].next(thirdJet, frequency: thirdPitch * 5.0, q: 24.0, rate: rate) * (24.0 / 5.0).squareRoot() * ForestModel.partial5 * 0.7
+          let thirdAir = white()
+          airThirdHigh += kAirAnswerHigh * (thirdAir - airThirdHigh); airThirdLow += kAirLow * (thirdAir - airThirdLow)
+          let thirdRaw = (thirdVoice * 0.55 + (airThirdHigh - airThirdLow) * pow(thirdWind, 1.8) * 0.6) * 0.5 * ForestModel.thirdLevel
+          thirdDistantOne += kThirdDistant * (thirdRaw - thirdDistantOne)
+          thirdDistantTwo += kThirdDistant * (thirdDistantOne - thirdDistantTwo)
+          thirdTreeOut = thirdDistantTwo
+        }
       }
       howlAge += 1
-      if seconds > ForestModel.howlSeconds { howlActive = false }
+      if seconds > howlEnd { howlActive = false }
     }
     // distance: the trees are not next to you, so their highs are soft
-    distant += kDistant * (main - distant)
-    let dryLeft = distant * (1.0 - pan) + answer * (1.0 - answerPan)
-    let dryRight = distant * (1.0 + pan) + answer * (1.0 + answerPan)
+    distant += kDistantNow * (main - distant)
+    let thirdPan = clamp(-pan * 1.5, -0.45, 0.45)
+    let dryLeft = distant * (1.0 - pan) + answer * (1.0 - answerPan) + thirdTreeOut * (1.0 - thirdPan)
+    let dryRight = distant * (1.0 + pan) + answer * (1.0 + answerPan) + thirdTreeOut * (1.0 + thirdPan)
     let size = echoLeft.count
     let first = (echoIndex - Int(rate * 0.19) + size) % size
     let second = (echoIndex - Int(rate * 0.43) + size) % size
@@ -3494,9 +3579,12 @@ final class ForestModel {
     echoRight[echoIndex] = dryRight + echoInLeft * 0.45
     echoIndex = (echoIndex + 1) % size
     room.process((dryLeft + dryRight) * 0.5, weights: ForestModel.roomInput, dampCoefficient: 0.25)
-    let level = ForestModel.howlLevel * clamp(presence, 0.0, 1.5)
-    let howlLeft = (dryLeft + echoInLeft * 0.5 + room.left * 1.4) * level
-    let howlRight = (dryRight + echoInRight * 0.5 + room.right * 1.4) * level
+    // A tree close by is louder and brighter and sits in less of the room; one far off is softer, darker and mostly room.
+    let far = gesture.distance
+    let level = ForestModel.howlLevel * clamp(presence, 0.0, 1.5) * gesture.level * (1.0 - (far > 0.0 ? 0.4 * far : 0.35 * far))
+    let roomSend = 1.0 + 0.6 * far
+    let howlLeft = (dryLeft + echoInLeft * 0.5 * roomSend + room.left * 1.4 * roomSend) * level
+    let howlRight = (dryRight + echoInRight * 0.5 * roomSend + room.right * 1.4 * roomSend) * level
 
     left = leavesLeft * ForestModel.leafGain + howlLeft * ForestModel.howlGain
     right = leavesRight * ForestModel.leafGain + howlRight * ForestModel.howlGain
@@ -3801,6 +3889,8 @@ enum IdentityGestures {
   static let cosmicSalt: UInt64 = 0x436f736d
   static let cosmicKinds = 9
   static let fireSalt: UInt64 = 0x46697265
+  static let forestSalt: UInt64 = 0x466f7273
+  static let forestKinds = 8
   static let fireKinds = 8
   static let oceanSalt: UInt64 = 0x4f6365616e
   static let oceanKinds = 6
@@ -3903,6 +3993,70 @@ final class AumGesture {
       // The group settles lower as it chants. The octave is kept for the fullest variety.
       rootRatio = Self.deeper[min(variety > 0.7 ? 3 : 2, Int(u(6) * 4.0))]
       glide = (1.0 + u(7) * 2.0) * variety
+    default:
+      break
+    }
+  }
+}
+
+/// One appearance of the forest's howl. The neutral gesture is exactly the howl as it was approved.
+final class ForestGesture {
+  static let kindPlain = 0, kindSlip = 1, kindAnswerOnly = 2, kindThirdTree = 3, kindLong = 4, kindDouble = 5, kindNear = 6, kindFar = 7
+
+  var kind = ForestGesture.kindPlain
+  /// Scales the whole howl.
+  var level = 1.0
+  /// Scales the call itself; 0 leaves only the answer.
+  var mainLevel = 1.0
+  var answerLevel = 1.0
+  /// The pitch slips up by this ratio part-way through the gust and settles back; 1 = it does not.
+  var slipRatio = 1.0
+  /// Where in the gust the slip begins, as a fraction of it.
+  var slipAt = 0.5
+  /// Scales how long the gust takes to build and fade.
+  var stretch = 1.0
+  /// A second gust catches this many seconds after the first; 0 = none.
+  var doubleGap = 0.0
+  /// A third, larger tree answers too: how much lower it sits than the call, and how long after the first answer.
+  var thirdTree = false
+  var thirdRatio = 0.8
+  var thirdDelay = 4.0
+  /// -1 = close by, 0 = as it was, +1 = far off.
+  var distance = 0.0
+
+  func neutral() {
+    kind = Self.kindPlain; level = 1; mainLevel = 1; answerLevel = 1; slipRatio = 1; slipAt = 0.5; stretch = 1
+    doubleGap = 0; thirdTree = false; thirdRatio = 0.8; thirdDelay = 4.0; distance = 0
+  }
+
+  /// Draws appearance number `index` at the given variety (0 = none, 1 = full).
+  func draw(seed: UInt64, index: Int64, variety: Double) {
+    neutral()
+    let salt = IdentityGestures.forestSalt
+    func u(_ slot: Int) -> Double { IdentityGestures.draw(seed: seed, salt: salt, index: index, slot: slot) }
+    kind = IdentityGestures.kind(seed: seed, salt: salt, index: index, kinds: IdentityGestures.forestKinds)
+    level = 1.0 + variety * (u(0) - 0.5) * 0.24
+    stretch = 1.0 + variety * (u(1) - 0.5) * 0.2
+    switch kind {
+    case Self.kindSlip:
+      // The wind catches in the flue: the pitch slips up a fourth at the height of the gust and settles slowly back.
+      slipRatio = 1.0 + variety * (4.0 / 3.0 - 1.0); slipAt = 0.35 + 0.25 * u(2)
+    case Self.kindAnswerOnly:
+      // No call at all: only the far tree, alone.
+      mainLevel = 0.0; answerLevel = 1.0 + 0.6 * variety
+    case Self.kindThirdTree:
+      // A third, larger tree, deeper still, answers the answer.
+      thirdTree = true; thirdRatio = 0.76 + 0.1 * u(2); thirdDelay = 3.5 + 1.5 * u(3)
+    case Self.kindLong:
+      // A long, slow gust.
+      stretch *= 1.0 + 0.7 * variety
+    case Self.kindDouble:
+      // The wind catches twice.
+      doubleGap = 3.0 + 1.0 * u(2)
+    case Self.kindNear:
+      distance = -variety
+    case Self.kindFar:
+      distance = variety
     default:
       break
     }
