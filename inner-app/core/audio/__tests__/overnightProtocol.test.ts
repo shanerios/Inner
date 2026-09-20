@@ -71,10 +71,10 @@ describe('overnight protocol', () => {
     const beds: Array<[Parameters<typeof bedOf>[0], string, number, number, number, number, number, number]> = [
       ['ocean', 'brown', 0.5, 1, 20_000, 1, 5, 6],
       ['abyssal', 'brown', 0.75, 0.6, 20_000, 1, 4.5, 12],
-      ['forest', 'brown', 0.5, 1, 20_000, 0, 0, 12],
-      ['fire', 'brown', 0.5, 1, 20_000, 0, 0, 12],
-      ['temple', 'pink', 0.63, 1, 1_800, 0, 0, 12],
-      ['cosmic', 'pink', 0.5, 1, 4_000, 0, 0, 12],
+      ['forest', 'brown', 0.5, 1, 20_000, 1, 4, 7],
+      ['fire', 'brown', 0.5, 1, 20_000, 1, 3, 8],
+      ['temple', 'pink', 0.63, 1, 1_800, 1, 2, 20],
+      ['cosmic', 'pink', 0.5, 1, 4_000, 1, 3, 16],
     ];
     it.each(beds)('gives %s its own bed: %s noise at %s of the shared level, binaural at %s, cut at %s Hz, width %s, drift %s dB / %s s', (environment, color, noiseScale, binauralScale, cut, width, drift, swell) => {
       const bed = bedOf(environment);
