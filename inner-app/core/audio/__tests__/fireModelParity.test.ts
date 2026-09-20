@@ -92,6 +92,38 @@ describe('the fire: Kotlin and Swift are the same model', () => {
     expect(fire).toMatch(/gustAmplitude = \(0\.55 \+ 0\.45 \* unit\(\)\) \* amplitudeScale\n/);
   });
 
+  it('answers some gusts with a window rattle the same way in both engines, and never in Gentle', () => {
+    for (const name of ['RATTLE_ANSWER', 'RATTLE_BUSY_EXPONENT', 'RATTLE_BUSY_FLOOR', 'RATTLE_PAN', 'RATTLE_WET', 'RATTLE_LEAD_SECONDS', 'RATTLE_GAIN', 'RATTLE_MODE_GAIN',
+      'RATTLE_LATCH_LEVEL', 'RATTLE_ROOM_OUT', 'RATTLE_ROOM_DECAY_SECONDS', 'CHATTER_SCALE']) {
+      expect(scalar(swift, name, true)).toBe(scalar(fire, name, false));
+    }
+    for (const name of ['RATTLE_ROOM_INPUT', 'RATTLE_ROOM_SECONDS']) {
+      expect(list(swift, name, true)).toEqual(list(fire, name, false));
+    }
+    pairs([
+      ['const val RATTLE_SALT = 0x48757365L', 'static let rattleSalt: UInt64 = 0x48757365'],
+      ['if (variety > 0.0) answerGust(a)', 'if variety > 0.0 { answerGust(a) }'],
+      ['val busy = max(RATTLE_BUSY_FLOOR, min(1.0, (a / 0.85).pow(RATTLE_BUSY_EXPONENT)))', 'let busy = max(FireModel.rattleBusyFloor, min(1.0, pow(a / 0.85, FireModel.rattleBusyExponent)))'],
+      ['if (rattleUnit() >= RATTLE_ANSWER * busy) return', 'if rattleUnit() >= FireModel.rattleAnswer * busy { return }'],
+      ['mono += (band - buzzLowTwo) * chatter * e.pow(1.6) * mask * 0.55', 'mono += (band - buzzLowTwo) * chatter * pow(e, 1.6) * mask * 0.55'],
+      ['if (age >= 0.8 && remaining >= 0.6 && rattleUnit() < (5.0 * e * e + 0.3) / rate) rattleTick(e)', 'if age >= 0.8 && remaining >= 0.6 && rattleUnit() < (5.0 * e * e + 0.3) / rate { rattleTick(e) }'],
+      ['if (rattleLive) { left += rattleLeft; right += rattleRight }', 'if rattleLive { left += rattleLeft; right += rattleRight }'],
+      ['(mono * RATTLE_DRY_LEFT + rattleRoom.left * RATTLE_ROOM_OUT * RATTLE_WET) * mult * RATTLE_GAIN', '(mono * FireModel.rattleDryLeft + rattleRoom.left * FireModel.rattleRoomOut * FireModel.rattleWet) * mult * FireModel.rattleGain'],
+      ['rattleRandom = (fireSeed xor RATTLE_SALT)', 'rattleRandom = fireSeed ^ FireModel.rattleSalt'],
+    ]);
+    // A fire that never answers a gust is exactly what it was: the rattle is added after everything else, and only once it is live.
+    expect(fire).toMatch(/right \*= OUTPUT_TRIM\n    if \(rattleLive\)/);
+    // The rattle draws only from its own random stream, so nothing else in the fire moves when it sounds.
+    const kotlinRattle = fire.slice(fire.indexOf('// ---- the window answers the wind'), fire.indexOf("// ---- the bed's own crackle")) +
+      fire.slice(fire.indexOf('/** Decides whether the window answers this gust'), fire.indexOf('/** How much louder a gust sounds'));
+    const swiftRattle = swift.slice(swift.indexOf('// ---- the window answers the wind'), swift.indexOf("// ---- the bed's own crackle")) +
+      swift.slice(swift.indexOf("/// Decides whether the window answers this gust"), swift.indexOf('/// How much louder a gust sounds'));
+    for (const body of [kotlinRattle, swiftRattle]) {
+      expect(body.length).toBeGreaterThan(1500);
+      expect(body).not.toMatch(/(^|[^A-Za-z])(unit|white|gauss|logUniform)\(\)/m);
+    }
+  });
+
   it('builds the pops as broadband snaps and the settles in the same eight gestures', () => {
     pairs([
       ['val dull = unit() < 0.12', 'let dull = unit() < 0.12'],

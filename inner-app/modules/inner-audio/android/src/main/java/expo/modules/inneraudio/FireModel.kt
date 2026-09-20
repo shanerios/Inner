@@ -19,8 +19,9 @@ import kotlin.math.tanh
  *
  * The fire settles with the night: the engine's `intensity` is its liveliness, so a fire given less intensity
  * has fewer crackles, fewer gusts, and a quieter roar. `presence` scales the settling logs and the wind (the
- * fire's identity), `density` how often logs settle, and `variety` gives each settle its own gesture and lifts
- * the wind so it is heard in the fuller feels. The Swift engine mirrors this file.
+ * fire's identity), `density` how often logs settle, and `variety` gives each settle its own gesture, lifts
+ * the wind so it is heard in the fuller feels, and lets the window answer some gusts with a glass rattle. The
+ * Swift engine mirrors this file.
  */
 internal class FireModel {
   var left = 0.0
@@ -31,6 +32,11 @@ internal class FireModel {
   private companion object {
     const val VOICES = 128
     const val PENDING = 320
+    const val RATTLE_MODES = 48
+    const val RATTLE_PENDING = 12
+    const val RATTLE_TICK_AGAIN = 0
+    const val RATTLE_LATCH = 1
+    const val RATTLE_LATCH_AGAIN = 2
 
     // The mix balance the fire was tuned to by ear, per component (already scaled to the engine's level).
     const val GAIN_BODY = 0.8377798946198128
@@ -69,6 +75,35 @@ internal class FireModel {
     val STEAM_ROOM_SECONDS = doubleArrayOf(0.0231, 0.0297, 0.0379, 0.0463)
     /** Both small rooms fade over this long: the steam and the wind sit in the same chimney-warm space. */
     const val ROOM_DECAY_SECONDS = 5.5
+
+    /**
+     * The window answers the wind (Deep and Immersive): about one gust in three of a busy hearth makes a loose pane
+     * and latch chatter. The chance falls with the fire's liveliness, so it is rare once the hearth has burned down.
+     */
+    const val RATTLE_ANSWER = 0.4
+    const val RATTLE_BUSY_EXPONENT = 1.5
+    const val RATTLE_BUSY_FLOOR = 0.1
+    /** The pane sits to the left, partly in the room: how far left, and how much of it is the room. */
+    const val RATTLE_PAN = -0.55
+    const val RATTLE_WET = 0.35
+    /** A gust must have blown this long before the pane chatters, and it settles this long before the gust ends. */
+    const val RATTLE_LEAD_SECONDS = 0.4
+    const val RATTLE_GAIN = 0.5
+    /** The latch clinks a little softer than the glass ticks. */
+    const val RATTLE_LATCH_LEVEL = 0.7
+    /** Balances the glass ticks and latch clinks against the buzz, as auditioned. */
+    const val RATTLE_MODE_GAIN = 0.4
+    /** Brings the pane's small room to the strength it was auditioned at. */
+    const val RATTLE_ROOM_OUT = 3.359
+    const val RATTLE_ROOM_DECAY_SECONDS = 1.1
+    /** Turns the chatter's slow noise into one of unit strength. */
+    const val CHATTER_SCALE = 40.65263386191886
+    /** Where the pane sits: the dry share of its signal in each ear, and its room in the rest. */
+    val RATTLE_DRY_LEFT = cos((RATTLE_PAN + 1.0) * PI / 4.0) * sqrt(2.0) * (1.0 - RATTLE_WET * 0.5)
+    val RATTLE_DRY_RIGHT = sin((RATTLE_PAN + 1.0) * PI / 4.0) * sqrt(2.0) * (1.0 - RATTLE_WET * 0.5)
+    const val RATTLE_SALT = 0x48757365L
+    val RATTLE_ROOM_INPUT = doubleArrayOf(0.5, -0.6, 0.6, -0.5)
+    val RATTLE_ROOM_SECONDS = doubleArrayOf(0.0197, 0.0281, 0.0353, 0.0449)
 
     const val TYPE_TICK = 0
     const val TYPE_POP = 1
@@ -130,6 +165,39 @@ internal class FireModel {
   private var breathLowRight = 0.0
   private var breathHighRight = 0.0
   private val windPhases = DoubleArray(6)
+
+  // the window answering the wind: its own random stream, so nothing else in the fire is disturbed by it
+  private var rattleRandom = 1L
+  private var rattleGust = false
+  private var rattleLive = false
+  private var rattleMono = 0.0
+  private var rattleLeft = 0.0
+  private var rattleRight = 0.0
+  private var chatterOne = 0.0
+  private var chatterTwo = 0.0
+  private var buzzHighOne = 0.0
+  private var buzzHighTwo = 0.0
+  private var buzzLowOne = 0.0
+  private var buzzLowTwo = 0.0
+  private var kChatter = 0.0
+  private var kBuzzHigh = 0.0
+  private var kBuzzLow = 0.0
+  private val mRe = DoubleArray(RATTLE_MODES)
+  private val mIm = DoubleArray(RATTLE_MODES)
+  private val mCos = DoubleArray(RATTLE_MODES)
+  private val mSin = DoubleArray(RATTLE_MODES)
+  private val mAge = IntArray(RATTLE_MODES)
+  private val mMaxAge = IntArray(RATTLE_MODES)
+  private val mActive = IntArray(RATTLE_MODES)
+  private var mActiveCount = 0
+  private val mFree = IntArray(RATTLE_MODES)
+  private var mFreeCount = 0
+  private val rKind = IntArray(RATTLE_PENDING)
+  private val rAmp = DoubleArray(RATTLE_PENDING)
+  private val rFreq = DoubleArray(RATTLE_PENDING)
+  private val rDue = LongArray(RATTLE_PENDING) { -1L }
+  private var rNextDue = Long.MAX_VALUE
+  private val rattleRoom = Room(RATTLE_ROOM_SECONDS, RATTLE_ROOM_DECAY_SECONDS)
 
   // settling logs and their steam
   private var settleAt = 0L
@@ -204,7 +272,7 @@ internal class FireModel {
   private val sumRight = DoubleArray(4)
 
   /** A four-line feedback delay network: orthogonal mixing, damped highs, a long low-frequency decay. */
-  private class Room(private val seconds: DoubleArray) {
+  private class Room(private val seconds: DoubleArray, private val decaySeconds: Double = ROOM_DECAY_SECONDS) {
     private val lines = Array(4) { DoubleArray(4096) }
     private val index = IntArray(4)
     private val length = IntArray(4)
@@ -221,7 +289,7 @@ internal class FireModel {
       index.fill(0); damp.fill(0.0); out.fill(0.0)
       for (q in 0 until 4) {
         length[q] = (seconds[q] * rate).toInt()
-        gain[q] = 10.0.pow(-3.0 * seconds[q] / ROOM_DECAY_SECONDS)
+        gain[q] = 10.0.pow(-3.0 * seconds[q] / decaySeconds)
       }
       left = 0.0; right = 0.0
     }
@@ -265,7 +333,14 @@ internal class FireModel {
     breathLowLeft = 0.0; breathHighLeft = 0.0; breathLowRight = 0.0; breathHighRight = 0.0
     windPhases.fill(0.0)
     steamAge = -1.0; steamLow = 0.0; steamHigh = 0.0; spatter = 0.0
-    steamRoom.reset(rate); windRoom.reset(rate)
+    steamRoom.reset(rate); windRoom.reset(rate); rattleRoom.reset(rate)
+    rattleRandom = (fireSeed xor RATTLE_SALT).let { if (it == 0L) 1L else it }
+    rattleGust = false; rattleLive = false
+    rattleMono = 0.0; rattleLeft = 0.0; rattleRight = 0.0
+    chatterOne = 0.0; chatterTwo = 0.0; buzzHighOne = 0.0; buzzHighTwo = 0.0; buzzLowOne = 0.0; buzzLowTwo = 0.0
+    mActiveCount = 0; mFreeCount = RATTLE_MODES
+    for (m in 0 until RATTLE_MODES) mFree[m] = RATTLE_MODES - 1 - m
+    rDue.fill(-1L); rNextDue = Long.MAX_VALUE
     settleCount = 0L
     resetVoices()
     pDue.fill(-1L); nextDue = Long.MAX_VALUE
@@ -286,6 +361,7 @@ internal class FireModel {
     kSteamLow = 1 - exp(-2 * PI * 1800 / rate); kSteamHigh = 1 - exp(-2 * PI * 6500 / rate)
     spatterDecay = exp(-1 / (0.003 * rate))
     steamRiseDecay = exp(-1 / (0.2 * rate))
+    kChatter = 1 - exp(-2 * PI * 55.0 / rate); kBuzzHigh = 1 - exp(-2 * PI * 4200.0 / rate); kBuzzLow = 1 - exp(-2 * PI * 1300.0 / rate)
 
     gustAt = (rate * (8.0 + 8.0 * unit())).toLong()
     settleAt = (rate * (25.0 + 20.0 * unit())).toLong()
@@ -458,6 +534,8 @@ internal class FireModel {
         gustAmplitude = (0.55 + 0.45 * unit()) * amplitudeScale
         // The flames still answer the gust as before; only how loudly the wind itself sounds is lifted.
         gustVoice = if (variety > 0.0) windVoice(a, variety, amplitudeScale) else 1.0
+        rattleGust = false
+        if (variety > 0.0) answerGust(a)
         var gap = (17.0 + 21.0 * unit()) * (0.85 / a).pow(1.15)
         if (unit() < 0.25) gap = gustDuration / rate * 0.85 + 1.0 + 2.5 * unit()      // sometimes a second gust follows on
         gustAt = i + (gap * rate).toLong()
@@ -491,6 +569,46 @@ internal class FireModel {
       windL = (windTone + (breathHighLeft - breathLowLeft) * 4.0 * breath * 0.5) * mult * gustVoice
       windR = (windTone + (breathHighRight - breathLowRight) * 4.0 * breath * 0.5) * mult * gustVoice
     } else { windL = 0.0; windR = 0.0 }
+
+    // ---- the window answers the wind: a loose pane buzzing in its frame, with small glass ticks and a latch clink
+    if (rattleLive) {
+      var mono = 0.0
+      if (rattleGust && gustAge >= 0.0) {
+        val e = min(1.0, gustEnvelope)
+        val age = gustAge / rate
+        val remaining = (gustDuration - gustAge) / rate
+        val mask = max(0.0, min(1.0, (age - (RATTLE_LEAD_SECONDS - 0.075)) / 0.15)) * max(0.0, min(1.0, (remaining - (RATTLE_LEAD_SECONDS - 0.075)) / 0.15))
+        // the buzz: bursty band-limited noise, chattering at tens of hertz, following how hard the gust blows
+        chatterOne += kChatter * (rattleWhite() - chatterOne); chatterTwo += kChatter * (chatterOne - chatterTwo)
+        val slowNoise = max(0.0, chatterTwo * CHATTER_SCALE)
+        val chatter = slowNoise * slowNoise
+        val noise = rattleWhite() * 1.7320508075688772
+        buzzHighOne += kBuzzHigh * (noise - buzzHighOne); buzzHighTwo += kBuzzHigh * (buzzHighOne - buzzHighTwo)
+        buzzLowOne += kBuzzLow * (buzzHighTwo - buzzLowOne)
+        val band = buzzHighTwo - buzzLowOne
+        buzzLowTwo += kBuzzLow * (band - buzzLowTwo)
+        mono += (band - buzzLowTwo) * chatter * e.pow(1.6) * mask * 0.55
+        // the ticks: dry, short and high, more often as the gust builds
+        if (age >= 0.8 && remaining >= 0.6 && rattleUnit() < (5.0 * e * e + 0.3) / rate) rattleTick(e)
+      }
+      if (rNextDue <= i) runRattlePending(i)
+      var n = 0
+      while (n < mActiveCount) {
+        val m = mActive[n]
+        mono += mIm[m]
+        val re = mCos[m] * mRe[m] - mSin[m] * mIm[m]
+        mIm[m] = mSin[m] * mRe[m] + mCos[m] * mIm[m]
+        mRe[m] = re
+        if (++mAge[m] > mMaxAge[m]) {
+          mFree[mFreeCount++] = m
+          mActive[n] = mActive[--mActiveCount]
+        } else n++
+      }
+      rattleMono = mono
+      rattleRoom.process(mono, RATTLE_ROOM_INPUT)
+      rattleLeft = (mono * RATTLE_DRY_LEFT + rattleRoom.left * RATTLE_ROOM_OUT * RATTLE_WET) * mult * RATTLE_GAIN
+      rattleRight = (mono * RATTLE_DRY_RIGHT + rattleRoom.right * RATTLE_ROOM_OUT * RATTLE_WET) * mult * RATTLE_GAIN
+    }
 
     // ---- the bed's own crackle: ticks and pops, arriving in bursts
     if (unit() < (12 + 83 * a) * (1 + 2.0 * crackleT) * (1 + 0.9 * gustDelayed) / rate) { spawnTick(1.0, 1.0); crackleT += 0.08 }
@@ -580,7 +698,99 @@ internal class FireModel {
     right = outBodyR * GAIN_BODY + outRoarR * GAIN_ROAR + outGrainR * GAIN_GRAIN + tickR + popR + thumpR +
       outRustle * GAIN_RUSTLE + outSizzleR * GAIN_SIZZLE + outSteamR * GAIN_STEAM + outWindR * GAIN_WIND
     right *= OUTPUT_TRIM
+    if (rattleLive) { left += rattleLeft; right += rattleRight }
     sample = i + 1
+  }
+
+  private fun rattleUnit(): Double {
+    rattleRandom = rattleRandom xor (rattleRandom shl 13)
+    rattleRandom = rattleRandom xor (rattleRandom ushr 7)
+    rattleRandom = rattleRandom xor (rattleRandom shl 17)
+    return (rattleRandom ushr 11).toDouble() / 9007199254740992.0
+  }
+
+  private fun rattleWhite(): Double = rattleUnit() * 2.0 - 1.0
+
+  private fun rattleGauss(): Double {
+    val u1 = max(1e-12, rattleUnit())
+    val u2 = rattleUnit()
+    return sqrt(-2.0 * ln(u1)) * cos(2.0 * PI * u2)
+  }
+
+  /** Decides whether the window answers this gust, and if so when its latch clinks. */
+  private fun answerGust(a: Double) {
+    val busy = max(RATTLE_BUSY_FLOOR, min(1.0, (a / 0.85).pow(RATTLE_BUSY_EXPONENT)))
+    if (rattleUnit() >= RATTLE_ANSWER * busy) return
+    rattleGust = true; rattleLive = true
+    val seconds = gustDuration / rate
+    val clinks = 1 + (if (rattleUnit() < 0.5) 1 else 0)
+    for (c in 0 until clinks) {
+      val at = 1.0 + (max(1.1, seconds - 1.0) - 1.0) * rattleUnit()
+      scheduleRattle(at, RATTLE_LATCH, 0.0, 3800.0 + 3200.0 * rattleUnit())
+    }
+  }
+
+  private fun scheduleRattle(seconds: Double, kind: Int, amplitude: Double, frequency: Double) {
+    for (q in 0 until RATTLE_PENDING) {
+      if (rDue[q] < 0L) {
+        val due = sample + (rate * seconds).toLong()
+        rDue[q] = due; rKind[q] = kind; rAmp[q] = amplitude; rFreq[q] = frequency
+        if (due < rNextDue) rNextDue = due
+        return
+      }
+    }
+  }
+
+  private fun runRattlePending(i: Long) {
+    var newDue = Long.MAX_VALUE
+    for (q in 0 until RATTLE_PENDING) {
+      val due = rDue[q]
+      if (due < 0L) continue
+      if (due <= i) {
+        rDue[q] = -1L
+        when (rKind[q]) {
+          RATTLE_TICK_AGAIN -> rattleHit(rAmp[q])
+          RATTLE_LATCH -> latchHit(rFreq[q], false)
+          else -> latchHit(rFreq[q], true)
+        }
+      } else if (due < newDue) newDue = due
+    }
+    rNextDue = newDue
+  }
+
+  /** One glass tick: a few short, inharmonic modes that die within about ten milliseconds, so nothing rings or sounds like wood. */
+  private fun rattleTick(e: Double) {
+    val amp = (0.3 + 0.7 * e.pow(0.8)) * exp(0.35 * rattleGauss())
+    rattleHit(amp)
+    if (rattleUnit() < 0.4) scheduleRattle(0.025 + 0.045 * rattleUnit(), RATTLE_TICK_AGAIN, amp * 0.6, 0.0)
+  }
+
+  private fun rattleHit(amp: Double) {
+    val f = 2200.0 + 3600.0 * rattleUnit()
+    addMode(f, 0.004 + 0.007 * rattleUnit(), amp)
+    addMode(f * (1.3 + 1.3 * rattleUnit()), 0.003 + 0.005 * rattleUnit(), 0.6 * amp)
+    addMode(f * (2.7 + 1.3 * rattleUnit()), 0.003, 0.35 * amp)
+  }
+
+  /** The latch: a small metallic double clink. */
+  private fun latchHit(f: Double, again: Boolean) {
+    val s = if (again) 0.6 else 1.0
+    addMode(if (again) f * 1.03 else f, 0.008 + 0.008 * rattleUnit(), 0.7 * s * RATTLE_LATCH_LEVEL)
+    addMode(f * 1.47, 0.007, 0.4 * s * RATTLE_LATCH_LEVEL)
+    if (!again) scheduleRattle(0.04 + 0.05 * rattleUnit(), RATTLE_LATCH_AGAIN, 0.0, f)
+  }
+
+  /** A damped sinusoid, run as a decaying phasor so it costs a few multiplies a sample. */
+  private fun addMode(frequency: Double, tau: Double, amplitude: Double) {
+    val phase = 2.0 * PI * rattleUnit()
+    if (mFreeCount == 0) return
+    val m = mFree[--mFreeCount]
+    val r = exp(-1.0 / (tau * rate))
+    val theta = 2.0 * PI * frequency / rate
+    mRe[m] = amplitude * RATTLE_MODE_GAIN * cos(phase); mIm[m] = amplitude * RATTLE_MODE_GAIN * sin(phase)
+    mCos[m] = r * cos(theta); mSin[m] = r * sin(theta)
+    mAge[m] = 0; mMaxAge[m] = (min(0.4, 6.0 * tau) * rate).toInt()
+    mActive[mActiveCount++] = m
   }
 
   /** How much louder a gust sounds than the fire's own liveliness alone would make it, for a feel with this [variety]. */
