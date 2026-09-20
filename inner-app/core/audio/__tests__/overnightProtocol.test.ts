@@ -57,6 +57,8 @@ describe('overnight protocol', () => {
       return {
         color: at('preparation').noiseColor,
         cut: at('preparation').noiseHighCutHz,
+        motion: [at('preparation').noiseWidth, at('preparation').noiseDriftDb, at('preparation').noiseDriftSeconds],
+        motionInSleep: [at('sleepProtection', 'last').noiseWidth, at('sleepProtection', 'last').noiseDriftDb, at('sleepProtection', 'last').noiseDriftSeconds],
         cutInSleep: at('sleepProtection', 'last').noiseHighCutHz,
         noise: [at('preparation').noiseGain, at('descent').noiseGain, at('sleepProtection', 'first').noiseGain, at('sleepProtection', 'last').noiseGain],
         binaural: [at('descent').binauralGain, at('sleepProtection', 'first').binauralGain, at('sleepProtection', 'last').binauralGain],
@@ -64,20 +66,23 @@ describe('overnight protocol', () => {
     };
 
     // Each world's own bed: [noise color, share of the shared noise level, share of the standard binaural level].
-    // [world, noise color, share of the shared noise level, share of the standard binaural level, bed high cut in Hz].
-    const beds: Array<[Parameters<typeof bedOf>[0], string, number, number, number]> = [
-      ['ocean', 'brown', 0.5, 1, 20_000],
-      ['abyssal', 'brown', 0.75, 0.6, 20_000],
-      ['forest', 'brown', 0.5, 1, 20_000],
-      ['fire', 'brown', 0.5, 1, 20_000],
-      ['temple', 'pink', 0.63, 1, 1_800],
-      ['cosmic', 'pink', 0.5, 1, 4_000],
+    // [world, noise color, share of the shared noise level, share of the standard binaural level, bed high cut in Hz,
+    //  noise width, drift in dB, drift swell length in seconds].
+    const beds: Array<[Parameters<typeof bedOf>[0], string, number, number, number, number, number, number]> = [
+      ['ocean', 'brown', 0.5, 1, 20_000, 1, 5, 6],
+      ['abyssal', 'brown', 0.75, 0.6, 20_000, 1, 4.5, 12],
+      ['forest', 'brown', 0.5, 1, 20_000, 0, 0, 12],
+      ['fire', 'brown', 0.5, 1, 20_000, 0, 0, 12],
+      ['temple', 'pink', 0.63, 1, 1_800, 0, 0, 12],
+      ['cosmic', 'pink', 0.5, 1, 4_000, 0, 0, 12],
     ];
-    it.each(beds)('gives %s its own bed: %s noise at %s of the shared level, binaural at %s, cut at %s Hz', (environment, color, noiseScale, binauralScale, cut) => {
+    it.each(beds)('gives %s its own bed: %s noise at %s of the shared level, binaural at %s, cut at %s Hz, width %s, drift %s dB / %s s', (environment, color, noiseScale, binauralScale, cut, width, drift, swell) => {
       const bed = bedOf(environment);
       expect(bed.color).toBe(color);
       expect(bed.cut).toBe(cut);
       expect(bed.cutInSleep).toBe(cut);
+      expect(bed.motion).toEqual([width, drift, swell]);
+      expect(bed.motionInSleep).toEqual([width, drift, swell]);
       expectNoise(bed.noise, [0.12, 0.13, 0.1, 0.08 * 0.67].map(level => level * noiseScale));
       expectNoise(bed.binaural, [0.18, 0.08, 0.05].map(level => level * binauralScale));
     });

@@ -26,6 +26,9 @@ export const PROCEDURAL_AUDIO_LIMITS = {
   identityDensity: { min: 0.2, max: 1 },
   identityVariety: { min: 0, max: 1 },
   noiseHighCutHz: { min: 300, max: 20_000 },
+  noiseWidth: { min: 0, max: 1 },
+  noiseDriftDb: { min: 0, max: 8 },
+  noiseDriftSeconds: { min: 3, max: 40 },
 } as const;
 
 export const DEFAULT_PROCEDURAL_AUDIO_CONFIG: ProceduralAudioConfig = {
@@ -45,6 +48,9 @@ export const DEFAULT_PROCEDURAL_AUDIO_CONFIG: ProceduralAudioConfig = {
   identityDensity: 1,
   identityVariety: 0,
   noiseHighCutHz: 20_000,
+  noiseWidth: 0,
+  noiseDriftDb: 0,
+  noiseDriftSeconds: 12,
   harmonicTranslation: 0,
   templeGain: 0,
   templeIntensity: 0.5,
@@ -114,6 +120,21 @@ export function normalizeProceduralAudioConfig(
       value.noiseHighCutHz ?? DEFAULT_PROCEDURAL_AUDIO_CONFIG.noiseHighCutHz,
       PROCEDURAL_AUDIO_LIMITS.noiseHighCutHz.min,
       PROCEDURAL_AUDIO_LIMITS.noiseHighCutHz.max,
+    ),
+    noiseWidth: clamp(
+      value.noiseWidth ?? DEFAULT_PROCEDURAL_AUDIO_CONFIG.noiseWidth,
+      PROCEDURAL_AUDIO_LIMITS.noiseWidth.min,
+      PROCEDURAL_AUDIO_LIMITS.noiseWidth.max,
+    ),
+    noiseDriftDb: clamp(
+      value.noiseDriftDb ?? DEFAULT_PROCEDURAL_AUDIO_CONFIG.noiseDriftDb,
+      PROCEDURAL_AUDIO_LIMITS.noiseDriftDb.min,
+      PROCEDURAL_AUDIO_LIMITS.noiseDriftDb.max,
+    ),
+    noiseDriftSeconds: clamp(
+      value.noiseDriftSeconds ?? DEFAULT_PROCEDURAL_AUDIO_CONFIG.noiseDriftSeconds,
+      PROCEDURAL_AUDIO_LIMITS.noiseDriftSeconds.min,
+      PROCEDURAL_AUDIO_LIMITS.noiseDriftSeconds.max,
     ),
     harmonicTranslation: clamp(value.harmonicTranslation ?? DEFAULT_PROCEDURAL_AUDIO_CONFIG.harmonicTranslation, gain.min, gain.max),
     templeGain: clamp(value.templeGain ?? DEFAULT_PROCEDURAL_AUDIO_CONFIG.templeGain, gain.min, gain.max),

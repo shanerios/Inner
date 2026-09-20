@@ -49,6 +49,12 @@ export type ProceduralAudioConfig = {
   identityVariety: number;
   /** Rolls the noise bed off above this frequency in Hz (12 dB per octave). 20000 leaves it untouched. */
   noiseHighCutHz: number;
+  /** How different the noise is in the two ears: 0 = the same noise in both, 1 = independent noise in each. */
+  noiseWidth: number;
+  /** How far, in dB, each ear's bed swells either side of its average on its own irregular schedule, so the bed drifts from side to side. 0 = still. */
+  noiseDriftDb: number;
+  /** A typical length, in seconds, of one of those swells. */
+  noiseDriftSeconds: number;
   /** Adds quiet upper harmonics that imply a lower environmental fundamental. */
   harmonicTranslation: number;
   templeGain: number;

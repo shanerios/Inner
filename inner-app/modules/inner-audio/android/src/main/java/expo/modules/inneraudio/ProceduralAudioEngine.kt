@@ -48,6 +48,11 @@ internal data class AudioParameters(
   var identityVariety: Double = 0.0,
   /** Rolls the noise bed off above this frequency. 20 kHz leaves it untouched. */
   var noiseHighCutHz: Double = 20_000.0,
+  /** How different the noise is in the two ears (0 = the same noise in both, 1 = independent noise in each). */
+  var noiseWidth: Double = 0.0,
+  /** How far each ear's bed swells either side of its average, in dB, on its own irregular schedule. 0 = still. */
+  var noiseDriftDb: Double = 0.0,
+  var noiseDriftSeconds: Double = 12.0,
   var sleepEndMs: Double? = null,
 ) {
   fun setFrom(other: AudioParameters) {
@@ -76,6 +81,9 @@ internal data class AudioParameters(
     identityDensity = other.identityDensity
     identityVariety = other.identityVariety
     noiseHighCutHz = other.noiseHighCutHz
+    noiseWidth = other.noiseWidth
+    noiseDriftDb = other.noiseDriftDb
+    noiseDriftSeconds = other.noiseDriftSeconds
     sleepEndMs = other.sleepEndMs
   }
 }
@@ -278,6 +286,8 @@ object ProceduralAudioEngine {
   private var windAirRight = 0.0
   private var fireEnvelope = 0.0
   private val fireModel = FireModel()
+  private val bedSide = BedSideNoise()
+  private val bedDrift = BedDrift()
   private var cosmicEnvelope = 0.0
   private val cosmicModel = CosmicModel()
   private val worldSalience = WorldSalienceScheduler()
@@ -593,6 +603,8 @@ object ProceduralAudioEngine {
     windAirRight = 0.0
     fireEnvelope = 0.0
     fireModel.reset(XORSHIFT_SEED, sampleRate)
+    bedSide.reset(XORSHIFT_SEED)
+    bedDrift.reset(XORSHIFT_SEED)
     cosmicEnvelope = 0.0
     cosmicModel.reset(XORSHIFT_SEED, sampleRate)
     worldSalience.reset(sampleRate)
@@ -699,6 +711,8 @@ object ProceduralAudioEngine {
       abyssalModel.reset(activeTimeline.seed, sampleRate)
       windRandom = activeTimeline.seed xor 0x7f4a7c15L
       fireModel.reset(activeTimeline.seed, sampleRate)
+      bedSide.reset(activeTimeline.seed)
+      bedDrift.reset(activeTimeline.seed)
       cosmicModel.reset(activeTimeline.seed, sampleRate)
       worldSalience.reset(sampleRate)
       resetThresholdShift()
@@ -907,8 +921,20 @@ object ProceduralAudioEngine {
       val movesNoise = target.spatialTarget == "noise" || target.spatialTarget == "both"
       val leftCarrier = carrier * (if (movesTone) leftSpatial * spatialDistance else spatialRoom)
       val rightCarrier = carrier * (if (movesTone) rightSpatial * spatialDistance else spatialRoom)
-      val baseLeftNoise = noise * (if (movesNoise) leftSpatial else 1.0)
-      val baseRightNoise = noise * (if (movesNoise) rightSpatial else 1.0)
+      val baseLeftNoise: Double
+      val baseRightNoise: Double
+      if (target.noiseWidth > 0.0001 || target.noiseDriftDb > 0.0001) {
+        // A wide bed: different noise in each ear, and each ear's level drifting on its own irregular schedule.
+        val side = bedSide.next(sampleRate, renderedNoiseColor, leavingNoiseColor, noiseCrossfade, noiseCutSmoothed) * gains[2] * noiseEnvelope
+        bedDrift.render(sampleRate, target.noiseDriftDb, target.noiseDriftSeconds)
+        val width = target.noiseWidth
+        val widthNorm = 1.0 / Math.sqrt(1.0 + width * width)
+        baseLeftNoise = (noise + width * side) * widthNorm * bedDrift.left * (if (movesNoise) leftSpatial else 1.0)
+        baseRightNoise = (noise - width * side) * widthNorm * bedDrift.right * (if (movesNoise) rightSpatial else 1.0)
+      } else {
+        baseLeftNoise = noise * (if (movesNoise) leftSpatial else 1.0)
+        baseRightNoise = noise * (if (movesNoise) rightSpatial else 1.0)
+      }
       val rainNoise = nextRainNoise(target)
       val rainGain = gains[2] * noiseEnvelope
       val leftNoise = (baseLeftNoise * (1 - rainMix) + rainNoise.first * rainGain * rainMix) * spatialDistance
@@ -1603,6 +1629,9 @@ object ProceduralAudioEngine {
       identityDensity = clamp(raw.identityDensity, 0.2, 1.0),
       identityVariety = clamp(raw.identityVariety, 0.0, 1.0),
       noiseHighCutHz = clamp(raw.noiseHighCutHz, 300.0, 20_000.0),
+      noiseWidth = clamp(raw.noiseWidth, 0.0, 1.0),
+      noiseDriftDb = clamp(raw.noiseDriftDb, 0.0, 8.0),
+      noiseDriftSeconds = clamp(raw.noiseDriftSeconds, 3.0, 40.0),
       sleepEndMs = sleepEndMs,
     )
   }
@@ -1724,6 +1753,9 @@ object ProceduralAudioEngine {
     output.identityDensity = lerp(from.identityDensity, to.identityDensity)
     output.identityVariety = lerp(from.identityVariety, to.identityVariety)
     output.noiseHighCutHz = lerp(from.noiseHighCutHz, to.noiseHighCutHz)
+    output.noiseWidth = lerp(from.noiseWidth, to.noiseWidth)
+    output.noiseDriftDb = lerp(from.noiseDriftDb, to.noiseDriftDb)
+    output.noiseDriftSeconds = lerp(from.noiseDriftSeconds, to.noiseDriftSeconds)
     output.sleepEndMs = null
     return output
   }

@@ -25,6 +25,15 @@ export type WorldBed = {
   noiseGainScale: number;
   /** Rolls the noise off above this frequency, in Hz, so hiss does not cover the world's own sound. 20000 leaves it untouched. */
   noiseHighCutHz: number;
+  /** How different the noise is in the two ears: 0 = the same noise in both, 1 = independent noise in each. */
+  noiseWidth: number;
+  /**
+   * How far, in dB, each ear's bed swells either side of its average, on its own irregular schedule, so the bed drifts
+   * from side to side without a cycle. 0 = still. Heard on headphones or earbuds; on a speaker the two sides merge.
+   */
+  noiseDriftDb: number;
+  /** A typical length, in seconds, of one of those swells. */
+  noiseDriftSeconds: number;
   /** Scales the binaural level in the descent and in sleep. 1 is the standard level. */
   binauralGainScale: number;
   /**
@@ -44,6 +53,9 @@ export type WorldBed = {
 
 /** The bed's high cut when a world has none. */
 const NO_HIGH_CUT = 20_000;
+
+/** How long a swell of the bed's drift lasts when a world has no drift of its own. */
+const DEFAULT_DRIFT_SECONDS = 12;
 
 /** About a third quieter once the REM-rich hours begin. */
 const REM_NOISE_TAPER = 0.67;
@@ -89,12 +101,15 @@ export const WORLD_PROFILES: Record<AudioWorld, WorldProfile> = {
       noiseColor: 'brown',
       noiseGainScale: 0.5,
       noiseHighCutHz: NO_HIGH_CUT,
+      noiseWidth: 1,
+      noiseDriftDb: 5,
+      noiseDriftSeconds: 6,
       binauralGainScale: 1,
       remNoiseTaper: REM_NOISE_TAPER,
       rationale: {
         goal: 'Let the surf and its small water detail be heard, while keeping the low-end masking of the shared bed.',
-        atmosphere: 'A warm, low swell under the surf, with less hiss over the foam.',
-        basis: 'Theory and measurement, not sleep research: brown noise has no meaningful sleep studies. The shared pink bed sat 3-12 dB above the surf from 63 Hz to 2 kHz. Brown at half the level keeps the low end within about 1-2.5 dB of it while the 1-8 kHz range is 6-15 dB quieter, so foam and bubbles come forward.',
+        atmosphere: 'A warm, wide swell under the surf that drifts from side to side, with less hiss over the foam.',
+        basis: 'Theory and measurement, not sleep research: brown noise has no meaningful sleep studies. The shared pink bed sat 3-12 dB above the surf from 63 Hz to 2 kHz. Brown at half the level keeps the low end within about 1-2.5 dB of it while the 1-8 kHz range is 6-15 dB quieter, so foam and bubbles come forward. The bed is wide (different noise in each ear) and each ear swells irregularly, about +/-5 dB every 6 s, chosen by ear; a mono, still bed felt thin.',
       },
     },
   },
@@ -113,12 +128,15 @@ export const WORLD_PROFILES: Record<AudioWorld, WorldProfile> = {
       noiseColor: 'brown',
       noiseGainScale: 0.75,
       noiseHighCutHz: NO_HIGH_CUT,
+      noiseWidth: 1,
+      noiseDriftDb: 4.5,
+      noiseDriftSeconds: 12,
       binauralGainScale: 0.6,
       remNoiseTaper: REM_NOISE_TAPER,
       rationale: {
         goal: 'Make the deepest world feel weighted from below, and keep hiss off its glass resonance.',
-        atmosphere: 'Heavy, close and low, more like pressure than sound.',
-        basis: 'Theory and measurement, not sleep research. Brown at three quarters of the shared level adds about 1-2.4 dB of body below 250 Hz and takes 3-11 dB off everything above 1 kHz. The world itself stays well under the bed in the upper bands, so its detail is carried by its own events.',
+        atmosphere: 'Heavy, close and low, more like pressure than sound, slowly shifting from side to side.',
+        basis: 'Theory and measurement, not sleep research. Brown at three quarters of the shared level adds about 1-2.4 dB of body below 250 Hz and takes 3-11 dB off everything above 1 kHz. The world itself stays well under the bed in the upper bands, so its detail is carried by its own events. The bed is wide and each ear swells irregularly, about +/-4.5 dB every 12 s, chosen by ear.',
       },
     },
   },
@@ -127,7 +145,7 @@ export const WORLD_PROFILES: Record<AudioWorld, WorldProfile> = {
     foundation: ['low-air-pressure', 'filtered-air'],
     acoustics: { scale: 'vast', absorption: 0.2, diffusion: 0.45, width: 0.88 },
     signatures: ['passing-gusts'], motion: 'drift', events: [], recognitionRecoverySeconds: 2,
-    bed: { noiseColor: 'pink', noiseGainScale: 1, noiseHighCutHz: NO_HIGH_CUT, binauralGainScale: 1, remNoiseTaper: REM_NOISE_TAPER, rationale: SHARED_BED_RATIONALE },
+    bed: { noiseColor: 'pink', noiseGainScale: 1, noiseHighCutHz: NO_HIGH_CUT, noiseWidth: 0, noiseDriftDb: 0, noiseDriftSeconds: DEFAULT_DRIFT_SECONDS, binauralGainScale: 1, remNoiseTaper: REM_NOISE_TAPER, rationale: SHARED_BED_RATIONALE },
   },
   fire: {
     id: 'fire', label: 'Fire', concept: 'A close hearth that burns down with your night: warm body, crackle in bursts, settling logs, and wind in the chimney that the house answers.',
@@ -143,6 +161,9 @@ export const WORLD_PROFILES: Record<AudioWorld, WorldProfile> = {
       noiseColor: 'brown',
       noiseGainScale: 0.5,
       noiseHighCutHz: NO_HIGH_CUT,
+      noiseWidth: 0,
+      noiseDriftDb: 0,
+      noiseDriftSeconds: DEFAULT_DRIFT_SECONDS,
       binauralGainScale: 1,
       remNoiseTaper: REM_NOISE_TAPER,
       rationale: {
@@ -163,6 +184,9 @@ export const WORLD_PROFILES: Record<AudioWorld, WorldProfile> = {
       noiseColor: 'pink',
       noiseGainScale: 0.5,
       noiseHighCutHz: 4_000,
+      noiseWidth: 0,
+      noiseDriftDb: 0,
+      noiseDriftSeconds: DEFAULT_DRIFT_SECONDS,
       binauralGainScale: 1,
       remNoiseTaper: REM_NOISE_TAPER,
       rationale: {
@@ -186,6 +210,9 @@ export const WORLD_PROFILES: Record<AudioWorld, WorldProfile> = {
       noiseColor: 'brown',
       noiseGainScale: 0.5,
       noiseHighCutHz: NO_HIGH_CUT,
+      noiseWidth: 0,
+      noiseDriftDb: 0,
+      noiseDriftSeconds: DEFAULT_DRIFT_SECONDS,
       binauralGainScale: 1,
       remNoiseTaper: REM_NOISE_TAPER,
       rationale: {
@@ -210,6 +237,9 @@ export const WORLD_PROFILES: Record<AudioWorld, WorldProfile> = {
       noiseColor: 'pink',
       noiseGainScale: 0.63,
       noiseHighCutHz: 1_800,
+      noiseWidth: 0,
+      noiseDriftDb: 0,
+      noiseDriftSeconds: DEFAULT_DRIFT_SECONDS,
       binauralGainScale: 1,
       remNoiseTaper: REM_NOISE_TAPER,
       rationale: {
@@ -240,6 +270,13 @@ export function worldBed(environment: AudioWorld): WorldBed {
  */
 export function noiseForWorld(environment: AudioWorld, designed: { noiseColor: NoiseColor | null; noiseGain: number }) {
   const bed = worldBed(environment);
-  if (bed.noiseColor === 'pink' && bed.noiseGainScale === 1 && bed.noiseHighCutHz === NO_HIGH_CUT) return designed;
-  return { noiseColor: bed.noiseColor, noiseGain: designed.noiseGain * bed.noiseGainScale, noiseHighCutHz: bed.noiseHighCutHz };
+  if (bed.noiseColor === 'pink' && bed.noiseGainScale === 1 && bed.noiseHighCutHz === NO_HIGH_CUT && bed.noiseWidth === 0 && bed.noiseDriftDb === 0) return designed;
+  return {
+    noiseColor: bed.noiseColor,
+    noiseGain: designed.noiseGain * bed.noiseGainScale,
+    noiseHighCutHz: bed.noiseHighCutHz,
+    noiseWidth: bed.noiseWidth,
+    noiseDriftDb: bed.noiseDriftDb,
+    noiseDriftSeconds: bed.noiseDriftSeconds,
+  };
 }

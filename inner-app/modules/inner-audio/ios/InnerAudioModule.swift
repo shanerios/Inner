@@ -20,6 +20,9 @@ private struct AudioConfigRecord: Record {
   @Field var identityDensity = 1.0
   @Field var identityVariety = 0.0
   @Field var noiseHighCutHz = 20_000.0
+  @Field var noiseWidth = 0.0
+  @Field var noiseDriftDb = 0.0
+  @Field var noiseDriftSeconds = 12.0
   @Field var harmonicTranslation = 0.0
   @Field var templeGain = 0.0
   @Field var templeIntensity = 0.5
@@ -106,6 +109,11 @@ private struct Parameters {
   var identityVariety = 0.0
   /// Rolls the noise bed off above this frequency. 20 kHz leaves it untouched.
   var noiseHighCutHz = 20_000.0
+  /// How different the noise is in the two ears (0 = the same noise in both, 1 = independent noise in each).
+  var noiseWidth = 0.0
+  /// How far each ear's bed swells either side of its average, in dB, on its own irregular schedule. 0 = still.
+  var noiseDriftDb = 0.0
+  var noiseDriftSeconds = 12.0
   var harmonicTranslation = 0.0
   var templeGain = 0.0
   var templeIntensity = 0.5
@@ -281,6 +289,8 @@ private final class ProceduralAudioEngine: NSObject {
   private var windAirRight = 0.0
   private var fireEnvelope = 0.0
   private let fireModel = FireModel()
+  private let bedSide = BedSideNoise()
+  private let bedDrift = BedDrift()
   private var cosmicEnvelope = 0.0
   private let cosmicModel = CosmicModel()
   private let worldSalience = WorldSalienceScheduler()
@@ -608,6 +618,8 @@ private final class ProceduralAudioEngine: NSObject {
     windAirRight = 0
     fireEnvelope = 0
     fireModel.reset(seed: 0x9e3779b97f4a7c15, sampleRate: sampleRate)
+    bedSide.reset(seed: 0x9e3779b97f4a7c15)
+    bedDrift.reset(seed: 0x9e3779b97f4a7c15)
     cosmicEnvelope = 0
     cosmicModel.reset(seed: 0x9e3779b97f4a7c15, sampleRate: sampleRate)
     worldSalience.reset(sampleRate: sampleRate)
@@ -849,6 +861,8 @@ private final class ProceduralAudioEngine: NSObject {
       abyssalModel.reset(seed: activeTimeline.seed, sampleRate: sampleRate)
       windRandom = activeTimeline.seed ^ 0x7f4a7c15
       fireModel.reset(seed: activeTimeline.seed, sampleRate: sampleRate)
+      bedSide.reset(seed: activeTimeline.seed)
+      bedDrift.reset(seed: activeTimeline.seed)
       cosmicModel.reset(seed: activeTimeline.seed, sampleRate: sampleRate)
       worldSalience.reset(sampleRate: sampleRate)
       resetThresholdShift()
@@ -1075,8 +1089,20 @@ private final class ProceduralAudioEngine: NSObject {
       let movesNoise = target.spatialTarget == "noise" || target.spatialTarget == "both"
       let leftCarrier = carrier * (movesTone ? leftSpatial * spatialDistance : spatialRoom)
       let rightCarrier = carrier * (movesTone ? rightSpatial * spatialDistance : spatialRoom)
-      let baseLeftNoise = noise * (movesNoise ? leftSpatial : 1)
-      let baseRightNoise = noise * (movesNoise ? rightSpatial : 1)
+      let baseLeftNoise: Double
+      let baseRightNoise: Double
+      if target.noiseWidth > 0.0001 || target.noiseDriftDb > 0.0001 {
+        // A wide bed: different noise in each ear, and each ear's level drifting on its own irregular schedule.
+        let side = bedSide.next(sampleRate: sampleRate, incoming: renderedNoiseColor, outgoing: fadingFromNoiseColor, blend: noiseCrossfade, cutHz: noiseCutSmoothed) * gains[2] * noiseEnvelope
+        bedDrift.render(sampleRate: sampleRate, depthDb: target.noiseDriftDb, seconds: target.noiseDriftSeconds)
+        let width = target.noiseWidth
+        let widthNorm = 1.0 / (1.0 + width * width).squareRoot()
+        baseLeftNoise = (noise + width * side) * widthNorm * bedDrift.left * (movesNoise ? leftSpatial : 1)
+        baseRightNoise = (noise - width * side) * widthNorm * bedDrift.right * (movesNoise ? rightSpatial : 1)
+      } else {
+        baseLeftNoise = noise * (movesNoise ? leftSpatial : 1)
+        baseRightNoise = noise * (movesNoise ? rightSpatial : 1)
+      }
       let rainNoise = nextRainNoise(target)
       let rainGain = gains[2] * noiseEnvelope
       let leftNoise = (baseLeftNoise * (1 - rainMix) + rainNoise.left * rainGain * rainMix) * spatialDistance
@@ -1810,6 +1836,9 @@ private final class ProceduralAudioEngine: NSObject {
       identityDensity: clamp(raw.identityDensity, 0.2, 1),
       identityVariety: clamp(raw.identityVariety, 0, 1),
       noiseHighCutHz: clamp(raw.noiseHighCutHz, 300, 20_000),
+      noiseWidth: clamp(raw.noiseWidth, 0, 1),
+      noiseDriftDb: clamp(raw.noiseDriftDb, 0, 8),
+      noiseDriftSeconds: clamp(raw.noiseDriftSeconds, 3, 40),
       harmonicTranslation: clamp(raw.harmonicTranslation, 0, 1),
       templeGain: clamp(raw.templeGain, 0, 1),
       templeIntensity: clamp(raw.templeIntensity, 0, 1),
@@ -1933,6 +1962,9 @@ private final class ProceduralAudioEngine: NSObject {
       identityDensity: lerp(from.identityDensity, to.identityDensity),
       identityVariety: lerp(from.identityVariety, to.identityVariety),
       noiseHighCutHz: lerp(from.noiseHighCutHz, to.noiseHighCutHz),
+      noiseWidth: lerp(from.noiseWidth, to.noiseWidth),
+      noiseDriftDb: lerp(from.noiseDriftDb, to.noiseDriftDb),
+      noiseDriftSeconds: lerp(from.noiseDriftSeconds, to.noiseDriftSeconds),
       harmonicTranslation: lerp(from.harmonicTranslation, to.harmonicTranslation),
       templeGain: lerp(from.templeGain, to.templeGain),
       templeIntensity: lerp(from.templeIntensity, to.templeIntensity),
@@ -4792,5 +4824,210 @@ final class AbyssalModel {
     chamberIndex = (chamberIndex + 1) % chamberLeft.count
     left = pressure + resonantLeft + roomLeft * 0.13
     right = pressure + resonantRight + roomRight * 0.13
+  }
+}
+
+/// The second stream of the noise bed. The engine's own noise is one stream heard identically in both ears, which
+/// sounds narrow; this makes a companion with the same color, level and high cut but different noise, so the two ears
+/// can hear different noise and the bed is wide. It draws only from its own random stream. The Kotlin engine mirrors this file.
+final class BedSideNoise {
+  static let salt: UInt64 = 0x5369646542656421
+  /// The bed's high cut counts as off at or above this (as in the engine).
+  static let cutOffHz = 19_990.0
+
+  private var random: UInt64 = 1
+  private var pink = [Double](repeating: 0, count: 7)
+  private var brown = 0.0
+  private var greyLow = 0.0
+  private var lastIncoming: String?
+  private var cutOne = 0.0
+  private var cutTwo = 0.0
+
+  func reset(seed: UInt64) {
+    random = seed ^ BedSideNoise.salt
+    if random == 0 { random = 1 }
+    pink = [Double](repeating: 0, count: 7); brown = 0; greyLow = 0
+    lastIncoming = nil
+    cutOne = 0; cutTwo = 0
+  }
+
+  private func white() -> Double {
+    random ^= random << 13; random ^= random >> 7; random ^= random << 17
+    return Double(random & 0x00ff_ffff) / Double(0x007f_ffff) - 1
+  }
+
+  private func color(_ color: String?) -> Double {
+    guard let color else { return 0 }
+    let white = white()
+    switch color {
+    case "pink":
+      pink[0] = 0.99886 * pink[0] + white * 0.0555179
+      pink[1] = 0.99332 * pink[1] + white * 0.0750759
+      pink[2] = 0.96900 * pink[2] + white * 0.1538520
+      pink[3] = 0.86650 * pink[3] + white * 0.3104856
+      pink[4] = 0.55000 * pink[4] + white * 0.5329522
+      pink[5] = -0.7616 * pink[5] - white * 0.0168980
+      let value = pink[0] + pink[1] + pink[2] + pink[3] + pink[4] + pink[5] + pink[6] + white * 0.5362
+      pink[6] = white * 0.115926
+      return value * 0.11
+    case "brown":
+      brown = (brown + 0.02 * white) / 1.02
+      return brown * 3.5
+    case "grey":
+      greyLow += 0.015 * (white - greyLow)
+      return (white - greyLow) * 0.7
+    default: return white
+    }
+  }
+
+  /// One sample of the companion noise, before the bed's gain. `incoming` is the color now sounding, `outgoing` the
+  /// color it is blending away from (or nil), `blend` how far that blend has gone, `cutHz` the bed's high cut.
+  func next(sampleRate: Double, incoming: String?, outgoing: String?, blend: Double, cutHz: Double) -> Double {
+    if incoming != lastIncoming {
+      switch incoming {
+      case "pink": pink = [Double](repeating: 0, count: 7)
+      case "brown": brown = 0
+      case "grey": greyLow = 0
+      default: break
+      }
+      lastIncoming = incoming
+    }
+    let mixed: Double
+    if let outgoing {
+      let arriving = color(incoming)
+      let leaving = color(outgoing)
+      let angle = blend * Double.pi / 2
+      mixed = leaving * cos(angle) + arriving * sin(angle)
+    } else {
+      mixed = color(incoming)
+    }
+    if cutHz < BedSideNoise.cutOffHz {
+      let coefficient = 1 - exp(-2 * Double.pi * cutHz / sampleRate)
+      cutOne += coefficient * (mixed - cutOne)
+      cutTwo += coefficient * (cutOne - cutTwo)
+      return cutTwo
+    }
+    cutOne = mixed
+    cutTwo = mixed
+    return mixed
+  }
+}
+
+/// A slow, irregular drift for the bed, one for each ear: randomly timed surges of random size, so the two ears swell on
+/// their own schedules and the weight of the bed wanders from side to side, with no cycle to hear. Depth is how far each
+/// ear's level swings either side of its average (the 5th to 95th percentile), and the average level does not change.
+/// It draws only from its own random streams. The Kotlin engine mirrors this file.
+final class BedDrift {
+  static let leftSalt: UInt64 = 0x4c65667444726966
+  static let rightSalt: UInt64 = 0x5269676874447266
+  static let surges = 8
+  /// The raw sum of surges is scaled by this, clipped to 0..1, and centred on this mean; this turns it into a unit swing.
+  static let sumScale = 1.1112
+  static let sumMean = 0.4843
+  static let swing = 0.7054
+  /// The level is worked out this often (samples) and smoothed over this long (seconds).
+  static let updateSamples: Int64 = 64
+  static let smoothSeconds = 0.4
+
+  /// The gain for each ear: 1 when the drift is off.
+  private(set) var left = 1.0
+  private(set) var right = 1.0
+
+  private final class Ear {
+    let salt: UInt64
+    var random: UInt64 = 1
+    var start = [Double](repeating: 0, count: BedDrift.surges)
+    var length = [Double](repeating: 0, count: BedDrift.surges)
+    var rise = [Double](repeating: 0, count: BedDrift.surges)
+    var amplitude = [Double](repeating: 0, count: BedDrift.surges)
+    var count = 0
+    var nextAt = 0.0
+    var started = false
+    var decibels = 0.0
+
+    init(salt: UInt64) { self.salt = salt }
+
+    func reset(seed: UInt64) {
+      random = seed ^ salt
+      if random == 0 { random = 1 }
+      count = 0; nextAt = 0; started = false; decibels = 0
+    }
+
+    func unit() -> Double {
+      random ^= random << 13; random ^= random >> 7; random ^= random << 17
+      return Double(random >> 11) / 9007199254740992.0
+    }
+
+    /// Adds a surge beginning at `at` and returns when the next one should begin.
+    func surge(at: Double, seconds: Double) -> Double {
+      let duration = seconds * (0.7 + 0.8 * unit())
+      let size = 0.45 + 0.55 * unit()
+      let ramp = duration * (0.35 + 0.15 * unit())
+      let gap = duration * (0.45 + 0.45 * unit())
+      if count == BedDrift.surges {
+        // The oldest surge has all but ended; make room.
+        for i in 1..<BedDrift.surges { start[i - 1] = start[i]; length[i - 1] = length[i]; rise[i - 1] = rise[i]; amplitude[i - 1] = amplitude[i] }
+        count -= 1
+      }
+      start[count] = at; length[count] = duration; rise[count] = ramp; amplitude[count] = size
+      count += 1
+      return at + gap
+    }
+
+    /// The drift, in dB, at `time`, for a depth in dB and a typical surge length in seconds.
+    func update(time: Double, depthDb: Double, seconds: Double) -> Double {
+      if !started {
+        // Begin already in motion, as if the surges had been going on before.
+        var t = -seconds
+        while t < 0 { t = surge(at: t, seconds: seconds) }
+        nextAt = t
+        started = true
+      }
+      while time >= nextAt { nextAt = surge(at: nextAt, seconds: seconds) }
+      var sum = 0.0
+      var i = 0
+      while i < count {
+        let age = time - start[i]
+        if age >= length[i] {
+          if i + 1 < count { for j in (i + 1)..<count { start[j - 1] = start[j]; length[j - 1] = length[j]; rise[j - 1] = rise[j]; amplitude[j - 1] = amplitude[j] } }
+          count -= 1
+          continue
+        }
+        if age > 0 {
+          let shape = age < rise[i] ? 0.5 - 0.5 * cos(Double.pi * age / rise[i]) : 0.5 + 0.5 * cos(Double.pi * (age - rise[i]) / (length[i] - rise[i]))
+          sum += amplitude[i] * shape
+        }
+        i += 1
+      }
+      return depthDb * 2.0 * (Swift.max(0, Swift.min(1, sum / BedDrift.sumScale)) - BedDrift.sumMean) / BedDrift.swing
+    }
+  }
+
+  private let leftEar = Ear(salt: BedDrift.leftSalt)
+  private let rightEar = Ear(salt: BedDrift.rightSalt)
+  private var sample: Int64 = 0
+
+  func reset(seed: UInt64) {
+    leftEar.reset(seed: seed); rightEar.reset(seed: seed)
+    left = 1; right = 1
+    sample = 0
+  }
+
+  /// Advances one sample; `depthDb` 0 keeps both gains at 1.
+  func render(sampleRate: Double, depthDb: Double, seconds: Double) {
+    if depthDb <= 0 {
+      left = 1; right = 1
+      sample += 1
+      return
+    }
+    if sample % BedDrift.updateSamples == 0 {
+      let time = Double(sample) / sampleRate
+      let smoothing = 1 - exp(-Double(BedDrift.updateSamples) / (BedDrift.smoothSeconds * sampleRate))
+      leftEar.decibels += smoothing * (leftEar.update(time: time, depthDb: depthDb, seconds: seconds) - leftEar.decibels)
+      rightEar.decibels += smoothing * (rightEar.update(time: time, depthDb: depthDb, seconds: seconds) - rightEar.decibels)
+      left = pow(10.0, leftEar.decibels / 20.0)
+      right = pow(10.0, rightEar.decibels / 20.0)
+    }
+    sample += 1
   }
 }
