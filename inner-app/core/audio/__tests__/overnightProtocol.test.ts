@@ -37,6 +37,11 @@ describe('overnight protocol', () => {
   });
 
   describe('the bed under each world', () => {
+    const expectNoise = (actual: Array<number | undefined>, expected: number[]) => {
+      expect(actual).toHaveLength(expected.length);
+      expected.forEach((value, index) => expect(actual[index]).toBeCloseTo(value, 10));
+    };
+
     const bedOf = (environment: 'ocean' | 'abyssal' | 'forest' | 'temple' | 'cosmic' | 'fire') => {
       const phases = compileOvernightProtocol(createRecognitionOvernightProtocol({
         sleepDurationMinutes: 8 * 60,
@@ -59,23 +64,33 @@ describe('overnight protocol', () => {
     it.each(['ocean', 'temple', 'cosmic', 'fire'] as const)('leaves %s exactly as it was: pink, at the original levels', environment => {
       const bed = bedOf(environment);
       expect(bed.color).toBe('pink');
-      expect(bed.noise).toEqual([0.12, 0.13, 0.1, 0.08]);
+      expectNoise(bed.noise, [0.12, 0.13, 0.1, 0.08 * 0.67]);
       expect(bed.binaural).toEqual([0.18, 0.08, 0.05]);
     });
 
     it('keeps the abyssal binaural level at 60% of the standard, as it was', () => {
       const bed = bedOf('abyssal');
       expect(bed.color).toBe('pink');
-      expect(bed.noise).toEqual([0.12, 0.13, 0.1, 0.08]);
+      expectNoise(bed.noise, [0.12, 0.13, 0.1, 0.08 * 0.67]);
       expect(bed.binaural).toEqual([0.18 * 0.6, 0.08 * 0.6, 0.05 * 0.6]);
     });
 
     it('gives the forest a brown bed at half the noise level, with the standard binaural level', () => {
       const bed = bedOf('forest');
       expect(bed.color).toBe('brown');
-      expect(bed.noise).toEqual([0.06, 0.065, 0.05, 0.04]);
+      expectNoise(bed.noise, [0.06, 0.065, 0.05, 0.04 * 0.67]);
       expect(bed.binaural).toEqual([0.18, 0.08, 0.05]);
     });
+  });
+
+  it('thins the bed by about a third once the REM-rich hours begin, and not before', () => {
+    const phases = compileOvernightProtocol(createRecognitionOvernightProtocol({
+      sleepDurationMinutes: 8 * 60, environment: 'ocean', signalId: 'chimes', cuePlan: 'standard', feel: 'gentle',
+    }), DEFAULT_PROCEDURAL_AUDIO_CONFIG).phases.filter(phase => phase.kind === 'sleepProtection');
+    expect(phases.length).toBeGreaterThan(2);
+    expect(phases[0].audioConfig.noiseGain).toBeCloseTo(0.1, 10);
+    for (const phase of phases.slice(1, -1)) expect(phase.audioConfig.noiseGain).toBeCloseTo(0.1 * 0.67, 10);
+    expect(phases[phases.length - 1].audioConfig.noiseGain).toBeCloseTo(0.08 * 0.67, 10);
   });
 
   it('limits harmonic translation to environments that benefit from implied depth', () => {

@@ -25,6 +25,11 @@ export type WorldBed = {
   noiseGainScale: number;
   /** Scales the binaural level in the descent and in sleep. 1 is the standard level. */
   binauralGainScale: number;
+  /**
+   * How much of its level the noise keeps once the REM-rich hours begin (after the first recognition cue). Continuous
+   * broadband noise has been linked to less REM in one small lab study, so the bed thins as the night goes on.
+   */
+  remNoiseTaper: number;
   rationale: {
     /** What the bed is meant to do for the listener. */
     goal: string;
@@ -34,6 +39,9 @@ export type WorldBed = {
     basis: string;
   };
 };
+
+/** About a third quieter once the REM-rich hours begin. */
+const REM_NOISE_TAPER = 0.67;
 
 /** The bed the overnight journeys began with, kept by every world that has not been given its own. */
 const SHARED_BED_RATIONALE = {
@@ -72,7 +80,7 @@ export const WORLD_PROFILES: Record<AudioWorld, WorldProfile> = {
       { id: 'distant-beacon', role: 'anchor', salience: 0.46, recoverySeconds: 5 },
     ],
     recognitionRecoverySeconds: 2,
-    bed: { noiseColor: 'pink', noiseGainScale: 1, binauralGainScale: 1, rationale: SHARED_BED_RATIONALE },
+    bed: { noiseColor: 'pink', noiseGainScale: 1, binauralGainScale: 1, remNoiseTaper: REM_NOISE_TAPER, rationale: SHARED_BED_RATIONALE },
   },
   abyssal: {
     id: 'abyssal', label: 'Abyssal Glass', concept: 'A protected glass habitat resting under immense deep-ocean pressure.',
@@ -85,14 +93,14 @@ export const WORLD_PROFILES: Record<AudioWorld, WorldProfile> = {
       { id: 'abyssal-call', role: 'anchor', salience: 0.58, recoverySeconds: 5 },
     ],
     recognitionRecoverySeconds: 2,
-    bed: { noiseColor: 'pink', noiseGainScale: 1, binauralGainScale: 0.6, rationale: SHARED_BED_RATIONALE },
+    bed: { noiseColor: 'pink', noiseGainScale: 1, binauralGainScale: 0.6, remNoiseTaper: REM_NOISE_TAPER, rationale: SHARED_BED_RATIONALE },
   },
   wind: {
     id: 'wind', label: 'Wind', concept: 'Broad moving air shaped by slow gusts and pressure changes.',
     foundation: ['low-air-pressure', 'filtered-air'],
     acoustics: { scale: 'vast', absorption: 0.2, diffusion: 0.45, width: 0.88 },
     signatures: ['passing-gusts'], motion: 'drift', events: [], recognitionRecoverySeconds: 2,
-    bed: { noiseColor: 'pink', noiseGainScale: 1, binauralGainScale: 1, rationale: SHARED_BED_RATIONALE },
+    bed: { noiseColor: 'pink', noiseGainScale: 1, binauralGainScale: 1, remNoiseTaper: REM_NOISE_TAPER, rationale: SHARED_BED_RATIONALE },
   },
   fire: {
     id: 'fire', label: 'Fire', concept: 'A close hearth that burns down with your night: warm body, crackle in bursts, settling logs, and wind in the chimney that the house answers.',
@@ -104,7 +112,7 @@ export const WORLD_PROFILES: Record<AudioWorld, WorldProfile> = {
       { id: 'chimney-gust', role: 'accent', salience: 0.3, recoverySeconds: 2 },
     ],
     recognitionRecoverySeconds: 2,
-    bed: { noiseColor: 'pink', noiseGainScale: 1, binauralGainScale: 1, rationale: SHARED_BED_RATIONALE },
+    bed: { noiseColor: 'pink', noiseGainScale: 1, binauralGainScale: 1, remNoiseTaper: REM_NOISE_TAPER, rationale: SHARED_BED_RATIONALE },
   },
   cosmic: {
     id: 'cosmic', label: 'Cosmic', concept: 'A vast liminal field with harmonic horizons, breathing voice, and gravity.',
@@ -113,7 +121,7 @@ export const WORLD_PROFILES: Record<AudioWorld, WorldProfile> = {
     signatures: ['breathing-distant-voice', 'golden-ratio-blooms'], motion: 'orbit',
     events: [{ id: 'harmonic-bloom', role: 'accent', salience: 0.45, recoverySeconds: 4 }],
     recognitionRecoverySeconds: 2,
-    bed: { noiseColor: 'pink', noiseGainScale: 1, binauralGainScale: 1, rationale: SHARED_BED_RATIONALE },
+    bed: { noiseColor: 'pink', noiseGainScale: 1, binauralGainScale: 1, remNoiseTaper: REM_NOISE_TAPER, rationale: SHARED_BED_RATIONALE },
   },
   forest: {
     id: 'forest', label: 'Forest', concept: 'A sheltered canopy where wind gives hollow trunks a distant voice.',
@@ -129,6 +137,7 @@ export const WORLD_PROFILES: Record<AudioWorld, WorldProfile> = {
       noiseColor: 'brown',
       noiseGainScale: 0.5,
       binauralGainScale: 1,
+      remNoiseTaper: REM_NOISE_TAPER,
       rationale: {
         goal: 'Keep the shared bed\'s low-end masking while leaving the leaves and the hollow trunk\'s voice clear of hiss.',
         atmosphere: 'A soft low rumble, like distant wind through a dense canopy, rather than a steady hiss.',
@@ -147,7 +156,7 @@ export const WORLD_PROFILES: Record<AudioWorld, WorldProfile> = {
       { id: 'singing-bowl', role: 'anchor', salience: 0.72, recoverySeconds: 4 },
     ],
     recognitionRecoverySeconds: 2,
-    bed: { noiseColor: 'pink', noiseGainScale: 1, binauralGainScale: 1, rationale: SHARED_BED_RATIONALE },
+    bed: { noiseColor: 'pink', noiseGainScale: 1, binauralGainScale: 1, remNoiseTaper: REM_NOISE_TAPER, rationale: SHARED_BED_RATIONALE },
   },
 };
 
@@ -162,4 +171,14 @@ export function worldProfile(environment: AudioWorld): WorldProfile {
 
 export function worldBed(environment: AudioWorld): WorldBed {
   return WORLD_PROFILES[environment].bed;
+}
+
+/**
+ * The noise a world's stages should use, given the noise a stage was designed with for the shared pink bed. Worlds that
+ * keep the shared bed are left exactly as designed; the others get their own colour at their own level.
+ */
+export function noiseForWorld(environment: AudioWorld, designed: { noiseColor: NoiseColor | null; noiseGain: number }) {
+  const bed = worldBed(environment);
+  if (bed.noiseColor === 'pink' && bed.noiseGainScale === 1) return designed;
+  return { noiseColor: bed.noiseColor, noiseGain: designed.noiseGain * bed.noiseGainScale };
 }

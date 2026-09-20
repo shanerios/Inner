@@ -1100,7 +1100,7 @@ private final class ProceduralAudioEngine: NSObject {
       let recognitionGain = recognitionSpace?.gain ?? 1
       let shapedEnvironmentLeft = (environmentMid + environmentSide) * recognitionGain
       let shapedEnvironmentRight = (environmentMid - environmentSide) * recognitionGain
-      let recognitionNoiseGain = 0.7 + 0.3 * recognitionGain
+      let recognitionNoiseGain = max(0.0, 1.0 - Self.recognitionNoiseThinning * (1.0 - recognitionGain))
       let thresholdNoiseMix = thresholdDepth * 0.72
       let shapedNoiseLeft = (leftNoise * (1 - thresholdNoiseMix) + thresholdNoiseLowLeft * thresholdNoiseMix) * recognitionNoiseGain
       let shapedNoiseRight = (rightNoise * (1 - thresholdNoiseMix) + thresholdNoiseLowRight * thresholdNoiseMix) * recognitionNoiseGain
@@ -1435,6 +1435,8 @@ private final class ProceduralAudioEngine: NSObject {
   }
 
   private static let forestNoiseMix = 0.3
+  /// How much of the world's quieting the noise bed follows around a recognition cue: about 6 dB at the centre of the quiet field.
+  private static let recognitionNoiseThinning = 1.2
 
   // The lucidity cue: a fixed, non-seeded ascending three-note motif (the
   // same 400/600/800 Hz contour used in published targeted-lucidity-

@@ -196,7 +196,7 @@ export function createRecognitionOvernightProtocol(options: RecognitionOvernight
     if (protectionMs >= 1_000) {
       phases.push({
         id: `sleep-protection-${index + 1}`, label: 'Sleep Protection', kind: 'sleepProtection', durationMs: protectionMs,
-        audio: { toneGain: 0, binauralGain: 0.08 * binauralWorldScale, noiseGain: 0.1 * bed.noiseGainScale, environmentGain: environmentGain * 0.75, masterGain: 0.35, ...identityPatch(options.environment, index === 0 ? 'earlySleep' : 'remSleep', feel) },
+        audio: { toneGain: 0, binauralGain: 0.08 * binauralWorldScale, noiseGain: 0.1 * bed.noiseGainScale * (index === 0 ? 1 : bed.remNoiseTaper), environmentGain: environmentGain * 0.75, masterGain: 0.35, ...identityPatch(options.environment, index === 0 ? 'earlySleep' : 'remSleep', feel) },
       });
     }
     phases.push({
@@ -215,7 +215,7 @@ export function createRecognitionOvernightProtocol(options: RecognitionOvernight
   if (remainingSleepMs >= 1_000) {
     phases.push({
       id: 'sleep-protection-final', label: 'Sleep Protection', kind: 'sleepProtection', durationMs: remainingSleepMs,
-      audio: { toneGain: 0, binauralGain: 0.05 * binauralWorldScale, noiseGain: 0.08 * bed.noiseGainScale, environmentGain: environmentGain * 0.6, masterGain: 0.3, ...identityPatch(options.environment, cueOffsets.length ? 'remSleep' : 'earlySleep', feel) },
+      audio: { toneGain: 0, binauralGain: 0.05 * binauralWorldScale, noiseGain: 0.08 * bed.noiseGainScale * (cueOffsets.length ? bed.remNoiseTaper : 1), environmentGain: environmentGain * 0.6, masterGain: 0.3, ...identityPatch(options.environment, cueOffsets.length ? 'remSleep' : 'earlySleep', feel) },
     });
   }
   phases.push({

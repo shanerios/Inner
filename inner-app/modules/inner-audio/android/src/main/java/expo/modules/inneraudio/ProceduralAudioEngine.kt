@@ -156,6 +156,8 @@ private fun clamp(value: Double, low: Double, high: Double) = min(high, max(low,
 private val XORSHIFT_SEED: Long = java.lang.Long.parseUnsignedLong("9e3779b97f4a7c15", 16)
 
 private const val FOREST_NOISE_MIX = 0.3
+/** How much of the world's quieting the noise bed follows around a recognition cue: about 6 dB at the centre of the quiet field. */
+private const val RECOGNITION_NOISE_THINNING = 1.2
 
 // The lucidity cue: a fixed, non-seeded ascending three-note motif (the same
 // 400/600/800 Hz contour used in published targeted-lucidity-reactivation
@@ -910,7 +912,7 @@ object ProceduralAudioEngine {
       val recognitionGain = recognitionSpace?.gain ?: 1.0
       val shapedEnvironmentLeft = (environmentMid + environmentSide) * recognitionGain
       val shapedEnvironmentRight = (environmentMid - environmentSide) * recognitionGain
-      val recognitionNoiseGain = 0.7 + 0.3 * recognitionGain
+      val recognitionNoiseGain = max(0.0, 1.0 - RECOGNITION_NOISE_THINNING * (1.0 - recognitionGain))
       val thresholdNoiseMix = thresholdDepth * 0.72
       val shapedNoiseLeft = (leftNoise * (1.0 - thresholdNoiseMix) + thresholdNoiseLowLeft * thresholdNoiseMix) * recognitionNoiseGain
       val shapedNoiseRight = (rightNoise * (1.0 - thresholdNoiseMix) + thresholdNoiseLowRight * thresholdNoiseMix) * recognitionNoiseGain

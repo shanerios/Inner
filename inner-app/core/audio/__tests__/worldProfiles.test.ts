@@ -1,5 +1,5 @@
 import { describe, expect, it } from '@jest/globals';
-import { OVERNIGHT_WORLD_PROFILES, WORLD_PROFILES } from '../worldProfiles';
+import { noiseForWorld, OVERNIGHT_WORLD_PROFILES, WORLD_PROFILES } from '../worldProfiles';
 
 const WORLD_IDS = ['ocean', 'abyssal', 'wind', 'fire', 'cosmic', 'forest', 'temple'] as const;
 
@@ -36,6 +36,8 @@ describe('procedural world profiles', () => {
       expect(['white', 'pink', 'brown', 'grey']).toContain(world.bed.noiseColor);
       expect(world.bed.noiseGainScale).toBeGreaterThanOrEqual(0.25);
       expect(world.bed.noiseGainScale).toBeLessThanOrEqual(1.5);
+      expect(world.bed.remNoiseTaper).toBeGreaterThanOrEqual(0.4);
+      expect(world.bed.remNoiseTaper).toBeLessThanOrEqual(1);
       expect(world.bed.binauralGainScale).toBeGreaterThanOrEqual(0);
       expect(world.bed.binauralGainScale).toBeLessThanOrEqual(1.5);
       for (const text of Object.values(world.bed.rationale)) expect(text.trim().length).toBeGreaterThan(20);
@@ -49,6 +51,16 @@ describe('procedural world profiles', () => {
         expect(world.bed.rationale.basis).toMatch(/theory|research|measur|stud/i);
       }
     }
+  });
+
+  it('leaves the noise of a preparation stage alone for worlds on the shared bed, and gives the others their own', () => {
+    const designed = { noiseColor: 'pink' as const, noiseGain: 0.14 };
+    for (const world of ['ocean', 'abyssal', 'temple', 'cosmic', 'fire'] as const) expect(noiseForWorld(world, designed)).toBe(designed);
+    const forest = noiseForWorld('forest', designed);
+    expect(forest.noiseColor).toBe('brown');
+    expect(forest.noiseGain).toBeCloseTo(0.07, 10);
+    // A stage designed brown (the end of preparation) stays brown for a brown world, at that world's level.
+    expect(noiseForWorld('forest', { noiseColor: 'brown', noiseGain: 0.14 }).noiseColor).toBe('brown');
   });
 
   it('drives the overnight picker from the same world catalog', () => {
