@@ -55,8 +55,9 @@ internal class ForestCallModel {
           baseHz = 75.0 + unit() * 22.5
           pan = (unit() * 2.0 - 1.0) * 0.28
           answerPan = if (pan < 0.0) 0.52 else -0.52
-          countdown = rate * (110.0 + unit() * 70.0) / density.coerceIn(0.2, 1.0) *
-            (1.0 - 0.4 * ((variety - 0.6) / 0.4).coerceIn(0.0, 1.0))
+          val immersive = ((variety - 0.6) / 0.4).coerceIn(0.0, 1.0)
+          val gapSeconds = 110.0 - 84.0 * immersive + unit() * (70.0 - 58.0 * immersive)
+          countdown = rate * gapSeconds / density.coerceIn(0.2, 1.0)
         } else {
           countdown = rate * 3.0
         }

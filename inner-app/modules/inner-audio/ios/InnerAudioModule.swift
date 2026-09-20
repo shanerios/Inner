@@ -2276,8 +2276,9 @@ final class ForestCallModel {
           baseHz = 75 + unit() * 22.5
           pan = (unit() * 2 - 1) * 0.28
           answerPan = pan < 0 ? 0.52 : -0.52
-          countdown = rate * (110 + unit() * 70) / max(0.2, min(1, density)) *
-            (1 - 0.4 * max(0, min(1, (variety - 0.6) / 0.4)))
+          let immersive = max(0, min(1, (variety - 0.6) / 0.4))
+          let gapSeconds = 110 - 84 * immersive + unit() * (70 - 58 * immersive)
+          countdown = rate * gapSeconds / max(0.2, min(1, density))
         } else {
           countdown = rate * 3
         }
