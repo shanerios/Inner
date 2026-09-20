@@ -7,6 +7,8 @@ import {
   identityPatch,
   identityPresenceFor,
   identityTargetDb,
+  FIRE_BASE_LIVELINESS,
+  fireLiveliness,
   IDENTITY_FEEL_OFFSET_DB,
   IDENTITY_FEEL_VARIETY,
   IDENTITY_PRESENCE_MAX,
@@ -99,7 +101,7 @@ describe('identity arc', () => {
     expect(phases.find(phase => phase.id === 'preparation')!.audioConfig.identityPresence).toBeCloseTo(10 ** (2 / 20), 10);
   });
 
-  it('gives Fire a quieter late-night ember and a +2 dB Immersive lift', () => {
+  it('gives Fire a quieter late night and a +2 dB Immersive lift', () => {
     const fire = (stage: IdentityStage, feel: 'gentle' | 'deep' | 'immersive' = 'gentle') => identityPatch('fire', stage, feel);
     expect(fire('preparation').identityPresence).toBe(1);
     expect(fire('earlySleep').identityPresence).toBeCloseTo(10 ** (-3 / 20), 10);
@@ -262,5 +264,57 @@ describe('identity controls across JS and both native engines', () => {
     expect(engine).toMatch(/nextFire\([^)]*target\.identityPresence, target\.identityDensity, target\.identityVariety/);
     expect(swift).toMatch(/nextFire\([^)]*presence: target\.identityPresence, density: target\.identityDensity, variety: target\.identityVariety/);
     expect(engine).not.toMatch(/nextWind\([^)]*presence/);
+  });
+});
+
+describe('the fire burns down with the night', () => {
+  const fireNight = (feel: 'gentle' | 'deep' | 'immersive') => compileOvernightProtocol(createRecognitionOvernightProtocol({
+    sleepDurationMinutes: 8 * 60, environment: 'fire', signalId: 'chimes', cuePlan: 'standard', feel,
+  }), DEFAULT_PROCEDURAL_AUDIO_CONFIG).phases;
+  const intensity = (phases: ReturnType<typeof fireNight>, id: string) => phases.find(phase => phase.id === id)!.audioConfig.environmentIntensity;
+
+  it('starts at the liveliness each feel has always had', () => {
+    expect(fireLiveliness('preparation', 'gentle')).toBe(FIRE_BASE_LIVELINESS.gentle);
+    expect(fireLiveliness('preparation', 'deep')).toBe(0.5);
+    expect(fireLiveliness('preparation', 'immersive')).toBe(0.68);
+  });
+
+  it('keeps Gentle steady all night, and lets Deep and Immersive settle through each stage', () => {
+    const stages: IdentityStage[] = ['preparation', 'descent', 'earlySleep', 'remSleep'];
+    for (const stage of stages) expect(fireLiveliness(stage, 'gentle')).toBe(0.34);
+    for (const feel of ['deep', 'immersive'] as const) {
+      const levels = stages.map(stage => fireLiveliness(stage, feel));
+      for (let i = 1; i < levels.length; i++) expect(levels[i]).toBeLessThan(levels[i - 1]);
+      // By REM it is a near-glow, but never so low that the fire disappears.
+      expect(levels[3]).toBeGreaterThan(0.06);
+      expect(levels[3]).toBeLessThan(levels[0] * 0.2);
+      expect(fireLiveliness('recognitionWindow', feel)).toBe(levels[3]);
+    }
+  });
+
+  it('carries the burn-down into every phase of the night', () => {
+    for (const feel of ['gentle', 'deep', 'immersive'] as const) {
+      const phases = fireNight(feel);
+      expect(intensity(phases, 'preparation')).toBeCloseTo(fireLiveliness('preparation', feel), 10);
+      expect(intensity(phases, 'descent')).toBeCloseTo(fireLiveliness('descent', feel), 10);
+      expect(intensity(phases, 'sleep-protection-1')).toBeCloseTo(fireLiveliness('earlySleep', feel), 10);
+      expect(intensity(phases, 'sleep-protection-2')).toBeCloseTo(fireLiveliness('remSleep', feel), 10);
+      expect(intensity(phases, 'sleep-protection-final')).toBeCloseTo(fireLiveliness('remSleep', feel), 10);
+      for (const window of phases.filter(phase => phase.kind === 'recognitionWindow')) {
+        expect(window.audioConfig.environmentIntensity).toBeCloseTo(fireLiveliness('recognitionWindow', feel), 10);
+      }
+    }
+    // A sleeping Immersive fire is a fraction of its lively self.
+    const immersive = fireNight('immersive');
+    expect(intensity(immersive, 'sleep-protection-2')! / intensity(immersive, 'preparation')!).toBeCloseTo(0.16, 10);
+  });
+
+  it('leaves every other world\'s intensity exactly as it was', () => {
+    for (const environment of ['ocean', 'forest', 'temple', 'abyssal', 'cosmic'] as const) {
+      const phases = compileOvernightProtocol(createRecognitionOvernightProtocol({
+        sleepDurationMinutes: 8 * 60, environment, signalId: 'chimes', cuePlan: 'standard', feel: 'immersive',
+      }), DEFAULT_PROCEDURAL_AUDIO_CONFIG).phases;
+      for (const phase of phases) expect(phase.audioConfig.environmentIntensity).toBe(DEFAULT_PROCEDURAL_AUDIO_CONFIG.environmentIntensity);
+    }
   });
 });

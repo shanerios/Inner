@@ -210,6 +210,9 @@ final class WorldSalienceScheduler {
     suppressed = suppressRareEvents
   }
 
+  /// True around a recognition cue and for two seconds after it: a world holds its own rare events until then.
+  func isSuppressed() -> Bool { suppressed || frame < clearUntil }
+
   func reserve(salience: Double, durationSeconds: Double, recoverySeconds: Double) -> Bool {
     guard !suppressed, frame >= reservedUntil, frame >= clearUntil else { return false }
     reservedUntil = frame + UInt64(rate * durationSeconds)
@@ -268,12 +271,7 @@ private final class ProceduralAudioEngine: NSObject {
   private var windAirLeft = 0.0
   private var windAirRight = 0.0
   private var fireEnvelope = 0.0
-  private var fireRandom: UInt64 = 0x9e3779b97f4a7c15 ^ 0x2c1b3c6d
-  private var fireBody = 0.0
-  private var fireHiss = 0.0
-  private var firePopLeft = 0.0
-  private var firePopRight = 0.0
-  private let fireEmberModel = FireEmberModel()
+  private let fireModel = FireModel()
   private var cosmicEnvelope = 0.0
   private let cosmicModel = CosmicModel()
   private let worldSalience = WorldSalienceScheduler()
@@ -595,12 +593,7 @@ private final class ProceduralAudioEngine: NSObject {
     windAirLeft = 0
     windAirRight = 0
     fireEnvelope = 0
-    fireRandom = 0x9e3779b97f4a7c15 ^ 0x2c1b3c6d
-    fireBody = 0
-    fireHiss = 0
-    firePopLeft = 0
-    firePopRight = 0
-    fireEmberModel.reset(seed: 0x9e3779b97f4a7c15, sampleRate: sampleRate)
+    fireModel.reset(seed: 0x9e3779b97f4a7c15, sampleRate: sampleRate)
     cosmicEnvelope = 0
     cosmicModel.reset(seed: 0x9e3779b97f4a7c15, sampleRate: sampleRate)
     worldSalience.reset(sampleRate: sampleRate)
@@ -841,8 +834,7 @@ private final class ProceduralAudioEngine: NSObject {
       oceanModel.reset(seed: activeTimeline.seed, sampleRate: sampleRate)
       abyssalModel.reset(seed: activeTimeline.seed, sampleRate: sampleRate)
       windRandom = activeTimeline.seed ^ 0x7f4a7c15
-      fireRandom = activeTimeline.seed ^ 0x2c1b3c6d
-      fireEmberModel.reset(seed: activeTimeline.seed, sampleRate: sampleRate)
+      fireModel.reset(seed: activeTimeline.seed, sampleRate: sampleRate)
       cosmicModel.reset(seed: activeTimeline.seed, sampleRate: sampleRate)
       worldSalience.reset(sampleRate: sampleRate)
       resetThresholdShift()
@@ -1438,28 +1430,8 @@ private final class ProceduralAudioEngine: NSObject {
   }
 
   private func nextFire(elapsedSeconds: Double, intensity: Double, presence: Double, density: Double, variety: Double) -> (left: Double, right: Double) {
-    let shared = nextFireWhite()
-    fireBody = (fireBody + 0.018 * shared) / 1.018
-    fireHiss += 0.065 * (shared - fireHiss)
-    let flicker = 0.72 + 0.18 * sin(elapsedSeconds * Double.pi * 2 / 1.7)
-      + 0.1 * sin(elapsedSeconds * Double.pi * 2 / 0.43 + 1.2)
-    let eventChance = (5 + intensity * 16) / sampleRate
-    if (nextFireWhite() + 1) * 0.5 < eventChance {
-      let strength = 0.14 + intensity * 0.18 + abs(nextFireWhite()) * (0.4 + intensity * 0.5)
-      if nextFireWhite() < 0 { firePopLeft += strength } else { firePopRight += strength }
-    }
-    firePopLeft *= 0.99845
-    firePopRight *= 0.99845
-    let warmBody = fireBody * 4.2 * flicker
-    let dryCrackle = (shared - fireHiss) * (0.08 + flicker * 0.08)
-    fireEmberModel.render(sampleRate: sampleRate, salience: worldSalience, presence: presence, density: density, variety: variety)
-    return (warmBody + dryCrackle + firePopLeft + fireEmberModel.left,
-      warmBody + dryCrackle + firePopRight + fireEmberModel.right)
-  }
-
-  private func nextFireWhite() -> Double {
-    fireRandom ^= fireRandom << 13; fireRandom ^= fireRandom >> 7; fireRandom ^= fireRandom << 17
-    return Double(fireRandom & 0x00ff_ffff) / Double(0x007f_ffff) - 1
+    fireModel.render(sampleRate: sampleRate, intensity: intensity, presence: presence, density: density, variety: variety, salience: worldSalience)
+    return (fireModel.left, fireModel.right)
   }
 
   private static let forestNoiseMix = 0.3
@@ -2232,79 +2204,577 @@ final class TempleAccents {
 }
 
 /// A low ember glow and occasional short, dark resonance from settling wood.
-final class FireEmberModel {
+/// A hearth. A warm body, a breath of flame, and a hiss made of thousands of tiny crackles, with sharper pops
+/// that arrive in bursts; none of it on a fixed rhythm. Every few dozen seconds a log settles (a low thump and a
+/// cascade of crackle, sometimes with the soft steam of a damp log), and across the night the wind in the
+/// chimney sings a hollow, pitched moan in gusts that the flames answer a moment later.
+///
+/// The fire settles with the night: the engine's `intensity` is its liveliness, so a fire given less intensity
+/// has fewer crackles, fewer gusts, and a quieter roar. `presence` scales the settling logs and the wind (the
+/// fire's identity), `density` how often logs settle, and `variety` gives each settle its own gesture. The
+/// Kotlin engine mirrors this.
+final class FireModel {
   private(set) var left = 0.0
   private(set) var right = 0.0
+
+  private static let voiceCount = 128
+  private static let pendingCount = 320
+
+  // The mix balance the fire was tuned to by ear, per component (already scaled to the engine's level).
+  private static let gainBody = 0.8377798946198128
+  private static let gainRoar = 0.33875847621449856
+  private static let gainGrain = 0.03054438309889512
+  private static let gainTick = 1.0434365981072087
+  private static let gainPop = 11.79235856228342
+  private static let gainThump = 7.652996789451071
+  private static let gainRustle = 0.6880952886668884
+  private static let gainSizzle = 1.0412697018660328
+  private static let gainSteam = 0.18976812425198972
+  private static let gainWind = 0.6626209401278369
+  /// Ceilings that soften the sharpest ticks, pops and thumps so none stands out from the body.
+  private static let limitTick = 0.30
+  private static let limitPop = 0.75
+  private static let limitThump = 0.30
+  /// A final lift of 1 dB, so the new fire sits close to the level of the one it replaces in every feel.
+  private static let outputTrim = 1.1220184543019633
+
+  /// Overtones of the flue's moan: hollow, favouring the odd partials.
+  private static let windPartials = [1.0, 0.22, 0.5, 0.1, 0.24, 0.05]
+  private static let windRoomInput = [0.5, -0.6, 0.6, -0.5]
+  private static let windRoomSeconds = [0.0257, 0.0331, 0.0413, 0.0509]
+  private static let steamRoomInput = [0.6, -0.5, 0.5, -0.6]
+  private static let steamRoomSeconds = [0.0231, 0.0297, 0.0379, 0.0463]
+  /// Both small rooms fade over this long: the steam and the wind sit in the same chimney-warm space.
+  private static let roomDecaySeconds = 5.5
+
+  private static let typeTick = 0, typePop = 1, typeKnock = 2, typeBrightTick = 3, typePing = 4
+
   private var rate = 48_000.0
+  private var seed: UInt64 = 1
+  private var fireSeed: UInt64 = 1
   private var random: UInt64 = 1
-  private var countdown = 0.0
-  private var age = -1.0
-  private var elapsed = 0.0
-  private var emberPhase = 0.0
-  private var woodPhase = 0.0
-  private var woodHz = 110.0
-  private var woodPan = 0.0
-  private var woodAir = 0.0
+  private var sample: Int64 = 0
+  private var activityStarted = false
+
+  // slow, non-periodic modulation and the fire's overall liveliness
+  private var slow = 0.0, mid = 0.0, fast = 0.0, activity = 0.5
+  private var bodyLeft = 0.0, bodyRight = 0.0
+  private var roarHiLeft = 0.0, roarLoLeft = 0.0, roarHiRight = 0.0, roarLoRight = 0.0
+  private var hpLeft = 0.0, hpRight = 0.0
+  private var grain = 0.0, crackleT = 0.0, crackleP = 0.0
+  private var rustle = 0.0, rustleDecay = 0.0, rustleLow = 0.0, rustleHigh = 0.0
+  private var sizzleAge = -1.0, sizzleLength = 0.0, sizzleHp = 0.0
+  private var flare = 0.0, flareLeft = 0.0, flarePeak = 1.5, flareUp = false
+
+  // the chimney wind
+  private var gustAt: Int64 = 0
+  private var gustAge = -1.0, gustDuration = 0.0, gustAmplitude = 0.0, gustEnvelope = 0.0, gustDelayed = 0.0
+  private var windJitter = 0.0
+  private var flareAt: Int64 = -1
+  private var flareAmplitude = 1.5
+  private var windL = 0.0, windR = 0.0
+  private var breathLowLeft = 0.0, breathHighLeft = 0.0, breathLowRight = 0.0, breathHighRight = 0.0
+  private var windPhases = [Double](repeating: 0, count: 6)
+
+  // settling logs and their steam
+  private var settleAt: Int64 = 0
+  private var settleCount: Int64 = 0
+  private var steamAge = -1.0, steamTau = 1.6, steamAmplitude = 1.0, steamRise = 1.0, steamFall = 1.0, steamFallStep = 0.0
+  private var steamLow = 0.0, steamHigh = 0.0, spatter = 0.0
+
+  // constants derived from the sample rate
+  private var kSlow = 0.0, kMid = 0.0, kFast = 0.0, nSlow = 1.0, nMid = 1.0, nFast = 1.0
+  private var kRoarHigh = 0.0, kRoarLow = 0.0, kHp = 0.0
+  private var grainDecay = 0.0, crackleTDecay = 0.0, crackleGDecay = 0.0
+  private var kRustleHigh = 0.0, kRustleLow = 0.0, kSizzle = 0.0
+  private var flareRiseStep = 0.0, flareFallStep = 0.0, kDelay = 0.0
+  private var kBreathHigh = 0.0, kBreathLow = 0.0, kSteamLow = 0.0, kSteamHigh = 0.0
+  private var spatterDecay = 0.0, steamRiseDecay = 0.0
+
+  // the two small rooms
+  private let steamRoom = FireRoom(seconds: FireModel.steamRoomSeconds)
+  private let windRoom = FireRoom(seconds: FireModel.windRoomSeconds)
+
+  // event voices: short damped resonators, each excited by a burst of noise
+  private var vComp = [Int](repeating: 0, count: FireModel.voiceCount)
+  private var vEnv = [Double](repeating: 0, count: FireModel.voiceCount)
+  private var vEnvDecay = [Double](repeating: 0, count: FireModel.voiceCount)
+  private var vAmp = [Double](repeating: 0, count: FireModel.voiceCount)
+  private var vY1 = [Double](repeating: 0, count: FireModel.voiceCount)
+  private var vY2 = [Double](repeating: 0, count: FireModel.voiceCount)
+  private var vC1 = [Double](repeating: 0, count: FireModel.voiceCount)
+  private var vC2 = [Double](repeating: 0, count: FireModel.voiceCount)
+  private var vGain = [Double](repeating: 0, count: FireModel.voiceCount)
+  private var vPanLeft = [Double](repeating: 0, count: FireModel.voiceCount)
+  private var vPanRight = [Double](repeating: 0, count: FireModel.voiceCount)
+  private var vAge = [Int](repeating: 0, count: FireModel.voiceCount)
+  private var vMaxAge = [Int](repeating: 0, count: FireModel.voiceCount)
+  private var active = [Int](repeating: 0, count: FireModel.voiceCount)
+  private var activeCount = 0
+  private var free = [Int](repeating: 0, count: FireModel.voiceCount)
+  private var freeCount = 0
+
+  // events scheduled a little ahead: the ticks and pops of a cascade, a second knock, sparks and pings
+  private var pType = [Int](repeating: 0, count: FireModel.pendingCount)
+  private var pAmp = [Double](repeating: 0, count: FireModel.pendingCount)
+  private var pMult = [Double](repeating: 0, count: FireModel.pendingCount)
+  private var pDue = [Int64](repeating: -1, count: FireModel.pendingCount)
+  private var nextDue = Int64.max
+
+  private var sumLeft = [Double](repeating: 0, count: 4)
+  private var sumRight = [Double](repeating: 0, count: 4)
+
+  /// A four-line feedback delay network: orthogonal mixing, damped highs, a long low-frequency decay.
+  private final class FireRoom {
+    private let seconds: [Double]
+    private var lines = [[Double]](repeating: [Double](repeating: 0, count: 4096), count: 4)
+    private var index = [Int](repeating: 0, count: 4)
+    private var length = [Int](repeating: 0, count: 4)
+    private var damp = [Double](repeating: 0, count: 4)
+    private var gain = [Double](repeating: 0, count: 4)
+    private var out = [Double](repeating: 0, count: 4)
+    private(set) var left = 0.0
+    private(set) var right = 0.0
+
+    init(seconds: [Double]) { self.seconds = seconds }
+
+    func reset(rate: Double) {
+      for q in 0..<4 { for i in lines[q].indices { lines[q][i] = 0 } }
+      index = [0, 0, 0, 0]; damp = [0, 0, 0, 0]; out = [0, 0, 0, 0]
+      for q in 0..<4 {
+        length[q] = Int(seconds[q] * rate)
+        gain[q] = pow(10.0, -3.0 * seconds[q] / FireModel.roomDecaySeconds)
+      }
+      left = 0; right = 0
+    }
+
+    func process(_ input: Double, weights: [Double]) {
+      var sum = 0.0
+      for q in 0..<4 {
+        let size = lines[q].count
+        let read = lines[q][(index[q] - length[q] + size) % size]
+        damp[q] += 0.3 * (read - damp[q])
+        out[q] = damp[q] * gain[q]
+        sum += out[q]
+      }
+      for q in 0..<4 {
+        lines[q][index[q]] = out[q] - sum * 0.5 + input * weights[q]
+        index[q] = (index[q] + 1) % lines[q].count
+      }
+      left = (out[0] + out[1] - out[2] - out[3]) * 0.5
+      right = (out[0] - out[1] - out[2] + out[3]) * 0.5
+    }
+  }
 
   func reset(seed: UInt64, sampleRate: Double) {
+    self.seed = seed
     rate = sampleRate
+    fireSeed = seed ^ 0x46697265
     random = seed ^ 0x46697265456d6265
     if random == 0 { random = 1 }
-    countdown = rate * 12; age = -1; elapsed = 0
-    emberPhase = 0; woodPhase = 0; woodHz = 110; woodPan = 0; woodAir = 0
+    sample = 0
+    activityStarted = false
+    slow = 0; mid = 0; fast = 0
+    bodyLeft = 0; bodyRight = 0
+    roarHiLeft = 0; roarLoLeft = 0; roarHiRight = 0; roarLoRight = 0
+    hpLeft = 0; hpRight = 0
+    grain = 0; crackleT = 0; crackleP = 0
+    rustle = 0; rustleDecay = exp(-1.0 / (0.45 * rate)); rustleLow = 0; rustleHigh = 0
+    sizzleAge = -1; sizzleLength = 0; sizzleHp = 0
+    flare = 0; flareLeft = 0; flarePeak = 1.5; flareUp = false
+    gustAge = -1; gustDuration = 0; gustAmplitude = 0; gustEnvelope = 0; gustDelayed = 0
+    windJitter = 0; flareAt = -1; flareAmplitude = 1.5
+    windL = 0; windR = 0
+    breathLowLeft = 0; breathHighLeft = 0; breathLowRight = 0; breathHighRight = 0
+    windPhases = [Double](repeating: 0, count: 6)
+    steamAge = -1; steamLow = 0; steamHigh = 0; spatter = 0
+    steamRoom.reset(rate: rate); windRoom.reset(rate: rate)
+    settleCount = 0
+    resetVoices()
+    for i in 0..<FireModel.pendingCount { pDue[i] = -1 }
+    nextDue = Int64.max
+    for k in 0..<4 { sumLeft[k] = 0; sumRight[k] = 0 }
     left = 0; right = 0
+
+    kSlow = 1 - exp(-2 * Double.pi * 0.11 / rate); kMid = 1 - exp(-2 * Double.pi * 0.9 / rate); kFast = 1 - exp(-2 * Double.pi * 3.5 / rate)
+    nSlow = ((kSlow / (2 - kSlow)) / 3).squareRoot(); nMid = ((kMid / (2 - kMid)) / 3).squareRoot(); nFast = ((kFast / (2 - kFast)) / 3).squareRoot()
+    kRoarHigh = 1 - exp(-2 * Double.pi * 900 / rate); kRoarLow = 1 - exp(-2 * Double.pi * 250 / rate)
+    kHp = 1 - exp(-2 * Double.pi * 1500 / rate)
+    grainDecay = exp(-1 / (0.0025 * rate))
+    crackleTDecay = exp(-1 / (0.025 * rate)); crackleGDecay = exp(-1 / (0.15 * rate))
+    kRustleHigh = 1 - exp(-2 * Double.pi * 2500 / rate); kRustleLow = 1 - exp(-2 * Double.pi * 400 / rate)
+    kSizzle = 1 - exp(-2 * Double.pi * 4000 / rate)
+    flareRiseStep = 1 - exp(-1 / (0.7 * rate)); flareFallStep = exp(-1 / (2.0 * rate))
+    kDelay = 1 - exp(-1 / (0.35 * rate))
+    kBreathHigh = 1 - exp(-2 * Double.pi * 1700 / rate); kBreathLow = 1 - exp(-2 * Double.pi * 550 / rate)
+    kSteamLow = 1 - exp(-2 * Double.pi * 1800 / rate); kSteamHigh = 1 - exp(-2 * Double.pi * 6500 / rate)
+    spatterDecay = exp(-1 / (0.003 * rate))
+    steamRiseDecay = exp(-1 / (0.2 * rate))
+
+    gustAt = Int64(rate * (8.0 + 8.0 * unit()))
+    settleAt = Int64(rate * (25.0 + 20.0 * unit()))
+  }
+
+  private func resetVoices() {
+    activeCount = 0
+    freeCount = FireModel.voiceCount
+    for i in 0..<FireModel.voiceCount { free[i] = FireModel.voiceCount - 1 - i }
   }
 
   private func unit() -> Double {
     random ^= random << 13; random ^= random >> 7; random ^= random << 17
-    return Double(random & 0x00ff_ffff) / Double(0x00ff_ffff)
+    return Double(random >> 11) / 9007199254740992.0
   }
 
-  func render(sampleRate: Double, salience: WorldSalienceScheduler, presence: Double, density: Double, variety: Double) {
-    if rate != sampleRate { reset(seed: random, sampleRate: sampleRate) }
-    let safePresence = max(0, min(1.5, presence))
-    let glow = 0.5 + 0.5 * sin(2 * Double.pi * elapsed / 13.1)
-    let emberHz = 73 + 1.8 * sin(2 * Double.pi * elapsed / 29)
-    elapsed += 1 / rate
-    emberPhase = fmod(emberPhase + 2 * Double.pi * emberHz / rate, 2 * Double.pi)
-    let ember = (sin(emberPhase) * 0.78 + sin(emberPhase * 2) * 0.22) *
-      (0.35 + 0.65 * glow) * 0.065 * safePresence
+  private func white() -> Double { unit() * 2.0 - 1.0 }
 
-    if age < 0 {
-      countdown -= 1
-      if countdown <= 0 {
-        if safePresence > 0.0001 && salience.reserve(salience: 0.46, durationSeconds: 3.4, recoverySeconds: 3) {
-          age = 0
-          woodHz = 104 + unit() * 16
-          woodPan = (unit() * 2 - 1) * 0.3
-          let immersive = max(0, min(1, (variety - 0.6) / 0.4))
-          countdown = rate * (70 - 25 * immersive + unit() * (40 - 15 * immersive)) /
-            max(0.2, min(1, density))
-        } else {
-          countdown = rate * 3
-        }
+  private func gauss() -> Double {
+    let u1 = max(1e-12, unit())
+    let u2 = unit()
+    return (-2.0 * log(u1)).squareRoot() * cos(2.0 * Double.pi * u2)
+  }
+
+  private func logUniform(_ low: Double, _ high: Double) -> Double { low * pow(high / low, unit()) }
+
+  private func clampPan(_ pan: Double, _ limit: Double) -> Double { max(-limit, min(limit, pan)) }
+
+  private func spawn(_ comp: Int, _ frequency: Double, _ q: Double, _ tauMs: Double, _ amplitude: Double, _ pan: Double, _ maxAge: Int) {
+    if freeCount == 0 { return }
+    freeCount -= 1
+    let v = free[freeCount]
+    let bandwidth = frequency / q
+    let r = exp(-Double.pi * bandwidth / rate)
+    let theta = 2 * Double.pi * frequency / rate
+    vComp[v] = comp; vY1[v] = 0; vY2[v] = 0
+    vC1[v] = 2 * r * cos(theta); vC2[v] = -r * r; vGain[v] = (1 - r) * 1.5
+    vEnv[v] = 1; vEnvDecay[v] = exp(-1 / (tauMs / 1000.0 * rate)); vAmp[v] = amplitude
+    vAge[v] = 0; vMaxAge[v] = maxAge
+    let angle = (pan + 1) * Double.pi / 4
+    vPanLeft[v] = cos(angle) * 2.0.squareRoot(); vPanRight[v] = sin(angle) * 2.0.squareRoot()
+    active[activeCount] = v
+    activeCount += 1
+  }
+
+  private func schedule(_ seconds: Double, _ type: Int, _ amplitude: Double, _ mult: Double) {
+    for i in 0..<FireModel.pendingCount {
+      if pDue[i] < 0 {
+        let due = sample + Int64(rate * seconds)
+        pDue[i] = due; pType[i] = type; pAmp[i] = amplitude; pMult[i] = mult
+        if due < nextDue { nextDue = due }
+        return
       }
     }
+  }
 
-    var wood = 0.0
-    if age >= 0 {
-      let seconds = age / rate
-      let attack = max(0, min(1, seconds / 0.045))
-      let release = pow(max(0, min(1, 1 - seconds / 3.4)), 2)
-      let bend = 1 + 0.14 * exp(-seconds * 3.2)
-      woodPhase = fmod(woodPhase + 2 * Double.pi * woodHz * bend / rate, 2 * Double.pi)
-      let air = unit() * 2 - 1
-      woodAir += 0.045 * (air - woodAir)
-      wood = (sin(woodPhase) * 0.72 + sin(woodPhase * 2) * 0.23 + woodAir * 0.28) *
-        attack * release * 0.29 * safePresence
-      age += 1
-      if seconds >= 3.4 { age = -1 }
+  private func spawnTick(_ scale: Double, _ mult: Double) {
+    let f = logUniform(1500.0, 9000.0)
+    let q = 1.5 + 2.5 * unit()
+    let tau = 0.35 + 0.9 * unit()
+    let amp = 0.5 * scale * min(3.0, exp(0.8 * gauss())) * mult
+    spawn(0, f, q, tau, amp, clampPan(gauss() * 0.4, 0.7), Int(0.02 * rate))
+  }
+
+  private func spawnPop(_ scale: Double, _ mult: Double) {
+    let dull = unit() < 0.12                                        // a few duller pops; the rest are bright snaps
+    let f = dull ? logUniform(250.0, 700.0) : logUniform(900.0, 5500.0)
+    let q = dull ? 1.5 + unit() : 1.6 + 3.4 * unit()                // low Q: broadband, never a pitched knock
+    let tau = dull ? 1.8 + 1.5 * unit() : 0.5 + 1.1 * unit()
+    let amp = 2.4 * scale * min(2.0, exp(0.5 * gauss())) * (dull ? 0.8 : 1.0) * mult
+    let pan = clampPan(gauss() * 0.4, 0.7)
+    spawn(1, f, q, tau, amp, pan, Int(0.06 * rate))
+    spawn(1, logUniform(2500.0, 8000.0), 0.9, 0.25 + 0.3 * unit(), amp * 0.9, pan, Int(0.01 * rate))   // the crack itself
+  }
+
+  private func spawnThump(_ frequency: Double, _ amplitude: Double, _ mult: Double) {
+    let q = 2.2 + 1.2 * unit()
+    spawn(2, frequency, q, 7.0, amplitude * mult, clampPan(gauss() * 0.25, 0.4), Int(0.6 * rate))
+  }
+
+  private func spawnBrightTick(_ scale: Double, _ mult: Double) {
+    let f = logUniform(4000.0, 9500.0)
+    let q = 1.5 + 2.0 * unit()
+    let tau = 0.3 + 0.5 * unit()
+    let amp = 0.5 * scale * min(2.5, exp(0.6 * gauss())) * mult
+    spawn(0, f, q, tau, amp, clampPan(gauss() * 0.5, 0.8), Int(0.02 * rate))
+  }
+
+  private func spawnPing(_ mult: Double) {
+    spawn(1, logUniform(2200.0, 5200.0), 26.0, 0.6, 1.4 * mult, clampPan(gauss() * 0.4, 0.7), Int(0.25 * rate))
+  }
+
+  private func spawnSpit(_ envelope: Double) {
+    let f = logUniform(1200.0, 3600.0)
+    let q = 1.8 + unit()
+    let tau = 0.5 + 0.6 * unit()
+    spawn(3, f, q, tau, 0.7 * min(1.0, 0.4 + envelope), clampPan(gauss() * 0.45, 0.7), Int(0.02 * rate))
+  }
+
+  private func runPending() {
+    var newDue = Int64.max
+    for i in 0..<FireModel.pendingCount {
+      let due = pDue[i]
+      if due < 0 { continue }
+      if due <= sample {
+        pDue[i] = -1
+        let m = pMult[i]
+        switch pType[i] {
+        case FireModel.typeTick: spawnTick(pAmp[i], m)
+        case FireModel.typePop: spawnPop(pAmp[i], m)
+        case FireModel.typeKnock: spawn(2, logUniform(150.0, 260.0), 3.5, 6.0, 3.6 * pAmp[i] * m, gauss() * 0.2, Int(0.3 * rate))
+        case FireModel.typeBrightTick: spawnBrightTick(pAmp[i], m)
+        default: spawnPing(m)
+        }
+      } else if due < newDue { newDue = due }
+    }
+    nextDue = newDue
+  }
+
+  /// Renders one sample of the fire into `left` and `right`.
+  func render(sampleRate: Double, intensity: Double, presence: Double, density: Double, variety: Double, salience: WorldSalienceScheduler) {
+    if rate != sampleRate { reset(seed: seed, sampleRate: sampleRate) }
+    let i = sample
+    let mu = max(0.08, min(1.0, intensity * 1.25))
+    if !activityStarted { activity = mu; activityStarted = true }
+    if i % 480 == 0 {   // the fire's liveliness wanders on its own, with no period, toward the level it is given
+      activity += (mu - activity) * 0.012 + 0.03 * gauss()
+      activity = max(0.08, min(1.0, activity))
+    }
+    let a = activity
+    let mult = presence
+
+    let wS = white()
+    slow += kSlow * (wS - slow); mid += kMid * (white() - mid); fast += kFast * (white() - fast)
+    let flame = max(0.35, 1 + 0.08 * (slow / nSlow) + 0.065 * (mid / nMid) + 0.03 * (fast / nFast))
+    let wL = 0.6 * wS + 0.8 * white()
+    let wR = 0.6 * wS + 0.8 * white()
+    bodyLeft += 0.0177 * (wL - bodyLeft); bodyRight += 0.0177 * (wR - bodyRight)
+    roarHiLeft += kRoarHigh * (wL - roarHiLeft); roarLoLeft += kRoarLow * (wL - roarLoLeft)
+    roarHiRight += kRoarHigh * (wR - roarHiRight); roarLoRight += kRoarLow * (wR - roarLoRight)
+    if flareUp {
+      flare += (1 - flare) * flareRiseStep
+      flareLeft -= 1.0
+      if flareLeft <= 0.0 { flareUp = false }
+    } else { flare *= flareFallStep }
+    let bodyGain = flame * (0.45 + 0.55 * a) * (1 + 0.12 * gustDelayed)
+    let roarGain = flame * (0.2 + 0.8 * a) * (1 + flarePeak * flare) * (1 + 0.5 * gustDelayed)
+    let outBodyL = bodyLeft * 4.2 * bodyGain
+    let outBodyR = bodyRight * 4.2 * bodyGain
+    let outRoarL = (roarHiLeft - roarLoLeft) * 2.2 * roarGain
+    let outRoarR = (roarHiRight - roarLoRight) * 2.2 * roarGain
+
+    // the hiss is made of crackle: high-passed noise that only sounds where tiny grains are firing
+    hpLeft += kHp * (wL - hpLeft); hpRight += kHp * (wR - hpRight)
+    if unit() < (120 + 900 * a) / rate { grain += exp(0.6 * gauss()) }
+    grain *= grainDecay
+    let g = min(grain, 3.0)
+    let outGrainL = (wL - hpLeft) * g
+    let outGrainR = (wR - hpRight) * g
+    crackleT *= crackleTDecay; crackleP *= crackleGDecay
+
+    // ---- wind gusts: busy while the fire is lively, sparse and soft as it burns down
+    if i == gustAt {
+      if salience.isSuppressed() { gustAt = i + Int64(3.0 * rate) }
+      else {
+        let amplitudeScale = max(0.15, min(1.0, pow(a / 0.85, 0.85)))
+        gustAge = 0.0
+        gustDuration = (4.5 + 4.5 * unit()) * rate
+        gustAmplitude = (0.55 + 0.45 * unit()) * amplitudeScale
+        var gap = (17.0 + 21.0 * unit()) * pow(0.85 / a, 1.15)
+        if unit() < 0.25 { gap = gustDuration / rate * 0.85 + 1.0 + 2.5 * unit() }      // sometimes a second gust follows on
+        gustAt = i + Int64(gap * rate)
+        flareAt = i + Int64(0.3 * rate)
+        flareAmplitude = 0.7 + 1.5 * gustAmplitude
+      }
+    }
+    if gustAge >= 0.0 {
+      let u = gustAge / gustDuration
+      gustEnvelope = gustAmplitude * (u < 0.35 ? 0.5 - 0.5 * cos(Double.pi * u / 0.35) : 0.5 + 0.5 * cos(Double.pi * (u - 0.35) / 0.65))
+      gustAge += 1.0
+      if gustAge >= gustDuration { gustAge = -1.0; gustEnvelope = 0.0 }
+    }
+    gustDelayed += kDelay * (gustEnvelope - gustDelayed)
+    if i == flareAt && !flareUp && flare < 0.3 { flareUp = true; flareLeft = (0.5 * gustDuration / rate + 0.6) * rate; flarePeak = flareAmplitude }
+    if gustEnvelope > 0.0 || gustDelayed > 0.001 {
+      windJitter += 0.00025 * gauss(); windJitter *= 0.9999
+      let f0 = (165 + 115 * gustEnvelope) * (1 + windJitter)
+      let amp = pow(gustEnvelope, 1.25)
+      var tone = 0.0
+      for p in 0..<6 {
+        windPhases[p] = fmod(windPhases[p] + 2 * Double.pi * f0 * Double(p + 1) / rate, 2 * Double.pi)
+        tone += FireModel.windPartials[p] * sin(windPhases[p])
+      }
+      let bnL = white()
+      let bnR = white()
+      breathLowLeft += kBreathLow * (bnL - breathLowLeft); breathHighLeft += kBreathHigh * (bnL - breathHighLeft)
+      breathLowRight += kBreathLow * (bnR - breathLowRight); breathHighRight += kBreathHigh * (bnR - breathHighRight)
+      let breath = pow(gustEnvelope, 1.6)
+      let windTone = tone * amp * 0.16
+      windL = (windTone + (breathHighLeft - breathLowLeft) * 4.0 * breath * 0.5) * mult
+      windR = (windTone + (breathHighRight - breathLowRight) * 4.0 * breath * 0.5) * mult
+    } else { windL = 0; windR = 0 }
+
+    // ---- the bed's own crackle: ticks and pops, arriving in bursts
+    if unit() < (12 + 83 * a) * (1 + 2.0 * crackleT) * (1 + 0.9 * gustDelayed) / rate { spawnTick(1.0, 1.0); crackleT += 0.08 }
+    if unit() < (0.10 + 1.15 * a * a) * (1 + 3.0 * crackleP) / rate {
+      spawnPop(1.0, 1.0); crackleP += 0.25
+      if unit() < 0.2 { schedule(0.025 + 0.09 * unit(), FireModel.typePop, 0.6, 1.0) }
     }
 
-    left = ember + wood * (1 - woodPan)
-    right = ember + wood * (1 + woodPan)
+    // ---- a log settles: every 51-72 s (longer when the density falls); Deep and Immersive give each its own gesture
+    if i == settleAt {
+      if salience.isSuppressed() { settleAt = i + Int64(3.0 * rate) }
+      else { settle(i, presence: presence, density: density, variety: variety) }
+    }
+    if sizzleAge < 0.0 && unit() < (1.0 / 40.0) * (0.15 + a) / rate { sizzleAge = 0.0; sizzleLength = (0.35 + 0.9 * unit()) * rate }
+    if unit() < (1.0 / 80.0) * (0.15 + a) / rate && !flareUp && flare < 0.05 { flareUp = true; flareLeft = (0.8 + 0.8 * unit()) * rate; flarePeak = 1.5 }
+    if nextDue <= i { runPending() }
+
+    // ---- the event voices
+    for k in 0..<4 { sumLeft[k] = 0; sumRight[k] = 0 }
+    var n = 0
+    while n < activeCount {
+      let v = active[n]
+      let x = white() * vEnv[v]
+      vEnv[v] *= vEnvDecay[v]
+      let y = vGain[v] * x + vC1[v] * vY1[v] + vC2[v] * vY2[v]
+      vY2[v] = vY1[v]; vY1[v] = y
+      sumLeft[vComp[v]] += y * vPanLeft[v] * vAmp[v]
+      sumRight[vComp[v]] += y * vPanRight[v] * vAmp[v]
+      vAge[v] += 1
+      if vAge[v] > vMaxAge[v] {
+        free[freeCount] = v
+        freeCount += 1
+        activeCount -= 1
+        active[n] = active[activeCount]
+      } else { n += 1 }
+    }
+
+    // ---- wet-log steam: a soft hiss that swells, sputters with tiny bubbling spits, and dies away into a small room
+    var steamL = sumLeft[3]
+    var steamR = sumRight[3]
+    if steamAge >= 0.0 {
+      let envelope = (1 - steamRise) * steamFall * steamAmplitude
+      steamRise *= steamRiseDecay; steamFall *= steamFallStep
+      let sn = white()
+      steamLow += kSteamLow * (sn - steamLow); steamHigh += kSteamHigh * (sn - steamHigh)
+      if unit() < 260.0 / rate { spatter += 1.0 }
+      spatter *= spatterDecay
+      let sputter = 0.55 + 0.45 * min(1.0, spatter)
+      let hiss = (steamHigh - steamLow) * envelope * sputter * 5.0
+      steamL += hiss
+      steamR += hiss * 0.93 + white() * 0.01 * envelope
+      if unit() < (7.0 * envelope) / rate { spawnSpit(envelope) }
+      steamAge += 1.0
+      if steamAge > steamTau * rate * 4.5 { steamAge = -1.0 }
+    }
+    steamRoom.process((steamL + steamR) * 0.5, weights: FireModel.steamRoomInput)
+    let outSteamL = steamL * 0.5 + steamRoom.left * 2.1
+    let outSteamR = steamR * 0.5 + steamRoom.right * 2.1
+    windRoom.process((windL + windR) * 0.5, weights: FireModel.windRoomInput)
+    let outWindL = windL * 0.55 + windRoom.left * 1.5
+    let outWindR = windR * 0.55 + windRoom.right * 1.5
+
+    rustle *= rustleDecay
+    let rw = white()
+    rustleLow += kRustleLow * (rw - rustleLow); rustleHigh += kRustleHigh * (rw - rustleHigh)
+    let outRustle = (rustleHigh - rustleLow) * rustle * 1.6
+    var outSizzleL = 0.0
+    var outSizzleR = 0.0
+    if sizzleAge >= 0.0 {
+      let u = sizzleAge / sizzleLength
+      var env = sin(Double.pi * min(1.0, u)); env *= env
+      let sw = white()
+      sizzleHp += kSizzle * (sw - sizzleHp)
+      let sz = (sw - sizzleHp) * env * 0.5
+      outSizzleL = sz; outSizzleR = sz * 0.9 + white() * 0.02 * env
+      sizzleAge += 1.0
+      if sizzleAge >= sizzleLength { sizzleAge = -1.0 }
+    }
+
+    // ---- the mix, at the balance the fire was tuned to
+    let tickL = FireModel.limitTick * tanh(FireModel.gainTick * sumLeft[0] / FireModel.limitTick)
+    let tickR = FireModel.limitTick * tanh(FireModel.gainTick * sumRight[0] / FireModel.limitTick)
+    let popL = FireModel.limitPop * tanh(FireModel.gainPop * sumLeft[1] / FireModel.limitPop)
+    let popR = FireModel.limitPop * tanh(FireModel.gainPop * sumRight[1] / FireModel.limitPop)
+    let thumpL = FireModel.limitThump * tanh(FireModel.gainThump * sumLeft[2] / FireModel.limitThump)
+    let thumpR = FireModel.limitThump * tanh(FireModel.gainThump * sumRight[2] / FireModel.limitThump)
+    left = outBodyL * FireModel.gainBody + outRoarL * FireModel.gainRoar + outGrainL * FireModel.gainGrain + tickL + popL + thumpL +
+      outRustle * FireModel.gainRustle + outSizzleL * FireModel.gainSizzle + outSteamL * FireModel.gainSteam + outWindL * FireModel.gainWind
+    left *= FireModel.outputTrim
+    right = outBodyR * FireModel.gainBody + outRoarR * FireModel.gainRoar + outGrainR * FireModel.gainGrain + tickR + popR + thumpR +
+      outRustle * FireModel.gainRustle + outSizzleR * FireModel.gainSizzle + outSteamR * FireModel.gainSteam + outWindR * FireModel.gainWind
+    right *= FireModel.outputTrim
+    sample = i + 1
+  }
+
+  /// One settling log: a thump and a cascade of crackle in one of eight gestures, with the steam of a damp log.
+  private func settle(_ i: Int64, presence: Double, density: Double, variety: Double) {
+    let mult = presence
+    let kind = variety > 0.0 ? IdentityGestures.kind(seed: fireSeed, salt: IdentityGestures.fireSalt, index: settleCount, kinds: IdentityGestures.fireKinds) : 0
+    settleCount += 1
+    settleAt = i + Int64(rate * (51.0 + 21.0 * unit()) / max(0.2, min(1.0, density)))
+    let wetChance = (kind == 3 || kind == 4) ? 0.25 : (kind == 2 ? 0.4 : 0.6)
+    if unit() < wetChance && steamAge < 0.0 {
+      steamAge = 0.0
+      steamTau = 1.1 + 1.3 * unit()
+      steamAmplitude = (0.7 + 0.5 * unit()) * mult
+      steamRise = 1.0; steamFall = 1.0
+      steamFallStep = exp(-1 / (steamTau * rate))
+    }
+    let duration: Double
+    let ticks: Int
+    let pops: Int
+    switch kind {
+    case 1:   // a big collapse
+      spawnThump(logUniform(42.0, 68.0), 7.5, mult)
+      duration = 1.6 + 1.2 * unit(); ticks = 30 + Int(unit() * 30); pops = 4 + Int(unit() * 4)
+      setRustle(1.5 * mult, 0.7)
+    case 2:   // a log is placed: a soft wooden knock, a second knock, then the fire takes it
+      spawn(2, logUniform(150.0, 260.0), 3.5, 6.0, 3.6 * mult, gauss() * 0.2, Int(0.3 * rate))
+      schedule(0.14 + 0.12 * unit(), FireModel.typeKnock, 0.6, mult)
+      duration = 1.4; ticks = 6 + Int(unit() * 9); pops = 1 + Int(unit() * 2)
+      setRustle(1.0 * mult, 0.5)
+      flareUp = true; flareLeft = (0.9 + 0.5 * unit()) * rate; flarePeak = 1.6
+    case 3:   // the poker stirs the embers: a scrape, then a spray of sparks
+      setRustle(1.6 * mult, 1.2); duration = 1.2; ticks = 0; pops = 1
+      let sparks = 22 + Int(unit() * 22)
+      for _ in 0..<sparks { let u = unit(); schedule(0.25 + 1.3 * u, FireModel.typeBrightTick, 1.6 * (1 - 0.5 * u), mult) }
+      flareUp = true; flareLeft = (1.2 + 0.6 * unit()) * rate; flarePeak = 1.3
+    case 4:   // a shower of bright sparks
+      duration = 1.0; ticks = 0; pops = 0
+      setRustle(0.4 * mult, 0.3)
+      let sparks = 26 + Int(unit() * 26)
+      for _ in 0..<sparks { let u = unit(); schedule(0.02 + 1.2 * u * u, FireModel.typeBrightTick, 1.8 * (1 - 0.6 * u), mult) }
+      for _ in 0..<3 { schedule(0.1 + 1.0 * unit(), FireModel.typePing, 1.0, mult) }
+    case 5:   // a hollow log rings
+      spawnThump(logUniform(70.0, 105.0), 4.0, mult)
+      spawn(2, logUniform(130.0, 190.0), 9.0, 4.0, 2.0 * mult, gauss() * 0.2, Int(0.6 * rate))
+      duration = 0.9; ticks = 8 + Int(unit() * 8); pops = 2
+      setRustle(0.7 * mult, 0.4)
+    case 6:   // the flame catches
+      duration = 1.2; ticks = 20 + Int(unit() * 14); pops = 3 + Int(unit() * 3)
+      setRustle(0.5 * mult, 0.5)
+      flareUp = true; flareLeft = (1.6 + 0.8 * unit()) * rate; flarePeak = 2.6
+      if sizzleAge < 0.0 { sizzleAge = 0.0; sizzleLength = 0.9 * rate }
+    case 7:   // a slow crumble
+      spawnThump(logUniform(60.0, 90.0), 5.0, mult)
+      duration = 3.4 + 1.4 * unit(); ticks = 26 + Int(unit() * 16); pops = 5 + Int(unit() * 3)
+      setRustle(1.0 * mult, 1.4)
+    default:   // a plain settle
+      spawnThump(logUniform(55.0, 100.0), 5.0, mult)
+      duration = 0.5 + 1.3 * unit(); ticks = 12 + Int(unit() * 26); pops = 2 + Int(unit() * 3)
+      setRustle(1.0 * mult, 0.45)
+    }
+    for _ in 0..<ticks { let u = unit(); schedule(0.03 + duration * u * u, FireModel.typeTick, 2.4 * (1 - 0.6 * u), mult) }
+    for _ in 0..<pops { let u = unit(); schedule(0.06 + duration * u, FireModel.typePop, 1.3 * (1 - 0.5 * u), mult) }
+  }
+
+  private func setRustle(_ level: Double, _ tau: Double) {
+    rustle = level
+    rustleDecay = exp(-1 / (tau * rate))
   }
 }
+
 
 /// A slow wind-excited hollow trunk and a quieter answer deeper in the canopy.
 final class ForestCallModel {
@@ -2713,6 +3183,8 @@ enum IdentityGestures {
   static let whaleKinds = 7
   static let cosmicSalt: UInt64 = 0x436f736d
   static let cosmicKinds = 9
+  static let fireSalt: UInt64 = 0x46697265
+  static let fireKinds = 8
   static let oceanSalt: UInt64 = 0x4f6365616e
   static let oceanKinds = 6
   private static var bagA = [Int](repeating: 0, count: 10)

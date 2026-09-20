@@ -64,11 +64,14 @@ export const WORLD_PROFILES: Record<AudioWorld, WorldProfile> = {
     signatures: ['passing-gusts'], motion: 'drift', events: [], recognitionRecoverySeconds: 2,
   },
   fire: {
-    id: 'fire', label: 'Fire', concept: 'A close, warm hearth built from body, hiss, and fine crackle.',
-    foundation: ['warm-body', 'filtered-hiss'],
+    id: 'fire', label: 'Fire', concept: 'A close hearth that burns down with your night: warm body, crackle in bursts, settling logs, and wind in the chimney.',
+    foundation: ['warm-body', 'crackle-hiss'],
     acoustics: { scale: 'intimate', absorption: 0.7, diffusion: 0.3, width: 0.46 },
-    signatures: ['micro-crackle', 'ember-resonance', 'settling-wood'], motion: 'stochastic',
-    events: [{ id: 'settling-wood', role: 'anchor', salience: 0.46, recoverySeconds: 3 }],
+    signatures: ['crackle-in-bursts', 'settling-logs', 'wet-log-steam', 'chimney-wind'], motion: 'stochastic',
+    events: [
+      { id: 'settling-log', role: 'anchor', salience: 0.46, recoverySeconds: 3 },
+      { id: 'chimney-gust', role: 'accent', salience: 0.3, recoverySeconds: 2 },
+    ],
     recognitionRecoverySeconds: 2,
   },
   cosmic: {

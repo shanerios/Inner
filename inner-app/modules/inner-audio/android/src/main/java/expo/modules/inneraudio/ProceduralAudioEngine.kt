@@ -261,12 +261,7 @@ object ProceduralAudioEngine {
   private var windAirLeft = 0.0
   private var windAirRight = 0.0
   private var fireEnvelope = 0.0
-  private var fireRandom = XORSHIFT_SEED xor 0x2c1b3c6dL
-  private var fireBody = 0.0
-  private var fireHiss = 0.0
-  private var firePopLeft = 0.0
-  private var firePopRight = 0.0
-  private val fireEmberModel = FireEmberModel()
+  private val fireModel = FireModel()
   private var cosmicEnvelope = 0.0
   private val cosmicModel = CosmicModel()
   private val worldSalience = WorldSalienceScheduler()
@@ -576,12 +571,7 @@ object ProceduralAudioEngine {
     windAirLeft = 0.0
     windAirRight = 0.0
     fireEnvelope = 0.0
-    fireRandom = XORSHIFT_SEED xor 0x2c1b3c6dL
-    fireBody = 0.0
-    fireHiss = 0.0
-    firePopLeft = 0.0
-    firePopRight = 0.0
-    fireEmberModel.reset(XORSHIFT_SEED, sampleRate)
+    fireModel.reset(XORSHIFT_SEED, sampleRate)
     cosmicEnvelope = 0.0
     cosmicModel.reset(XORSHIFT_SEED, sampleRate)
     worldSalience.reset(sampleRate)
@@ -687,8 +677,7 @@ object ProceduralAudioEngine {
       oceanModel.reset(activeTimeline.seed, sampleRate)
       abyssalModel.reset(activeTimeline.seed, sampleRate)
       windRandom = activeTimeline.seed xor 0x7f4a7c15L
-      fireRandom = activeTimeline.seed xor 0x2c1b3c6dL
-      fireEmberModel.reset(activeTimeline.seed, sampleRate)
+      fireModel.reset(activeTimeline.seed, sampleRate)
       cosmicModel.reset(activeTimeline.seed, sampleRate)
       worldSalience.reset(sampleRate)
       resetThresholdShift()
@@ -1253,30 +1242,8 @@ object ProceduralAudioEngine {
   }
 
   private fun nextFire(elapsedSeconds: Double, intensity: Double, presence: Double, density: Double, variety: Double): StereoSample {
-    val shared = nextFireWhite()
-    fireBody = (fireBody + 0.018 * shared) / 1.018
-    fireHiss += 0.065 * (shared - fireHiss)
-    val flicker = 0.72 + 0.18 * sin(elapsedSeconds * Math.PI * 2 / 1.7) +
-      0.1 * sin(elapsedSeconds * Math.PI * 2 / 0.43 + 1.2)
-    val eventChance = (5.0 + intensity * 16.0) / sampleRate
-    if ((nextFireWhite() + 1) * 0.5 < eventChance) {
-      val strength = 0.14 + intensity * 0.18 + Math.abs(nextFireWhite()) * (0.4 + intensity * 0.5)
-      if (nextFireWhite() < 0) firePopLeft += strength else firePopRight += strength
-    }
-    firePopLeft *= 0.99845
-    firePopRight *= 0.99845
-    val warmBody = fireBody * 4.2 * flicker
-    val dryCrackle = (shared - fireHiss) * (0.08 + flicker * 0.08)
-    fireEmberModel.render(sampleRate, worldSalience, presence, density, variety)
-    return fireSample.set(warmBody + dryCrackle + firePopLeft + fireEmberModel.left,
-      warmBody + dryCrackle + firePopRight + fireEmberModel.right)
-  }
-
-  private fun nextFireWhite(): Double {
-    fireRandom = fireRandom xor (fireRandom shl 13)
-    fireRandom = fireRandom xor (fireRandom ushr 7)
-    fireRandom = fireRandom xor (fireRandom shl 17)
-    return (fireRandom and 0x00ff_ffffL).toDouble() / 0x007f_ffffL.toDouble() - 1
+    fireModel.render(sampleRate, intensity, presence, density, variety, worldSalience)
+    return fireSample.set(fireModel.left, fireModel.right)
   }
 
   private fun nextCosmic(elapsedSeconds: Double, intensity: Double, presence: Double, density: Double, variety: Double): StereoSample {

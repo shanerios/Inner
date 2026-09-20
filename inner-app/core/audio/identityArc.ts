@@ -2,7 +2,7 @@ import type { ProceduralAudioPatch, ProceduralEnvironment } from './types';
 
 /**
  * The night's arc for each world's identity sound: the Aum (temple), the whale call (abyssal), the
- * Cosmic voice (cosmic), the Ocean beacon, the Forest call, and Fire's ember resonance.
+ * Cosmic voice (cosmic), the Ocean beacon, the Forest call, and Fire's settling logs and chimney wind.
  *
  * Whether these are heard depends on how far they stand above the bed in their own frequency band, not on
  * overall loudness: they are low and narrow, and the bed is broad. So the arc is set as a band level: the
@@ -69,7 +69,7 @@ export type IdentityFeel = keyof typeof IDENTITY_FEEL_VARIETY;
 
 /**
  * Extra level for a fuller feel, in dB, per sound. Someone who chooses Immersive wants to be in the room, so
- * every world's own sounds (the Aum, the whale call, the Cosmic voice, the Ocean beacon, the Forest call, Fire's ember resonance) stand 2 dB higher there. Deep and
+ * every world's own sounds (the Aum, the whale call, the Cosmic voice, the Ocean beacon, the Forest call, Fire's settling logs and chimney wind) stand 2 dB higher there. Deep and
  * Gentle keep the level they were tuned at.
  */
 export const IDENTITY_FEEL_OFFSET_DB: Record<IdentityWorld, Record<IdentityFeel, number>> = {
@@ -80,6 +80,27 @@ export const IDENTITY_FEEL_OFFSET_DB: Record<IdentityWorld, Record<IdentityFeel,
 
 /** The native engines clamp presence to this; the arc must stay under it. */
 export const IDENTITY_PRESENCE_MAX = 12;
+
+/** How lively the fire is in each feel before it settles. These are the values the fire has always started at. */
+export const FIRE_BASE_LIVELINESS = { gentle: 0.34, deep: 0.5, immersive: 0.68 } as const;
+
+/**
+ * How much of that liveliness the fire keeps at each stage of the night. The hearth burns down: lively while
+ * the mind is being kept gently busy, embers as sleep comes, a near-glow in REM. Gentle keeps a steady fire.
+ */
+export const FIRE_BURN_DOWN: Record<IdentityStage, number> = {
+  preparation: 1,
+  descent: 0.9,
+  earlySleep: 0.5,
+  remSleep: 0.16,
+  recognitionWindow: 0.16,
+};
+
+/** The engine's `environmentIntensity` for the fire at this stage. Fewer crackles, fewer gusts, a quieter roar. */
+export function fireLiveliness(stage: IdentityStage, feel: IdentityFeel = 'gentle'): number {
+  const base = FIRE_BASE_LIVELINESS[feel];
+  return feel === 'gentle' ? base : base * FIRE_BURN_DOWN[stage];
+}
 
 export function isIdentityWorld(environment: ProceduralEnvironment): environment is IdentityWorld {
   return environment === 'temple' || environment === 'abyssal' || environment === 'cosmic';
@@ -117,7 +138,7 @@ export function identityPatch(
   stage: IdentityStage,
   feel: IdentityFeel = 'gentle',
 ): ProceduralAudioPatch {
-  // Ocean and Forest use their approved listening levels, and Fire its initial audition level, as references
+  // Ocean, Forest and Fire use their approved listening levels as references
   // until their band SNR is measured in the full overnight mix.
   if (environment === 'ocean' || environment === 'forest' || environment === 'fire') {
     const offset = stage === 'recognitionWindow'
@@ -127,6 +148,7 @@ export function identityPatch(
       identityPresence: 10 ** ((offset + (feel === 'immersive' ? 2 : 0)) / 20),
       identityDensity: IDENTITY_STAGE_DENSITY[stage],
       identityVariety: IDENTITY_FEEL_VARIETY[feel],
+      ...(environment === 'fire' ? { environmentIntensity: fireLiveliness(stage, feel) } : {}),
     };
   }
   if (!isIdentityWorld(environment)) return {};

@@ -30,6 +30,9 @@ internal class WorldSalienceScheduler {
     suppressed = suppressRareEvents
   }
 
+  /** True around a recognition cue and for two seconds after it: a world holds its own rare events until then. */
+  fun isSuppressed(): Boolean = suppressed || frame < clearUntil
+
   fun reserve(salience: Double, durationSeconds: Double, recoverySeconds: Double): Boolean {
     if (suppressed || frame < reservedUntil || frame < clearUntil) return false
     reservedUntil = frame + (rate * durationSeconds).toLong()

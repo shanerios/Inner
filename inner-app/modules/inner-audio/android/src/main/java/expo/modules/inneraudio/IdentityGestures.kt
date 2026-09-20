@@ -16,6 +16,8 @@ internal object IdentityGestures {
   const val WHALE_SALT = 0x5768616cL
   const val WHALE_KINDS = 7
   const val COSMIC_SALT = 0x436f736dL
+  const val FIRE_SALT = 0x46697265L
+  const val FIRE_KINDS = 8
   const val COSMIC_KINDS = 9
   const val OCEAN_SALT = 0x4f6365616eL
   const val OCEAN_KINDS = 6
