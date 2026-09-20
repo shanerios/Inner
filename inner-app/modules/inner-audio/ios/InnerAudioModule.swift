@@ -295,11 +295,8 @@ private final class ProceduralAudioEngine: NSObject {
   private let cosmicModel = CosmicModel()
   private let worldSalience = WorldSalienceScheduler()
   private var forestEnvelope = 0.0
-  private let forestCallModel = ForestCallModel()
+  private let forestModel = ForestModel()
   private var forestRandom: UInt64 = 0x9e3779b97f4a7c15 ^ 0xc2b2ae35
-  private var forestCanopy = 0.0
-  private var forestLeafLeft = 0.0
-  private var forestLeafRight = 0.0
   private var forestBirdActive = false
   private var forestBirdFramesRemaining = 0.0
   private var forestBirdDurationFrames = 0.0
@@ -625,9 +622,6 @@ private final class ProceduralAudioEngine: NSObject {
     worldSalience.reset(sampleRate: sampleRate)
     forestEnvelope = 0
     forestRandom = 0x9e3779b97f4a7c15 ^ 0xc2b2ae35
-    forestCanopy = 0
-    forestLeafLeft = 0
-    forestLeafRight = 0
     forestBirdActive = false
     forestBirdFramesRemaining = 0
     forestBirdDurationFrames = 0
@@ -636,7 +630,7 @@ private final class ProceduralAudioEngine: NSObject {
     forestBirdFreqRange = 0
     forestBirdAmp = 0
     forestBirdPan = 0
-    forestCallModel.reset(seed: 0x9e3779b97f4a7c15, sampleRate: sampleRate)
+    forestModel.reset(seed: 0x9e3779b97f4a7c15, sampleRate: sampleRate)
     templeSpaceEnvelope = 0
     templeSpaceRandom = 0x9e3779b97f4a7c15 ^ 0x6a09e667
     templeSpaceAirLeft = 0
@@ -874,7 +868,7 @@ private final class ProceduralAudioEngine: NSObject {
       forestRandom = activeTimeline.seed ^ 0xc2b2ae35
       forestBirdActive = false
       forestBirdFramesRemaining = 0
-      forestCallModel.reset(seed: activeTimeline.seed, sampleRate: sampleRate)
+      forestModel.reset(seed: activeTimeline.seed, sampleRate: sampleRate)
       templeSpaceRandom = activeTimeline.seed ^ 0x6a09e667
       templeSpaceAirLeft = 0
       templeSpaceAirRight = 0
@@ -1514,7 +1508,6 @@ private final class ProceduralAudioEngine: NSObject {
     return (fireModel.left, fireModel.right)
   }
 
-  private static let forestNoiseMix = 0.3
   /// One color of noise blends into another over this long.
   private static let noiseCrossfadeSeconds = 4.5
   /// The bed's high cut counts as off at or above this, and moves to a new setting over this long.
@@ -1558,29 +1551,10 @@ private final class ProceduralAudioEngine: NSObject {
     return (cosmicModel.left, cosmicModel.right)
   }
 
-  // A canopy rustle bed (smoothed noise breathing on a light breeze cycle, plus a
-  // crisper high-passed leaf shimmer) carries the space, while seeded bird calls —
-  // frequency-sweeping tone bursts rather than noise transients, the way an actual
-  // chirp reads as pitched motion instead of a click — punctuate it at random.
+  // The forest itself (leaves in gusts of wind, and the hollow trunk's howl) is the ForestModel. The seeded bird calls,
+  // frequency-sweeping tone bursts rather than noise transients, the way an actual chirp reads as pitched motion
+  // instead of a click, punctuate it at random.
   private func nextForest(elapsedSeconds: Double, intensity: Double, presence: Double, density: Double, variety: Double) -> (left: Double, right: Double) {
-    let shared = nextForestWhite()
-    forestCanopy += 0.02 * (shared - forestCanopy)
-    let sway = clamp(
-      0.55 + 0.35 * sin(elapsedSeconds * Double.pi * 2 / 14.0)
-        + 0.15 * sin(elapsedSeconds * Double.pi * 2 / 5.3 + 1.1),
-      0,
-      1
-    )
-    let canopyBody = forestCanopy * (1.4 + intensity * 1.6) * (0.5 + sway * 0.5)
-
-    let leftWhite = nextForestWhite()
-    let rightWhite = nextForestWhite()
-    forestLeafLeft += 0.09 * (leftWhite - forestLeafLeft)
-    forestLeafRight += 0.09 * (rightWhite - forestLeafRight)
-    let leafLevel = 0.05 + intensity * 0.07 + sway * (0.08 + intensity * 0.14)
-    let leftLeaf = (leftWhite - forestLeafLeft * 0.7) * leafLevel
-    let rightLeaf = (rightWhite - forestLeafRight * 0.7) * leafLevel
-
     if !forestBirdActive {
       forestBirdFramesRemaining -= 1
       if forestBirdFramesRemaining <= 0 && worldSalience.reserve(salience: 0.38, durationSeconds: 0.3, recoverySeconds: 1.5) {
@@ -1611,16 +1585,8 @@ private final class ProceduralAudioEngine: NSObject {
     }
     let birdLeft = birdMono * (1 - forestBirdPan)
     let birdRight = birdMono * (1 + forestBirdPan)
-    forestCallModel.render(sampleRate: sampleRate, salience: worldSalience, presence: presence, density: density, variety: variety)
-
-    // The rustle bed is itself broadband noise, so it stacks directly with the
-    // separate white/pink/brown/grey layer instead of sitting alongside it —
-    // keep it as a quiet texture underneath the birds rather than a competing
-    // noise floor.
-    return (
-      (canopyBody + leftLeaf) * Self.forestNoiseMix + birdLeft + forestCallModel.left,
-      (canopyBody + rightLeaf) * Self.forestNoiseMix + birdRight + forestCallModel.right
-    )
+    forestModel.render(sampleRate: sampleRate, intensity: intensity, presence: presence, density: density, variety: variety, salience: worldSalience)
+    return (forestModel.left + birdLeft, forestModel.right + birdRight)
   }
 
   private func nextForestWhite() -> Double {
@@ -3093,113 +3059,448 @@ final class FireModel {
 
 
 /// A slow wind-excited hollow trunk and a quieter answer deeper in the canopy.
-final class ForestCallModel {
+/// A forest. The wind moves through the canopy in gusts that have no cycle, and leaves catch and let go in clusters as
+/// each gust builds: a fine hiss made of tiny grains, individual crinkles, and a low swell of air in the branches. Every
+/// so often the wind finds a hollow trunk and howls through it, a breath-driven, wavering tone whose pitch rises as the
+/// gust builds and sags as it fades, and a smaller tree deeper in the forest answers. The birds are the engine's own.
+///
+/// `intensity` is how much the canopy stirs, `presence` the level of the howl (the forest's identity), `density` how
+/// often it comes, and `variety` shortens the wait between howls in the fuller feels. The Kotlin engine mirrors this file.
+final class ForestModel {
   private(set) var left = 0.0
   private(set) var right = 0.0
+
+  /// The leaves and the howl, at the levels they were auditioned at.
+  static let leafGain = 0.0860993752184601
+  static let howlGain = 2.818382931264454
+  /// Extra level of the low swell of air under the leaves.
+  static let lowBody = 6.0
+  /// The howl's level, before its gain, for a presence of 1.
+  static let howlLevel = 0.34
+  /// How much of each partial of the trunk's voice is heard: the fundamental, then the odd partials of a hollow tube.
+  static let partial1 = 1.0
+  static let partial3 = 0.5
+  static let partial5 = 0.22
+  static let partial7 = 0.09
+  static let roomSeconds = [0.0371, 0.0493, 0.0611, 0.0787]
+  static let roomInput = [0.55, -0.6, 0.6, -0.5]
+  static let roomDecaySeconds = 2.6
+  static let gusts = 12
+  static let voices = 96
+  static let pending = 64
+  static let echoSizeSeconds = 1.2
+  /// The howl and its answer take this long from the start of the call.
+  static let howlSeconds = 13.5
+  static let answerDelaySeconds = 7.0
+
   private var rate = 48_000.0
   private var random: UInt64 = 1
+  private var sample: Int64 = 0
+
+  // ---- the leaves
+  private var gustStart = [Double](repeating: 0, count: ForestModel.gusts)
+  private var gustRise = [Double](repeating: 0, count: ForestModel.gusts)
+  private var gustFall = [Double](repeating: 0, count: ForestModel.gusts)
+  private var gustAmplitude = [Double](repeating: 0, count: ForestModel.gusts)
+  private var gustCount = 0
+  private var nextGust = 3.0
+  private var gustCached = 0.0
+  private var slow = 0.0
+  private var flutter = 0.0
+  private var hpLeft = 0.0, hpRight = 0.0, lpLeft = 0.0, lpRight = 0.0
+  private var grainLeft = 0.0, grainRight = 0.0
+  private var bodyHighLeft = 0.0, bodyLowLeft = 0.0, bodyHighRight = 0.0, bodyLowRight = 0.0
+  private var lowHighLeft = 0.0, lowLowLeft = 0.0, lowHighRight = 0.0, lowLowRight = 0.0
+  private var kHp = 0.0, kLp = 0.0, kBodyHigh = 0.0, kBodyLow = 0.0, kLowHigh = 0.0, kLowLow = 0.0
+  private var grainDecay = 0.0
+
+  // crinkle voices: short damped resonators, each excited by a burst of noise
+  private var vEnv = [Double](repeating: 0, count: ForestModel.voices)
+  private var vDecay = [Double](repeating: 0, count: ForestModel.voices)
+  private var vAmp = [Double](repeating: 0, count: ForestModel.voices)
+  private var vY1 = [Double](repeating: 0, count: ForestModel.voices)
+  private var vY2 = [Double](repeating: 0, count: ForestModel.voices)
+  private var vC1 = [Double](repeating: 0, count: ForestModel.voices)
+  private var vC2 = [Double](repeating: 0, count: ForestModel.voices)
+  private var vGain = [Double](repeating: 0, count: ForestModel.voices)
+  private var vPanLeft = [Double](repeating: 0, count: ForestModel.voices)
+  private var vPanRight = [Double](repeating: 0, count: ForestModel.voices)
+  private var vAge = [Int](repeating: 0, count: ForestModel.voices)
+  private var vMaxAge = [Int](repeating: 0, count: ForestModel.voices)
+  private var active = [Int](repeating: 0, count: ForestModel.voices)
+  private var activeCount = 0
+  private var free = [Int](repeating: 0, count: ForestModel.voices)
+  private var freeCount = 0
+  // the second and later clicks of a crinkle, a moment after the first
+  private var pOn = [Bool](repeating: false, count: ForestModel.pending)
+  private var pDue = [Int64](repeating: 0, count: ForestModel.pending)
+  private var pAmp = [Double](repeating: 0, count: ForestModel.pending)
+  private var pPan = [Double](repeating: 0, count: ForestModel.pending)
+  private var pFreq = [Double](repeating: 0, count: ForestModel.pending)
+  private var pQ = [Double](repeating: 0, count: ForestModel.pending)
+  private var pTau = [Double](repeating: 0, count: ForestModel.pending)
+
+  // ---- the howl
+  private var howlActive = false
+  private var howlAge: Int64 = 0
   private var countdown = 0.0
-  private var age = -1.0
-  private var baseHz = 85.0
-  private var pan = 0.0
-  private var answerPan = 0.0
-  private var phase = 0.0
-  private var whistlePhase = 0.0
-  private var answerPhase = 0.0
-  private var airFast = 0.0
-  private var airSlow = 0.0
-  private var echoLeft = [Double](repeating: 0, count: 57_600)
-  private var echoRight = [Double](repeating: 0, count: 57_600)
+  private var base = 0.0, baseAnswer = 0.0, pan = 0.0, answerPan = 0.0
+  private var rise = 0.0, fall = 0.0, riseAnswer = 0.0, fallAnswer = 0.0
+  private var excite = 0.0, exciteAnswer = 0.0, tremor = 0.0, tremorAnswer = 0.0, drift = 0.0
+  private var airHigh = 0.0, airLow = 0.0, airAnswerHigh = 0.0, airAnswerLow = 0.0
+  private var distant = 0.0, answerDistantOne = 0.0, answerDistantTwo = 0.0
   private var echoIndex = 0
-  private var echoWetLeft = 0.0
-  private var echoWetRight = 0.0
+  private var echoInLeft = 0.0, echoInRight = 0.0
+  private var echoLeft = [Double](repeating: 0, count: 1)
+  private var echoRight = [Double](repeating: 0, count: 1)
+  private var kAirHigh = 0.0, kAirLow = 0.0, kAirAnswerHigh = 0.0, kExcite = 0.0, kDistant = 0.0, kAnswerDistant = 0.0, kEchoSmooth = 0.0
+  private let trunk = (0..<4).map { _ in Bandpass() }
+  private let answerTrunk = (0..<3).map { _ in Bandpass() }
+  private let room = Room(seconds: ForestModel.roomSeconds)
+
+  /// A state-variable bandpass with unit peak gain, stable while its center moves.
+  private final class Bandpass {
+    private var ic1 = 0.0
+    private var ic2 = 0.0
+    func reset() { ic1 = 0; ic2 = 0 }
+    func next(_ x: Double, frequency: Double, q: Double, rate: Double) -> Double {
+      let g = tan(Double.pi * Swift.min(frequency, rate * 0.45) / rate)
+      let k = 1.0 / q
+      let v1 = (ic1 + g * (x - ic2)) / (1.0 + g * (g + k))
+      let v2 = ic2 + g * v1
+      ic1 = 2.0 * v1 - ic1
+      ic2 = 2.0 * v2 - ic2
+      return v1 * k
+    }
+  }
+
+  /// A four-line feedback room: the small reverberant space of the forest.
+  private final class Room {
+    private let seconds: [Double]
+    private var lines = [[Double]](repeating: [Double](repeating: 0, count: 1), count: 4)
+    private var index = [Int](repeating: 0, count: 4)
+    private var length = [Int](repeating: 0, count: 4)
+    private var damp = [Double](repeating: 0, count: 4)
+    private var gain = [Double](repeating: 0, count: 4)
+    private var out = [Double](repeating: 0, count: 4)
+    private(set) var left = 0.0
+    private(set) var right = 0.0
+
+    init(seconds: [Double]) { self.seconds = seconds }
+
+    func reset(rate: Double) {
+      let size = Swift.max(16_384, Int((seconds.max() ?? 0) * rate) + 8)
+      if lines[0].count != size { lines = [[Double]](repeating: [Double](repeating: 0, count: size), count: 4) }
+      else { for q in 0..<4 { for i in lines[q].indices { lines[q][i] = 0 } } }
+      index = [0, 0, 0, 0]; damp = [0, 0, 0, 0]; out = [0, 0, 0, 0]
+      for q in 0..<4 {
+        length[q] = Int(seconds[q] * rate)
+        gain[q] = pow(10.0, -3.0 * seconds[q] / ForestModel.roomDecaySeconds)
+      }
+      left = 0; right = 0
+    }
+
+    func process(_ input: Double, weights: [Double], dampCoefficient: Double) {
+      var sum = 0.0
+      for q in 0..<4 {
+        let size = lines[q].count
+        let read = lines[q][(index[q] - length[q] + size) % size]
+        damp[q] += dampCoefficient * (read - damp[q])
+        out[q] = damp[q] * gain[q]
+        sum += out[q]
+      }
+      for q in 0..<4 {
+        lines[q][index[q]] = out[q] - sum * 0.5 + input * weights[q]
+        index[q] = (index[q] + 1) % lines[q].count
+      }
+      left = (out[0] + out[1] - out[2] - out[3]) * 0.5
+      right = (out[0] - out[1] - out[2] + out[3]) * 0.5
+    }
+  }
 
   func reset(seed: UInt64, sampleRate: Double) {
     rate = sampleRate
     random = seed ^ 0x466f72657374
     if random == 0 { random = 1 }
-    countdown = rate * 14; age = -1; baseHz = 85; pan = 0; answerPan = 0
-    phase = 0; whistlePhase = 0; answerPhase = 0; airFast = 0; airSlow = 0
-    echoLeft = [Double](repeating: 0, count: max(2, Int(rate * 1.2)))
+    sample = 0
+    gustCount = 0; nextGust = 3.0; gustCached = 0
+    slow = 0; flutter = 0
+    hpLeft = 0; hpRight = 0; lpLeft = 0; lpRight = 0; grainLeft = 0; grainRight = 0
+    bodyHighLeft = 0; bodyLowLeft = 0; bodyHighRight = 0; bodyLowRight = 0
+    lowHighLeft = 0; lowLowLeft = 0; lowHighRight = 0; lowLowRight = 0
+    activeCount = 0; freeCount = ForestModel.voices
+    for i in 0..<ForestModel.voices { free[i] = ForestModel.voices - 1 - i }
+    pOn = [Bool](repeating: false, count: ForestModel.pending)
+    howlActive = false; howlAge = 0; countdown = rate * 14.0
+    tremor = 0; tremorAnswer = 0; drift = 0; excite = 0; exciteAnswer = 0
+    airHigh = 0; airLow = 0; airAnswerHigh = 0; airAnswerLow = 0
+    distant = 0; answerDistantOne = 0; answerDistantTwo = 0
+    echoLeft = [Double](repeating: 0, count: Swift.max(2, Int(rate * ForestModel.echoSizeSeconds)))
     echoRight = [Double](repeating: 0, count: echoLeft.count)
-    echoIndex = 0; echoWetLeft = 0; echoWetRight = 0
+    echoIndex = 0; echoInLeft = 0; echoInRight = 0
+    for b in trunk { b.reset() }
+    for b in answerTrunk { b.reset() }
+    room.reset(rate: rate)
     left = 0; right = 0
+
+    kHp = pole(2600.0); kLp = pole(9000.0); kBodyHigh = pole(1500.0); kBodyLow = pole(250.0)
+    kLowHigh = pole(600.0); kLowLow = pole(100.0)
+    grainDecay = exp(-1.0 / (0.0022 * rate))
+    kAirHigh = pole(1000.0); kAirLow = pole(200.0); kAirAnswerHigh = pole(1200.0)
+    kExcite = 0.25; kDistant = pole(3600.0); kAnswerDistant = pole(1500.0); kEchoSmooth = 0.02
   }
+
+  private func pole(_ hz: Double) -> Double { 1.0 - exp(-2.0 * Double.pi * hz / rate) }
 
   private func unit() -> Double {
     random ^= random << 13; random ^= random >> 7; random ^= random << 17
-    return Double(random & 0x00ff_ffff) / Double(0x00ff_ffff)
+    return Double(random >> 11) / 9007199254740992.0
   }
 
-  func render(sampleRate: Double, salience: WorldSalienceScheduler, presence: Double, density: Double, variety: Double) {
+  private func white() -> Double { unit() * 2.0 - 1.0 }
+
+  private func gauss() -> Double {
+    let u1 = Swift.max(1e-12, unit())
+    let u2 = unit()
+    return (-2.0 * log(u1)).squareRoot() * cos(2.0 * Double.pi * u2)
+  }
+
+  private func logUniform(_ low: Double, _ high: Double) -> Double { low * pow(high / low, unit()) }
+
+  private func clamp(_ value: Double, _ low: Double, _ high: Double) -> Double { Swift.max(low, Swift.min(high, value)) }
+
+  // ------------------------------------------------------------------ the leaves
+
+  private func gustLevel(_ time: Double) -> Double {
+    var total = 0.0
+    var i = 0
+    while i < gustCount {
+      let age = time - gustStart[i]
+      let length = gustRise[i] + gustFall[i]
+      if age >= length {
+        let last = gustCount - 1
+        gustStart[i] = gustStart[last]; gustRise[i] = gustRise[last]; gustFall[i] = gustFall[last]; gustAmplitude[i] = gustAmplitude[last]
+        gustCount -= 1
+        continue
+      }
+      let shape = age < gustRise[i] ? 0.5 - 0.5 * cos(Double.pi * age / gustRise[i]) : 0.5 + 0.5 * cos(Double.pi * (age - gustRise[i]) / gustFall[i])
+      total += gustAmplitude[i] * shape
+      i += 1
+    }
+    return total
+  }
+
+  private func spawn(_ frequency: Double, _ q: Double, _ tauMs: Double, _ amplitude: Double, _ pan: Double, _ maxAge: Int) {
+    if freeCount == 0 { return }
+    freeCount -= 1
+    let v = free[freeCount]
+    let r = exp(-Double.pi * (frequency / q) / rate)
+    let theta = 2.0 * Double.pi * frequency / rate
+    vC1[v] = 2.0 * r * cos(theta); vC2[v] = -r * r; vGain[v] = (1.0 - r) * 1.5
+    vY1[v] = 0; vY2[v] = 0; vEnv[v] = 1.0; vDecay[v] = exp(-1.0 / (tauMs / 1000.0 * rate)); vAmp[v] = amplitude
+    let angle = (pan + 1.0) * Double.pi / 4.0
+    vPanLeft[v] = cos(angle) * 2.0.squareRoot(); vPanRight[v] = sin(angle) * 2.0.squareRoot()
+    vAge[v] = 0; vMaxAge[v] = maxAge
+    active[activeCount] = v; activeCount += 1
+  }
+
+  /// One leaf letting go: a few short, bright clicks in a row, each a different leaf.
+  private func crinkle() {
+    var clicks = 1
+    if unit() < 0.55 { clicks += 1 }
+    if unit() < 0.3 { clicks += 1 }
+    if unit() < 0.12 { clicks += 2 }
+    let pan = clamp(gauss() * 0.45, -0.85, 0.85)
+    var later = 0.0
+    for k in 0..<clicks {
+      let amplitude = 0.9 * Swift.min(2.5, exp(0.6 * gauss())) * (k == 0 ? 1.0 : 0.7)
+      let frequency = logUniform(1800.0, 7500.0)
+      let q = 1.5 + 3.5 * unit()
+      let tau = 3.0 + 9.0 * unit()
+      if k == 0 { spawn(frequency, q, tau, amplitude, pan, Int(0.05 * rate)) }
+      else {
+        let ear = pan + gauss() * 0.1
+        for i in 0..<ForestModel.pending {
+          if !pOn[i] {
+            pOn[i] = true; pDue[i] = sample + Int64(rate * later); pAmp[i] = amplitude; pPan[i] = ear
+            pFreq[i] = frequency; pQ[i] = q; pTau[i] = tau
+            break
+          }
+        }
+      }
+      later += 0.012 + 0.05 * unit()
+    }
+  }
+
+  // ------------------------------------------------------------------ the howl
+
+  private func gust(_ seconds: Double, _ rise: Double, _ fall: Double) -> Double {
+    if seconds < 0.0 || seconds >= rise + fall { return 0.0 }
+    return seconds < rise ? 0.5 - 0.5 * cos(Double.pi * seconds / rise) : 0.5 + 0.5 * cos(Double.pi * (seconds - rise) / fall)
+  }
+
+  private func beginHowl() {
+    howlActive = true; howlAge = 0
+    base = logUniform(112.0, 168.0)
+    baseAnswer = base * (1.28 + 0.24 * unit())
+    rise = 2.6 + 1.5 * unit(); fall = 4.2 + 2.2 * unit(); riseAnswer = 2.2 + 1.2 * unit(); fallAnswer = 3.0 + 1.5 * unit()
+    pan = (unit() * 2.0 - 1.0) * 0.3
+    answerPan = pan < 0.0 ? 0.5 : -0.5
+    tremor = 0; tremorAnswer = 0
+  }
+
+  func render(sampleRate: Double, intensity: Double, presence: Double, density: Double, variety: Double, salience: WorldSalienceScheduler) {
     if rate != sampleRate { reset(seed: random, sampleRate: sampleRate) }
-    if age < 0 {
-      countdown -= 1
-      if countdown <= 0 {
-        if presence > 0.0001 && salience.reserve(salience: 0.5, durationSeconds: 13.2, recoverySeconds: 4) {
-          age = 0
-          baseHz = 75 + unit() * 22.5
-          pan = (unit() * 2 - 1) * 0.28
-          answerPan = pan < 0 ? 0.52 : -0.52
-          let immersive = max(0, min(1, (variety - 0.6) / 0.4))
-          let gapSeconds = 110 - 84 * immersive + unit() * (70 - 58 * immersive)
-          countdown = rate * gapSeconds / max(0.2, min(1, density))
+    let i = sample
+    let time = Double(i) / rate
+
+    // ---- the wind in the canopy: gusts of irregular size and spacing, with no cycle
+    if time >= nextGust && gustCount < ForestModel.gusts {
+      gustStart[gustCount] = time
+      gustRise[gustCount] = 1.5 + 3.0 * unit()
+      gustFall[gustCount] = 2.5 + 4.0 * unit()
+      gustAmplitude[gustCount] = 0.5 + 0.5 * unit()
+      gustCount += 1
+      nextGust = time + (4.0 + 13.0 * unit()) / (0.6 + 0.8 * intensity)
+    }
+    if i % 32 == 0 { gustCached = gustLevel(time) }
+    if i % 480 == 0 {
+      slow += (0.0 - slow) * 0.006 + 0.05 * gauss(); slow = clamp(slow, -1.0, 1.0)
+      flutter += (0.0 - flutter) * 0.05 + 0.25 * gauss(); flutter = clamp(flutter, -1.5, 1.5)
+    }
+    let activity = clamp(0.10 + 0.05 * slow + gustCached, 0.03, 1.6) * (0.75 + 0.25 * flutter * 0.5) * (0.6 + 0.8 * intensity)
+
+    // dense hiss made of tiny grains
+    let whiteLeft = white()
+    let whiteRight = white()
+    hpLeft += kHp * (whiteLeft - hpLeft); hpRight += kHp * (whiteRight - hpRight)
+    lpLeft += kLp * ((whiteLeft - hpLeft) - lpLeft); lpRight += kLp * ((whiteRight - hpRight) - lpRight)
+    let grainRate = (120.0 + 2600.0 * pow(activity, 1.3)) / rate
+    if unit() < grainRate { grainLeft += exp(0.6 * gauss()) }
+    if unit() < grainRate { grainRight += exp(0.6 * gauss()) }
+    grainLeft *= grainDecay; grainRight *= grainDecay
+    let hissLeft = lpLeft * Swift.min(grainLeft, 3.0) * 0.55
+    let hissRight = lpRight * Swift.min(grainRight, 3.0) * 0.55
+
+    // sparse crinkles, in clusters, more of them as the gust builds
+    if unit() < (0.4 + 11.0 * pow(activity, 1.5)) / rate { crinkle() }
+    for p in 0..<ForestModel.pending {
+      if pOn[p] && pDue[p] <= i {
+        pOn[p] = false
+        spawn(pFreq[p], pQ[p], pTau[p], pAmp[p], pPan[p], Int(0.05 * rate))
+      }
+    }
+    var crinkleLeft = 0.0
+    var crinkleRight = 0.0
+    var n = 0
+    while n < activeCount {
+      let v = active[n]
+      let x = white() * vEnv[v]
+      vEnv[v] *= vDecay[v]
+      let y = vGain[v] * x + vC1[v] * vY1[v] + vC2[v] * vY2[v]
+      vY2[v] = vY1[v]; vY1[v] = y
+      crinkleLeft += y * vPanLeft[v] * vAmp[v]
+      crinkleRight += y * vPanRight[v] * vAmp[v]
+      vAge[v] += 1
+      if vAge[v] > vMaxAge[v] {
+        free[freeCount] = v; freeCount += 1
+        activeCount -= 1
+        active[n] = active[activeCount]
+      } else { n += 1 }
+    }
+
+    // air in the branches, and the low swell of the whole canopy
+    let bodyNoiseLeft = white()
+    let bodyNoiseRight = white()
+    bodyHighLeft += kBodyHigh * (bodyNoiseLeft - bodyHighLeft); bodyLowLeft += kBodyLow * (bodyNoiseLeft - bodyLowLeft)
+    bodyHighRight += kBodyHigh * (bodyNoiseRight - bodyHighRight); bodyLowRight += kBodyLow * (bodyNoiseRight - bodyLowRight)
+    let bodyGain = 1.6 * pow(activity, 1.1)
+    let bodyLeft = (bodyHighLeft - bodyLowLeft) * bodyGain
+    let bodyRight = (bodyHighRight - bodyLowRight) * bodyGain
+    lowHighLeft += kLowHigh * (bodyNoiseLeft - lowHighLeft); lowLowLeft += kLowLow * (bodyNoiseLeft - lowLowLeft)
+    lowHighRight += kLowHigh * (bodyNoiseRight - lowHighRight); lowLowRight += kLowLow * (bodyNoiseRight - lowLowRight)
+    let lowGain = ForestModel.lowBody * pow(activity, 1.2)
+    let lowLeft = (lowHighLeft - lowLowLeft) * lowGain
+    let lowRight = (lowHighRight - lowLowRight) * lowGain
+    let leavesLeft = hissLeft * 0.9 + crinkleLeft * 0.30 + bodyLeft * 0.55 + lowLeft
+    let leavesRight = hissRight * 0.9 + crinkleRight * 0.30 + bodyRight * 0.55 + lowRight
+
+    // ---- the howl: wind through a hollow trunk, and a second tree answering
+    let fullness = clamp((variety - 0.6) / 0.4, 0.0, 1.0)
+    if !howlActive {
+      countdown -= 1.0
+      if countdown <= 0.0 {
+        if presence > 0.0001 && salience.reserve(salience: 0.5, durationSeconds: 13.2, recoverySeconds: 4.0) {
+          beginHowl()
+          countdown = rate * (110.0 - 84.0 * fullness + unit() * (70.0 - 58.0 * fullness)) / clamp(density, 0.2, 1.0)
         } else {
-          countdown = rate * 3
+          countdown = rate * 3.0
         }
       }
     }
-
     var main = 0.0
     var answer = 0.0
-    if age >= 0 {
-      let seconds = age / rate
-      let attack = max(0, min(1, seconds / 2))
-      let release = max(0, min(1, (9 - seconds) / 4.5))
-      let rise = attack * attack * (3 - 2 * attack)
-      let fall = release * release * (3 - 2 * release)
-      let sway = 1 + 0.003 * sin(seconds * Double.pi * 2 / 4.7)
-      phase = fmod(phase + 2 * Double.pi * baseHz * sway / rate, 2 * Double.pi)
-      let wood = sin(phase) * 0.52 + sin(phase * 3) * 0.19 + sin(phase * 5) * 0.03
-      // The high hollow resonance rises with the gust, then recedes. Its independent phase keeps it
-      // airy rather than turning the whole low trunk voice into a pitch sweep.
-      let whistleArc = sin(Double.pi * max(0, min(1, seconds / 9)))
-      let whistleHz = baseHz * 5 * (0.88 + 0.14 * whistleArc)
-      whistlePhase = fmod(whistlePhase + 2 * Double.pi * whistleHz / rate, 2 * Double.pi)
-      let whistle = sin(whistlePhase) * 0.21 * whistleArc * whistleArc
-      let white = unit() * 2 - 1
-      airFast += 0.06 * (white - airFast)
-      airSlow += 0.008 * (white - airSlow)
-      let breath = (airFast - airSlow) * 1.1
-      let level = 0.34 * max(0, min(1.5, presence))
-      main = (wood * rise + breath * attack + whistle) * fall * level
-
-      if seconds >= 7.5 && seconds <= 13.2 {
-        let responseProgress = (seconds - 7.5) / 5.7
-        let responseEnvelope = pow(sin(Double.pi * responseProgress), 2)
-        answerPhase = fmod(answerPhase + 2 * Double.pi * baseHz * 1.5 / rate, 2 * Double.pi)
-        let distantWood = sin(answerPhase) * 0.6 + sin(answerPhase * 3) * 0.2
-        answer = (distantWood + breath * 0.28) * responseEnvelope * level * 0.72
+    if howlActive {
+      let seconds = Double(howlAge) / rate
+      if howlAge % 240 == 0 {
+        tremor += (0.0 - tremor) * 0.08 + 0.22 * gauss(); tremor = clamp(tremor, -1.0, 1.0)
+        tremorAnswer += (0.0 - tremorAnswer) * 0.08 + 0.22 * gauss(); tremorAnswer = clamp(tremorAnswer, -1.0, 1.0)
+        drift += (0.0 - drift) * 0.02 + 0.12 * gauss(); drift = clamp(drift, -1.0, 1.0)
       }
-      age += 1
-      if seconds >= 13.2 { age = -1 }
+      let wind = gust(seconds, rise, fall)
+      let pitch = base * (0.90 + 0.30 * pow(wind, 0.8)) * (1.0 + 0.004 * drift)
+      excite += kExcite * (white() - excite)
+      let jet = excite * pow(wind, 1.25) * (1.0 + 0.32 * tremor)
+      let voice = trunk[0].next(jet, frequency: pitch, q: 26.0, rate: rate) * 26.0.squareRoot() * ForestModel.partial1 +
+        trunk[1].next(jet, frequency: pitch * 3.0, q: 30.0, rate: rate) * (30.0 / 3.0).squareRoot() * ForestModel.partial3 +
+        trunk[2].next(jet, frequency: pitch * 5.0, q: 24.0, rate: rate) * (24.0 / 5.0).squareRoot() * ForestModel.partial5 +
+        trunk[3].next(jet, frequency: pitch * 7.0, q: 16.0, rate: rate) * (16.0 / 7.0).squareRoot() * ForestModel.partial7
+      let airNoise = white()
+      airHigh += kAirHigh * (airNoise - airHigh); airLow += kAirLow * (airNoise - airLow)
+      let whoosh = (airHigh - airLow) * pow(wind, 1.8) * 0.7
+      main = voice * 0.55 + whoosh
+      let answerSeconds = seconds - ForestModel.answerDelaySeconds
+      let answerWind = gust(answerSeconds, riseAnswer, fallAnswer)
+      if answerWind > 0.0 {
+        let answerPitch = baseAnswer * (0.9 + 0.3 * pow(answerWind, 0.8)) * (1.0 + 0.004 * drift)
+        exciteAnswer += kExcite * (white() - exciteAnswer)
+        let answerJet = exciteAnswer * pow(answerWind, 1.25) * (1.0 + 0.32 * tremorAnswer)
+        let answerVoice = answerTrunk[0].next(answerJet, frequency: answerPitch, q: 26.0, rate: rate) * 26.0.squareRoot() * ForestModel.partial1 +
+          answerTrunk[1].next(answerJet, frequency: answerPitch * 3.0, q: 30.0, rate: rate) * (30.0 / 3.0).squareRoot() * ForestModel.partial3 * 0.9 +
+          answerTrunk[2].next(answerJet, frequency: answerPitch * 5.0, q: 24.0, rate: rate) * (24.0 / 5.0).squareRoot() * ForestModel.partial5 * 0.7
+        let answerAir = white()
+        airAnswerHigh += kAirAnswerHigh * (answerAir - airAnswerHigh); airAnswerLow += kAirLow * (answerAir - airAnswerLow)
+        answer = (answerVoice * 0.55 + (airAnswerHigh - airAnswerLow) * pow(answerWind, 1.8) * 0.6) * 0.5
+        answerDistantOne += kAnswerDistant * (answer - answerDistantOne)
+        answerDistantTwo += kAnswerDistant * (answerDistantOne - answerDistantTwo)
+        answer = answerDistantTwo
+      }
+      howlAge += 1
+      if seconds > ForestModel.howlSeconds { howlActive = false }
     }
+    // distance: the trees are not next to you, so their highs are soft
+    distant += kDistant * (main - distant)
+    let dryLeft = distant * (1.0 - pan) + answer * (1.0 - answerPan)
+    let dryRight = distant * (1.0 + pan) + answer * (1.0 + answerPan)
+    let size = echoLeft.count
+    let first = (echoIndex - Int(rate * 0.19) + size) % size
+    let second = (echoIndex - Int(rate * 0.43) + size) % size
+    let third = (echoIndex - Int(rate * 0.79) + size) % size
+    let reflectionLeft = echoLeft[first] * 0.42 + echoLeft[second] * 0.28 + echoLeft[third] * 0.18
+    let reflectionRight = echoRight[first] * 0.42 + echoRight[second] * 0.28 + echoRight[third] * 0.18
+    echoInLeft += kEchoSmooth * (reflectionLeft - echoInLeft)
+    echoInRight += kEchoSmooth * (reflectionRight - echoInRight)
+    echoLeft[echoIndex] = dryLeft + echoInRight * 0.45
+    echoRight[echoIndex] = dryRight + echoInLeft * 0.45
+    echoIndex = (echoIndex + 1) % size
+    room.process((dryLeft + dryRight) * 0.5, weights: ForestModel.roomInput, dampCoefficient: 0.25)
+    let level = ForestModel.howlLevel * clamp(presence, 0.0, 1.5)
+    let howlLeft = (dryLeft + echoInLeft * 0.5 + room.left * 1.4) * level
+    let howlRight = (dryRight + echoInRight * 0.5 + room.right * 1.4) * level
 
-    let dryLeft = main * (1 - pan) + answer * (1 - answerPan)
-    let dryRight = main * (1 + pan) + answer * (1 + answerPan)
-    let echoSize = echoLeft.count
-    let firstIndex = (echoIndex - min(echoSize - 1, max(1, Int(rate * 0.19))) + echoSize) % echoSize
-    let secondIndex = (echoIndex - min(echoSize - 1, max(1, Int(rate * 0.43))) + echoSize) % echoSize
-    let thirdIndex = (echoIndex - min(echoSize - 1, max(1, Int(rate * 0.79))) + echoSize) % echoSize
-    let reflectionLeft = echoLeft[firstIndex] * 0.48 + echoLeft[secondIndex] * 0.31 + echoLeft[thirdIndex] * 0.21
-    let reflectionRight = echoRight[firstIndex] * 0.48 + echoRight[secondIndex] * 0.31 + echoRight[thirdIndex] * 0.21
-    echoWetLeft += (reflectionLeft - echoWetLeft) * 0.012
-    echoWetRight += (reflectionRight - echoWetRight) * 0.012
-    echoLeft[echoIndex] = dryLeft + echoWetRight * 0.52
-    echoRight[echoIndex] = dryRight + echoWetLeft * 0.52
-    echoIndex = (echoIndex + 1) % echoSize
-    left = dryLeft + echoWetLeft * 0.52
-    right = dryRight + echoWetRight * 0.52
+    left = leavesLeft * ForestModel.leafGain + howlLeft * ForestModel.howlGain
+    right = leavesRight * ForestModel.leafGain + howlRight * ForestModel.howlGain
+    sample = i + 1
   }
 }
 

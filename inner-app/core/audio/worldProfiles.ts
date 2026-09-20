@@ -197,10 +197,10 @@ export const WORLD_PROFILES: Record<AudioWorld, WorldProfile> = {
     },
   },
   forest: {
-    id: 'forest', label: 'Forest', concept: 'A sheltered canopy where wind gives hollow trunks a distant voice.',
-    foundation: ['canopy-body', 'leaf-shimmer'],
+    id: 'forest', label: 'Forest', concept: 'A sheltered canopy where gusts of wind stir the leaves, and a hollow trunk howls through them with a smaller tree answering far off.',
+    foundation: ['canopy-swell', 'leaf-crinkle'],
     acoustics: { scale: 'natural', absorption: 0.58, diffusion: 0.64, width: 0.78 },
-    signatures: ['seeded-bird-calls', 'hollow-tree-breath'], motion: 'drift',
+    signatures: ['seeded-bird-calls', 'wind-through-hollow-trunk', 'answering-tree'], motion: 'drift',
     events: [
       { id: 'bird-call', role: 'accent', salience: 0.38, recoverySeconds: 1.5 },
       { id: 'hollow-tree-breath', role: 'anchor', salience: 0.5, recoverySeconds: 4 },

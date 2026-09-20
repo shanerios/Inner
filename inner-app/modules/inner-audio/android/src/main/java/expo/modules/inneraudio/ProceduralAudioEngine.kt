@@ -166,7 +166,6 @@ private fun clamp(value: Double, low: Double, high: Double) = min(high, max(low,
 // literal range — parse it as an unsigned value to get the identical bit pattern instead.
 private val XORSHIFT_SEED: Long = java.lang.Long.parseUnsignedLong("9e3779b97f4a7c15", 16)
 
-private const val FOREST_NOISE_MIX = 0.3
 /** The bed's high cut counts as off at or above this, and moves to a new setting over this long. */
 private const val NOISE_CUT_OFF_HZ = 19_990.0
 private const val NOISE_CUT_SMOOTH_SECONDS = 3.0
@@ -225,7 +224,7 @@ object ProceduralAudioEngine {
   private val fireSample = StereoSample()
   private val cosmicSample = StereoSample()
   private val forestSample = StereoSample()
-  private val forestCallModel = ForestCallModel()
+  private val forestModel = ForestModel()
   private val templeSpaceSample = StereoSample()
   private val cueSample = StereoSample()
   private val templeSample = StereoSample()
@@ -294,9 +293,6 @@ object ProceduralAudioEngine {
   private val silentStereo = StereoSample()
   private var forestEnvelope = 0.0
   private var forestRandom = XORSHIFT_SEED xor 0xc2b2ae35L
-  private var forestCanopy = 0.0
-  private var forestLeafLeft = 0.0
-  private var forestLeafRight = 0.0
   private var forestBirdActive = false
   private var forestBirdFramesRemaining = 0.0
   private var forestBirdDurationFrames = 0.0
@@ -613,9 +609,6 @@ object ProceduralAudioEngine {
     firedSignalLock.withLock { firedSignalIds.clear() }
     forestEnvelope = 0.0
     forestRandom = XORSHIFT_SEED xor 0xc2b2ae35L
-    forestCanopy = 0.0
-    forestLeafLeft = 0.0
-    forestLeafRight = 0.0
     forestBirdActive = false
     forestBirdFramesRemaining = 0.0
     forestBirdDurationFrames = 0.0
@@ -624,7 +617,7 @@ object ProceduralAudioEngine {
     forestBirdFreqRange = 0.0
     forestBirdAmp = 0.0
     forestBirdPan = 0.0
-    forestCallModel.reset(XORSHIFT_SEED, sampleRate)
+    forestModel.reset(XORSHIFT_SEED, sampleRate)
     templeSpaceEnvelope = 0.0
     aumChant.reset(XORSHIFT_SEED)
     templeSpaceRandom = XORSHIFT_SEED xor 0x6a09e667L
@@ -724,7 +717,7 @@ object ProceduralAudioEngine {
       forestRandom = activeTimeline.seed xor 0xc2b2ae35L
       forestBirdActive = false
       forestBirdFramesRemaining = 0.0
-      forestCallModel.reset(activeTimeline.seed, sampleRate)
+      forestModel.reset(activeTimeline.seed, sampleRate)
       templeSpaceRandom = activeTimeline.seed xor 0x6a09e667L
       aumChant.reset(activeTimeline.seed)
       templeSpaceAirLeft = 0.0
@@ -1334,29 +1327,10 @@ object ProceduralAudioEngine {
     return cosmicSample.set(cosmicModel.left, cosmicModel.right)
   }
 
-  // A canopy rustle bed (smoothed noise breathing on a light breeze cycle, plus a
-  // crisper high-passed leaf shimmer) carries the space, while seeded bird calls —
-  // frequency-sweeping tone bursts rather than noise transients, the way an actual
-  // chirp reads as pitched motion instead of a click — punctuate it at random.
+  // The forest itself (leaves in gusts of wind, and the hollow trunk's howl) is the ForestModel. The seeded bird calls,
+  // frequency-sweeping tone bursts rather than noise transients, the way an actual chirp reads as pitched motion
+  // instead of a click, punctuate it at random.
   private fun nextForest(elapsedSeconds: Double, intensity: Double, presence: Double, density: Double, variety: Double): StereoSample {
-    val shared = nextForestWhite()
-    forestCanopy += 0.02 * (shared - forestCanopy)
-    val sway = clamp(
-      0.55 + 0.35 * sin(elapsedSeconds * Math.PI * 2 / 14.0) +
-        0.15 * sin(elapsedSeconds * Math.PI * 2 / 5.3 + 1.1),
-      0.0,
-      1.0,
-    )
-    val canopyBody = forestCanopy * (1.4 + intensity * 1.6) * (0.5 + sway * 0.5)
-
-    val leftWhite = nextForestWhite()
-    val rightWhite = nextForestWhite()
-    forestLeafLeft += 0.09 * (leftWhite - forestLeafLeft)
-    forestLeafRight += 0.09 * (rightWhite - forestLeafRight)
-    val leafLevel = 0.05 + intensity * 0.07 + sway * (0.08 + intensity * 0.14)
-    val leftLeaf = (leftWhite - forestLeafLeft * 0.7) * leafLevel
-    val rightLeaf = (rightWhite - forestLeafRight * 0.7) * leafLevel
-
     if (!forestBirdActive) {
       forestBirdFramesRemaining -= 1
       if (forestBirdFramesRemaining <= 0 && worldSalience.reserve(salience = 0.38, durationSeconds = 0.3, recoverySeconds = 1.5)) {
@@ -1387,16 +1361,8 @@ object ProceduralAudioEngine {
     }
     val birdLeft = birdMono * (1 - forestBirdPan)
     val birdRight = birdMono * (1 + forestBirdPan)
-    forestCallModel.render(sampleRate, worldSalience, presence, density, variety)
-
-    // The rustle bed is itself broadband noise, so it stacks directly with the
-    // separate white/pink/brown/grey layer instead of sitting alongside it —
-    // keep it as a quiet texture underneath the birds rather than a competing
-    // noise floor.
-    return forestSample.set(
-      (canopyBody + leftLeaf) * FOREST_NOISE_MIX + birdLeft + forestCallModel.left,
-      (canopyBody + rightLeaf) * FOREST_NOISE_MIX + birdRight + forestCallModel.right,
-    )
+    forestModel.render(sampleRate, intensity, presence, density, variety, worldSalience)
+    return forestSample.set(forestModel.left + birdLeft, forestModel.right + birdRight)
   }
 
   private fun nextForestWhite(): Double {
