@@ -80,7 +80,17 @@ export const WORLD_PROFILES: Record<AudioWorld, WorldProfile> = {
       { id: 'distant-beacon', role: 'anchor', salience: 0.46, recoverySeconds: 5 },
     ],
     recognitionRecoverySeconds: 2,
-    bed: { noiseColor: 'pink', noiseGainScale: 1, binauralGainScale: 1, remNoiseTaper: REM_NOISE_TAPER, rationale: SHARED_BED_RATIONALE },
+    bed: {
+      noiseColor: 'brown',
+      noiseGainScale: 0.5,
+      binauralGainScale: 1,
+      remNoiseTaper: REM_NOISE_TAPER,
+      rationale: {
+        goal: 'Let the surf and its small water detail be heard, while keeping the low-end masking of the shared bed.',
+        atmosphere: 'A warm, low swell under the surf, with less hiss over the foam.',
+        basis: 'Theory and measurement, not sleep research: brown noise has no meaningful sleep studies. The shared pink bed sat 3-12 dB above the surf from 63 Hz to 2 kHz. Brown at half the level keeps the low end within about 1-2.5 dB of it while the 1-8 kHz range is 6-15 dB quieter, so foam and bubbles come forward.',
+      },
+    },
   },
   abyssal: {
     id: 'abyssal', label: 'Abyssal Glass', concept: 'A protected glass habitat resting under immense deep-ocean pressure.',
@@ -93,7 +103,17 @@ export const WORLD_PROFILES: Record<AudioWorld, WorldProfile> = {
       { id: 'abyssal-call', role: 'anchor', salience: 0.58, recoverySeconds: 5 },
     ],
     recognitionRecoverySeconds: 2,
-    bed: { noiseColor: 'pink', noiseGainScale: 1, binauralGainScale: 0.6, remNoiseTaper: REM_NOISE_TAPER, rationale: SHARED_BED_RATIONALE },
+    bed: {
+      noiseColor: 'brown',
+      noiseGainScale: 0.75,
+      binauralGainScale: 0.6,
+      remNoiseTaper: REM_NOISE_TAPER,
+      rationale: {
+        goal: 'Make the deepest world feel weighted from below, and keep hiss off its glass resonance.',
+        atmosphere: 'Heavy, close and low, more like pressure than sound.',
+        basis: 'Theory and measurement, not sleep research. Brown at three quarters of the shared level adds about 1-2.4 dB of body below 250 Hz and takes 3-11 dB off everything above 1 kHz. The world itself stays well under the bed in the upper bands, so its detail is carried by its own events.',
+      },
+    },
   },
   wind: {
     id: 'wind', label: 'Wind', concept: 'Broad moving air shaped by slow gusts and pressure changes.',
@@ -112,7 +132,17 @@ export const WORLD_PROFILES: Record<AudioWorld, WorldProfile> = {
       { id: 'chimney-gust', role: 'accent', salience: 0.3, recoverySeconds: 2 },
     ],
     recognitionRecoverySeconds: 2,
-    bed: { noiseColor: 'pink', noiseGainScale: 1, binauralGainScale: 1, remNoiseTaper: REM_NOISE_TAPER, rationale: SHARED_BED_RATIONALE },
+    bed: {
+      noiseColor: 'brown',
+      noiseGainScale: 0.5,
+      binauralGainScale: 1,
+      remNoiseTaper: REM_NOISE_TAPER,
+      rationale: {
+        goal: 'Let the crackle and the chimney wind stand out against the bed.',
+        atmosphere: 'Warm and close: a low glow under the fire, not a second layer of hiss.',
+        basis: 'Theory and measurement, not sleep research. The fire and the shared bed sat within about 2 dB of each other across the spectrum; brown at half the level keeps the low end and lifts the crackle band 6-15 dB above the bed.',
+      },
+    },
   },
   cosmic: {
     id: 'cosmic', label: 'Cosmic', concept: 'A vast liminal field with harmonic horizons, breathing voice, and gravity.',
@@ -121,7 +151,17 @@ export const WORLD_PROFILES: Record<AudioWorld, WorldProfile> = {
     signatures: ['breathing-distant-voice', 'golden-ratio-blooms'], motion: 'orbit',
     events: [{ id: 'harmonic-bloom', role: 'accent', salience: 0.45, recoverySeconds: 4 }],
     recognitionRecoverySeconds: 2,
-    bed: { noiseColor: 'pink', noiseGainScale: 1, binauralGainScale: 1, remNoiseTaper: REM_NOISE_TAPER, rationale: SHARED_BED_RATIONALE },
+    bed: {
+      noiseColor: 'pink',
+      noiseGainScale: 0.5,
+      binauralGainScale: 1,
+      remNoiseTaper: REM_NOISE_TAPER,
+      rationale: {
+        goal: 'Give the wide, slow field of the world room to be heard.',
+        atmosphere: 'Spacious and light: mostly the world, with the bed just underneath.',
+        basis: 'Theory and measurement. The world sat 15-40 dB under the shared bed through most of the spectrum, so the bed is 6 dB quieter. A high cut on the bed, still to come, would help further.',
+      },
+    },
   },
   forest: {
     id: 'forest', label: 'Forest', concept: 'A sheltered canopy where wind gives hollow trunks a distant voice.',
@@ -156,7 +196,17 @@ export const WORLD_PROFILES: Record<AudioWorld, WorldProfile> = {
       { id: 'singing-bowl', role: 'anchor', salience: 0.72, recoverySeconds: 4 },
     ],
     recognitionRecoverySeconds: 2,
-    bed: { noiseColor: 'pink', noiseGainScale: 1, binauralGainScale: 1, remNoiseTaper: REM_NOISE_TAPER, rationale: SHARED_BED_RATIONALE },
+    bed: {
+      noiseColor: 'pink',
+      noiseGainScale: 0.63,
+      binauralGainScale: 1,
+      remNoiseTaper: REM_NOISE_TAPER,
+      rationale: {
+        goal: 'Leave room for the chant, the bowls and the resonance of the hall.',
+        atmosphere: 'Quiet stone-hall air: present, but never the subject.',
+        basis: 'Theory. Pink stays as the neutral bed with the most sleep-lab attention, but about 4 dB quieter, because the world only clears the shared bed below 250 Hz. A high cut on the bed, still to come, would suit it better.',
+      },
+    },
   },
 };
 

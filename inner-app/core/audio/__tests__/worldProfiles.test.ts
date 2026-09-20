@@ -53,14 +53,17 @@ describe('procedural world profiles', () => {
     }
   });
 
-  it('leaves the noise of a preparation stage alone for worlds on the shared bed, and gives the others their own', () => {
+  it('leaves the noise of a preparation stage alone for a world on the shared bed, and gives the others their own', () => {
     const designed = { noiseColor: 'pink' as const, noiseGain: 0.14 };
-    for (const world of ['ocean', 'abyssal', 'temple', 'cosmic', 'fire'] as const) expect(noiseForWorld(world, designed)).toBe(designed);
-    const forest = noiseForWorld('forest', designed);
-    expect(forest.noiseColor).toBe('brown');
-    expect(forest.noiseGain).toBeCloseTo(0.07, 10);
-    // A stage designed brown (the end of preparation) stays brown for a brown world, at that world's level.
+    expect(noiseForWorld('wind', designed)).toBe(designed);
+    expect(noiseForWorld('ocean', designed)).toEqual({ noiseColor: 'brown', noiseGain: 0.14 * 0.5 });
+    expect(noiseForWorld('abyssal', designed)).toEqual({ noiseColor: 'brown', noiseGain: 0.14 * 0.75 });
+    expect(noiseForWorld('fire', designed)).toEqual({ noiseColor: 'brown', noiseGain: 0.14 * 0.5 });
+    expect(noiseForWorld('temple', designed)).toEqual({ noiseColor: 'pink', noiseGain: 0.14 * 0.63 });
+    expect(noiseForWorld('cosmic', designed)).toEqual({ noiseColor: 'pink', noiseGain: 0.14 * 0.5 });
+    // A stage designed brown (the end of preparation) takes the world's own color.
     expect(noiseForWorld('forest', { noiseColor: 'brown', noiseGain: 0.14 }).noiseColor).toBe('brown');
+    expect(noiseForWorld('temple', { noiseColor: 'brown', noiseGain: 0.14 }).noiseColor).toBe('pink');
   });
 
   it('drives the overnight picker from the same world catalog', () => {

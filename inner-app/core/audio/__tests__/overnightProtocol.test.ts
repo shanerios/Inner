@@ -61,25 +61,20 @@ describe('overnight protocol', () => {
       };
     };
 
-    it.each(['ocean', 'temple', 'cosmic', 'fire'] as const)('leaves %s exactly as it was: pink, at the original levels', environment => {
+    // Each world's own bed: [noise color, share of the shared noise level, share of the standard binaural level].
+    const beds: Array<[Parameters<typeof bedOf>[0], string, number, number]> = [
+      ['ocean', 'brown', 0.5, 1],
+      ['abyssal', 'brown', 0.75, 0.6],
+      ['forest', 'brown', 0.5, 1],
+      ['fire', 'brown', 0.5, 1],
+      ['temple', 'pink', 0.63, 1],
+      ['cosmic', 'pink', 0.5, 1],
+    ];
+    it.each(beds)('gives %s its own bed: %s noise at %s of the shared level, binaural at %s', (environment, color, noiseScale, binauralScale) => {
       const bed = bedOf(environment);
-      expect(bed.color).toBe('pink');
-      expectNoise(bed.noise, [0.12, 0.13, 0.1, 0.08 * 0.67]);
-      expect(bed.binaural).toEqual([0.18, 0.08, 0.05]);
-    });
-
-    it('keeps the abyssal binaural level at 60% of the standard, as it was', () => {
-      const bed = bedOf('abyssal');
-      expect(bed.color).toBe('pink');
-      expectNoise(bed.noise, [0.12, 0.13, 0.1, 0.08 * 0.67]);
-      expect(bed.binaural).toEqual([0.18 * 0.6, 0.08 * 0.6, 0.05 * 0.6]);
-    });
-
-    it('gives the forest a brown bed at half the noise level, with the standard binaural level', () => {
-      const bed = bedOf('forest');
-      expect(bed.color).toBe('brown');
-      expectNoise(bed.noise, [0.06, 0.065, 0.05, 0.04 * 0.67]);
-      expect(bed.binaural).toEqual([0.18, 0.08, 0.05]);
+      expect(bed.color).toBe(color);
+      expectNoise(bed.noise, [0.12, 0.13, 0.1, 0.08 * 0.67].map(level => level * noiseScale));
+      expectNoise(bed.binaural, [0.18, 0.08, 0.05].map(level => level * binauralScale));
     });
   });
 
@@ -88,9 +83,10 @@ describe('overnight protocol', () => {
       sleepDurationMinutes: 8 * 60, environment: 'ocean', signalId: 'chimes', cuePlan: 'standard', feel: 'gentle',
     }), DEFAULT_PROCEDURAL_AUDIO_CONFIG).phases.filter(phase => phase.kind === 'sleepProtection');
     expect(phases.length).toBeGreaterThan(2);
-    expect(phases[0].audioConfig.noiseGain).toBeCloseTo(0.1, 10);
-    for (const phase of phases.slice(1, -1)) expect(phase.audioConfig.noiseGain).toBeCloseTo(0.1 * 0.67, 10);
-    expect(phases[phases.length - 1].audioConfig.noiseGain).toBeCloseTo(0.08 * 0.67, 10);
+    const ocean = 0.5;   // the ocean's noise runs at half the shared level
+    expect(phases[0].audioConfig.noiseGain).toBeCloseTo(0.1 * ocean, 10);
+    for (const phase of phases.slice(1, -1)) expect(phase.audioConfig.noiseGain).toBeCloseTo(0.1 * ocean * 0.67, 10);
+    expect(phases[phases.length - 1].audioConfig.noiseGain).toBeCloseTo(0.08 * ocean * 0.67, 10);
   });
 
   it('limits harmonic translation to environments that benefit from implied depth', () => {
