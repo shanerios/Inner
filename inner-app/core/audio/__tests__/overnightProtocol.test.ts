@@ -56,23 +56,28 @@ describe('overnight protocol', () => {
       };
       return {
         color: at('preparation').noiseColor,
+        cut: at('preparation').noiseHighCutHz,
+        cutInSleep: at('sleepProtection', 'last').noiseHighCutHz,
         noise: [at('preparation').noiseGain, at('descent').noiseGain, at('sleepProtection', 'first').noiseGain, at('sleepProtection', 'last').noiseGain],
         binaural: [at('descent').binauralGain, at('sleepProtection', 'first').binauralGain, at('sleepProtection', 'last').binauralGain],
       };
     };
 
     // Each world's own bed: [noise color, share of the shared noise level, share of the standard binaural level].
-    const beds: Array<[Parameters<typeof bedOf>[0], string, number, number]> = [
-      ['ocean', 'brown', 0.5, 1],
-      ['abyssal', 'brown', 0.75, 0.6],
-      ['forest', 'brown', 0.5, 1],
-      ['fire', 'brown', 0.5, 1],
-      ['temple', 'pink', 0.63, 1],
-      ['cosmic', 'pink', 0.5, 1],
+    // [world, noise color, share of the shared noise level, share of the standard binaural level, bed high cut in Hz].
+    const beds: Array<[Parameters<typeof bedOf>[0], string, number, number, number]> = [
+      ['ocean', 'brown', 0.5, 1, 20_000],
+      ['abyssal', 'brown', 0.75, 0.6, 20_000],
+      ['forest', 'brown', 0.5, 1, 20_000],
+      ['fire', 'brown', 0.5, 1, 20_000],
+      ['temple', 'pink', 0.63, 1, 1_800],
+      ['cosmic', 'pink', 0.5, 1, 4_000],
     ];
-    it.each(beds)('gives %s its own bed: %s noise at %s of the shared level, binaural at %s', (environment, color, noiseScale, binauralScale) => {
+    it.each(beds)('gives %s its own bed: %s noise at %s of the shared level, binaural at %s, cut at %s Hz', (environment, color, noiseScale, binauralScale, cut) => {
       const bed = bedOf(environment);
       expect(bed.color).toBe(color);
+      expect(bed.cut).toBe(cut);
+      expect(bed.cutInSleep).toBe(cut);
       expectNoise(bed.noise, [0.12, 0.13, 0.1, 0.08 * 0.67].map(level => level * noiseScale));
       expectNoise(bed.binaural, [0.18, 0.08, 0.05].map(level => level * binauralScale));
     });

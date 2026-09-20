@@ -162,13 +162,13 @@ export const WORLD_PROFILES: Record<AudioWorld, WorldProfile> = {
     bed: {
       noiseColor: 'pink',
       noiseGainScale: 0.5,
-      noiseHighCutHz: NO_HIGH_CUT,
+      noiseHighCutHz: 4_000,
       binauralGainScale: 1,
       remNoiseTaper: REM_NOISE_TAPER,
       rationale: {
         goal: 'Give the wide, slow field of the world room to be heard.',
         atmosphere: 'Spacious and light: mostly the world, with the bed just underneath.',
-        basis: 'Theory and measurement. The world sat 15-40 dB under the shared bed through most of the spectrum, so the bed is 6 dB quieter. A high cut on the bed, still to come, would help further.',
+        basis: 'Theory and measurement, not sleep research. The world sat 15-40 dB under the shared bed through most of the spectrum, so the bed is 6 dB quieter and rolled off above 4 kHz (about 6 dB down at 6 kHz, 18 dB at 12 kHz), which keeps hiss off the upper field.',
       },
     },
   },
@@ -209,13 +209,13 @@ export const WORLD_PROFILES: Record<AudioWorld, WorldProfile> = {
     bed: {
       noiseColor: 'pink',
       noiseGainScale: 0.63,
-      noiseHighCutHz: NO_HIGH_CUT,
+      noiseHighCutHz: 1_800,
       binauralGainScale: 1,
       remNoiseTaper: REM_NOISE_TAPER,
       rationale: {
         goal: 'Leave room for the chant, the bowls and the resonance of the hall.',
-        atmosphere: 'Quiet stone-hall air: present, but never the subject.',
-        basis: 'Theory. Pink stays as the neutral bed with the most sleep-lab attention, but about 4 dB quieter, because the world only clears the shared bed below 250 Hz. A high cut on the bed, still to come, would suit it better.',
+        atmosphere: 'Quiet, dark stone-hall air: present, but never the subject.',
+        basis: 'Theory and measurement, not sleep research. Pink stays as the neutral bed with the most sleep-lab attention, but about 4 dB quieter and rolled off above 1.8 kHz (about 10 dB down at 3 kHz, 25 dB at 6 kHz), because the world only cleared the shared bed below 250 Hz.',
       },
     },
   },

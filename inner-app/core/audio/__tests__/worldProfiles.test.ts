@@ -61,8 +61,8 @@ describe('procedural world profiles', () => {
     expect(noiseForWorld('ocean', designed)).toEqual({ noiseColor: 'brown', noiseGain: 0.14 * 0.5, noiseHighCutHz: 20_000 });
     expect(noiseForWorld('abyssal', designed)).toEqual({ noiseColor: 'brown', noiseGain: 0.14 * 0.75, noiseHighCutHz: 20_000 });
     expect(noiseForWorld('fire', designed)).toEqual({ noiseColor: 'brown', noiseGain: 0.14 * 0.5, noiseHighCutHz: 20_000 });
-    expect(noiseForWorld('temple', designed)).toEqual({ noiseColor: 'pink', noiseGain: 0.14 * 0.63, noiseHighCutHz: 20_000 });
-    expect(noiseForWorld('cosmic', designed)).toEqual({ noiseColor: 'pink', noiseGain: 0.14 * 0.5, noiseHighCutHz: 20_000 });
+    expect(noiseForWorld('temple', designed)).toEqual({ noiseColor: 'pink', noiseGain: 0.14 * 0.63, noiseHighCutHz: 1_800 });
+    expect(noiseForWorld('cosmic', designed)).toEqual({ noiseColor: 'pink', noiseGain: 0.14 * 0.5, noiseHighCutHz: 4_000 });
     // A stage designed brown (the end of preparation) takes the world's own color.
     expect(noiseForWorld('forest', { noiseColor: 'brown', noiseGain: 0.14 }).noiseColor).toBe('brown');
     expect(noiseForWorld('temple', { noiseColor: 'brown', noiseGain: 0.14 }).noiseColor).toBe('pink');
