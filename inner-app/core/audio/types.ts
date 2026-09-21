@@ -55,6 +55,13 @@ export type ProceduralAudioConfig = {
   noiseDriftDb: number;
   /** A typical length, in seconds, of one of those swells. */
   noiseDriftSeconds: number;
+  /** How far, in dB, the binaural layer's level falls from the top of a slow breath to the bottom of it. 0 = it holds still. */
+  binauralBreathDb: number;
+  /** The lengths, in seconds, of the inhale (the level rising) and the exhale (it easing back). */
+  binauralBreathInSeconds: number;
+  binauralBreathOutSeconds: number;
+  /** How much each breath differs from the last: 0 = exactly the same, 0.15 = each up to 15% longer or shorter. */
+  binauralBreathVariation: number;
   /** Adds quiet upper harmonics that imply a lower environmental fundamental. */
   harmonicTranslation: number;
   templeGain: number;

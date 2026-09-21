@@ -53,6 +53,11 @@ internal data class AudioParameters(
   /** How far each ear's bed swells either side of its average, in dB, on its own irregular schedule. 0 = still. */
   var noiseDriftDb: Double = 0.0,
   var noiseDriftSeconds: Double = 12.0,
+  /** How far the binaural layer's level falls from the top of a slow breath to the bottom of it, in dB. 0 = it holds still. */
+  var binauralBreathDb: Double = 0.0,
+  var binauralBreathInSeconds: Double = 4.0,
+  var binauralBreathOutSeconds: Double = 8.0,
+  var binauralBreathVariation: Double = 0.0,
   var sleepEndMs: Double? = null,
 ) {
   fun setFrom(other: AudioParameters) {
@@ -84,6 +89,10 @@ internal data class AudioParameters(
     noiseWidth = other.noiseWidth
     noiseDriftDb = other.noiseDriftDb
     noiseDriftSeconds = other.noiseDriftSeconds
+    binauralBreathDb = other.binauralBreathDb
+    binauralBreathInSeconds = other.binauralBreathInSeconds
+    binauralBreathOutSeconds = other.binauralBreathOutSeconds
+    binauralBreathVariation = other.binauralBreathVariation
     sleepEndMs = other.sleepEndMs
   }
 }
@@ -287,6 +296,7 @@ object ProceduralAudioEngine {
   private val fireModel = FireModel()
   private val bedSide = BedSideNoise()
   private val bedDrift = BedDrift()
+  private val binauralBreath = BinauralBreath()
   private var cosmicEnvelope = 0.0
   private val cosmicModel = CosmicModel()
   private val worldSalience = WorldSalienceScheduler()
@@ -601,6 +611,7 @@ object ProceduralAudioEngine {
     fireModel.reset(XORSHIFT_SEED, sampleRate)
     bedSide.reset(XORSHIFT_SEED)
     bedDrift.reset(XORSHIFT_SEED)
+    binauralBreath.reset(XORSHIFT_SEED)
     cosmicEnvelope = 0.0
     cosmicModel.reset(XORSHIFT_SEED, sampleRate)
     worldSalience.reset(sampleRate)
@@ -706,6 +717,7 @@ object ProceduralAudioEngine {
       fireModel.reset(activeTimeline.seed, sampleRate)
       bedSide.reset(activeTimeline.seed)
       bedDrift.reset(activeTimeline.seed)
+      binauralBreath.reset(activeTimeline.seed)
       cosmicModel.reset(activeTimeline.seed, sampleRate)
       worldSalience.reset(sampleRate)
       resetThresholdShift()
@@ -952,9 +964,12 @@ object ProceduralAudioEngine {
       val sampleNowMs = bufferStartMs + frame * 1_000.0 / sampleRate
       val sleepGain = target.sleepEndMs?.let { clamp((it - sampleNowMs) / 6_000.0, 0.0, 1.0) } ?: 1.0
       val pulseEnvelope = 0.12 + 0.88 * (0.5 - 0.5 * cos(phases[6]))
-      val speakerPulse = sin(phases[5]) * pulseEnvelope * gains[1] * spatialRoom
-      val leftEntrainment = sin(phases[1]) * gains[1] * spatialRoom * privateOutputMix + speakerPulse * (1 - privateOutputMix)
-      val rightEntrainment = sin(phases[2]) * gains[1] * spatialRoom * privateOutputMix + speakerPulse * (1 - privateOutputMix)
+      // The binaural layer breathes: its level rises over an inhale and eases back over an exhale.
+      binauralBreath.render(sampleRate, target.binauralBreathDb, target.binauralBreathInSeconds, target.binauralBreathOutSeconds, target.binauralBreathVariation)
+      val binauralLevel = gains[1] * binauralBreath.gain
+      val speakerPulse = sin(phases[5]) * pulseEnvelope * binauralLevel * spatialRoom
+      val leftEntrainment = sin(phases[1]) * binauralLevel * spatialRoom * privateOutputMix + speakerPulse * (1 - privateOutputMix)
+      val rightEntrainment = sin(phases[2]) * binauralLevel * spatialRoom * privateOutputMix + speakerPulse * (1 - privateOutputMix)
       val thresholdDepth = threshold?.depth ?: 0.0
       val thresholdMotion = threshold?.motion ?: 0.0
       val harmonicTranslation = nextHarmonicTranslation(target)
@@ -1598,6 +1613,10 @@ object ProceduralAudioEngine {
       noiseWidth = clamp(raw.noiseWidth, 0.0, 1.0),
       noiseDriftDb = clamp(raw.noiseDriftDb, 0.0, 8.0),
       noiseDriftSeconds = clamp(raw.noiseDriftSeconds, 3.0, 40.0),
+      binauralBreathDb = clamp(raw.binauralBreathDb, 0.0, 20.0),
+      binauralBreathInSeconds = clamp(raw.binauralBreathInSeconds, 1.0, 12.0),
+      binauralBreathOutSeconds = clamp(raw.binauralBreathOutSeconds, 2.0, 20.0),
+      binauralBreathVariation = clamp(raw.binauralBreathVariation, 0.0, 0.4),
       sleepEndMs = sleepEndMs,
     )
   }
@@ -1722,6 +1741,10 @@ object ProceduralAudioEngine {
     output.noiseWidth = lerp(from.noiseWidth, to.noiseWidth)
     output.noiseDriftDb = lerp(from.noiseDriftDb, to.noiseDriftDb)
     output.noiseDriftSeconds = lerp(from.noiseDriftSeconds, to.noiseDriftSeconds)
+    output.binauralBreathDb = lerp(from.binauralBreathDb, to.binauralBreathDb)
+    output.binauralBreathInSeconds = lerp(from.binauralBreathInSeconds, to.binauralBreathInSeconds)
+    output.binauralBreathOutSeconds = lerp(from.binauralBreathOutSeconds, to.binauralBreathOutSeconds)
+    output.binauralBreathVariation = lerp(from.binauralBreathVariation, to.binauralBreathVariation)
     output.sleepEndMs = null
     return output
   }

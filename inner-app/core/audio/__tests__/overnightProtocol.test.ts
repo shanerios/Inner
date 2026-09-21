@@ -64,6 +64,8 @@ describe('overnight protocol', () => {
         binaural: [at('descent').binauralGain, at('sleepProtection', 'first').binauralGain, at('sleepProtection', 'last').binauralGain],
         carrier: [at('descent').binauralCarrierHz, at('sleepProtection', 'first').binauralCarrierHz, at('sleepProtection', 'last').binauralCarrierHz],
         beat: [at('descent').binauralDeltaHz, at('sleepProtection', 'first').binauralDeltaHz, at('sleepProtection', 'last').binauralDeltaHz],
+        breath: [at('preparation').binauralBreathDb, at('descent').binauralBreathDb, at('sleepProtection', 'first').binauralBreathDb, at('sleepProtection', 'last').binauralBreathDb],
+        breathShape: [at('sleepProtection', 'last').binauralBreathInSeconds, at('sleepProtection', 'last').binauralBreathOutSeconds, at('sleepProtection', 'last').binauralBreathVariation],
       };
     };
 
@@ -91,6 +93,9 @@ describe('overnight protocol', () => {
       const bed = bedOf(environment);
       expect(bed.carrier).toEqual([carrier, carrier, carrier]);
       expect(bed.beat).toEqual([descent, early, rem]);
+      // Every designed world's binaural layer breathes: the swing eases as sleep deepens, 4 s in and 8 s out, each breath a little different.
+      expect(bed.breath).toEqual([10, 10, 6, 3]);
+      expect(bed.breathShape).toEqual([4, 8, 0.15]);
       // The pitch trim and the 10 dB the whole layer sits under the level the app began with, on top of the world's own binaural level.
       const scale = (environment === 'abyssal' ? 0.6 : 1) * 10 ** ((trim - 10) / 20);
       expectNoise(bed.binaural, [0.18, 0.08, 0.05].map(level => level * scale));

@@ -29,6 +29,10 @@ export const PROCEDURAL_AUDIO_LIMITS = {
   noiseWidth: { min: 0, max: 1 },
   noiseDriftDb: { min: 0, max: 8 },
   noiseDriftSeconds: { min: 3, max: 40 },
+  binauralBreathDb: { min: 0, max: 20 },
+  binauralBreathInSeconds: { min: 1, max: 12 },
+  binauralBreathOutSeconds: { min: 2, max: 20 },
+  binauralBreathVariation: { min: 0, max: 0.4 },
 } as const;
 
 export const DEFAULT_PROCEDURAL_AUDIO_CONFIG: ProceduralAudioConfig = {
@@ -51,6 +55,10 @@ export const DEFAULT_PROCEDURAL_AUDIO_CONFIG: ProceduralAudioConfig = {
   noiseWidth: 0,
   noiseDriftDb: 0,
   noiseDriftSeconds: 12,
+  binauralBreathDb: 0,
+  binauralBreathInSeconds: 4,
+  binauralBreathOutSeconds: 8,
+  binauralBreathVariation: 0,
   harmonicTranslation: 0,
   templeGain: 0,
   templeIntensity: 0.5,
@@ -135,6 +143,26 @@ export function normalizeProceduralAudioConfig(
       value.noiseDriftSeconds ?? DEFAULT_PROCEDURAL_AUDIO_CONFIG.noiseDriftSeconds,
       PROCEDURAL_AUDIO_LIMITS.noiseDriftSeconds.min,
       PROCEDURAL_AUDIO_LIMITS.noiseDriftSeconds.max,
+    ),
+    binauralBreathDb: clamp(
+      value.binauralBreathDb ?? DEFAULT_PROCEDURAL_AUDIO_CONFIG.binauralBreathDb,
+      PROCEDURAL_AUDIO_LIMITS.binauralBreathDb.min,
+      PROCEDURAL_AUDIO_LIMITS.binauralBreathDb.max,
+    ),
+    binauralBreathInSeconds: clamp(
+      value.binauralBreathInSeconds ?? DEFAULT_PROCEDURAL_AUDIO_CONFIG.binauralBreathInSeconds,
+      PROCEDURAL_AUDIO_LIMITS.binauralBreathInSeconds.min,
+      PROCEDURAL_AUDIO_LIMITS.binauralBreathInSeconds.max,
+    ),
+    binauralBreathOutSeconds: clamp(
+      value.binauralBreathOutSeconds ?? DEFAULT_PROCEDURAL_AUDIO_CONFIG.binauralBreathOutSeconds,
+      PROCEDURAL_AUDIO_LIMITS.binauralBreathOutSeconds.min,
+      PROCEDURAL_AUDIO_LIMITS.binauralBreathOutSeconds.max,
+    ),
+    binauralBreathVariation: clamp(
+      value.binauralBreathVariation ?? DEFAULT_PROCEDURAL_AUDIO_CONFIG.binauralBreathVariation,
+      PROCEDURAL_AUDIO_LIMITS.binauralBreathVariation.min,
+      PROCEDURAL_AUDIO_LIMITS.binauralBreathVariation.max,
     ),
     harmonicTranslation: clamp(value.harmonicTranslation ?? DEFAULT_PROCEDURAL_AUDIO_CONFIG.harmonicTranslation, gain.min, gain.max),
     templeGain: clamp(value.templeGain ?? DEFAULT_PROCEDURAL_AUDIO_CONFIG.templeGain, gain.min, gain.max),

@@ -23,6 +23,10 @@ private struct AudioConfigRecord: Record {
   @Field var noiseWidth = 0.0
   @Field var noiseDriftDb = 0.0
   @Field var noiseDriftSeconds = 12.0
+  @Field var binauralBreathDb = 0.0
+  @Field var binauralBreathInSeconds = 4.0
+  @Field var binauralBreathOutSeconds = 8.0
+  @Field var binauralBreathVariation = 0.0
   @Field var harmonicTranslation = 0.0
   @Field var templeGain = 0.0
   @Field var templeIntensity = 0.5
@@ -114,6 +118,11 @@ private struct Parameters {
   /// How far each ear's bed swells either side of its average, in dB, on its own irregular schedule. 0 = still.
   var noiseDriftDb = 0.0
   var noiseDriftSeconds = 12.0
+  /// How far the binaural layer's level falls from the top of a slow breath to the bottom of it, in dB. 0 = it holds still.
+  var binauralBreathDb = 0.0
+  var binauralBreathInSeconds = 4.0
+  var binauralBreathOutSeconds = 8.0
+  var binauralBreathVariation = 0.0
   var harmonicTranslation = 0.0
   var templeGain = 0.0
   var templeIntensity = 0.5
@@ -291,6 +300,7 @@ private final class ProceduralAudioEngine: NSObject {
   private let fireModel = FireModel()
   private let bedSide = BedSideNoise()
   private let bedDrift = BedDrift()
+  private let binauralBreath = BinauralBreath()
   private var cosmicEnvelope = 0.0
   private let cosmicModel = CosmicModel()
   private let worldSalience = WorldSalienceScheduler()
@@ -617,6 +627,7 @@ private final class ProceduralAudioEngine: NSObject {
     fireModel.reset(seed: 0x9e3779b97f4a7c15, sampleRate: sampleRate)
     bedSide.reset(seed: 0x9e3779b97f4a7c15)
     bedDrift.reset(seed: 0x9e3779b97f4a7c15)
+    binauralBreath.reset(seed: 0x9e3779b97f4a7c15)
     cosmicEnvelope = 0
     cosmicModel.reset(seed: 0x9e3779b97f4a7c15, sampleRate: sampleRate)
     worldSalience.reset(sampleRate: sampleRate)
@@ -857,6 +868,7 @@ private final class ProceduralAudioEngine: NSObject {
       fireModel.reset(seed: activeTimeline.seed, sampleRate: sampleRate)
       bedSide.reset(seed: activeTimeline.seed)
       bedDrift.reset(seed: activeTimeline.seed)
+      binauralBreath.reset(seed: activeTimeline.seed)
       cosmicModel.reset(seed: activeTimeline.seed, sampleRate: sampleRate)
       worldSalience.reset(sampleRate: sampleRate)
       resetThresholdShift()
@@ -1140,9 +1152,12 @@ private final class ProceduralAudioEngine: NSObject {
       // room for all three layers. The final tanh stage is effectively unity
       // at normal levels and rounds only extreme peaks instead of hard-clipping.
       let pulseEnvelope = 0.12 + 0.88 * (0.5 - 0.5 * cos(phases[6]))
-      let speakerPulse = sin(phases[5]) * pulseEnvelope * gains[1] * spatialRoom
-      let leftEntrainment = sin(phases[1]) * gains[1] * spatialRoom * privateOutputMix + speakerPulse * (1 - privateOutputMix)
-      let rightEntrainment = sin(phases[2]) * gains[1] * spatialRoom * privateOutputMix + speakerPulse * (1 - privateOutputMix)
+      // The binaural layer breathes: its level rises over an inhale and eases back over an exhale.
+      binauralBreath.render(sampleRate: sampleRate, depthDb: target.binauralBreathDb, inhaleSeconds: target.binauralBreathInSeconds, exhaleSeconds: target.binauralBreathOutSeconds, variation: target.binauralBreathVariation)
+      let binauralLevel = gains[1] * binauralBreath.gain
+      let speakerPulse = sin(phases[5]) * pulseEnvelope * binauralLevel * spatialRoom
+      let leftEntrainment = sin(phases[1]) * binauralLevel * spatialRoom * privateOutputMix + speakerPulse * (1 - privateOutputMix)
+      let rightEntrainment = sin(phases[2]) * binauralLevel * spatialRoom * privateOutputMix + speakerPulse * (1 - privateOutputMix)
       let thresholdDepth = threshold?.depth ?? 0
       let thresholdMotion = threshold?.motion ?? 0
       let harmonicTranslation = nextHarmonicTranslation(target)
@@ -1805,6 +1820,10 @@ private final class ProceduralAudioEngine: NSObject {
       noiseWidth: clamp(raw.noiseWidth, 0, 1),
       noiseDriftDb: clamp(raw.noiseDriftDb, 0, 8),
       noiseDriftSeconds: clamp(raw.noiseDriftSeconds, 3, 40),
+      binauralBreathDb: clamp(raw.binauralBreathDb, 0, 20),
+      binauralBreathInSeconds: clamp(raw.binauralBreathInSeconds, 1, 12),
+      binauralBreathOutSeconds: clamp(raw.binauralBreathOutSeconds, 2, 20),
+      binauralBreathVariation: clamp(raw.binauralBreathVariation, 0, 0.4),
       harmonicTranslation: clamp(raw.harmonicTranslation, 0, 1),
       templeGain: clamp(raw.templeGain, 0, 1),
       templeIntensity: clamp(raw.templeIntensity, 0, 1),
@@ -1931,6 +1950,10 @@ private final class ProceduralAudioEngine: NSObject {
       noiseWidth: lerp(from.noiseWidth, to.noiseWidth),
       noiseDriftDb: lerp(from.noiseDriftDb, to.noiseDriftDb),
       noiseDriftSeconds: lerp(from.noiseDriftSeconds, to.noiseDriftSeconds),
+      binauralBreathDb: lerp(from.binauralBreathDb, to.binauralBreathDb),
+      binauralBreathInSeconds: lerp(from.binauralBreathInSeconds, to.binauralBreathInSeconds),
+      binauralBreathOutSeconds: lerp(from.binauralBreathOutSeconds, to.binauralBreathOutSeconds),
+      binauralBreathVariation: lerp(from.binauralBreathVariation, to.binauralBreathVariation),
       harmonicTranslation: lerp(from.harmonicTranslation, to.harmonicTranslation),
       templeGain: lerp(from.templeGain, to.templeGain),
       templeIntensity: lerp(from.templeIntensity, to.templeIntensity),
@@ -5482,6 +5505,63 @@ final class BedDrift {
       rightEar.decibels += smoothing * (rightEar.update(time: time, depthDb: depthDb, seconds: seconds) - rightEar.decibels)
       left = pow(10.0, leftEar.decibels / 20.0)
       right = pow(10.0, rightEar.decibels / 20.0)
+    }
+    sample += 1
+  }
+}
+
+/// A slow breathing in the level of the binaural layer, so it sits in a world and moves with it rather than holding
+/// still. The level rises over each inhale and eases back over each exhale (a raised cosine each way), between the
+/// layer's own level (the top of the breath) and `render`'s depth in dB below it. Each breath is a little different
+/// from the last, by up to the given variation, drawn from a stream of its own, so it never becomes a metronome.
+/// A depth of 0 leaves the gain at exactly 1. The Kotlin engine mirrors this file.
+final class BinauralBreath {
+  static let salt: UInt64 = 0x427265617468
+  /// The level is worked out this often, in samples; it moves far too slowly for this to be heard.
+  static let updateSamples: Int64 = 32
+
+  /// The gain to apply to the binaural layer this sample: 1 at the top of a breath.
+  private(set) var gain = 1.0
+
+  private var random: UInt64 = 1
+  private var inhaling = true
+  private var age: Int64 = 0
+  private var length: Int64 = 0
+  private var sample: Int64 = 0
+
+  func reset(seed: UInt64) {
+    random = seed ^ BinauralBreath.salt
+    if random == 0 { random = 1 }
+    inhaling = true; age = 0; length = 0; sample = 0
+    gain = 1
+  }
+
+  private func unit() -> Double {
+    random ^= random << 13; random ^= random >> 7; random ^= random << 17
+    return Double(random >> 11) / 9007199254740992.0
+  }
+
+  private func breathLength(sampleRate: Double, seconds: Double, variation: Double) -> Int64 {
+    Swift.max(1, Int64(seconds * (1.0 + variation * (unit() * 2.0 - 1.0)) * sampleRate))
+  }
+
+  /// Advances one sample.
+  func render(sampleRate: Double, depthDb: Double, inhaleSeconds: Double, exhaleSeconds: Double, variation: Double) {
+    if depthDb <= 0 {
+      gain = 1
+      return
+    }
+    if length == 0 { length = breathLength(sampleRate: sampleRate, seconds: inhaleSeconds, variation: variation) }
+    if sample % BinauralBreath.updateSamples == 0 {
+      let u = Double(age) / Double(length)
+      let shape = inhaling ? 0.5 - 0.5 * cos(Double.pi * u) : 0.5 + 0.5 * cos(Double.pi * u)
+      gain = pow(10.0, -depthDb * (1.0 - shape) / 20.0)
+    }
+    age += 1
+    if age >= length {
+      age = 0
+      inhaling = !inhaling
+      length = breathLength(sampleRate: sampleRate, seconds: inhaling ? inhaleSeconds : exhaleSeconds, variation: variation)
     }
     sample += 1
   }

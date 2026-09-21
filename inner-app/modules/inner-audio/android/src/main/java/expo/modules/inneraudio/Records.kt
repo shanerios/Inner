@@ -32,6 +32,10 @@ class AudioConfigRecord : Record {
   @Field var noiseWidth: Double = 0.0
   @Field var noiseDriftDb: Double = 0.0
   @Field var noiseDriftSeconds: Double = 12.0
+  @Field var binauralBreathDb: Double = 0.0
+  @Field var binauralBreathInSeconds: Double = 4.0
+  @Field var binauralBreathOutSeconds: Double = 8.0
+  @Field var binauralBreathVariation: Double = 0.0
 }
 
 class SpatialEventRecord : Record {

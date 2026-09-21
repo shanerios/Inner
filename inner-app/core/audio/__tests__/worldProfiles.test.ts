@@ -94,7 +94,22 @@ describe('procedural world profiles', () => {
       expect(rationale).toMatch(/theory|research|stud|measur/i);
     }
     // Only the wind keeps the field the app began with.
-    expect(WORLD_PROFILES.wind.binaural).toEqual({ carrierHz: 208, beatHz: { entry: 8, prepEnd: 4, descent: 5, earlySleep: 5, remSleep: 5 }, trimDb: 0, levelDb: 0, rationale: expect.any(String) });
+    expect(WORLD_PROFILES.wind.binaural).toEqual({ carrierHz: 208, beatHz: { entry: 8, prepEnd: 4, descent: 5, earlySleep: 5, remSleep: 5 }, trimDb: 0, levelDb: 0, breath: expect.any(Object), rationale: expect.any(String) });
+    // The wind is not made to breathe; every designed world's layer does, and settles as sleep deepens.
+    expect(Object.values(WORLD_PROFILES.wind.binaural.breath.depthDb)).toEqual([0, 0, 0, 0]);
+    for (const id of ['ocean', 'abyssal', 'forest', 'fire', 'temple', 'cosmic'] as const) {
+      const { depthDb, inhaleSeconds, exhaleSeconds, variation } = WORLD_PROFILES[id].binaural.breath;
+      expect(depthDb.preparation).toBeLessThanOrEqual(12);
+      expect(depthDb.descent).toBeLessThanOrEqual(depthDb.preparation);
+      expect(depthDb.earlySleep).toBeLessThan(depthDb.descent);
+      expect(depthDb.remSleep).toBeLessThan(depthDb.earlySleep);
+      expect(depthDb.remSleep).toBeGreaterThan(0);
+      // A longer exhale than inhale, at a slow pace, never a metronome.
+      expect(exhaleSeconds).toBeGreaterThan(inhaleSeconds);
+      expect(inhaleSeconds + exhaleSeconds).toBeGreaterThanOrEqual(10);
+      expect(variation).toBeGreaterThan(0);
+      expect(variation).toBeLessThanOrEqual(0.3);
+    }
     // Every designed world's binaural layer sits 10 dB under the level the app began with.
     for (const id of ['ocean', 'abyssal', 'forest', 'fire', 'temple', 'cosmic'] as const) expect(WORLD_PROFILES[id].binaural.levelDb).toBe(-10);
     for (const id of ['ocean', 'abyssal', 'forest', 'fire', 'temple', 'cosmic'] as const) expect(WORLD_PROFILES[id].binaural.carrierHz).not.toBe(208);
@@ -115,6 +130,8 @@ describe('procedural world profiles', () => {
     expect(learn.binauralDeltaHz).toBeCloseTo(6.68, 10);
     expect(learn.binauralCarrierHz).toBeCloseTo(218 * 241.3 / 208, 10);
     expect(learn.binauralGain).toBeCloseTo(0.2 * 10 ** ((-1.2 - 10) / 20), 10);
+    // The preparation breathes at the world's full depth.
+    expect(learn).toMatchObject({ binauralBreathDb: 10, binauralBreathInSeconds: 4, binauralBreathOutSeconds: 8, binauralBreathVariation: 0.15 });
     // The abyssal's own reduction now reaches the preparation as well as the descent.
     expect(binauralForWorld('abyssal', 'learn', { binauralGain: 0.2 }).binauralGain).toBeCloseTo(0.2 * 0.6 * 10 ** ((-0.5 - 10) / 20), 10);
     // The carrier still falls a little toward sleep, and the beat runs from the entry beat to the end-of-preparation beat.
@@ -122,8 +139,9 @@ describe('procedural world profiles', () => {
     expect(stages.map(stage => stage.binauralDeltaHz)).toEqual([7, 7 + (6.2 - 7) * 0.25, 7 + (6.2 - 7) * 0.625, 6.2]);
     for (let i = 1; i < stages.length; i++) expect(stages[i].binauralCarrierHz!).toBeLessThan(stages[i - 1].binauralCarrierHz!);
     // Fields the stage did not have are not invented.
-    expect(binauralForWorld('ocean', 'learn', {})).toEqual({});
-    expect(binauralForWorld('ocean', 'not-a-stage', { binauralDeltaHz: 8 })).toEqual({});
+    const onlyTheBreath = { binauralBreathDb: 10, binauralBreathInSeconds: 4, binauralBreathOutSeconds: 8, binauralBreathVariation: 0.15 };
+    expect(binauralForWorld('ocean', 'learn', {})).toEqual(onlyTheBreath);
+    expect(binauralForWorld('ocean', 'not-a-stage', { binauralDeltaHz: 8 })).toEqual(onlyTheBreath);
   });
 
   it('drives the overnight picker from the same world catalog', () => {
