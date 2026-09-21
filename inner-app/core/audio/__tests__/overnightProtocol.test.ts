@@ -84,15 +84,15 @@ describe('overnight protocol', () => {
       ['abyssal', 220, -0.5, 4.8, 5.5, 6.5],
       ['forest', 300, -3, 7.5, 8, 8.6],
       ['fire', 240, -1, 6, 6.3, 7],
-      ['temple', 480, -6, 6.68, 6.68, 6.68],
+      ['temple', 241.3, -1.2, 6.68, 6.68, 6.68],
       ['cosmic', 400, -5, 6.5, 7, 8],
     ];
     it.each(fields)('gives %s its own binaural field: %s Hz, trimmed %s dB, beat %s then %s then %s Hz', (environment, carrier, trim, descent, early, rem) => {
       const bed = bedOf(environment);
       expect(bed.carrier).toEqual([carrier, carrier, carrier]);
       expect(bed.beat).toEqual([descent, early, rem]);
-      // The trim is applied on top of the world's own binaural level.
-      const scale = (environment === 'abyssal' ? 0.6 : 1) * 10 ** (trim / 20);
+      // The pitch trim and the 10 dB the whole layer sits under the level the app began with, on top of the world's own binaural level.
+      const scale = (environment === 'abyssal' ? 0.6 : 1) * 10 ** ((trim - 10) / 20);
       expectNoise(bed.binaural, [0.18, 0.08, 0.05].map(level => level * scale));
     });
 

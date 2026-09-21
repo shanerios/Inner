@@ -79,6 +79,8 @@ describe('procedural world profiles', () => {
       const { carrierHz, beatHz, trimDb, rationale } = world.binaural;
       expect(carrierHz).toBeGreaterThanOrEqual(200);
       expect(carrierHz).toBeLessThanOrEqual(500);
+      expect(world.binaural.levelDb).toBeLessThanOrEqual(0);
+      expect(world.binaural.levelDb).toBeGreaterThanOrEqual(-24);
       expect(trimDb).toBeLessThanOrEqual(0);
       expect(trimDb).toBeGreaterThanOrEqual(-8);
       // The wind keeps the app's original field, whose preparation ends at 4 Hz; every designed world stays out of delta.
@@ -92,11 +94,15 @@ describe('procedural world profiles', () => {
       expect(rationale).toMatch(/theory|research|stud|measur/i);
     }
     // Only the wind keeps the field the app began with.
-    expect(WORLD_PROFILES.wind.binaural).toEqual({ carrierHz: 208, beatHz: { entry: 8, prepEnd: 4, descent: 5, earlySleep: 5, remSleep: 5 }, trimDb: 0, rationale: expect.any(String) });
+    expect(WORLD_PROFILES.wind.binaural).toEqual({ carrierHz: 208, beatHz: { entry: 8, prepEnd: 4, descent: 5, earlySleep: 5, remSleep: 5 }, trimDb: 0, levelDb: 0, rationale: expect.any(String) });
+    // Every designed world's binaural layer sits 10 dB under the level the app began with.
+    for (const id of ['ocean', 'abyssal', 'forest', 'fire', 'temple', 'cosmic'] as const) expect(WORLD_PROFILES[id].binaural.levelDb).toBe(-10);
     for (const id of ['ocean', 'abyssal', 'forest', 'fire', 'temple', 'cosmic'] as const) expect(WORLD_PROFILES[id].binaural.carrierHz).not.toBe(208);
     // The carriers are distinct enough to be told apart, and the temple's is its bowl.
     expect(new Set(['ocean', 'abyssal', 'forest', 'fire', 'temple', 'cosmic'].map(id => WORLD_PROFILES[id as 'ocean'].binaural.carrierHz)).size).toBe(6);
     expect(WORLD_PROFILES.temple.binaural.beatHz.remSleep).toBe(6.68);
+    // The temple's carrier is the octave beneath its bowl's 482.61 Hz.
+    expect(WORLD_PROFILES.temple.binaural.carrierHz).toBeCloseTo(482.61 / 2, 0);
   });
 
   it('keeps the shape of the preparation on the world\'s own carrier and beat, and leaves the wind exactly as designed', () => {
@@ -107,8 +113,10 @@ describe('procedural world profiles', () => {
     }
     const learn = binauralForWorld('temple', 'learn', { binauralCarrierHz: 218, binauralDeltaHz: 8, binauralGain: 0.2 });
     expect(learn.binauralDeltaHz).toBeCloseTo(6.68, 10);
-    expect(learn.binauralCarrierHz).toBeCloseTo(218 * 480 / 208, 10);
-    expect(learn.binauralGain).toBeCloseTo(0.2 * 10 ** (-6 / 20), 10);
+    expect(learn.binauralCarrierHz).toBeCloseTo(218 * 241.3 / 208, 10);
+    expect(learn.binauralGain).toBeCloseTo(0.2 * 10 ** ((-1.2 - 10) / 20), 10);
+    // The abyssal's own reduction now reaches the preparation as well as the descent.
+    expect(binauralForWorld('abyssal', 'learn', { binauralGain: 0.2 }).binauralGain).toBeCloseTo(0.2 * 0.6 * 10 ** ((-0.5 - 10) / 20), 10);
     // The carrier still falls a little toward sleep, and the beat runs from the entry beat to the end-of-preparation beat.
     const stages = ['learn', 'rehearse', 'drift', 'release'].map(stage => binauralForWorld('ocean', stage, { binauralCarrierHz: designed[stage as 'learn'][0], binauralDeltaHz: designed[stage as 'learn'][1] }));
     expect(stages.map(stage => stage.binauralDeltaHz)).toEqual([7, 7 + (6.2 - 7) * 0.25, 7 + (6.2 - 7) * 0.625, 6.2]);

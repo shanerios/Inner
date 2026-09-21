@@ -165,7 +165,7 @@ export function createRecognitionOvernightProtocol(options: RecognitionOvernight
   const environmentGain = options.feel === 'immersive' ? 0.2 : options.feel === 'deep' ? 0.16 : 0.12;
   const bed = worldBed(options.environment);
   const field = worldBinaural(options.environment);
-  const binauralWorldScale = bed.binauralGainScale * 10 ** (field.trimDb / 20);
+  const binauralWorldScale = bed.binauralGainScale * 10 ** ((field.trimDb + field.levelDb) / 20);
   const harmonicTranslation = options.environment === 'ocean' || options.environment === 'cosmic'
     ? 0.72
     : options.environment === 'abyssal' ? 0.6 : 0;

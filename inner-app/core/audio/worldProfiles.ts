@@ -62,6 +62,7 @@ const SHARED_BINAURAL: WorldBinaural = {
   carrierHz: 208,
   beatHz: { entry: 8, prepEnd: 4, descent: 5, earlySleep: 5, remSleep: 5 },
   trimDb: 0,
+  levelDb: 0,
   rationale: 'The original shared design, taken from the published cue-training protocol for preparation, then held at 5 Hz. Theory only: the evidence that a binaural beat entrains the brain is inconclusive.',
 };
 
@@ -87,6 +88,8 @@ export type WorldBinaural = {
   beatHz: { entry: number; prepEnd: number; descent: number; earlySleep: number; remSleep: number };
   /** A level trim in dB for the carrier's pitch, so a higher carrier is not louder to the ear than a lower one. */
   trimDb: number;
+  /** How far, in dB, the whole binaural layer sits under the level the app began with, so it sits within the world and not over it. */
+  levelDb: number;
   /** Why: what it is for, and how little of it rests on evidence. */
   rationale: string;
 };
@@ -141,6 +144,7 @@ export const WORLD_PROFILES: Record<AudioWorld, WorldProfile> = {
       carrierHz: 250,
       beatHz: { entry: 7, prepEnd: 6.2, descent: 5.8, earlySleep: 6, remSleep: 7 },
       trimDb: -1.5,
+      levelDb: -10,
       rationale: 'A carrier low enough to sit under the surf, and a rhythmic, drifting beat that eases down through the descent and comes back up for the REM-rich hours. Theory only: binaural-beat entrainment is unproven, so the beat stays between about 5.8 and 7 Hz, and the carrier was picked for the world\'s timbre (a 250 Hz carrier has been used in sleep studies).',
     },
   },
@@ -174,6 +178,7 @@ export const WORLD_PROFILES: Record<AudioWorld, WorldProfile> = {
       carrierHz: 220,
       beatHz: { entry: 6, prepEnd: 5, descent: 4.8, earlySleep: 5.5, remSleep: 6.5 },
       trimDb: -0.5,
+      levelDb: -10,
       rationale: 'The deepest world: the lowest carrier and a beat that descends early, dipping to about 4.8 Hz in the first hour so it feels like going down, then returning toward 6-6.5 Hz so the REM-rich hours are not held in slow, delta-adjacent territory. Theory only: one small nap study found very slow beats shortened the time to deep sleep without measurable entrainment, and lucid REM shows less 2-4 Hz delta than ordinary REM.',
     },
   },
@@ -214,6 +219,7 @@ export const WORLD_PROFILES: Record<AudioWorld, WorldProfile> = {
       carrierHz: 240,
       beatHz: { entry: 7, prepEnd: 6.3, descent: 6, earlySleep: 6.3, remSleep: 7 },
       trimDb: -1,
+      levelDb: -10,
       rationale: 'A hypnotic, embodied theta range, kept steady rather than pulsing, with a low carrier for warmth. Theory only: rhythmic-trance ranges of about 4-7 Hz are traditional, with mixed evidence, so the beat is held at 6-7 Hz.',
     },
   },
@@ -243,6 +249,7 @@ export const WORLD_PROFILES: Record<AudioWorld, WorldProfile> = {
       carrierHz: 400,
       beatHz: { entry: 8, prepEnd: 7, descent: 6.5, earlySleep: 7, remSleep: 8 },
       trimDb: -5,
+      levelDb: -10,
       rationale: 'A spacious, cognitive world: a higher carrier and a beat that settles to about 6.5 Hz in the descent and lifts to 7-8 Hz in the REM-rich hours. Theory only: continuous 40 Hz gamma is deliberately not used, because the frontal 40 Hz signature reported in lucid dreams was largely explained by eye-movement artifacts.',
     },
   },
@@ -275,6 +282,7 @@ export const WORLD_PROFILES: Record<AudioWorld, WorldProfile> = {
       carrierHz: 300,
       beatHz: { entry: 8.5, prepEnd: 8, descent: 7.5, earlySleep: 8, remSleep: 8.6 },
       trimDb: -3,
+      levelDb: -10,
       rationale: 'The lightest, most perceptual world: an alpha-leaning beat that eases only a little through the descent, on a mid carrier where a binaural beat is easier to hear. Theory only: natural sounds are associated with relaxation, and 300-400 Hz carriers are reported to make beats easier to perceive.',
     },
   },
@@ -305,10 +313,11 @@ export const WORLD_PROFILES: Record<AudioWorld, WorldProfile> = {
       },
     },
     binaural: {
-      carrierHz: 480,
+      carrierHz: 241.3,
       beatHz: { entry: 6.68, prepEnd: 6.68, descent: 6.68, earlySleep: 6.68, remSleep: 6.68 },
-      trimDb: -6,
-      rationale: 'Held at 6.68 Hz all night on a 480 Hz carrier, after a real singing bowl whose fundamental is 482.61 Hz and whose beating sits at 6.68 Hz, so the beat is the bowl\'s own. Theory only: that study was 17 waking listeners for five minutes, so it shows the acoustic beat is real, not that it helps sleep or lucidity.',
+      trimDb: -1.2,
+      levelDb: -10,
+      rationale: 'Held at 6.68 Hz all night, after a real singing bowl whose fundamental is 482.61 Hz and whose beating sits at 6.68 Hz, so the beat is the bowl\'s own. The carrier is 241.3 Hz, the octave below the bowl, chosen by ear: the bowl\'s own pitch was too bright as a steady tone. Theory only: that study was 17 waking listeners for five minutes, so it shows the acoustic beat is real, not that it helps sleep or lucidity.',
     },
   },
 };
@@ -361,6 +370,7 @@ export function binauralForWorld(
   designed: { binauralCarrierHz?: number; binauralDeltaHz?: number; binauralGain?: number },
 ) {
   const binaural = worldBinaural(environment);
+  const bed = worldBed(environment);
   if (binaural === SHARED_BINAURAL) return {};
   const position = PREPARATION_BEAT_POSITION[stageId];
   return {
@@ -368,6 +378,6 @@ export function binauralForWorld(
     ...(designed.binauralDeltaHz === undefined || position === undefined
       ? {}
       : { binauralDeltaHz: binaural.beatHz.entry + (binaural.beatHz.prepEnd - binaural.beatHz.entry) * position }),
-    ...(designed.binauralGain === undefined ? {} : { binauralGain: designed.binauralGain * 10 ** (binaural.trimDb / 20) }),
+    ...(designed.binauralGain === undefined ? {} : { binauralGain: designed.binauralGain * bed.binauralGainScale * 10 ** ((binaural.trimDb + binaural.levelDb) / 20) }),
   };
 }
