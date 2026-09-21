@@ -62,6 +62,8 @@ describe('overnight protocol', () => {
         cutInSleep: at('sleepProtection', 'last').noiseHighCutHz,
         noise: [at('preparation').noiseGain, at('descent').noiseGain, at('sleepProtection', 'first').noiseGain, at('sleepProtection', 'last').noiseGain],
         binaural: [at('descent').binauralGain, at('sleepProtection', 'first').binauralGain, at('sleepProtection', 'last').binauralGain],
+        carrier: [at('descent').binauralCarrierHz, at('sleepProtection', 'first').binauralCarrierHz, at('sleepProtection', 'last').binauralCarrierHz],
+        beat: [at('descent').binauralDeltaHz, at('sleepProtection', 'first').binauralDeltaHz, at('sleepProtection', 'last').binauralDeltaHz],
       };
     };
 
@@ -76,6 +78,24 @@ describe('overnight protocol', () => {
       ['temple', 'pink', 0.63, 1, 1_800, 1, 2, 20],
       ['cosmic', 'pink', 0.5, 1, 4_000, 1, 3, 16],
     ];
+    // Each world's binaural field: [world, carrier Hz, level trim dB, beat in the descent, in early sleep, in the REM-rich hours].
+    const fields: Array<[Parameters<typeof bedOf>[0], number, number, number, number, number]> = [
+      ['ocean', 250, -1.5, 5.8, 6, 7],
+      ['abyssal', 220, -0.5, 4.8, 5.5, 6.5],
+      ['forest', 300, -3, 7.5, 8, 8.6],
+      ['fire', 240, -1, 6, 6.3, 7],
+      ['temple', 480, -6, 6.68, 6.68, 6.68],
+      ['cosmic', 400, -5, 6.5, 7, 8],
+    ];
+    it.each(fields)('gives %s its own binaural field: %s Hz, trimmed %s dB, beat %s then %s then %s Hz', (environment, carrier, trim, descent, early, rem) => {
+      const bed = bedOf(environment);
+      expect(bed.carrier).toEqual([carrier, carrier, carrier]);
+      expect(bed.beat).toEqual([descent, early, rem]);
+      // The trim is applied on top of the world's own binaural level.
+      const scale = (environment === 'abyssal' ? 0.6 : 1) * 10 ** (trim / 20);
+      expectNoise(bed.binaural, [0.18, 0.08, 0.05].map(level => level * scale));
+    });
+
     it.each(beds)('gives %s its own bed: %s noise at %s of the shared level, binaural at %s, cut at %s Hz, width %s, drift %s dB / %s s', (environment, color, noiseScale, binauralScale, cut, width, drift, swell) => {
       const bed = bedOf(environment);
       expect(bed.color).toBe(color);
@@ -84,7 +104,6 @@ describe('overnight protocol', () => {
       expect(bed.motion).toEqual([width, drift, swell]);
       expect(bed.motionInSleep).toEqual([width, drift, swell]);
       expectNoise(bed.noise, [0.12, 0.13, 0.1, 0.08 * 0.67].map(level => level * noiseScale));
-      expectNoise(bed.binaural, [0.18, 0.08, 0.05].map(level => level * binauralScale));
     });
   });
 

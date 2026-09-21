@@ -1,5 +1,5 @@
 import { describe, expect, it } from '@jest/globals';
-import { noiseForWorld, OVERNIGHT_WORLD_PROFILES, WORLD_PROFILES } from '../worldProfiles';
+import { binauralForWorld, noiseForWorld, OVERNIGHT_WORLD_PROFILES, WORLD_PROFILES } from '../worldProfiles';
 
 const WORLD_IDS = ['ocean', 'abyssal', 'wind', 'fire', 'cosmic', 'forest', 'temple'] as const;
 
@@ -72,6 +72,50 @@ describe('procedural world profiles', () => {
     // A stage designed brown (the end of preparation) takes the world's own color.
     expect(noiseForWorld('forest', { noiseColor: 'brown', noiseGain: 0.14 }).noiseColor).toBe('brown');
     expect(noiseForWorld('temple', { noiseColor: 'brown', noiseGain: 0.14 }).noiseColor).toBe('pink');
+  });
+
+  it('gives every world a binaural field that stays out of delta and admits it is theory', () => {
+    for (const world of Object.values(WORLD_PROFILES)) {
+      const { carrierHz, beatHz, trimDb, rationale } = world.binaural;
+      expect(carrierHz).toBeGreaterThanOrEqual(200);
+      expect(carrierHz).toBeLessThanOrEqual(500);
+      expect(trimDb).toBeLessThanOrEqual(0);
+      expect(trimDb).toBeGreaterThanOrEqual(-8);
+      // The wind keeps the app's original field, whose preparation ends at 4 Hz; every designed world stays out of delta.
+      for (const beat of Object.values(beatHz)) {
+        if (world.id !== 'wind') expect(beat).toBeGreaterThanOrEqual(4.5);
+        expect(beat).toBeLessThanOrEqual(9.5);
+      }
+      // Through the REM-rich hours the beat is not held in slow territory.
+      expect(beatHz.remSleep).toBeGreaterThanOrEqual(5);
+      expect(beatHz.earlySleep).toBeGreaterThanOrEqual(beatHz.descent);
+      expect(rationale).toMatch(/theory|research|stud|measur/i);
+    }
+    // Only the wind keeps the field the app began with.
+    expect(WORLD_PROFILES.wind.binaural).toEqual({ carrierHz: 208, beatHz: { entry: 8, prepEnd: 4, descent: 5, earlySleep: 5, remSleep: 5 }, trimDb: 0, rationale: expect.any(String) });
+    for (const id of ['ocean', 'abyssal', 'forest', 'fire', 'temple', 'cosmic'] as const) expect(WORLD_PROFILES[id].binaural.carrierHz).not.toBe(208);
+    // The carriers are distinct enough to be told apart, and the temple's is its bowl.
+    expect(new Set(['ocean', 'abyssal', 'forest', 'fire', 'temple', 'cosmic'].map(id => WORLD_PROFILES[id as 'ocean'].binaural.carrierHz)).size).toBe(6);
+    expect(WORLD_PROFILES.temple.binaural.beatHz.remSleep).toBe(6.68);
+  });
+
+  it('keeps the shape of the preparation on the world\'s own carrier and beat, and leaves the wind exactly as designed', () => {
+    const designed = { learn: [218, 8, 0.2], rehearse: [212, 7, 0.24], drift: [202, 5.5, 0.2], release: [194, 4, 0.14] } as const;
+    for (const [stage, [carrier, beat, gain]] of Object.entries(designed)) {
+      // The wind is the app as it was: nothing to override.
+      expect(binauralForWorld('wind', stage, { binauralCarrierHz: carrier, binauralDeltaHz: beat, binauralGain: gain })).toEqual({});
+    }
+    const learn = binauralForWorld('temple', 'learn', { binauralCarrierHz: 218, binauralDeltaHz: 8, binauralGain: 0.2 });
+    expect(learn.binauralDeltaHz).toBeCloseTo(6.68, 10);
+    expect(learn.binauralCarrierHz).toBeCloseTo(218 * 480 / 208, 10);
+    expect(learn.binauralGain).toBeCloseTo(0.2 * 10 ** (-6 / 20), 10);
+    // The carrier still falls a little toward sleep, and the beat runs from the entry beat to the end-of-preparation beat.
+    const stages = ['learn', 'rehearse', 'drift', 'release'].map(stage => binauralForWorld('ocean', stage, { binauralCarrierHz: designed[stage as 'learn'][0], binauralDeltaHz: designed[stage as 'learn'][1] }));
+    expect(stages.map(stage => stage.binauralDeltaHz)).toEqual([7, 7 + (6.2 - 7) * 0.25, 7 + (6.2 - 7) * 0.625, 6.2]);
+    for (let i = 1; i < stages.length; i++) expect(stages[i].binauralCarrierHz!).toBeLessThan(stages[i - 1].binauralCarrierHz!);
+    // Fields the stage did not have are not invented.
+    expect(binauralForWorld('ocean', 'learn', {})).toEqual({});
+    expect(binauralForWorld('ocean', 'not-a-stage', { binauralDeltaHz: 8 })).toEqual({});
   });
 
   it('drives the overnight picker from the same world catalog', () => {

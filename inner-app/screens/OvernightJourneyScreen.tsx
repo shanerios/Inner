@@ -13,6 +13,7 @@ import {
   FACTORY_AUDIO_JOURNEYS,
   FactoryAudioJourney,
   identityPatch,
+  binauralForWorld,
   noiseForWorld,
   CompiledOvernightProtocol,
   ProceduralEnvironment,
@@ -174,6 +175,7 @@ function overnightJourney(
             environmentGain: stage.id === 'release' ? gain * 0.55 : gain,
             environmentIntensity: feel === 'immersive' ? 0.68 : feel === 'deep' ? 0.5 : 0.34,
             ...identityPatch(environment, 'preparation', feel),
+            ...binauralForWorld(environment, stage.id, stage.target),
             ...(typeof stage.target.noiseGain === 'number'
               ? noiseForWorld(environment, { noiseColor: stage.target.noiseColor ?? null, noiseGain: stage.target.noiseGain })
               : {}),
