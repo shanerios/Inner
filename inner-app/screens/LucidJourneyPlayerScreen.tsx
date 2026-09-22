@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, AppState, PanResponder, Platform, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useVideoPlayer, VideoView } from '../core/memorySafeVideo';
@@ -68,6 +69,8 @@ export default function LucidJourneyPlayerScreen() {
   const [error, setError] = useState<string | null>(null);
   const [startStalled, setStartStalled] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
+  const [playbackPaused, setPlaybackPaused] = useState(false);
+  const [playbackControlInFlight, setPlaybackControlInFlight] = useState(false);
   const [attempt, setAttempt] = useState(0);
 
   const background = useVideoPlayer(require('../assets/videos/lucidscreen.mp4'), player => {
@@ -99,6 +102,7 @@ export default function LucidJourneyPlayerScreen() {
     lastMemoryStageIdRef.current = null;
     lastMemoryCuePositionRef.current = 0;
     startStalledRef.current = false;
+    setPlaybackPaused(false);
 
     const traceStart = (step: string, message?: string) => {
       const memorySessionId = memorySessionIdRef.current;
@@ -286,6 +290,7 @@ export default function LucidJourneyPlayerScreen() {
               startConfirmed = true;
               if (startWatchdog) clearInterval(startWatchdog);
               startWatchdog = null;
+              setPlaybackPaused(health.nativeState !== 'playing');
               traceStart('playing_confirmed', `latencyMs=${Date.now() - playRequestedAtMs}`);
               if (startStalledRef.current) {
                 startStalledRef.current = false;
@@ -304,8 +309,9 @@ export default function LucidJourneyPlayerScreen() {
           if (!mounted || seekingRef.current) return;
           if (!playbackReconciliationInFlight) {
             playbackReconciliationInFlight = true;
-            void session.reconcilePlaybackState().then(() => {
+            void session.reconcilePlaybackState().then(nativeState => {
               if (!mounted || seekingRef.current) return;
+              setPlaybackPaused(nativeState !== 'playing');
               const reconciledPositionMs = Math.min(session.getPositionMs(), timeline.totalDurationMs);
               currentPositionRef.current = reconciledPositionMs;
               setPositionMs(reconciledPositionMs);
@@ -367,7 +373,10 @@ export default function LucidJourneyPlayerScreen() {
         const debug = await session.getDebugState().catch(() => null);
         await session.drainDiagnosticEvents().then(recordNativeEvents).catch(() => {});
         finishMemory('failed', `${startMessage} | ${describeEngineState(debug, null, Date.now())}`);
-        if (mounted) setStartError(startFailureMessage(startFailure, JOURNEY_NOT_BEGUN_MESSAGE));
+        if (mounted) {
+          setPlaybackPaused(false);
+          setStartError(startFailureMessage(startFailure, JOURNEY_NOT_BEGUN_MESSAGE));
+        }
       }
     };
 
@@ -414,6 +423,7 @@ export default function LucidJourneyPlayerScreen() {
     setError(null);
     setStartError(null);
     setStartStalled(false);
+    setPlaybackPaused(false);
     startStalledRef.current = false;
     setPositionMs(0);
     // Re-running the effect stops this attempt and begins a fresh one.
@@ -438,6 +448,34 @@ export default function LucidJourneyPlayerScreen() {
   const failureText = error ?? startError ?? (startStalled ? JOURNEY_NOT_BEGUN_MESSAGE : null);
   const durationMs = journey?.timeline.stages.reduce((total, stage) => total + stage.durationMs, 0) ?? 0;
   currentPositionRef.current = positionMs;
+
+  const togglePlayback = async () => {
+    if (playbackControlInFlight) return;
+    setPlaybackControlInFlight(true);
+    setError(null);
+    try {
+      const nativeState = await sessionRef.current.reconcilePlaybackState();
+      if (nativeState === 'playing') {
+        await sessionRef.current.pause();
+        setPlaybackPaused(true);
+      } else if (nativeState === 'stopped') {
+        retryStart();
+      } else {
+        await sessionRef.current.play();
+        const resumedState = await sessionRef.current.reconcilePlaybackState();
+        setPlaybackPaused(resumedState !== 'playing');
+        if (resumedState !== 'playing') {
+          setError('Audio is still paused. Check that your listening device is connected, then try again.');
+        }
+      }
+    } catch (playbackError) {
+      setPlaybackPaused(true);
+      setError(startFailureMessage(playbackError, 'Audio could not resume. Please try again.'));
+    } finally {
+      setPlaybackControlInFlight(false);
+    }
+  };
+
   const mmss = (milliseconds: number) => {
     const totalSeconds = Math.max(0, Math.floor(milliseconds / 1_000));
     return `${Math.floor(totalSeconds / 60)}:${String(totalSeconds % 60).padStart(2, '0')}`;
@@ -563,7 +601,27 @@ export default function LucidJourneyPlayerScreen() {
         >
           <Text style={styles.retryText}>TRY AGAIN</Text>
         </TouchableOpacity>
-      ) : null}
+      ) : (
+        <TouchableOpacity
+          onPress={() => { void togglePlayback(); }}
+          disabled={playbackControlInFlight}
+          accessibilityRole="button"
+          accessibilityLabel={playbackPaused ? 'Play' : 'Pause'}
+          accessibilityHint={playbackPaused ? 'Starts playback' : 'Pauses playback'}
+          activeOpacity={0.85}
+          style={[
+            styles.playbackButton,
+            { bottom: insets.bottom + 76 },
+            playbackPaused ? styles.playbackButtonPaused : styles.playbackButtonPlaying,
+          ]}
+        >
+          <Ionicons
+            name={playbackPaused ? 'play' : 'pause'}
+            size={28}
+            color={playbackPaused ? 'rgba(220,185,100,1)' : '#F3EDE7'}
+          />
+        </TouchableOpacity>
+      )}
 
       <TouchableOpacity
         onPress={returnToJourneys}
@@ -593,4 +651,22 @@ const styles = StyleSheet.create({
   returnButton: { position: 'absolute', alignSelf: 'center', paddingHorizontal: 24, paddingVertical: 13 },
   returnText: { color: '#E8E2F2', fontFamily: 'Inter-Medium', fontSize: 10, letterSpacing: 2.1 },
   retryText: { color: '#F3EEFF', fontFamily: 'Inter-Medium', fontSize: 11, letterSpacing: 2.1 },
+  playbackButton: {
+    position: 'absolute',
+    alignSelf: 'center',
+    width: 72,
+    height: 72,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  playbackButtonPlaying: {
+    borderColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: 'rgba(207,195,224,0.16)',
+  },
+  playbackButtonPaused: {
+    borderColor: 'rgba(200,160,80,0.6)',
+    backgroundColor: 'rgba(180,140,80,0.15)',
+  },
 });
