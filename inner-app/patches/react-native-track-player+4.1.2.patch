@@ -1,0 +1,20 @@
+diff --git a/node_modules/react-native-track-player/android/src/main/java/com/doublesymmetry/trackplayer/service/MusicService.kt b/node_modules/react-native-track-player/android/src/main/java/com/doublesymmetry/trackplayer/service/MusicService.kt
+index afa6b0f..69c8dc6 100644
+--- a/node_modules/react-native-track-player/android/src/main/java/com/doublesymmetry/trackplayer/service/MusicService.kt
++++ b/node_modules/react-native-track-player/android/src/main/java/com/doublesymmetry/trackplayer/service/MusicService.kt
+@@ -94,6 +94,15 @@ class MusicService : HeadlessJsTaskService() {
+     private var compactCapabilities: List<Capability> = emptyList()
+ 
+     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
++        // Android may recreate a sticky service with a null intent after the app
++        // process is killed. Starting a new foreground service from that locked,
++        // background state is forbidden on modern Android and crashes the fresh
++        // process. There is no TrackPlayer queue to recover in a new process, so
++        // stop this orphaned restart cleanly instead.
++        if (intent == null) {
++            stopSelf(startId)
++            return START_NOT_STICKY
++        }
+         startTask(getTaskConfig(intent))
+         startAndStopEmptyNotificationToAvoidANR()
+         return START_STICKY

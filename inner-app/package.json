@@ -11,7 +11,8 @@
     "start:tunnel": "npx expo start --tunnel -c",
     "typecheck": "tsc --noEmit",
     "test": "jest --runInBand",
-    "check": "npm run typecheck && npm test"
+    "check": "npm run typecheck && npm test",
+    "postinstall": "patch-package"
   },
   "dependencies": {
     "@expo/vector-icons": "^14.1.0",
@@ -77,6 +78,7 @@
     "expo-dev-client": "^5.2.4",
     "node-addon-api": "^8.8.0",
     "node-gyp": "^12.4.0",
+    "patch-package": "^8.0.0",
     "react-native-svg-transformer": "^1.5.3",
     "typescript": "~5.8.3"
   },
