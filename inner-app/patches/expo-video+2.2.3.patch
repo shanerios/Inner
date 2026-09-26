@@ -1,0 +1,16 @@
+diff --git a/node_modules/expo-video/ios/VideoPlayer.swift b/node_modules/expo-video/ios/VideoPlayer.swift
+index 52b5ebb..be23f2c 100644
+--- a/node_modules/expo-video/ios/VideoPlayer.swift
++++ b/node_modules/expo-video/ios/VideoPlayer.swift
+@@ -383,7 +383,10 @@ internal final class VideoPlayer: SharedRef<AVPlayer>, Hashable, VideoPlayerObse
+     )
+     safeEmit(event: "availableAudioTracksChange", payload: audioPayload)
+ 
+-    Task {
++    // Record.toDictionary mutates @Field bookkeeping while serializing the
++    // sourceLoad payload. Keep that conversion and event emission on the main
++    // actor so a background metadata task cannot race another player event.
++    Task { @MainActor in
+       let videoPlayerItem: VideoPlayerItem? = playerItem as? VideoPlayerItem
+       // Those properties will be already loaded 99.9% of time, so the event delay should be almost 0
+       availableVideoTracks = await videoPlayerItem?.videoTracks ?? []
