@@ -49,7 +49,7 @@ import { InteractionManager, AppState, Easing } from 'react-native';
 // import NetInfo from '@react-native-community/netinfo';
 import { initAudioOnce } from './core/initAudio';
 import { proceduralAudioEngine } from './core/audio';
-import { reconcileInterruptedJourneyMemorySession } from './core/journeyMemory';
+import { findMatchingProcessExit, loadJourneyMemory, reconcileInterruptedJourneyMemorySession } from './core/journeyMemory';
 import { cancelLucidityCueNotifications, LUCIDITY_CUE_NOTIFICATION_TYPE, scheduleReengagementNotification } from './utils/notifications';
 import { createEntry } from './core/journalRepo';
 import { initChottuLinkOnce } from './src/core/deeplinking/chottuLink';
@@ -104,6 +104,13 @@ Sentry.init({
 
   // Enable Logs
   enableLogs: false,
+
+  // Keep native crash/ANR coverage explicit, and recover Android native-crash
+  // tombstones from ApplicationExitInfo on the next launch.
+  enableNative: true,
+  enableNativeCrashHandling: true,
+  enableNdk: true,
+  enableTombstone: true,
 
   // uncomment the line below to enable Spotlight (https://spotlightjs.com)
   // spotlight: __DEV__,
@@ -311,7 +318,58 @@ export default Sentry.wrap(function App() {
         if (!proceduralAudioEngine.isAvailable()) return;
         const checkpoint = await proceduralAudioEngine.getCheckpoint();
         if (!checkpoint) return;
-        await reconcileInterruptedJourneyMemorySession(checkpoint);
+        const liveState = await proceduralAudioEngine.getDebugState?.();
+        // A recreated React bridge can see the active service's checkpoint.
+        // That is continued playback, not a prior process death to reconcile.
+        if (liveState?.engineRunning && liveState.playbackState !== 'stopped') return;
+        const [processExits, memory] = await Promise.all([
+          proceduralAudioEngine.getHistoricalProcessExitInfo(),
+          loadJourneyMemory(),
+        ]);
+        const session = memory.sessions.find(item => item.id === checkpoint.sessionId);
+        const matchingExit = session
+          ? findMatchingProcessExit(session.startedAt, checkpoint, processExits)
+          : undefined;
+        const outcome = await reconcileInterruptedJourneyMemorySession(
+          checkpoint,
+          AsyncStorage,
+          Date.now,
+          processExits,
+        );
+        if (outcome) {
+          const diagnostic = {
+            outcome,
+            checkpointAgeMs: Math.max(0, Date.now() - checkpoint.lastUpdatedAt),
+            positionMs: checkpoint.positionMs,
+            playbackState: checkpoint.playbackState,
+            engineRunning: checkpoint.engineRunning,
+            audioRoute: checkpoint.audioRoute,
+            audioFocus: checkpoint.audioFocus,
+            desiredPlaying: checkpoint.desiredPlaying,
+            pauseReason: checkpoint.pauseReason,
+            lastStopReason: checkpoint.lastStopReason,
+            exitReason: matchingExit?.reason ?? 'unavailable',
+            exitReasonCode: matchingExit?.reasonCode,
+            exitTimestamp: matchingExit?.timestamp,
+            exitDescription: matchingExit?.description,
+            processImportance: matchingExit?.importance,
+            processStatus: matchingExit?.status,
+            pssKb: matchingExit?.pssKb,
+            rssKb: matchingExit?.rssKb,
+          };
+          Sentry.addBreadcrumb({
+            category: 'media.lifecycle',
+            level: 'warning',
+            message: 'Previous overnight playback ended unexpectedly',
+            data: diagnostic,
+          });
+          Sentry.withScope(scope => {
+            scope.setContext('overnight_termination', diagnostic);
+            scope.setTag('overnight_outcome', outcome);
+            scope.setTag('android_exit_reason', matchingExit?.reason ?? 'unavailable');
+            Sentry.captureMessage('Overnight playback ended unexpectedly', 'warning');
+          });
+        }
         await proceduralAudioEngine.clearCheckpoint();
       } catch {}
     })();

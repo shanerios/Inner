@@ -1,6 +1,9 @@
 package expo.modules.inneraudio
 
+import android.app.ActivityManager
+import android.app.ApplicationExitInfo
 import android.content.Context
+import android.os.Build
 import androidx.core.content.ContextCompat
 import expo.modules.kotlin.exception.CodedException
 import expo.modules.kotlin.modules.Module
@@ -84,6 +87,28 @@ class InnerAudioModule : Module() {
       InnerAudioPlaybackService.readPersistedCheckpoint(context)
     }
 
+    Function("getHistoricalProcessExitInfo") {
+      if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+        emptyList<Map<String, Any?>>()
+      } else {
+        val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+        activityManager.getHistoricalProcessExitReasons(context.packageName, 0, 10).map { exit ->
+          mapOf(
+            "reasonCode" to exit.reason,
+            "reason" to exitReasonName(exit.reason),
+            "timestamp" to exit.timestamp.toDouble(),
+            "processId" to exit.pid,
+            "processName" to exit.processName,
+            "importance" to exit.importance,
+            "status" to exit.status,
+            "description" to exit.description,
+            "pssKb" to exit.pss.toDouble(),
+            "rssKb" to exit.rss.toDouble(),
+          )
+        }
+      }
+    }
+
     AsyncFunction("clearCheckpoint") {
       InnerAudioPlaybackService.clearPersistedCheckpoint(context)
     }
@@ -119,10 +144,26 @@ class InnerAudioModule : Module() {
       }
     }
 
-    OnDestroy {
-      if (InnerAudioPlaybackService.isRunning) {
-        context.startService(InnerAudioPlaybackService.stopIntent(context))
-      }
-    }
+    // Do not stop playback from OnDestroy. The Expo module can be destroyed
+    // while Android recreates the Activity or React bridge; the foreground
+    // service owns the active journey and must outlive that UI lifecycle.
+  }
+
+  private fun exitReasonName(reason: Int): String = when (reason) {
+    ApplicationExitInfo.REASON_EXIT_SELF -> "exit_self"
+    ApplicationExitInfo.REASON_SIGNALED -> "signaled"
+    ApplicationExitInfo.REASON_LOW_MEMORY -> "low_memory"
+    ApplicationExitInfo.REASON_CRASH -> "crash"
+    ApplicationExitInfo.REASON_CRASH_NATIVE -> "crash_native"
+    ApplicationExitInfo.REASON_ANR -> "anr"
+    ApplicationExitInfo.REASON_INITIALIZATION_FAILURE -> "initialization_failure"
+    ApplicationExitInfo.REASON_PERMISSION_CHANGE -> "permission_change"
+    ApplicationExitInfo.REASON_EXCESSIVE_RESOURCE_USAGE -> "excessive_resource_usage"
+    ApplicationExitInfo.REASON_USER_REQUESTED -> "user_requested"
+    ApplicationExitInfo.REASON_USER_STOPPED -> "user_stopped"
+    ApplicationExitInfo.REASON_DEPENDENCY_DIED -> "dependency_died"
+    ApplicationExitInfo.REASON_OTHER -> "other"
+    ApplicationExitInfo.REASON_FREEZER -> "freezer"
+    else -> "unknown"
   }
 }

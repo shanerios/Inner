@@ -3667,6 +3667,7 @@ final class OceanModel {
   private var beaconGlide = 0.0
   private var beaconBrightness = 1.0
   private var beaconLevel = 1.0
+  private var beaconDistance = 0.0
   private var beaconTravel = 0.0
   private var beaconApproach = 0.0
   private var beaconAnswer = 0.0
@@ -3692,7 +3693,7 @@ final class OceanModel {
     beaconEcho = [Double](repeating: 0, count: max(2, Int(rate * 0.5)))
     beaconEchoIndex = 0; beaconWet = 0; beaconLeft = 0; beaconRight = 0
     beaconGestureSeed = seed; beaconAppearance = 0
-    beaconRootRatio = 1; beaconGlide = 0; beaconBrightness = 1; beaconLevel = 1
+    beaconRootRatio = 1; beaconGlide = 0; beaconBrightness = 1; beaconLevel = 1; beaconDistance = 0
     beaconTravel = 0; beaconApproach = 0; beaconAnswer = 0; beaconAnswerPhase = 0; beaconEchoBoost = 0
     bubbleLeft = 0; bubbleRight = 0; left = 0; right = 0
   }
@@ -3710,7 +3711,7 @@ final class OceanModel {
   }
 
   private func drawBeaconGesture(variety: Double) {
-    beaconRootRatio = 1; beaconGlide = 0; beaconBrightness = 1; beaconLevel = 1
+    beaconRootRatio = 1; beaconGlide = 0; beaconBrightness = 1; beaconLevel = 1; beaconDistance = 0
     beaconTravel = 0; beaconApproach = 0; beaconAnswer = 0; beaconAnswerPhase = 0; beaconEchoBoost = 0
     let index = beaconAppearance
     beaconAppearance += 1
@@ -3718,7 +3719,10 @@ final class OceanModel {
     let salt = IdentityGestures.oceanSalt
     func u(_ slot: Int) -> Double { IdentityGestures.draw(seed: beaconGestureSeed, salt: salt, index: index, slot: slot) }
     let kind = IdentityGestures.kind(seed: beaconGestureSeed, salt: salt, index: index, kinds: IdentityGestures.oceanKinds)
-    beaconLevel = 1 + variety * (u(0) - 0.5) * 0.16
+    // Every call occupies a different point on the horizon. Near calls are clearer and stronger; far calls
+    // are quieter, darker, and carried by more reflected sound. The approved neutral horn remains unchanged.
+    beaconDistance = variety * u(0)
+    beaconLevel = 1.32 - 0.5 * beaconDistance
     // 0 plain; 1 darker; 2 falling; 3 crossing; 4 approaching; 5 answered; 6 longer echo.
     switch kind {
     case 1:
@@ -3731,6 +3735,7 @@ final class OceanModel {
     case 6: beaconEchoBoost = 0.3 * variety
     default: break
     }
+    beaconBrightness *= 1 - 0.28 * beaconDistance
   }
 
   private func renderBeacon(salience: WorldSalienceScheduler, presence: Double, density: Double, variety: Double) {
@@ -3761,15 +3766,15 @@ final class OceanModel {
       beaconPhase = fmod(beaconPhase + 2 * Double.pi * beaconBaseHz * beaconRootRatio * glideRatio * swell / rate, 2 * Double.pi)
       let horn = sin(beaconPhase) * 0.56 + sin(beaconPhase * 2) * (0.28 * beaconBrightness) +
         sin(beaconPhase * 3) * (0.12 * beaconBrightness) + sin(beaconPhase * 4) * (0.04 * beaconBrightness)
-      let distance = beaconApproach * abs(progress * 2 - 1)
-      dry = horn * envelope * beaconLevel * (1 - 0.3 * distance) * 0.25 * max(0, min(1.5, presence))
+      let approachDistance = beaconApproach * abs(progress * 2 - 1)
+      dry = horn * envelope * beaconLevel * (1 - 0.3 * approachDistance) * 0.45 * max(0, min(1.5, presence))
       beaconCurrentPan = beaconPan + beaconTravel * (progress * 2 - 1)
       if beaconAnswer > 0 && seconds >= 6 && seconds <= 15 {
         let answerProgress = (seconds - 6) / 9
         let answerEnvelope = pow(sin(Double.pi * answerProgress), 2)
         beaconAnswerPhase = fmod(beaconAnswerPhase + 2 * Double.pi * beaconBaseHz * 0.75 / rate, 2 * Double.pi)
         let answerHorn = sin(beaconAnswerPhase) * 0.65 + sin(beaconAnswerPhase * 2) * 0.35
-        dry += answerHorn * answerEnvelope * beaconAnswer * 0.25 * max(0, min(1.5, presence))
+        dry += answerHorn * answerEnvelope * beaconAnswer * 0.45 * max(0, min(1.5, presence))
       }
       beaconAge += 1
       if seconds >= 16 { beaconAge = -1 }
@@ -3780,7 +3785,8 @@ final class OceanModel {
     beaconWet += ((first + second) * 0.5 - beaconWet) * 0.018
     beaconEcho[beaconEchoIndex] = dry + beaconWet * 0.35
     beaconEchoIndex = (beaconEchoIndex + 1) % echoSize
-    let distant = dry * 0.72 + beaconWet * (0.46 + beaconEchoBoost)
+    let distant = dry * (0.8 - 0.2 * beaconDistance) +
+      beaconWet * (0.42 + 0.28 * beaconDistance + beaconEchoBoost)
     beaconLeft = distant * (1 - beaconCurrentPan)
     beaconRight = distant * (1 + beaconCurrentPan)
   }
@@ -3916,7 +3922,7 @@ enum IdentityGestures {
   static let forestKinds = 8
   static let fireKinds = 8
   static let oceanSalt: UInt64 = 0x4f6365616e
-  static let oceanKinds = 6
+  static let oceanKinds = 7
   private static var bagA = [Int](repeating: 0, count: 10)
   private static var bagB = [Int](repeating: 0, count: 10)
 

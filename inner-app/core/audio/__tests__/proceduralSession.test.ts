@@ -23,6 +23,7 @@ function engine(): jest.Mocked<InnerAudioEngine> {
     triggerCue: jest.fn(async () => {}),
     setCheckpointSessionId: jest.fn(async () => undefined),
     getCheckpoint: jest.fn(async () => null),
+    getHistoricalProcessExitInfo: jest.fn(async () => []),
     clearCheckpoint: jest.fn(async () => undefined),
     play: jest.fn(async () => {}),
     pause: jest.fn(async () => {}),

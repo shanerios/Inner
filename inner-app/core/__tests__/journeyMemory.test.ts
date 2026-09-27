@@ -459,7 +459,69 @@ describe('checkpoint reconciliation', () => {
       { type: 'started' },
       { type: 'interruption_began', at: 300, reason: 'focus_loss' },
       { type: 'audio_underrun', at: 400, underrunCount: 3 },
+      { type: 'previous_session_interrupted_unexpectedly' },
       { type: 'abandoned_interrupted' },
     ]);
+  });
+
+  it('uses a matching Android low-memory exit as evidence of OS termination', async () => {
+    const storage = memoryStorage();
+    const session = await beginJourneyMemorySession(
+      'test-journey', timeline, DEFAULT_PROCEDURAL_AUDIO_CONFIG, storage as any, () => 100,
+    );
+    const outcome = await reconcileInterruptedJourneyMemorySession({
+      sessionId: session.id,
+      positionMs: 15_000,
+      lastUpdatedAt: 500,
+      firedSignalIds: [],
+      processId: 42,
+      playbackState: 'playing',
+      engineRunning: true,
+      desiredPlaying: true,
+    }, storage as any, () => 600, [{
+      reasonCode: 3,
+      reason: 'low_memory',
+      timestamp: 550,
+      processId: 42,
+      pssKb: 12_345,
+      rssKb: 45_678,
+    }]);
+
+    expect(outcome).toBe('os_terminated');
+    const saved = await loadJourneyMemory(storage as any);
+    expect(saved.sessions[0].events.at(-2)).toMatchObject({
+      type: 'previous_session_interrupted_unexpectedly',
+      exitReason: 'low_memory',
+      processId: 42,
+      playbackState: 'playing',
+      desiredPlaying: true,
+      pssKb: 12_345,
+    });
+  });
+
+  it('does not attribute another process id exit to the interrupted session', async () => {
+    const storage = memoryStorage();
+    const session = await beginJourneyMemorySession(
+      'test-journey', timeline, DEFAULT_PROCEDURAL_AUDIO_CONFIG, storage as any, () => 100,
+    );
+    const outcome = await reconcileInterruptedJourneyMemorySession({
+      sessionId: session.id,
+      positionMs: 15_000,
+      lastUpdatedAt: 500,
+      firedSignalIds: [],
+      processId: 42,
+    }, storage as any, () => 600, [{
+      reasonCode: 3,
+      reason: 'low_memory',
+      timestamp: 550,
+      processId: 99,
+    }]);
+
+    expect(outcome).toBe('abandoned_interrupted');
+    const saved = await loadJourneyMemory(storage as any);
+    expect(saved.sessions[0].events.at(-2)).toMatchObject({
+      type: 'previous_session_interrupted_unexpectedly',
+    });
+    expect(saved.sessions[0].events.at(-2)?.exitReason).toBeUndefined();
   });
 });

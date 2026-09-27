@@ -65,6 +65,7 @@ export default function LucidJourneyPlayerScreen() {
   const lastMemoryCuePositionRef = useRef(0);
   const lastNativeCompletionCheckRef = useRef(0);
   const startStalledRef = useRef(false);
+  const explicitEffectRestartRef = useRef(false);
   const [positionMs, setPositionMs] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [startStalled, setStartStalled] = useState(false);
@@ -96,6 +97,7 @@ export default function LucidJourneyPlayerScreen() {
     let playbackReconciliationInFlight = false;
     let previousAppState = AppState.currentState;
     const session = sessionRef.current;
+    explicitEffectRestartRef.current = false;
 
     memorySessionIdRef.current = null;
     memoryFinishedRef.current = false;
@@ -390,14 +392,8 @@ export default function LucidJourneyPlayerScreen() {
       });
       previousAppState = nextAppState;
     });
-    void start();
-    return () => {
-      mounted = false;
-      appStateSubscription.remove();
-      if (timer) clearInterval(timer);
-      if (startWatchdog) clearInterval(startWatchdog);
-      if (startHangTimer) clearTimeout(startHangTimer);
-      if (cueScheduleStartedRef.current && !cueTrainingCompletedRef.current) {
+    const closeForExplicitExit = (cancelScheduledCues: boolean) => {
+      if (cancelScheduledCues && cueScheduleStartedRef.current && !cueTrainingCompletedRef.current) {
         // Wait for scheduling to finish before cancelling so a quick RETURN
         // cannot race the notification IDs being written to storage.
         void (cueSchedulePromiseRef.current ?? Promise.resolve(true))
@@ -409,13 +405,29 @@ export default function LucidJourneyPlayerScreen() {
       // A start that never produced audio is a failure, not a user's choice.
       if (startStalledRef.current) finishMemory('failed', 'start_stalled');
       else finishMemory('user_stopped');
-      // The stop, and the engine's last words about it, belong to this journey,
-      // not to whichever one starts next.
       const closingMemorySessionId = memorySessionIdRef.current;
       void session.stop()
         .then(() => session.drainDiagnosticEvents())
         .then(events => recordNativeEvents(events, closingMemorySessionId))
         .catch(() => {});
+    };
+    // Navigation is an explicit end. A React bridge/Activity teardown is not:
+    // Android may recreate the UI while the foreground playback service lives.
+    const removeBeforeRemove = navigation.addListener('beforeRemove', () => {
+      closeForExplicitExit(true);
+    });
+    void start();
+    return () => {
+      mounted = false;
+      appStateSubscription.remove();
+      removeBeforeRemove();
+      if (timer) clearInterval(timer);
+      if (startWatchdog) clearInterval(startWatchdog);
+      if (startHangTimer) clearTimeout(startHangTimer);
+      // A deliberate TRY AGAIN restarts this effect and must close its failed
+      // attempt. An app/bridge teardown leaves native playback and its durable
+      // checkpoint alone for the reconstructed UI or next cold launch.
+      if (explicitEffectRestartRef.current) closeForExplicitExit(false);
     };
   }, [journey, attempt]);
 
@@ -426,21 +438,15 @@ export default function LucidJourneyPlayerScreen() {
     setPlaybackPaused(false);
     startStalledRef.current = false;
     setPositionMs(0);
-    // Re-running the effect stops this attempt and begins a fresh one.
+    // Tell the outgoing effect this is an intentional restart, not Android
+    // recreating the React bridge around an active foreground journey.
+    explicitEffectRestartRef.current = true;
     setAttempt(current => current + 1);
   };
 
   const returnToJourneys = () => {
-    const memorySessionId = memorySessionIdRef.current;
-    if (memorySessionId && !memoryFinishedRef.current) {
-      memoryFinishedRef.current = true;
-      void sessionRef.current.setCheckpointSessionId(null).catch(() => {});
-      if (startStalledRef.current) void finishJourneyMemorySession(memorySessionId, 'failed', currentPositionRef.current, 'start_stalled');
-      else void finishJourneyMemorySession(memorySessionId, 'user_stopped', currentPositionRef.current);
-    }
-    // Navigation must never wait on native audio teardown. The screen cleanup
-    // issues the same idempotent stop, while this request begins immediately.
-    void sessionRef.current.stop().catch(() => {});
+    // The beforeRemove listener owns the terminal record and native stop for
+    // buttons, gestures, and Android's back action alike.
     navigation.goBack();
   };
 

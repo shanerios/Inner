@@ -146,7 +146,7 @@ export type AudioEngineListener = (snapshot: AudioEngineSnapshot) => void;
 export type NativePlaybackState = 'playing' | 'paused' | 'stopped';
 
 export type NativeAudioDiagnosticEvent = {
-  type: 'playback_resumed' | 'playback_paused' | 'playback_stopped' | 'audio_route_changed' | 'interruption_began' | 'interruption_ended' | 'recognition_signal_fired' | 'sleep_timer_fired' | 'audio_underrun' | 'error';
+  type: 'playback_resumed' | 'playback_paused' | 'playback_stopped' | 'foreground_service_started' | 'foreground_service_stopped' | 'audio_route_changed' | 'interruption_began' | 'interruption_ended' | 'recognition_signal_fired' | 'sleep_timer_fired' | 'audio_underrun' | 'error';
   atMs: number;
   reason?: string;
   /** Short machine-readable context. Never user content. */
@@ -187,11 +187,35 @@ export type NativeEngineDebugState = {
 export type NativeCheckpoint = {
   sessionId: string;
   positionMs: number;
+  stageId?: string;
   lastUpdatedAt: number;
   firedSignalIds: string[];
   plannedSignalCount?: number;
   /** Diagnostics the native ring buffer hadn't handed to JS yet at last write -- see `peekDiagnosticEvents` on Android. */
   pendingDiagnostics: NativeAudioDiagnosticEvent[];
+  processId?: number;
+  playbackState?: NativePlaybackState;
+  engineRunning?: boolean;
+  audioRoute?: 'private' | 'speaker' | 'unknown';
+  audioFocus?: 'held' | 'not_held' | 'unknown';
+  desiredPlaying?: boolean;
+  pauseReason?: 'user' | 'route_loss' | 'interruption';
+  lastStopReason?: string;
+  renderedFrames?: number;
+};
+
+/** Android 11+ record for a prior app-process exit. User content is never included. */
+export type NativeProcessExitInfo = {
+  reasonCode: number;
+  reason: string;
+  timestamp: number;
+  processId: number;
+  processName?: string;
+  importance?: number;
+  status?: number;
+  description?: string;
+  pssKb?: number;
+  rssKb?: number;
 };
 
 export interface InnerAudioEngine {
@@ -217,6 +241,8 @@ export interface InnerAudioEngine {
   setCheckpointSessionId(sessionId: string | null): Promise<void>;
   /** Always null where the native side has no checkpoint concept (iOS). */
   getCheckpoint(): Promise<NativeCheckpoint | null>;
+  /** Android 11+ historical process exits; empty on older Android and iOS. */
+  getHistoricalProcessExitInfo(): Promise<NativeProcessExitInfo[]>;
   /** Call once a checkpoint has been reconciled into a real outcome. No-op on iOS. */
   clearCheckpoint(): Promise<void>;
   play(): Promise<void>;

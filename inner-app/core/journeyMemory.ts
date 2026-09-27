@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import type {
   CompiledAudioJourneyTimeline,
   NativeAudioDiagnosticEvent,
+  NativeProcessExitInfo,
   NoiseColor,
   ProceduralAudioConfig,
   ProceduralEnvironment,
@@ -45,6 +46,8 @@ export type JourneyMemoryEventType =
   | 'playback_paused'
   | 'playback_resumed'
   | 'playback_stopped'
+  | 'foreground_service_started'
+  | 'foreground_service_stopped'
   | 'start_step'
   | 'start_stalled'
   | 'sleep_timer_fired'
@@ -52,6 +55,7 @@ export type JourneyMemoryEventType =
   | 'interruption_began'
   | 'interruption_ended'
   | 'audio_underrun'
+  | 'previous_session_interrupted_unexpectedly'
   | 'completed'
   | 'user_stopped'
   | 'recovered_interrupted'
@@ -96,6 +100,23 @@ export type JourneyMemoryEvent = {
   actualPositionMs?: number;
   driftMs?: number;
   underrunCount?: number;
+  lastUpdatedAt?: number;
+  engineRunning?: boolean;
+  playbackState?: string;
+  audioFocus?: string;
+  foregroundServiceState?: string;
+  desiredPlaying?: boolean;
+  pauseReason?: string;
+  lastStopReason?: string;
+  exitReason?: string;
+  exitReasonCode?: number;
+  exitDescription?: string;
+  exitTimestamp?: number;
+  processId?: number;
+  processImportance?: number;
+  processStatus?: number;
+  pssKb?: number;
+  rssKb?: number;
 };
 
 export type JourneyMemorySession = {
@@ -512,12 +533,34 @@ export function saveOvernightMorningCapture(
 export type JourneyMemoryCheckpoint = {
   sessionId: string;
   positionMs: number;
+  stageId?: string;
   lastUpdatedAt: number;
   firedSignalIds: string[];
   plannedSignalCount?: number;
   /** Diagnostics recorded natively after the last drain the JS side ever saw. */
   pendingDiagnostics?: NativeAudioDiagnosticEvent[];
+  processId?: number;
+  playbackState?: string;
+  engineRunning?: boolean;
+  audioRoute?: string;
+  audioFocus?: string;
+  desiredPlaying?: boolean;
+  pauseReason?: string;
+  lastStopReason?: string;
+  renderedFrames?: number;
 };
+
+export function findMatchingProcessExit(
+  sessionStartedAt: number,
+  checkpoint: JourneyMemoryCheckpoint,
+  exits: NativeProcessExitInfo[],
+  currentTime = Date.now(),
+): NativeProcessExitInfo | undefined {
+  return exits
+    .filter(exit => exit.timestamp >= sessionStartedAt && exit.timestamp <= currentTime + 60_000)
+    .filter(exit => checkpoint.processId == null || exit.processId === checkpoint.processId)
+    .sort((a, b) => b.timestamp - a.timestamp)[0];
+}
 
 /**
  * Reconciles one native checkpoint into a terminal outcome. Only acts on a
@@ -530,6 +573,7 @@ export async function reconcileInterruptedJourneyMemorySession(
   checkpoint: JourneyMemoryCheckpoint,
   storage: Storage = AsyncStorage,
   now: () => number = Date.now,
+  processExits: NativeProcessExitInfo[] = [],
 ): Promise<JourneyMemoryOutcome | null> {
   // Not wrapped in enqueue() itself: finishJourneyMemorySession below already
   // enqueues its own write (and re-checks !endedAt at write time), so nesting
@@ -538,16 +582,24 @@ export async function reconcileInterruptedJourneyMemorySession(
   const session = state.sessions.find(item => item.id === checkpoint.sessionId);
   if (!session || session.endedAt) return null;
 
-  // Allow only the native checkpoint cadence plus a small scheduling margin.
-  // A percentage threshold could misclassify many missing minutes overnight.
+  // Recovery is deliberately strict: the last durable position must be within
+  // 30 seconds of the end. A percentage threshold could misclassify many
+  // missing minutes in a long overnight protocol.
   const nearPlannedEnd = checkpoint.positionMs >= session.plannedDurationMs - 30_000;
   const allSignalsFired = checkpoint.plannedSignalCount != null
     && checkpoint.firedSignalIds.length >= checkpoint.plannedSignalCount;
+  const processExit = findMatchingProcessExit(session.startedAt, checkpoint, processExits, now());
+  const processFailure = processExit && ['crash', 'crash_native', 'anr', 'initialization_failure'].includes(processExit.reason);
+  const osTermination = processExit && ['low_memory', 'excessive_resource_usage', 'dependency_died', 'freezer'].includes(processExit.reason);
   const outcome: JourneyMemoryOutcome = nearPlannedEnd && allSignalsFired
     ? 'recovered_interrupted'
-    : checkpoint.positionMs > 0
-      ? 'abandoned_interrupted'
-      : 'unknown';
+    : processFailure
+      ? 'failed'
+      : osTermination
+        ? 'os_terminated'
+        : checkpoint.positionMs > 0
+          ? 'abandoned_interrupted'
+          : 'unknown';
 
   for (const event of checkpoint.pendingDiagnostics ?? []) {
     await recordJourneyMemoryEvent(checkpoint.sessionId, {
@@ -564,12 +616,36 @@ export async function reconcileInterruptedJourneyMemorySession(
     }, storage, now);
   }
 
+  await recordJourneyMemoryEvent(checkpoint.sessionId, {
+    type: 'previous_session_interrupted_unexpectedly',
+    positionMs: checkpoint.positionMs,
+    stageId: checkpoint.stageId,
+    lastUpdatedAt: checkpoint.lastUpdatedAt,
+    route: checkpoint.audioRoute,
+    engineRunning: checkpoint.engineRunning,
+    playbackState: checkpoint.playbackState,
+    audioFocus: checkpoint.audioFocus,
+    foregroundServiceState: checkpoint.engineRunning ? 'running' : 'stopped',
+    desiredPlaying: checkpoint.desiredPlaying,
+    pauseReason: checkpoint.pauseReason,
+    lastStopReason: checkpoint.lastStopReason,
+    processId: checkpoint.processId,
+    exitReason: processExit?.reason,
+    exitReasonCode: processExit?.reasonCode,
+    exitDescription: processExit?.description,
+    exitTimestamp: processExit?.timestamp,
+    processImportance: processExit?.importance,
+    processStatus: processExit?.status,
+    pssKb: processExit?.pssKb,
+    rssKb: processExit?.rssKb,
+  }, storage, now);
+
   const staleSeconds = Math.max(0, Math.round((now() - checkpoint.lastUpdatedAt) / 1_000));
   await finishJourneyMemorySession(
     checkpoint.sessionId,
     outcome,
     checkpoint.positionMs,
-    `reconciled from checkpoint (last written ${staleSeconds}s before relaunch, ${checkpoint.firedSignalIds.length}${checkpoint.plannedSignalCount != null ? `/${checkpoint.plannedSignalCount}` : ''} signals fired)`,
+    `reconciled from checkpoint (last written ${staleSeconds}s before relaunch, ${checkpoint.firedSignalIds.length}${checkpoint.plannedSignalCount != null ? `/${checkpoint.plannedSignalCount}` : ''} signals fired${processExit ? `, Android exit: ${processExit.reason}` : ', no matching Android exit reason'})`,
     storage,
     now,
   );

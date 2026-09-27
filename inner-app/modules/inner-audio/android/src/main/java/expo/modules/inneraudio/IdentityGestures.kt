@@ -22,7 +22,7 @@ internal object IdentityGestures {
   const val FOREST_SALT = 0x466f7273L
   const val FOREST_KINDS = 8
   const val OCEAN_SALT = 0x4f6365616eL
-  const val OCEAN_KINDS = 6
+  const val OCEAN_KINDS = 7
 
   private val bagA = IntArray(10)
   private val bagB = IntArray(10)

@@ -60,6 +60,7 @@ internal class OceanModel {
   private var beaconGlide = 0.0
   private var beaconBrightness = 1.0
   private var beaconLevel = 1.0
+  private var beaconDistance = 0.0
   private var beaconTravel = 0.0
   private var beaconApproach = 0.0
   private var beaconAnswer = 0.0
@@ -81,7 +82,7 @@ internal class OceanModel {
     beaconEcho = DoubleArray(max(2, (rate * 0.5).toInt()))
     beaconEchoIndex = 0; beaconWet = 0.0; beaconLeft = 0.0; beaconRight = 0.0
     beaconGestureSeed = seed; beaconAppearance = 0L
-    beaconRootRatio = 1.0; beaconGlide = 0.0; beaconBrightness = 1.0; beaconLevel = 1.0
+    beaconRootRatio = 1.0; beaconGlide = 0.0; beaconBrightness = 1.0; beaconLevel = 1.0; beaconDistance = 0.0
     beaconTravel = 0.0; beaconApproach = 0.0; beaconAnswer = 0.0; beaconAnswerPhase = 0.0; beaconEchoBoost = 0.0
     left = 0.0; right = 0.0
   }
@@ -103,14 +104,17 @@ internal class OceanModel {
   }
 
   private fun drawBeaconGesture(variety: Double) {
-    beaconRootRatio = 1.0; beaconGlide = 0.0; beaconBrightness = 1.0; beaconLevel = 1.0
+    beaconRootRatio = 1.0; beaconGlide = 0.0; beaconBrightness = 1.0; beaconLevel = 1.0; beaconDistance = 0.0
     beaconTravel = 0.0; beaconApproach = 0.0; beaconAnswer = 0.0; beaconAnswerPhase = 0.0; beaconEchoBoost = 0.0
     val index = beaconAppearance++
     if (variety <= 0.0) return
     val salt = IdentityGestures.OCEAN_SALT
     fun u(slot: Int) = IdentityGestures.draw(beaconGestureSeed, salt, index, slot)
     val kind = IdentityGestures.kind(beaconGestureSeed, salt, index, IdentityGestures.OCEAN_KINDS)
-    beaconLevel = 1.0 + variety * (u(0) - 0.5) * 0.16
+    // Every call occupies a different point on the horizon. Near calls are clearer and stronger; far calls
+    // are quieter, darker, and carried by more reflected sound. The approved neutral horn remains unchanged.
+    beaconDistance = variety * u(0)
+    beaconLevel = 1.32 - 0.5 * beaconDistance
     // 0 plain; 1 darker; 2 falling; 3 crossing; 4 approaching; 5 answered; 6 longer echo.
     when (kind) {
       1 -> {
@@ -123,6 +127,7 @@ internal class OceanModel {
       5 -> beaconAnswer = 0.32 * variety
       6 -> beaconEchoBoost = 0.3 * variety
     }
+    beaconBrightness *= 1.0 - 0.28 * beaconDistance
   }
 
   private fun renderBeacon(salience: WorldSalienceScheduler, presence: Double, density: Double, variety: Double) {
@@ -153,15 +158,15 @@ internal class OceanModel {
       beaconPhase = (beaconPhase + 2.0 * PI * beaconBaseHz * beaconRootRatio * glideRatio * swell / rate) % (2.0 * PI)
       val horn = sin(beaconPhase) * 0.56 + sin(beaconPhase * 2.0) * (0.28 * beaconBrightness) +
         sin(beaconPhase * 3.0) * (0.12 * beaconBrightness) + sin(beaconPhase * 4.0) * (0.04 * beaconBrightness)
-      val distance = beaconApproach * abs(progress * 2.0 - 1.0)
-      dry = horn * envelope * beaconLevel * (1.0 - 0.3 * distance) * 0.25 * presence.coerceIn(0.0, 1.5)
+      val approachDistance = beaconApproach * abs(progress * 2.0 - 1.0)
+      dry = horn * envelope * beaconLevel * (1.0 - 0.3 * approachDistance) * 0.45 * presence.coerceIn(0.0, 1.5)
       beaconCurrentPan = beaconPan + beaconTravel * (progress * 2.0 - 1.0)
       if (beaconAnswer > 0.0 && seconds >= 6.0 && seconds <= 15.0) {
         val answerProgress = (seconds - 6.0) / 9.0
         val answerEnvelope = sin(PI * answerProgress).pow(2.0)
         beaconAnswerPhase = (beaconAnswerPhase + 2.0 * PI * beaconBaseHz * 0.75 / rate) % (2.0 * PI)
         val answerHorn = sin(beaconAnswerPhase) * 0.65 + sin(beaconAnswerPhase * 2.0) * 0.35
-        dry += answerHorn * answerEnvelope * beaconAnswer * 0.25 * presence.coerceIn(0.0, 1.5)
+        dry += answerHorn * answerEnvelope * beaconAnswer * 0.45 * presence.coerceIn(0.0, 1.5)
       }
       beaconAge += 1.0
       if (seconds >= 16.0) beaconAge = -1.0
@@ -172,7 +177,8 @@ internal class OceanModel {
     beaconWet += ((first + second) * 0.5 - beaconWet) * 0.018
     beaconEcho[beaconEchoIndex] = dry + beaconWet * 0.35
     beaconEchoIndex = (beaconEchoIndex + 1) % echoSize
-    val distant = dry * 0.72 + beaconWet * (0.46 + beaconEchoBoost)
+    val distant = dry * (0.8 - 0.2 * beaconDistance) +
+      beaconWet * (0.42 + 0.28 * beaconDistance + beaconEchoBoost)
     beaconLeft = distant * (1.0 - beaconCurrentPan)
     beaconRight = distant * (1.0 + beaconCurrentPan)
   }

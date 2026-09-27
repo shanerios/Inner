@@ -98,6 +98,7 @@ internal data class AudioParameters(
 }
 
 private data class TimelineStageState(
+  val id: String,
   val durationMs: Double,
   val transitionMs: Double,
   val parameters: AudioParameters,
@@ -476,6 +477,7 @@ object ProceduralAudioEngine {
       val stages = raw.stages.take(32).map { stage ->
         val durationMs = clamp(stage.durationMs, 1_000.0, 14_400_000.0)
         TimelineStageState(
+          id = stage.id,
           durationMs = durationMs,
           transitionMs = clamp(stage.transitionMs, 0.0, durationMs),
           parameters = normalizedParameters(stage.config, null),
@@ -558,13 +560,24 @@ object ProceduralAudioEngine {
    */
   fun checkpointSnapshot(): Map<String, Any>? {
     val sessionId = checkpointSessionId ?: return null
-    val positionMs = getTimelinePositionMs() ?: return null
+    val timelineSnapshot = lock.withLock {
+      val activeTimeline = timeline ?: return null
+      val positionMs = timelineElapsedFrames * 1_000.0 / sampleRate
+      var cursorMs = 0.0
+      val stage = activeTimeline.stages.firstOrNull { candidate ->
+        val containsPosition = positionMs < cursorMs + candidate.durationMs
+        if (!containsPosition) cursorMs += candidate.durationMs
+        containsPosition
+      } ?: activeTimeline.stages.lastOrNull()
+      Triple(positionMs, stage?.id, activeTimeline.stages.sumOf { it.cueEvents.size })
+    }
     val fired = firedSignalLock.withLock { firedSignalIds.toList() }
     return mapOf(
       "sessionId" to sessionId,
-      "positionMs" to positionMs,
+      "positionMs" to timelineSnapshot.first,
+      "stageId" to (timelineSnapshot.second ?: ""),
       "firedSignalIds" to fired,
-      "plannedSignalCount" to (timeline?.stages?.sumOf { it.cueEvents.size } ?: 0),
+      "plannedSignalCount" to timelineSnapshot.third,
     )
   }
 

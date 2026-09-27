@@ -8,6 +8,7 @@ import type {
   NativeCheckpoint,
   NativeEngineDebugState,
   NativePlaybackState,
+  NativeProcessExitInfo,
   ProceduralAudioConfig,
   ProceduralAudioPatch,
   NativeAudioDiagnosticEvent,
@@ -29,6 +30,7 @@ type NativeInnerAudio = {
   triggerCue(): Promise<void>;
   setCheckpointSessionId?(sessionId: string | null): Promise<void>;
   getCheckpoint?(): NativeCheckpoint | null;
+  getHistoricalProcessExitInfo?(): NativeProcessExitInfo[];
   clearCheckpoint?(): Promise<void>;
   play(): Promise<void>;
   pause(): Promise<void>;
@@ -121,6 +123,15 @@ class NativeProceduralAudioEngine implements InnerAudioEngine {
 
   async getCheckpoint(): Promise<NativeCheckpoint | null> {
     return this.getNativeModule().getCheckpoint?.() ?? null;
+  }
+
+  async getHistoricalProcessExitInfo(): Promise<NativeProcessExitInfo[]> {
+    try {
+      return this.getNativeModule().getHistoricalProcessExitInfo?.() ?? [];
+    } catch {
+      // Exit history is diagnostic-only and must never block startup.
+      return [];
+    }
   }
 
   async clearCheckpoint() {

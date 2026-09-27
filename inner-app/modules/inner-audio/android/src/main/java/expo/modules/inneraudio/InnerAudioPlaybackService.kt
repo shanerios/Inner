@@ -21,6 +21,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.os.PowerManager
 import android.os.Process
 import android.os.SystemClock
 import android.support.v4.media.MediaMetadataCompat
@@ -87,7 +88,9 @@ class InnerAudioPlaybackService : Service() {
     private const val MEDIA_PAUSE_ROUTE_GRACE_MS = 3_000L
     private const val CHECKPOINT_PREFS_NAME = "inner_audio_checkpoint"
     private const val CHECKPOINT_PREFS_KEY = "checkpoint_json"
-    private const val CHECKPOINT_INTERVAL_MS = 20_000L
+    // The checkpoint is also written on every meaningful lifecycle change.
+    // Two minutes bounds lost position without waking storage 1,440 times/night.
+    private const val CHECKPOINT_INTERVAL_MS = 120_000L
 
     @Volatile var isRunning = false
       private set
@@ -143,9 +146,19 @@ class InnerAudioPlaybackService : Service() {
         mapOf(
           "sessionId" to json.optString("sessionId"),
           "positionMs" to json.optDouble("positionMs"),
+          "stageId" to json.optString("stageId").takeIf { it.isNotEmpty() },
           "lastUpdatedAt" to json.optDouble("lastUpdatedAt"),
           "firedSignalIds" to (fired?.let { array -> List(array.length()) { array.getString(it) } } ?: emptyList<String>()),
           "plannedSignalCount" to if (json.has("plannedSignalCount")) json.getInt("plannedSignalCount") else null,
+          "processId" to if (json.has("processId")) json.getInt("processId") else null,
+          "playbackState" to json.optString("playbackState", "stopped"),
+          "engineRunning" to json.optBoolean("engineRunning", false),
+          "audioRoute" to json.optString("audioRoute", "unknown"),
+          "audioFocus" to json.optString("audioFocus", "unknown"),
+          "desiredPlaying" to json.optBoolean("desiredPlaying", false),
+          "pauseReason" to json.optString("pauseReason").takeIf { it.isNotEmpty() },
+          "lastStopReason" to json.optString("lastStopReason").takeIf { it.isNotEmpty() },
+          "renderedFrames" to if (json.has("renderedFrames")) json.getDouble("renderedFrames") else null,
           "pendingDiagnostics" to (diagnostics?.let { array ->
             List(array.length()) { index ->
               val event = array.getJSONObject(index)
@@ -189,6 +202,8 @@ class InnerAudioPlaybackService : Service() {
   private var activePrivateDeviceId: Int? = null
   private var lastMediaSessionPauseAtElapsedMs = Long.MIN_VALUE
   private var explicitAppPause = false
+  private var hasAudioFocus = false
+  private var playbackWakeLock: PowerManager.WakeLock? = null
 
   private val checkpointRunnable = object : Runnable {
     override fun run() {
@@ -256,6 +271,7 @@ class InnerAudioPlaybackService : Service() {
     routeLog("focus_change=$focusChange")
     when (focusChange) {
       AudioManager.AUDIOFOCUS_LOSS -> {
+        hasAudioFocus = false
         ProceduralAudioEngine.recordDiagnostic("interruption_began", "focus_loss")
         if (pauseReason != PauseReason.ROUTE_LOSS) {
           desiredPlaying = false
@@ -263,11 +279,13 @@ class InnerAudioPlaybackService : Service() {
         }
       }
       AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
+        hasAudioFocus = false
         ProceduralAudioEngine.recordDiagnostic("interruption_began", "focus_loss_transient")
         if (pauseReason != PauseReason.ROUTE_LOSS) pause(PauseReason.INTERRUPTION)
       }
       AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> audioTrack?.setVolume(0.35f)
       AudioManager.AUDIOFOCUS_GAIN -> {
+        hasAudioFocus = true
         ProceduralAudioEngine.recordDiagnostic("interruption_ended", "focus_gain")
         audioTrack?.setVolume(1.0f)
         if (desiredPlaying) play("interruption_recovered", gentleFadeIn = true)
@@ -279,6 +297,8 @@ class InnerAudioPlaybackService : Service() {
     super.onCreate()
     isRunning = true
     playbackState = "stopped"
+    lastStopReason = null
+    ProceduralAudioEngine.recordDiagnostic("foreground_service_started", "on_create")
     audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
     createNotificationChannel()
     registerNoisyReceiver()
@@ -327,7 +347,13 @@ class InnerAudioPlaybackService : Service() {
   override fun onDestroy() {
     // Preserve the last checkpoint when Android destroys the service without
     // an explicit stop; the next cold launch can then reconcile the session.
-    if (lastStopReason == null) lastStopReason = "service_destroyed"
+    val unexpectedDestroy = lastStopReason == null
+    if (unexpectedDestroy) {
+      lastStopReason = "service_destroyed"
+      ProceduralAudioEngine.recordDiagnostic("playback_stopped", "service_destroyed")
+    }
+    ProceduralAudioEngine.recordDiagnostic("foreground_service_stopped", lastStopReason ?: "service_destroyed")
+    if (unexpectedDestroy) persistCheckpoint()
     teardownPlayback(clearCheckpoint = false)
     mediaSession?.release()
     mediaSession = null
@@ -370,6 +396,7 @@ class InnerAudioPlaybackService : Service() {
       return
     }
     renderThreadPaused.set(false)
+    acquirePlaybackWakeLock()
     playbackState = "playing"
     registerDeviceCallbackIfNeeded()
     refreshActivePrivateDevice()
@@ -425,10 +452,21 @@ class InnerAudioPlaybackService : Service() {
     val json = JSONObject().apply {
       put("sessionId", snapshot["sessionId"] as? String ?: return)
       put("positionMs", snapshot["positionMs"] as? Double ?: 0.0)
+      put("stageId", snapshot["stageId"] as? String ?: "")
       @Suppress("UNCHECKED_CAST")
       put("firedSignalIds", JSONArray(snapshot["firedSignalIds"] as? List<String> ?: emptyList<String>()))
       put("plannedSignalCount", snapshot["plannedSignalCount"] as? Int ?: 0)
       put("lastUpdatedAt", System.currentTimeMillis().toDouble())
+      put("processId", Process.myPid())
+      put("playbackState", playbackState)
+      put("engineRunning", isRunning)
+      put("audioRoute", if (activePrivateDeviceId != null) "private" else "speaker")
+      put("audioFocus", if (hasAudioFocus) "held" else "not_held")
+      put("desiredPlaying", desiredPlaying)
+      pauseReason?.let { put("pauseReason", it.name.lowercase()) }
+      lastStopReason?.let { put("lastStopReason", it) }
+      val renderedFrames = ProceduralAudioEngine.debugState()["renderedFrames"]
+      if (renderedFrames != null) put("renderedFrames", renderedFrames)
       put("pendingDiagnostics", pendingDiagnostics)
     }
     getSharedPreferences(CHECKPOINT_PREFS_NAME, Context.MODE_PRIVATE).edit()
@@ -442,6 +480,7 @@ class InnerAudioPlaybackService : Service() {
     ProceduralAudioEngine.pauseSleepTimer()
     renderThreadPaused.set(true)
     audioTrack?.pause()
+    releasePlaybackWakeLock()
     playbackState = if (audioTrack == null) "stopped" else "paused"
     updateNowPlaying(isPlaying = false)
     ProceduralAudioEngine.recordDiagnostic("playback_paused", when (reason) {
@@ -492,6 +531,7 @@ class InnerAudioPlaybackService : Service() {
     audioTrack = null
     activePrivateDeviceId = null
     ProceduralAudioEngine.reset()
+    releasePlaybackWakeLock()
     abandonAudioFocus()
     unregisterDeviceCallbackIfNeeded()
     updatePlaybackState(PlaybackStateCompat.STATE_STOPPED)
@@ -652,7 +692,12 @@ class InnerAudioPlaybackService : Service() {
           renderThreadPaused.set(true)
           playbackState = "stopped"
           lastStopReason = "audio_track_write_failed"
-          ProceduralAudioEngine.recordDiagnostic("playback_paused", "audio_track_write_failed")
+          ProceduralAudioEngine.recordDiagnostic("error", "audio_track_write_failed")
+          mainHandler.post {
+            releasePlaybackWakeLock()
+            persistCheckpoint()
+            updateNowPlaying(isPlaying = false)
+          }
           break
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
@@ -681,11 +726,13 @@ class InnerAudioPlaybackService : Service() {
         .setOnAudioFocusChangeListener(focusChangeListener, mainHandler)
         .build()
       focusRequest = request
-      return manager.requestAudioFocus(request) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+      hasAudioFocus = manager.requestAudioFocus(request) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+      return hasAudioFocus
     }
     @Suppress("DEPRECATION")
     val result = manager.requestAudioFocus(focusChangeListener, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN)
-    return result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+    hasAudioFocus = result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+    return hasAudioFocus
   }
 
   private fun abandonAudioFocus() {
@@ -697,6 +744,24 @@ class InnerAudioPlaybackService : Service() {
       @Suppress("DEPRECATION")
       manager.abandonAudioFocus(focusChangeListener)
     }
+    hasAudioFocus = false
+  }
+
+  private fun acquirePlaybackWakeLock() {
+    if (playbackWakeLock?.isHeld == true) return
+    val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+    playbackWakeLock = powerManager.newWakeLock(
+      PowerManager.PARTIAL_WAKE_LOCK,
+      "Inner:ProceduralPlayback",
+    ).apply {
+      setReferenceCounted(false)
+      acquire()
+    }
+  }
+
+  private fun releasePlaybackWakeLock() {
+    playbackWakeLock?.let { if (it.isHeld) it.release() }
+    playbackWakeLock = null
   }
 
   private fun registerDeviceCallbackIfNeeded() {
