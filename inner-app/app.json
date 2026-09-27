@@ -23,7 +23,7 @@
       "supportsTablet": true,
       "requireFullScreen": true,
       "bundleIdentifier": "com.getinner.app",
-      "buildNumber": "2075",
+      "buildNumber": "2076",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "UIBackgroundModes": [
@@ -37,7 +37,7 @@
         "com.android.vending.BILLING"
       ],
       "package": "com.getinner.app",
-      "versionCode": 62,
+      "versionCode": 63,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#1f233a"
