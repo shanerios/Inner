@@ -10,6 +10,8 @@ android {
 }
 
 dependencies {
+  testImplementation 'junit:junit:4.12'
+  testImplementation 'org.json:json:20180813'
   implementation 'androidx.media:media:1.7.0'
   implementation 'androidx.core:core-ktx:1.12.0'
 }

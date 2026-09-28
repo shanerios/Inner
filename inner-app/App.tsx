@@ -1,3 +1,4 @@
+import { recoverJourneyCheckpoints } from './core/journeyCheckpointRecovery';
 import React, { useEffect, useRef } from "react";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import OnboardingFlow from './screens/OnboardingFlow';
@@ -307,71 +308,70 @@ export default Sentry.wrap(function App() {
     return () => clearTimeout(t);
   }, [fogVisible]);
 
-  // Reconcile a durable checkpoint left behind by a process death (Android
-  // only -- see journeyMemory.ts for why iOS's background-audio model
-  // doesn't carry the same risk). Runs once per cold launch, before anything
-  // else touches journey memory, so a stale "still open" session never lingers
-  // unexplained or gets mistaken for one that's genuinely in progress.
+  // Reconcile native evidence after launch. A live matching session is left
+  // alone; older terminal receipts can still be acknowledged independently.
   useEffect(() => {
     (async () => {
       try {
         if (!proceduralAudioEngine.isAvailable()) return;
-        const checkpoint = await proceduralAudioEngine.getCheckpoint();
-        if (!checkpoint) return;
-        const liveState = await proceduralAudioEngine.getDebugState?.();
-        // A recreated React bridge can see the active service's checkpoint.
-        // That is continued playback, not a prior process death to reconcile.
-        if (liveState?.engineRunning && liveState.playbackState !== 'stopped') return;
         const [processExits, memory] = await Promise.all([
           proceduralAudioEngine.getHistoricalProcessExitInfo(),
           loadJourneyMemory(),
         ]);
-        const session = memory.sessions.find(item => item.id === checkpoint.sessionId);
-        const matchingExit = session
-          ? findMatchingProcessExit(session.startedAt, checkpoint, processExits)
-          : undefined;
-        const outcome = await reconcileInterruptedJourneyMemorySession(
-          checkpoint,
-          AsyncStorage,
-          Date.now,
-          processExits,
-        );
-        if (outcome) {
-          const diagnostic = {
-            outcome,
-            checkpointAgeMs: Math.max(0, Date.now() - checkpoint.lastUpdatedAt),
-            positionMs: checkpoint.positionMs,
-            playbackState: checkpoint.playbackState,
-            engineRunning: checkpoint.engineRunning,
-            audioRoute: checkpoint.audioRoute,
-            audioFocus: checkpoint.audioFocus,
-            desiredPlaying: checkpoint.desiredPlaying,
-            pauseReason: checkpoint.pauseReason,
-            lastStopReason: checkpoint.lastStopReason,
-            exitReason: matchingExit?.reason ?? 'unavailable',
-            exitReasonCode: matchingExit?.reasonCode,
-            exitTimestamp: matchingExit?.timestamp,
-            exitDescription: matchingExit?.description,
-            processImportance: matchingExit?.importance,
-            processStatus: matchingExit?.status,
-            pssKb: matchingExit?.pssKb,
-            rssKb: matchingExit?.rssKb,
-          };
-          Sentry.addBreadcrumb({
-            category: 'media.lifecycle',
-            level: 'warning',
-            message: 'Previous overnight playback ended unexpectedly',
-            data: diagnostic,
-          });
-          Sentry.withScope(scope => {
-            scope.setContext('overnight_termination', diagnostic);
-            scope.setTag('overnight_outcome', outcome);
-            scope.setTag('android_exit_reason', matchingExit?.reason ?? 'unavailable');
-            Sentry.captureMessage('Overnight playback ended unexpectedly', 'warning');
-          });
-        }
-        await proceduralAudioEngine.clearCheckpoint();
-      } catch {}
+        await recoverJourneyCheckpoints(proceduralAudioEngine, async checkpoint => {
+          const session = memory.sessions.find(item => item.id === checkpoint.sessionId);
+          const matchingExit = session
+            ? findMatchingProcessExit(session.startedAt, checkpoint, processExits)
+            : undefined;
+          const outcome = await reconcileInterruptedJourneyMemorySession(
+            checkpoint,
+            AsyncStorage,
+            Date.now,
+            processExits,
+          );
+          if (outcome && !checkpoint.terminalOutcome && checkpoint.pauseReason !== 'user') {
+            const diagnostic = {
+              outcome,
+              checkpointAgeMs: Math.max(0, Date.now() - checkpoint.lastUpdatedAt),
+              positionMs: checkpoint.positionMs,
+              playbackState: checkpoint.playbackState,
+              engineRunning: checkpoint.engineRunning,
+              audioRoute: checkpoint.audioRoute,
+              audioFocus: checkpoint.audioFocus,
+              desiredPlaying: checkpoint.desiredPlaying,
+              pauseReason: checkpoint.pauseReason,
+              lastStopReason: checkpoint.lastStopReason,
+              exitReason: matchingExit?.reason ?? 'unavailable',
+              exitReasonCode: matchingExit?.reasonCode,
+              exitTimestamp: matchingExit?.timestamp,
+              exitDescription: matchingExit?.description,
+              processImportance: matchingExit?.importance,
+              processStatus: matchingExit?.status,
+              pssKb: matchingExit?.pssKb,
+              rssKb: matchingExit?.rssKb,
+            };
+            Sentry.addBreadcrumb({
+              category: 'media.lifecycle',
+              level: 'warning',
+              message: 'Previous overnight playback ended unexpectedly',
+              data: diagnostic,
+            });
+            Sentry.withScope(scope => {
+              scope.setContext('overnight_termination', diagnostic);
+              scope.setTag('overnight_outcome', outcome);
+              scope.setTag('android_exit_reason', matchingExit?.reason ?? 'unavailable');
+              Sentry.captureMessage('Overnight playback ended unexpectedly', 'warning');
+            });
+          }
+        });
+      } catch (error) {
+        // The recovery mechanism is itself what's supposed to explain a bad
+        // night -- if it throws, that failure must not disappear silently,
+        // or we lose visibility into exactly the cases we most need to see.
+        Sentry.captureException(error, {
+          tags: { context: 'overnight_checkpoint_recovery' },
+        });
+      }
     })();
   }, []);
 

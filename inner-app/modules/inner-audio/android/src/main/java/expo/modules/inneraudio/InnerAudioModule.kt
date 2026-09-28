@@ -87,6 +87,8 @@ class InnerAudioModule : Module() {
       InnerAudioPlaybackService.readPersistedCheckpoint(context)
     }
 
+    Function("getCheckpoints") { InnerAudioPlaybackService.readPersistedCheckpoints(context) }
+
     Function("getHistoricalProcessExitInfo") {
       if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
         emptyList<Map<String, Any?>>()
@@ -109,8 +111,8 @@ class InnerAudioModule : Module() {
       }
     }
 
-    AsyncFunction("clearCheckpoint") {
-      InnerAudioPlaybackService.clearPersistedCheckpoint(context)
+    AsyncFunction("clearCheckpoint") { sessionId: String? ->
+      InnerAudioPlaybackService.clearPersistedCheckpoint(context, sessionId)
     }
 
     AsyncFunction("play") {

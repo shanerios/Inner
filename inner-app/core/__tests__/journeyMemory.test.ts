@@ -525,3 +525,66 @@ describe('checkpoint reconciliation', () => {
     expect(saved.sessions[0].events.at(-2)?.exitReason).toBeUndefined();
   });
 });
+
+describe('native terminal receipts and cue identity', () => {
+  it.each(['completed', 'user_stopped'] as const)('persists a %s receipt at its native time without a false interruption', async terminalOutcome => {
+    const storage = memoryStorage();
+    const session = await beginJourneyMemorySession('overnight-recognition-ocean-standard', timeline,
+      DEFAULT_PROCEDURAL_AUDIO_CONFIG, storage, () => 100);
+    const receipt = { sessionId: session.id, positionMs: 25_000, lastUpdatedAt: 25_100,
+      firedSignalIds: [], terminalOutcome, processInstanceId: 'native-launch-1' };
+    expect(await reconcileInterruptedJourneyMemorySession(receipt, storage, () => 90_000)).toBe(terminalOutcome);
+    const saved = (await loadJourneyMemory(storage)).sessions[0];
+    expect(saved.nativeCheckpoint?.processInstanceId).toBe('native-launch-1');
+    expect(saved.nativeCheckpoint?.terminalOutcome).toBe(terminalOutcome);
+    expect(saved.endedAt).toBe(25_100);
+    expect(saved.elapsedWallTimeMs).toBe(25_000);
+    expect(saved.events.some(e => e.type === 'previous_session_interrupted_unexpectedly')).toBe(false);
+    expect(await reconcileInterruptedJourneyMemorySession(receipt, storage, () => 100_000)).toBeNull();
+  });
+
+  it('does not treat repeat firings of one cue as delivery of a different cue', async () => {
+    const storage = memoryStorage();
+    const session = await beginJourneyMemorySession('night', timeline, DEFAULT_PROCEDURAL_AUDIO_CONFIG, storage, () => 100);
+    expect(await reconcileInterruptedJourneyMemorySession({ sessionId: session.id, positionMs: 59_000,
+      lastUpdatedAt: 60_000, plannedSignalCount: 2, firedSignalIds: ['bell', 'bell'],
+      plannedCueIds: ['stage/one', 'stage/two'], firedCueIds: ['stage/one', 'stage/one'],
+      pendingDiagnostics: [{ type: 'recognition_signal_fired', atMs: 10_000, cueId: 'stage/one', signalId: 'bell' }],
+    }, storage, () => 90_000)).toBe('abandoned_interrupted');
+    expect((await loadJourneyMemory(storage)).sessions[0].events).toEqual(expect.arrayContaining([
+      expect.objectContaining({ cueId: 'stage/one', signalId: 'bell' }),
+    ]));
+  });
+
+  it('does not infer completion from a deliberately paused checkpoint near the end', async () => {
+    const storage = memoryStorage();
+    const session = await beginJourneyMemorySession('night', timeline, DEFAULT_PROCEDURAL_AUDIO_CONFIG, storage, () => 100);
+    expect(await reconcileInterruptedJourneyMemorySession({ sessionId: session.id, positionMs: 59_000,
+      lastUpdatedAt: 60_000, firedSignalIds: [], plannedCueIds: [], firedCueIds: [], pauseReason: 'user', playbackState: 'paused',
+    }, storage, () => 90_000)).toBe('abandoned_interrupted');
+  });
+});
+
+it('retries a failed reconciliation write without partially importing or duplicating native events', async () => {
+  const storage = memoryStorage();
+  const session = await beginJourneyMemorySession('night', timeline, DEFAULT_PROCEDURAL_AUDIO_CONFIG, storage, () => 100);
+  const receipt = { sessionId: session.id, positionMs: 20_000, lastUpdatedAt: 20_100, firedSignalIds: [],
+    terminalOutcome: 'user_stopped' as const,
+    pendingDiagnostics: [{ type: 'playback_stopped' as const, atMs: 20_100, reason: 'media_control' }],
+  };
+  storage.setItem.mockRejectedValueOnce(new Error('disk full'));
+  await expect(reconcileInterruptedJourneyMemorySession(receipt, storage)).rejects.toThrow('disk full');
+  expect((await loadJourneyMemory(storage)).sessions[0].events).toHaveLength(1);
+  await reconcileInterruptedJourneyMemorySession(receipt, storage);
+  expect((await loadJourneyMemory(storage)).sessions[0].events.filter(e => e.type === 'playback_stopped')).toHaveLength(1);
+});
+
+it('surfaces a history read failure rather than acknowledging a missing session', async () => {
+  const storage = memoryStorage();
+  storage.getItem.mockRejectedValueOnce(new Error('storage unavailable'));
+  await expect(reconcileInterruptedJourneyMemorySession({ sessionId: 'night', positionMs: 0,
+    lastUpdatedAt: 100, firedSignalIds: [] }, storage)).rejects.toThrow('storage unavailable');
+  storage.values.set(JOURNEY_MEMORY_KEY, 'broken JSON');
+  await expect(reconcileInterruptedJourneyMemorySession({ sessionId: 'night', positionMs: 0,
+    lastUpdatedAt: 100, firedSignalIds: [] }, storage)).rejects.toThrow();
+});

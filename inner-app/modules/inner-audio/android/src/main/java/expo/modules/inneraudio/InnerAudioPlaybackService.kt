@@ -86,8 +86,7 @@ class InnerAudioPlaybackService : Service() {
     private const val RENDER_CHUNK_FRAMES = 960
     private const val ROUTE_LOG_TAG = "InnerAudioRoute"
     private const val MEDIA_PAUSE_ROUTE_GRACE_MS = 3_000L
-    private const val CHECKPOINT_PREFS_NAME = "inner_audio_checkpoint"
-    private const val CHECKPOINT_PREFS_KEY = "checkpoint_json"
+    private val processInstanceId = java.util.UUID.randomUUID().toString()
     // The checkpoint is also written on every meaningful lifecycle change.
     // Two minutes bounds lost position without waking storage 1,440 times/night.
     private const val CHECKPOINT_INTERVAL_MS = 120_000L
@@ -122,6 +121,8 @@ class InnerAudioPlaybackService : Service() {
       "playbackState" to playbackState,
       "engineRunning" to isRunning,
       "lastStopReason" to lastStopReason,
+      "checkpointSessionId" to ProceduralAudioEngine.checkpointSessionId,
+      "processInstanceId" to processInstanceId,
     )
 
     fun playIntent(context: Context): Intent = Intent(context, InnerAudioPlaybackService::class.java).setAction(ACTION_PLAY)
@@ -136,51 +137,14 @@ class InnerAudioPlaybackService : Service() {
      * app launch after a process kill find out what happened. Does not clear
      * it; the caller decides once it has reconciled the outcome.
      */
-    fun readPersistedCheckpoint(context: Context): Map<String, Any?>? {
-      val raw = context.getSharedPreferences(CHECKPOINT_PREFS_NAME, Context.MODE_PRIVATE)
-        .getString(CHECKPOINT_PREFS_KEY, null) ?: return null
-      return try {
-        val json = JSONObject(raw)
-        val fired = json.optJSONArray("firedSignalIds")
-        val diagnostics = json.optJSONArray("pendingDiagnostics")
-        mapOf(
-          "sessionId" to json.optString("sessionId"),
-          "positionMs" to json.optDouble("positionMs"),
-          "stageId" to json.optString("stageId").takeIf { it.isNotEmpty() },
-          "lastUpdatedAt" to json.optDouble("lastUpdatedAt"),
-          "firedSignalIds" to (fired?.let { array -> List(array.length()) { array.getString(it) } } ?: emptyList<String>()),
-          "plannedSignalCount" to if (json.has("plannedSignalCount")) json.getInt("plannedSignalCount") else null,
-          "processId" to if (json.has("processId")) json.getInt("processId") else null,
-          "playbackState" to json.optString("playbackState", "stopped"),
-          "engineRunning" to json.optBoolean("engineRunning", false),
-          "audioRoute" to json.optString("audioRoute", "unknown"),
-          "audioFocus" to json.optString("audioFocus", "unknown"),
-          "desiredPlaying" to json.optBoolean("desiredPlaying", false),
-          "pauseReason" to json.optString("pauseReason").takeIf { it.isNotEmpty() },
-          "lastStopReason" to json.optString("lastStopReason").takeIf { it.isNotEmpty() },
-          "renderedFrames" to if (json.has("renderedFrames")) json.getDouble("renderedFrames") else null,
-          "pendingDiagnostics" to (diagnostics?.let { array ->
-            List(array.length()) { index ->
-              val event = array.getJSONObject(index)
-              val map = mutableMapOf<String, Any?>("type" to event.getString("type"), "atMs" to event.getDouble("atMs"))
-              if (event.has("reason")) map["reason"] = event.getString("reason")
-              if (event.has("route")) map["route"] = event.getString("route")
-              if (event.has("signalId")) map["signalId"] = event.getString("signalId")
-              if (event.has("scheduledPositionMs")) map["scheduledPositionMs"] = event.getDouble("scheduledPositionMs")
-              if (event.has("actualPositionMs")) map["actualPositionMs"] = event.getDouble("actualPositionMs")
-              if (event.has("driftMs")) map["driftMs"] = event.getDouble("driftMs")
-              if (event.has("underrunCount")) map["underrunCount"] = event.getInt("underrunCount")
-              map
-            }
-          } ?: emptyList<Map<String, Any?>>()),
-        )
-      } catch (_: Exception) {
-        null
-      }
-    }
+    fun readPersistedCheckpoint(context: Context): Map<String, Any?>? =
+      JourneyCheckpointStore.read(context).lastOrNull()
 
-    fun clearPersistedCheckpoint(context: Context) {
-      context.getSharedPreferences(CHECKPOINT_PREFS_NAME, Context.MODE_PRIVATE).edit().remove(CHECKPOINT_PREFS_KEY).apply()
+    fun readPersistedCheckpoints(context: Context): List<Map<String, Any?>> =
+      JourneyCheckpointStore.read(context)
+
+    fun clearPersistedCheckpoint(context: Context, sessionId: String? = null) {
+      check(JourneyCheckpointStore.acknowledge(context, sessionId)) { "Checkpoint acknowledgement failed" }
     }
   }
 
@@ -222,6 +186,7 @@ class InnerAudioPlaybackService : Service() {
 
   private val deviceCallback = object : AudioDeviceCallback() {
     override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>) {
+      mainHandler.post { persistCheckpoint() }
       val addedPrivateOutput = addedDevices.any(::isPrivateOutput)
       routeLog("devices_added=${describeDevices(addedDevices)} private=$addedPrivateOutput")
       ProceduralAudioEngine.recordDiagnostic("audio_route_changed", "device_added", if (addedPrivateOutput) "private" else "speaker")
@@ -245,6 +210,7 @@ class InnerAudioPlaybackService : Service() {
     }
 
     override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>) {
+      mainHandler.post { persistCheckpoint() }
       val removedPrivateOutput = removedDevices.any(::isPrivateOutput)
       routeLog("devices_removed=${describeDevices(removedDevices)} private=$removedPrivateOutput activeId=$activePrivateDeviceId")
       if (!removedPrivateOutput) return
@@ -268,6 +234,7 @@ class InnerAudioPlaybackService : Service() {
   }
 
   private val focusChangeListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
+    mainHandler.post { persistCheckpoint() }
     routeLog("focus_change=$focusChange")
     when (focusChange) {
       AudioManager.AUDIOFOCUS_LOSS -> {
@@ -354,7 +321,7 @@ class InnerAudioPlaybackService : Service() {
     }
     ProceduralAudioEngine.recordDiagnostic("foreground_service_stopped", lastStopReason ?: "service_destroyed")
     if (unexpectedDestroy) persistCheckpoint()
-    teardownPlayback(clearCheckpoint = false)
+    teardownPlayback()
     mediaSession?.release()
     mediaSession = null
     ProceduralAudioEngine.onSleepTimerElapsed = null
@@ -391,7 +358,7 @@ class InnerAudioPlaybackService : Service() {
     } catch (error: Exception) {
       // A platform failure here used to escape onStartCommand and take the
       // whole app down; report it and leave nothing half-started instead.
-      teardownPlayback(clearCheckpoint = false)
+      teardownPlayback()
       failStart("audio_track_start_failed:${error.javaClass.simpleName}", "error:${error.javaClass.simpleName}")
       return
     }
@@ -440,38 +407,56 @@ class InnerAudioPlaybackService : Service() {
    * kill, so this runs on a cadence rather than waiting for one -- whatever
    * was last written here is all a relaunch has to work with.
    */
-  private fun persistCheckpoint() {
-    val snapshot = ProceduralAudioEngine.checkpointSnapshot() ?: return
-    val pendingDiagnostics = JSONArray().apply {
-      for (event in ProceduralAudioEngine.peekDiagnosticEvents()) {
-        put(JSONObject().apply {
-          for ((key, value) in event) put(key, value)
-        })
+  private fun persistCheckpoint(terminalOutcome: String? = null) {
+    try {
+      val snapshot = ProceduralAudioEngine.checkpointSnapshot() ?: return
+      val pendingDiagnostics = JSONArray().apply {
+        for (event in ProceduralAudioEngine.peekDiagnosticEvents()) {
+          put(JSONObject().apply {
+            for ((key, value) in event) put(key, value)
+          })
+        }
       }
+      val json = JSONObject().apply {
+        put("sessionId", snapshot["sessionId"] as? String ?: return)
+        put("positionMs", snapshot["positionMs"] as? Double ?: 0.0)
+        put("stageId", snapshot["stageId"] as? String ?: "")
+        @Suppress("UNCHECKED_CAST")
+        put("firedSignalIds", JSONArray(snapshot["firedSignalIds"] as? List<String> ?: emptyList<String>()))
+        put("plannedSignalCount", snapshot["plannedSignalCount"] as? Int ?: 0)
+        put("lastUpdatedAt", ProceduralAudioEngine.wallClockMs().toDouble())
+        put("processId", Process.myPid())
+        put("schemaVersion", 2)
+        put("processInstanceId", processInstanceId)
+        put("seed", snapshot["seed"])
+        put("expectedCompletionAtMs", snapshot["expectedCompletionAtMs"])
+        put("firedCueIds", JSONArray(snapshot["firedCueIds"] as? List<*> ?: emptyList<String>()))
+        put("plannedCueIds", JSONArray(snapshot["plannedCueIds"] as? List<*> ?: emptyList<String>()))
+        terminalOutcome?.let { put("terminalOutcome", it) }
+        put("playbackState", if (terminalOutcome != null) "stopped" else playbackState)
+        put("engineRunning", isRunning)
+        put("audioRoute", if (activePrivateDeviceId != null) "private" else "speaker")
+        put("audioFocus", if (hasAudioFocus) "held" else "not_held")
+        put("desiredPlaying", desiredPlaying)
+        pauseReason?.let { put("pauseReason", it.name.lowercase()) }
+        lastStopReason?.let { put("lastStopReason", it) }
+        val engineDebugState = ProceduralAudioEngine.debugState()
+        val renderedFrames = engineDebugState["renderedFrames"]
+        if (renderedFrames != null) put("renderedFrames", renderedFrames)
+        // Evidence only -- nothing reacts to this. A stalled render thread
+        // (deadlock, driver stall) keeps this timestamp from advancing even
+        // though this checkpoint write itself runs on a separate thread/timer
+        // and would otherwise look like proof the session is still healthy.
+        val renderHeartbeatAtMs = engineDebugState["renderHeartbeatAtMs"]
+        if (renderHeartbeatAtMs != null) put("renderHeartbeatAtMs", renderHeartbeatAtMs)
+        put("pendingDiagnostics", pendingDiagnostics)
+      }
+      if (!JourneyCheckpointStore.save(applicationContext, json)) {
+        ProceduralAudioEngine.recordDiagnostic("error", "checkpoint_write_failed")
+      }
+    } catch (_: Exception) {
+      ProceduralAudioEngine.recordDiagnostic("error", "checkpoint_write_failed")
     }
-    val json = JSONObject().apply {
-      put("sessionId", snapshot["sessionId"] as? String ?: return)
-      put("positionMs", snapshot["positionMs"] as? Double ?: 0.0)
-      put("stageId", snapshot["stageId"] as? String ?: "")
-      @Suppress("UNCHECKED_CAST")
-      put("firedSignalIds", JSONArray(snapshot["firedSignalIds"] as? List<String> ?: emptyList<String>()))
-      put("plannedSignalCount", snapshot["plannedSignalCount"] as? Int ?: 0)
-      put("lastUpdatedAt", System.currentTimeMillis().toDouble())
-      put("processId", Process.myPid())
-      put("playbackState", playbackState)
-      put("engineRunning", isRunning)
-      put("audioRoute", if (activePrivateDeviceId != null) "private" else "speaker")
-      put("audioFocus", if (hasAudioFocus) "held" else "not_held")
-      put("desiredPlaying", desiredPlaying)
-      pauseReason?.let { put("pauseReason", it.name.lowercase()) }
-      lastStopReason?.let { put("lastStopReason", it) }
-      val renderedFrames = ProceduralAudioEngine.debugState()["renderedFrames"]
-      if (renderedFrames != null) put("renderedFrames", renderedFrames)
-      put("pendingDiagnostics", pendingDiagnostics)
-    }
-    getSharedPreferences(CHECKPOINT_PREFS_NAME, Context.MODE_PRIVATE).edit()
-      .putString(CHECKPOINT_PREFS_KEY, json.toString())
-      .apply()
   }
 
   private fun pause(reason: PauseReason) {
@@ -498,7 +483,8 @@ class InnerAudioPlaybackService : Service() {
     desiredPlaying = false
     pauseReason = null
     explicitAppPause = false
-    teardownPlayback(clearCheckpoint = true)
+    persistCheckpoint(if (reason == "sleep_timer") "completed" else "user_stopped")
+    teardownPlayback()
     mediaSession?.isActive = false
     stopForegroundCompat()
     stopSelf()
@@ -510,14 +496,11 @@ class InnerAudioPlaybackService : Service() {
   }
 
   /**
-   * Idempotent — safe to call from both stop() and onDestroy(). Only reached
-   * on a clean stop/destroy, so clearing the checkpoint here is correct: a
-   * hard process kill never runs this at all, which is exactly what leaves
-   * the last-persisted checkpoint behind for the next launch to find.
+   * Idempotent teardown. Terminal evidence stays in the journal until JS
+   * durably records its outcome and acknowledges this exact session.
    */
-  private fun teardownPlayback(clearCheckpoint: Boolean) {
+  private fun teardownPlayback() {
     mainHandler.removeCallbacks(checkpointRunnable)
-    if (clearCheckpoint) clearPersistedCheckpoint(applicationContext)
     renderThreadPaused.set(true)
     renderThreadRunning.set(false)
     renderThread?.let { thread ->

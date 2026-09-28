@@ -1,0 +1,13 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`preserves the production abyssal journey matrix 1`] = `"a5d9f750eb4ef31b86cdeb4e16e0db4037c4fb52fe4c1da438a3328b32d8d21b"`;
+
+exports[`preserves the production cosmic journey matrix 1`] = `"55a4ff57b9dd13822a3c9784354015709674be12dffe17e12e9682b43a03e5cf"`;
+
+exports[`preserves the production fire journey matrix 1`] = `"f795cd4aef4c46234421865e6f5412c5d5c44791a0bd4641e53e833021db8d68"`;
+
+exports[`preserves the production forest journey matrix 1`] = `"def3e13e2f3bc4e86a6c250d01658b007318df0577bbc0033e5b1e8c1ed5a415"`;
+
+exports[`preserves the production ocean journey matrix 1`] = `"744654a9f27781faaeee8f1bcf9d71d45a7f23be78ec017f253f25f8b87c5ab0"`;
+
+exports[`preserves the production temple journey matrix 1`] = `"731480fca78e1a408f621ed5b897f581d87c53a4d103fedc963fd60c988d0763"`;

@@ -128,6 +128,7 @@ export default function LucidJourneyPlayerScreen() {
         reason: event.reason,
         route: event.route,
         signalId: event.signalId,
+        cueId: event.cueId,
         scheduledPositionMs: event.scheduledPositionMs,
         actualPositionMs: event.actualPositionMs,
         driftMs: event.driftMs,
@@ -140,15 +141,19 @@ export default function LucidJourneyPlayerScreen() {
       const memorySessionId = memorySessionIdRef.current;
       if (!memorySessionId || memoryFinishedRef.current) return;
       memoryFinishedRef.current = true;
-      // A clean finish means there's nothing left for a checkpoint to explain.
-      // Routed through the session so a stale screen cannot clear a newer one's id.
-      void session.setCheckpointSessionId(null).catch(() => {});
       void finishJourneyMemorySession(
         memorySessionId,
         outcome,
         positionOverrideMs ?? currentPositionRef.current,
         message,
-      );
+      ).then(async () => {
+        // Only acknowledge after storage succeeds. Native terminal receipts
+        // remain available if JS or the process disappears before this point.
+        await proceduralAudioEngine.clearCheckpoint(memorySessionId);
+      }).catch(() => {
+        // Preserve native evidence for launch-time reconciliation after a failed write.
+        if (memorySessionIdRef.current === memorySessionId) memoryFinishedRef.current = false;
+      });
     };
 
     // One place decides what "the start did not produce audio" leaves behind:

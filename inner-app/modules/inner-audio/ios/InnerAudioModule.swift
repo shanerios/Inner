@@ -3,7 +3,7 @@ import ExpoModulesCore
 import MediaPlayer
 import UIKit
 
-private struct AudioConfigRecord: Record {
+struct AudioConfigRecord: Record {
   @Field var carrierHz = 528.0
   @Field var binauralCarrierHz = 200.0
   @Field var binauralDeltaHz = 4.0
@@ -38,7 +38,7 @@ private struct AudioConfigRecord: Record {
   @Field var spatialRate = 0.3
 }
 
-private struct TimelineStageRecord: Record {
+struct TimelineStageRecord: Record {
   @Field var id = ""
   @Field var label = ""
   @Field var durationMs = 1_000.0
@@ -47,7 +47,7 @@ private struct TimelineStageRecord: Record {
   @Field var spatialEvents: [SpatialEventRecord] = []
 }
 
-private struct SpatialEventRecord: Record {
+struct SpatialEventRecord: Record {
   @Field var id = ""
   @Field var atMs = 0.0
   @Field var type = "swoosh"
@@ -57,7 +57,7 @@ private struct SpatialEventRecord: Record {
   @Field var recognitionSpace = false
 }
 
-private struct AudioTimelineRecord: Record {
+struct AudioTimelineRecord: Record {
   @Field var id = ""
   @Field var title = ""
   @Field var seed = 1.0
@@ -78,6 +78,10 @@ public final class InnerAudioModule: Module {
     AsyncFunction("seekTimeline") { (positionMs: Double) in self.engine.seekTimeline(positionMs) }
     AsyncFunction("setNowPlaying") { (title: String) in self.engine.setNowPlaying(title) }
     AsyncFunction("setSleepTimer") { (endAtMs: Double?) in self.engine.setSleepTimer(endAtMs) }
+    AsyncFunction("setCheckpointSessionId") { (sessionId: String?) in self.engine.setCheckpointSessionId(sessionId) }
+    Function("getCheckpoint") { try self.engine.readCheckpoints().last }
+    Function("getCheckpoints") { try self.engine.readCheckpoints() }
+    AsyncFunction("clearCheckpoint") { (sessionId: String?) in try self.engine.clearCheckpoint(sessionId) }
     Function("getLastTimerCompletionAtMs") { self.engine.getLastTimerCompletionAtMs() }
     Function("getPlaybackState") { self.engine.getPlaybackState() }
     Function("getTimelinePositionMs") { self.engine.getTimelinePositionMs() }
@@ -136,6 +140,7 @@ private struct Parameters {
 }
 
 private struct TimelineStage {
+  let id: String
   let durationMs: Double
   let transitionMs: Double
   let parameters: Parameters
@@ -144,6 +149,7 @@ private struct TimelineStage {
 }
 
 private struct CueEvent {
+  let id: String
   let atMs: Double
   let recognitionSpace: Bool
 }
@@ -244,7 +250,7 @@ final class WorldSalienceScheduler {
   func advanceFrame() { frame &+= 1 }
 }
 
-private final class ProceduralAudioEngine: NSObject {
+final class ProceduralAudioEngine: NSObject {
   private enum PauseReason { case user, routeLoss, interruption }
   private var engine = AVAudioEngine()
   private let lock = NSLock()
@@ -384,6 +390,13 @@ private final class ProceduralAudioEngine: NSObject {
   private var totalRenderedFrames = 0.0
   private let diagnosticLock = NSLock()
   private var diagnosticEvents: [[String: Any]] = []
+  private static let processInstanceId = UUID().uuidString
+  private static let checkpointStore = JourneyCheckpointStore(url: FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("inner-journey-checkpoints.json"))
+  private var checkpointSessionId: String?
+  private var checkpointTimer: DispatchSourceTimer?
+  // These bounded ledgers share diagnosticLock, not the render/configuration lock.
+  private var firedSignalIds: [String] = []
+  private var firedCueIds: Set<String> = []
 
   override init() {
     super.init()
@@ -413,7 +426,67 @@ private final class ProceduralAudioEngine: NSObject {
     )
   }
 
-  deinit { NotificationCenter.default.removeObserver(self) }
+  deinit {
+    checkpointTimer?.cancel()
+    NotificationCenter.default.removeObserver(self)
+  }
+
+  func setCheckpointSessionId(_ sessionId: String?) {
+    lock.lock(); checkpointSessionId = sessionId; lock.unlock()
+  }
+
+  func readCheckpoints() throws -> [[String: Any]] { try Self.checkpointStore.read() }
+  func clearCheckpoint(_ sessionId: String?) throws { try Self.checkpointStore.acknowledge(sessionId) }
+
+  private func startCheckpointTimer() {
+    lock.lock()
+    defer { lock.unlock() }
+    guard checkpointSessionId != nil, checkpointTimer == nil else { return }
+    let timer = DispatchSource.makeTimerSource(queue: .main)
+    timer.schedule(deadline: .now() + 120, repeating: 120)
+    timer.setEventHandler { [weak self] in self?.persistCheckpoint() }
+    timer.resume()
+    checkpointTimer = timer
+  }
+
+  private func persistCheckpoint(terminalOutcome: String? = nil) {
+    lock.lock()
+    guard let sessionId = checkpointSessionId, let timeline else { lock.unlock(); return }
+    let position = timelineElapsedFrames * 1_000 / sampleRate
+    var cursor = 0.0
+    let stage = timeline.stages.first { stage in
+      let contains = position < cursor + stage.durationMs
+      if !contains { cursor += stage.durationMs }
+      return contains
+    } ?? timeline.stages.last
+    var record: [String: Any] = [
+      "schemaVersion": 2, "sessionId": sessionId, "positionMs": position,
+      "stageId": stage?.id ?? "", "seed": timeline.seed,
+      "plannedCueIds": timeline.stages.flatMap { $0.cueEvents.map { $0.id } },
+      "plannedSignalCount": timeline.stages.reduce(0) { $0 + $1.cueEvents.count },
+      "renderedFrames": totalRenderedFrames,
+      "processId": ProcessInfo.processInfo.processIdentifier,
+      "processInstanceId": Self.processInstanceId,
+      "lastUpdatedAt": InnerAudioWallClock.nowMs(),
+    ]
+    if let end = parameters.sleepEndMs { record["expectedCompletionAtMs"] = end }
+    lock.unlock()
+    diagnosticLock.lock()
+    record["firedSignalIds"] = firedSignalIds
+    record["firedCueIds"] = firedCueIds.sorted()
+    record["pendingDiagnostics"] = diagnosticEvents
+    diagnosticLock.unlock()
+    record["playbackState"] = terminalOutcome == nil ? getPlaybackState() : "stopped"
+    record["engineRunning"] = engine.isRunning
+    record["audioRoute"] = isPrivateOutput(AVAudioSession.sharedInstance().currentRoute) ? "private" : "speaker"
+    record["audioFocus"] = "unknown"
+    record["desiredPlaying"] = desiredPlaying
+    if let pauseReason { record["pauseReason"] = pauseReason == .user ? "user" : pauseReason == .routeLoss ? "route_loss" : "interruption" }
+    if let lastStopReason { record["lastStopReason"] = lastStopReason }
+    if let terminalOutcome { record["terminalOutcome"] = terminalOutcome }
+    do { try Self.checkpointStore.save(record) }
+    catch { recordDiagnostic("error", reason: "checkpoint_write_failed") }
+  }
 
   func configure(_ raw: AudioConfigRecord) {
     lock.lock()
@@ -435,6 +508,7 @@ private final class ProceduralAudioEngine: NSObject {
     }
     let stages = raw.stages.prefix(32).map { stage in
       TimelineStage(
+        id: stage.id,
         durationMs: clamp(stage.durationMs, 1_000, 14_400_000),
         transitionMs: clamp(stage.transitionMs, 0, stage.durationMs),
         parameters: normalizedParameters(stage.config, sleepEndMs: nil),
@@ -449,7 +523,7 @@ private final class ProceduralAudioEngine: NSObject {
         },
         cueEvents: stage.spatialEvents.prefix(16).compactMap { event in
           guard event.type == "cue", event.atMs >= 0 else { return nil }
-          return CueEvent(atMs: event.atMs, recognitionSpace: event.recognitionSpace)
+          return CueEvent(id: "\(stage.id)/\(event.id)", atMs: event.atMs, recognitionSpace: event.recognitionSpace)
         }
       )
     }
@@ -516,8 +590,10 @@ private final class ProceduralAudioEngine: NSObject {
     installRemoteCommandsIfNeeded()
     updateNowPlaying(rate: 1)
     startNowPlayingRefresh()
+    startCheckpointTimer()
     if gentleFadeIn { startGentleResumeFade() }
     recordDiagnostic("playback_resumed", reason: reason)
+    persistCheckpoint()
   }
 
   // react-native-track-player's underlying SwiftAudioEx player reacts to its queue
@@ -580,6 +656,7 @@ private final class ProceduralAudioEngine: NSObject {
     engine.pause()
     updateNowPlaying(rate: 0)
     recordDiagnostic("playback_paused", reason: reason == .user ? "user_pause" : reason == .routeLoss ? "route_loss" : "interruption")
+    persistCheckpoint()
   }
 
   func stop(reason: String = "stop_request") {
@@ -589,6 +666,15 @@ private final class ProceduralAudioEngine: NSObject {
       lastStopReason = reason
       recordDiagnostic("playback_stopped", reason: reason)
     }
+    // Write terminal evidence before resetting any timeline or cue state.
+    // Module destruction is an interruption, never a deliberate user stop.
+    persistCheckpoint(terminalOutcome: reason == "module_destroyed" ? nil : reason == "sleep_timer" ? "completed" : "user_stopped")
+    lock.lock()
+    checkpointTimer?.cancel()
+    checkpointTimer = nil
+    checkpointSessionId = nil
+    lock.unlock()
+    diagnosticLock.lock(); firedSignalIds.removeAll(); firedCueIds.removeAll(); diagnosticLock.unlock()
     desiredPlaying = false
     pauseReason = nil
     resumeFadeGeneration &+= 1
@@ -741,6 +827,8 @@ private final class ProceduralAudioEngine: NSObject {
       "sampleRate": sampleRate,
       "privateOutput": privateOutputTarget > 0.5,
     ]
+    state["checkpointSessionId"] = checkpointSessionId
+    state["processInstanceId"] = Self.processInstanceId
     if timeline != nil { state["timelinePositionMs"] = timelineElapsedFrames * 1_000 / sampleRate }
     if let endMs = parameters.sleepEndMs { state["sleepEndMs"] = endMs }
     if let lastStopReason { state["lastStopReason"] = lastStopReason }
@@ -750,7 +838,7 @@ private final class ProceduralAudioEngine: NSObject {
   private func pauseSleepTimer() {
     lock.lock()
     if let endAtMs = parameters.sleepEndMs {
-      pausedSleepRemainingMs = max(0, endAtMs - Date().timeIntervalSince1970 * 1_000)
+      pausedSleepRemainingMs = max(0, endAtMs - InnerAudioWallClock.nowMs())
       parameters.sleepEndMs = nil
     }
     lock.unlock()
@@ -759,7 +847,7 @@ private final class ProceduralAudioEngine: NSObject {
   private func resumeSleepTimer() {
     lock.lock()
     if let remainingMs = pausedSleepRemainingMs {
-      parameters.sleepEndMs = Date().timeIntervalSince1970 * 1_000 + remainingMs
+      parameters.sleepEndMs = InnerAudioWallClock.nowMs() + remainingMs
       pausedSleepRemainingMs = nil
     }
     lock.unlock()
@@ -825,6 +913,9 @@ private final class ProceduralAudioEngine: NSObject {
     diagnosticEvents.append(event)
     if diagnosticEvents.count > 100 { diagnosticEvents.removeFirst(diagnosticEvents.count - 100) }
     diagnosticLock.unlock()
+    if type == "audio_route_changed" || type == "interruption_began" || type == "interruption_ended" {
+      DispatchQueue.main.async { [weak self] in self?.persistCheckpoint() }
+    }
   }
 
   /// Fires the fixed lucidity cue once. Safe to call at any time; a call
@@ -913,7 +1004,7 @@ private final class ProceduralAudioEngine: NSObject {
           let left = buffers[0].mData?.assumingMemoryBound(to: Float.self),
           let right = buffers[1].mData?.assumingMemoryBound(to: Float.self) else { return }
     let tau = Double.pi * 2
-    let bufferStartMs = Date().timeIntervalSince1970 * 1_000
+    let bufferStartMs = InnerAudioWallClock.nowMs()
 
     for frame in 0..<Int(frameCount) {
       let target = activeTimeline.map {
@@ -931,7 +1022,13 @@ private final class ProceduralAudioEngine: NSObject {
       if let activeTimeline, let cueFireMs = timelineCueEventMs(activeTimeline, elapsedMs: timelineElapsedMs, afterMs: cueTimelineThresholdMs) {
         cueTimelineThresholdMs = cueFireMs
         startCue()
+        let cueId = cueIdAt(activeTimeline, atMs: cueFireMs)
+        diagnosticLock.lock()
+        if firedSignalIds.count < 240 { firedSignalIds.append(recognitionSignalId ?? "ascending") }
+        if firedCueIds.count < 512 { firedCueIds.insert(cueId) }
+        diagnosticLock.unlock()
         recordDiagnostic("recognition_signal_fired", extras: [
+          "cueId": cueId,
           "signalId": recognitionSignalId ?? "ascending",
           "scheduledPositionMs": cueFireMs,
           "actualPositionMs": timelineElapsedMs,
@@ -1217,7 +1314,7 @@ private final class ProceduralAudioEngine: NSObject {
     if let endMs = baseTarget.sleepEndMs, bufferStartMs >= endMs, !sleepStopScheduled {
       lock.lock()
       sleepStopScheduled = true
-      lastTimerCompletionAtMs = Date().timeIntervalSince1970 * 1_000
+      lastTimerCompletionAtMs = InnerAudioWallClock.nowMs()
       lock.unlock()
       // Rendered frames and how long past its end the timer was when it fired
       // tell an ordinary ending (small age, many frames) from a stale timer
@@ -1338,6 +1435,15 @@ private final class ProceduralAudioEngine: NSObject {
     default:
       return 1
     }
+  }
+
+  private func cueIdAt(_ timeline: AudioTimeline, atMs: Double) -> String {
+    var cursor = 0.0
+    for stage in timeline.stages {
+      for event in stage.cueEvents where cursor + event.atMs == atMs { return event.id }
+      cursor += stage.durationMs
+    }
+    return "unknown"
   }
 
   // Not loop-aware: a scheduled cue re-crossing the wrap boundary of a

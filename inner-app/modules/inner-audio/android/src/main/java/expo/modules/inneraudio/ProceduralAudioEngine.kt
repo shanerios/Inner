@@ -114,6 +114,7 @@ private data class SpatialEventState(
 )
 
 private data class CueEventState(
+  val id: String,
   val atMs: Double,
   val recognitionSpace: Boolean,
 )
@@ -218,6 +219,7 @@ object ProceduralAudioEngine {
   private val diagnosticEvents = mutableListOf<Map<String, Any>>()
   private val firedSignalLock = ReentrantLock()
   private val firedSignalIds = mutableListOf<String>()
+  private val firedCueIds = linkedSetOf<String>()
   /** Set by JS right after a journeyMemory session begins; read back by the
    * playback service to persist a durable checkpoint under this session id. */
   @Volatile var checkpointSessionId: String? = null
@@ -248,6 +250,14 @@ object ProceduralAudioEngine {
 
   /** Mirrors iOS's `nowPlayingTitle`: persists independently of whether playback is running. */
   @Volatile var nowPlayingTitle: String = "Inner"
+
+  /**
+   * Wall-clock source for the sleep-timer deadline and checkpoint timestamps.
+   * Real by default; a test may inject another. Never read inside per-sample
+   * DSP math -- only at the once-per-buffer sleep-timer check and at
+   * pause/resume/checkpoint time. Mirrors iOS's `InnerAudioWallClock.nowMs`.
+   */
+  @Volatile var wallClockMs: () -> Long = { System.currentTimeMillis() }
 
   // Render-thread-only state (never touched off the audio thread).
   // carrier, binaural L/R, carrier harmonics, speaker carrier + pulse envelope
@@ -368,6 +378,13 @@ object ProceduralAudioEngine {
   @Volatile private var sleepStopScheduled = false
   /** Frames the render callback has produced since the last reset; read by [debugState] only. */
   @Volatile private var totalRenderedFrames = 0L
+  /**
+   * Wall-clock time the render callback last actually completed a buffer,
+   * via [wallClockMs] -- distinct from a checkpoint's own write time, which
+   * comes from a separate thread/timer and keeps ticking even if rendering
+   * itself has stalled. Read by [debugState] only; nothing here acts on it.
+   */
+  @Volatile private var lastRenderHeartbeatAtMs = 0L
   private var pausedSleepRemainingMs: Double? = null
   @Volatile var lastTimerCompletionAtMs: Double? = null
     private set
@@ -492,7 +509,7 @@ object ProceduralAudioEngine {
           },
           cueEvents = stage.spatialEvents.take(16).mapNotNull { event ->
             if (event.type != "cue" || event.atMs < 0) return@mapNotNull null
-            CueEventState(atMs = event.atMs, recognitionSpace = event.recognitionSpace)
+            CueEventState(id = "${stage.id}/${event.id}", atMs = event.atMs, recognitionSpace = event.recognitionSpace)
           },
         )
       }
@@ -534,7 +551,7 @@ object ProceduralAudioEngine {
   fun pauseSleepTimer() {
     lock.withLock {
       parameters.sleepEndMs?.let { endAtMs ->
-        pausedSleepRemainingMs = max(0.0, endAtMs - System.currentTimeMillis())
+        pausedSleepRemainingMs = max(0.0, endAtMs - wallClockMs())
         parameters.sleepEndMs = null
       }
     }
@@ -543,7 +560,7 @@ object ProceduralAudioEngine {
   fun resumeSleepTimer() {
     lock.withLock {
       pausedSleepRemainingMs?.let { remainingMs ->
-        parameters.sleepEndMs = System.currentTimeMillis() + remainingMs
+        parameters.sleepEndMs = wallClockMs() + remainingMs
         pausedSleepRemainingMs = null
       }
     }
@@ -558,7 +575,7 @@ object ProceduralAudioEngine {
    * Null when there's no active checkpoint session to attach it to -- the
    * service should treat that as "nothing to persist" rather than an error.
    */
-  fun checkpointSnapshot(): Map<String, Any>? {
+  fun checkpointSnapshot(): Map<String, Any?>? {
     val sessionId = checkpointSessionId ?: return null
     val timelineSnapshot = lock.withLock {
       val activeTimeline = timeline ?: return null
@@ -578,6 +595,10 @@ object ProceduralAudioEngine {
       "stageId" to (timelineSnapshot.second ?: ""),
       "firedSignalIds" to fired,
       "plannedSignalCount" to timelineSnapshot.third,
+      "firedCueIds" to firedSignalLock.withLock { firedCueIds.toList() },
+      "plannedCueIds" to lock.withLock { timeline?.stages?.flatMap { it.cueEvents.map { cue -> cue.id } } ?: emptyList<String>() },
+      "seed" to lock.withLock { timeline?.seed },
+      "expectedCompletionAtMs" to lock.withLock { parameters.sleepEndMs },
     )
   }
 
@@ -630,7 +651,7 @@ object ProceduralAudioEngine {
     worldSalience.reset(sampleRate)
     cueTimelineThresholdMs = -1.0
     checkpointSessionId = null
-    firedSignalLock.withLock { firedSignalIds.clear() }
+    firedSignalLock.withLock { firedSignalIds.clear(); firedCueIds.clear() }
     forestEnvelope = 0.0
     forestRandom = XORSHIFT_SEED xor 0xc2b2ae35L
     forestBirdActive = false
@@ -683,6 +704,7 @@ object ProceduralAudioEngine {
     renderElapsedFrames = 0.0
     sleepStopScheduled = false
     totalRenderedFrames = 0L
+    lastRenderHeartbeatAtMs = 0L
     lock.withLock {
       timeline = null
       timelineElapsedFrames = 0.0
@@ -702,6 +724,7 @@ object ProceduralAudioEngine {
       "timelinePositionMs" to timeline?.let { timelineElapsedFrames * 1_000.0 / sampleRate },
       "sleepEndMs" to parameters.sleepEndMs,
       "renderedFrames" to totalRenderedFrames.toDouble(),
+      "renderHeartbeatAtMs" to lastRenderHeartbeatAtMs.toDouble(),
       "sampleRate" to sampleRate,
     )
   }
@@ -771,7 +794,7 @@ object ProceduralAudioEngine {
       startCue()
     }
     val tau = Math.PI * 2
-    val bufferStartMs = System.currentTimeMillis().toDouble()
+    val bufferStartMs = wallClockMs().toDouble()
 
     for (frame in 0 until frameCount) {
       val target = activeTimeline?.let {
@@ -792,9 +815,14 @@ object ProceduralAudioEngine {
           cueTimelineThresholdMs = cueFireMs
           startCue()
           val firedSignalId = recognitionSignalId ?: "ascending"
-          firedSignalLock.withLock { firedSignalIds.add(firedSignalId) }
+          val cueId = cueIdAt(activeTimeline, cueFireMs)
+          firedSignalLock.withLock {
+            if (firedSignalIds.size < 240) firedSignalIds.add(firedSignalId)
+            if (firedCueIds.size < 512) firedCueIds.add(cueId)
+          }
           recordDiagnostic("recognition_signal_fired", extras = mapOf(
             "signalId" to firedSignalId,
+            "cueId" to cueId,
             "scheduledPositionMs" to cueFireMs,
             "actualPositionMs" to timelineElapsedMs,
             "driftMs" to (timelineElapsedMs - cueFireMs),
@@ -1039,11 +1067,12 @@ object ProceduralAudioEngine {
     }
     renderElapsedFrames += frameCount.toDouble()
     totalRenderedFrames += frameCount
+    lastRenderHeartbeatAtMs = wallClockMs()
 
     val endMs = baseTarget.sleepEndMs
     if (endMs != null && bufferStartMs >= endMs && !sleepStopScheduled) {
       sleepStopScheduled = true
-      lastTimerCompletionAtMs = System.currentTimeMillis().toDouble()
+      lastTimerCompletionAtMs = wallClockMs().toDouble()
       // Rendered frames and how long past its end the timer was when it fired
       // tell an ordinary ending (small age, many frames) from a stale timer
       // (large age, almost no frames).
@@ -1151,6 +1180,15 @@ object ProceduralAudioEngine {
       "vortex" -> 1 - 0.3 * target.spatialDepth
       else -> 1.0
     }
+  }
+
+  private fun cueIdAt(timeline: AudioTimelineState, atMs: Double): String {
+    var cursor = 0.0
+    for (stage in timeline.stages) {
+      for (event in stage.cueEvents) if (cursor + event.atMs == atMs) return event.id
+      cursor += stage.durationMs
+    }
+    return "unknown"
   }
 
   // Not loop-aware: a scheduled cue re-crossing the wrap boundary of a

@@ -153,6 +153,7 @@ export type NativeAudioDiagnosticEvent = {
   detail?: string;
   route?: string;
   signalId?: string;
+  cueId?: string;
   scheduledPositionMs?: number;
   actualPositionMs?: number;
   driftMs?: number;
@@ -164,6 +165,8 @@ export type NativeAudioDiagnosticEvent = {
  * looks alive to JavaScript but is not rendering. Numbers and flags only.
  */
 export type NativeEngineDebugState = {
+  checkpointSessionId?: string;
+  processInstanceId?: string;
   playbackState: NativePlaybackState;
   /** Android: whether the foreground service exists. iOS: whether AVAudioEngine is running. */
   engineRunning: boolean;
@@ -173,18 +176,22 @@ export type NativeEngineDebugState = {
   sleepEndMs?: number;
   /** Frames the render callback has produced since the last stop. Zero while "playing" means no audio is being rendered. */
   renderedFrames: number;
+  /** Wall-clock time the render callback last actually completed a buffer. Stale relative to a checkpoint's own write time is the stalled-render signature -- distinct from the process/service simply being alive. */
+  renderHeartbeatAtMs?: number;
   sampleRate: number;
   privateOutput?: boolean;
   lastStopReason?: string;
 };
 
-/**
- * A durable checkpoint the native side persisted to disk (Android only, so
- * far -- see `journeyMemory.ts` for why iOS's background-audio model doesn't
- * carry the same process-death risk). Present only when a prior session's
- * clean stop/finish never ran.
- */
+/** Durable native evidence, retained until the matching history write is acknowledged. */
 export type NativeCheckpoint = {
+  schemaVersion?: number;
+  processInstanceId?: string;
+  terminalOutcome?: 'completed' | 'user_stopped';
+  seed?: number;
+  expectedCompletionAtMs?: number;
+  firedCueIds?: string[];
+  plannedCueIds?: string[];
   sessionId: string;
   positionMs: number;
   stageId?: string;
@@ -202,6 +209,8 @@ export type NativeCheckpoint = {
   pauseReason?: 'user' | 'route_loss' | 'interruption';
   lastStopReason?: string;
   renderedFrames?: number;
+  /** See `NativeEngineDebugState.renderHeartbeatAtMs`. Android only for now. */
+  renderHeartbeatAtMs?: number;
 };
 
 /** Android 11+ record for a prior app-process exit. User content is never included. */
@@ -237,14 +246,16 @@ export interface InnerAudioEngine {
   /** `gain` is a linear level trim for the signal (1 = unchanged). */
   setRecognitionSignal(signalId: string | null, uri: string | null, gain?: number): Promise<void>;
   triggerCue(): Promise<void>;
-  /** No-op where the native side has no checkpoint concept (iOS). */
+  /** Associate native evidence with the durable Journey Memory session. */
   setCheckpointSessionId(sessionId: string | null): Promise<void>;
-  /** Always null where the native side has no checkpoint concept (iOS). */
+  /** Most recent native checkpoint (legacy single-record API). */
   getCheckpoint(): Promise<NativeCheckpoint | null>;
+  /** All unacknowledged records, including terminal receipts from earlier journeys. */
+  getCheckpoints?(): Promise<NativeCheckpoint[]>;
   /** Android 11+ historical process exits; empty on older Android and iOS. */
   getHistoricalProcessExitInfo(): Promise<NativeProcessExitInfo[]>;
-  /** Call once a checkpoint has been reconciled into a real outcome. No-op on iOS. */
-  clearCheckpoint(): Promise<void>;
+  /** Acknowledge only after the outcome is durably saved. Omit ID only for legacy cleanup. */
+  clearCheckpoint(sessionId?: string): Promise<void>;
   play(): Promise<void>;
   pause(): Promise<void>;
   stop(): Promise<void>;

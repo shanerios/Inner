@@ -4,6 +4,7 @@ import type {
   CompiledAudioJourneyTimeline,
   NativeAudioDiagnosticEvent,
   NativeProcessExitInfo,
+  NativeCheckpoint,
   NoiseColor,
   ProceduralAudioConfig,
   ProceduralEnvironment,
@@ -108,6 +109,7 @@ export type JourneyMemoryEvent = {
   desiredPlaying?: boolean;
   pauseReason?: string;
   lastStopReason?: string;
+  processInstanceId?: string;
   exitReason?: string;
   exitReasonCode?: number;
   exitDescription?: string;
@@ -133,6 +135,8 @@ export type JourneyMemorySession = {
   protocolVersion: number;
   seed: number;
   initialConfig: ProceduralAudioConfig;
+  /** Last reconciled native evidence; no audio or user-authored content. */
+  nativeCheckpoint?: Omit<NativeCheckpoint, 'pendingDiagnostics'>;
   stages: Array<{
     id: string;
     durationMs: number;
@@ -228,19 +232,27 @@ function migrateSessionToCurrentSchema(session: any): unknown {
   return { ...session, schemaVersion: JOURNEY_MEMORY_SCHEMA_VERSION, outcome, events, progress, completionStatus };
 }
 
-export async function loadJourneyMemory(storage: Storage = AsyncStorage): Promise<JourneyMemoryState> {
+export async function loadJourneyMemory(storage: Storage = AsyncStorage, strict = false): Promise<JourneyMemoryState> {
   try {
     const raw = await storage.getItem(JOURNEY_MEMORY_KEY);
     const parsed = raw ? JSON.parse(raw) : null;
-    if (!parsed || !Array.isArray(parsed.sessions)) return EMPTY_STATE;
+    if (!raw) return EMPTY_STATE;
+    if (!parsed || !Array.isArray(parsed.sessions)) {
+      if (strict) throw new Error('Invalid Journey Memory');
+      return EMPTY_STATE;
+    }
     // Only migrate a known prior version forward; an unrecognized future
     // version is safer to ignore than to guess at.
-    if (parsed.schemaVersion !== 1 && parsed.schemaVersion !== JOURNEY_MEMORY_SCHEMA_VERSION) return EMPTY_STATE;
+    if (parsed.schemaVersion !== 1 && parsed.schemaVersion !== JOURNEY_MEMORY_SCHEMA_VERSION) {
+      if (strict) throw new Error('Unsupported Journey Memory version');
+      return EMPTY_STATE;
+    }
     return {
       schemaVersion: JOURNEY_MEMORY_SCHEMA_VERSION,
       sessions: parsed.sessions.map(migrateSessionToCurrentSchema).filter(validSession).slice(0, MAX_SESSIONS),
     };
-  } catch {
+  } catch (error) {
+    if (strict) throw error;
     return EMPTY_STATE;
   }
 }
@@ -336,7 +348,7 @@ export function recordJourneyMemoryEvent(
   now: () => number = Date.now,
 ): Promise<void> {
   return enqueue(async () => {
-    const state = await loadJourneyMemory(storage);
+    const state = await loadJourneyMemory(storage, true);
     const sessions = state.sessions.map(session => session.id === sessionId
       ? {
           ...session,
@@ -348,6 +360,27 @@ export function recordJourneyMemoryEvent(
   });
 }
 
+function completedMemorySession(
+  session: JourneyMemorySession,
+  outcome: JourneyMemoryOutcome,
+  positionMs: number,
+  endedAt: number,
+  message?: string,
+): JourneyMemorySession {
+  const event: JourneyMemoryEvent = {
+    type: OUTCOME_EVENT_TYPE[outcome], at: endedAt, positionMs,
+    ...(message ? { message } : {}),
+  };
+  return {
+    ...session, endedAt, outcome, endReason: OUTCOME_END_REASON[outcome],
+    completionStatus: completionStatusFor(session, outcome, positionMs),
+    progress: completionProgress(session.plannedDurationMs, positionMs),
+    actualDurationMs: Math.max(0, positionMs),
+    elapsedWallTimeMs: Math.max(0, endedAt - session.startedAt),
+    events: [...session.events, event].slice(-MAX_EVENTS_PER_SESSION),
+  };
+}
+
 export function finishJourneyMemorySession(
   sessionId: string,
   outcome: JourneyMemoryOutcome,
@@ -357,27 +390,12 @@ export function finishJourneyMemorySession(
   now: () => number = Date.now,
 ): Promise<void> {
   return enqueue(async () => {
-    const state = await loadJourneyMemory(storage);
+    const state = await loadJourneyMemory(storage, true);
+    if (!state.sessions.some(session => session.id === sessionId)) throw new Error('Journey Memory session is unavailable');
     const endedAt = now();
     const sessions = state.sessions.map(session => {
       if (session.id !== sessionId || session.endedAt) return session;
-      const event: JourneyMemoryEvent = {
-        type: OUTCOME_EVENT_TYPE[outcome],
-        at: endedAt,
-        positionMs,
-        ...(message ? { message } : {}),
-      };
-      return {
-        ...session,
-        endedAt,
-        outcome,
-        endReason: OUTCOME_END_REASON[outcome],
-        completionStatus: completionStatusFor(session, outcome, positionMs),
-        progress: completionProgress(session.plannedDurationMs, positionMs),
-        actualDurationMs: Math.max(0, positionMs),
-        elapsedWallTimeMs: Math.max(0, endedAt - session.startedAt),
-        events: [...session.events, event].slice(-MAX_EVENTS_PER_SESSION),
-      };
+      return completedMemorySession(session, outcome, positionMs, endedAt, message);
     });
     await storage.setItem(JOURNEY_MEMORY_KEY, JSON.stringify({ ...state, sessions }));
   });
@@ -522,7 +540,7 @@ export function saveOvernightMorningCapture(
   });
 }
 
-// ── Durable checkpoint reconciliation (Android process death) ──────────────
+// ── Durable native checkpoint reconciliation ──────────────
 //
 // The native side persists a small checkpoint (position, fired-signal
 // ledger, last-write time) to disk independently of this JS layer, so it
@@ -530,24 +548,8 @@ export function saveOvernightMorningCapture(
 // checkpoint into a real outcome the next time the app launches, instead of
 // leaving the session open forever with no explanation.
 
-export type JourneyMemoryCheckpoint = {
-  sessionId: string;
-  positionMs: number;
-  stageId?: string;
-  lastUpdatedAt: number;
-  firedSignalIds: string[];
-  plannedSignalCount?: number;
-  /** Diagnostics recorded natively after the last drain the JS side ever saw. */
+export type JourneyMemoryCheckpoint = Omit<NativeCheckpoint, 'pendingDiagnostics'> & {
   pendingDiagnostics?: NativeAudioDiagnosticEvent[];
-  processId?: number;
-  playbackState?: string;
-  engineRunning?: boolean;
-  audioRoute?: string;
-  audioFocus?: string;
-  desiredPlaying?: boolean;
-  pauseReason?: string;
-  lastStopReason?: string;
-  renderedFrames?: number;
 };
 
 export function findMatchingProcessExit(
@@ -575,79 +577,83 @@ export async function reconcileInterruptedJourneyMemorySession(
   now: () => number = Date.now,
   processExits: NativeProcessExitInfo[] = [],
 ): Promise<JourneyMemoryOutcome | null> {
-  // Not wrapped in enqueue() itself: finishJourneyMemorySession below already
-  // enqueues its own write (and re-checks !endedAt at write time), so nesting
-  // this in another enqueue() call would deadlock the shared write queue.
-  const state = await loadJourneyMemory(storage);
-  const session = state.sessions.find(item => item.id === checkpoint.sessionId);
-  if (!session || session.endedAt) return null;
+  // One serialized write commits both native evidence and its outcome. A failed
+  // write leaves the receipt unacknowledged and retries cannot duplicate events.
+  return enqueue(async () => {
+    const state = await loadJourneyMemory(storage, true);
+    const session = state.sessions.find(item => item.id === checkpoint.sessionId);
+    if (!session || session.endedAt) return null;
 
-  // Recovery is deliberately strict: the last durable position must be within
-  // 30 seconds of the end. A percentage threshold could misclassify many
-  // missing minutes in a long overnight protocol.
-  const nearPlannedEnd = checkpoint.positionMs >= session.plannedDurationMs - 30_000;
-  const allSignalsFired = checkpoint.plannedSignalCount != null
-    && checkpoint.firedSignalIds.length >= checkpoint.plannedSignalCount;
-  const processExit = findMatchingProcessExit(session.startedAt, checkpoint, processExits, now());
-  const processFailure = processExit && ['crash', 'crash_native', 'anr', 'initialization_failure'].includes(processExit.reason);
-  const osTermination = processExit && ['low_memory', 'excessive_resource_usage', 'dependency_died', 'freezer'].includes(processExit.reason);
-  const outcome: JourneyMemoryOutcome = nearPlannedEnd && allSignalsFired
-    ? 'recovered_interrupted'
-    : processFailure
-      ? 'failed'
-      : osTermination
-        ? 'os_terminated'
-        : checkpoint.positionMs > 0
-          ? 'abandoned_interrupted'
-          : 'unknown';
+    // Recovery is deliberately strict: the last durable position must be within
+    // 30 seconds of the end. A percentage threshold could misclassify many
+    // missing minutes in a long overnight protocol.
+    const nearPlannedEnd = checkpoint.positionMs >= session.plannedDurationMs - 30_000;
+    const allSignalsFired = checkpoint.plannedCueIds != null && checkpoint.firedCueIds != null
+      ? checkpoint.plannedCueIds.every(id => checkpoint.firedCueIds!.includes(id))
+      : checkpoint.plannedSignalCount != null && checkpoint.firedSignalIds.length >= checkpoint.plannedSignalCount;
+    const processExit = findMatchingProcessExit(session.startedAt, checkpoint, processExits, now());
+    const processFailure = processExit && ['crash', 'crash_native', 'anr', 'initialization_failure'].includes(processExit.reason);
+    const osTermination = processExit && ['low_memory', 'excessive_resource_usage', 'dependency_died', 'freezer'].includes(processExit.reason);
+    const outcome: JourneyMemoryOutcome = checkpoint.terminalOutcome
+      ?? (processFailure ? 'failed'
+        : osTermination ? 'os_terminated'
+          : nearPlannedEnd && allSignalsFired && checkpoint.pauseReason !== 'user' ? 'recovered_interrupted'
+            : checkpoint.positionMs > 0 ? 'abandoned_interrupted' : 'unknown');
 
-  for (const event of checkpoint.pendingDiagnostics ?? []) {
-    await recordJourneyMemoryEvent(checkpoint.sessionId, {
-      type: event.type,
-      at: event.atMs,
+    const recoveredEvents: JourneyMemoryEvent[] = [];
+    for (const event of checkpoint.pendingDiagnostics ?? []) {
+      recoveredEvents.push({
+        type: event.type,
+        at: event.atMs,
+        positionMs: checkpoint.positionMs,
+        reason: event.reason,
+        route: event.route,
+        signalId: event.signalId,
+        cueId: event.cueId,
+        scheduledPositionMs: event.scheduledPositionMs,
+        actualPositionMs: event.actualPositionMs,
+        driftMs: event.driftMs,
+        underrunCount: event.underrunCount,
+      });
+    }
+
+    if (!checkpoint.terminalOutcome) recoveredEvents.push({
+      at: now(),
+      type: checkpoint.pauseReason === 'user' ? 'playback_paused' : 'previous_session_interrupted_unexpectedly',
+      reason: checkpoint.pauseReason === 'user' ? 'user_pause_before_relaunch' : undefined,
       positionMs: checkpoint.positionMs,
-      reason: event.reason,
-      route: event.route,
-      signalId: event.signalId,
-      scheduledPositionMs: event.scheduledPositionMs,
-      actualPositionMs: event.actualPositionMs,
-      driftMs: event.driftMs,
-      underrunCount: event.underrunCount,
-    }, storage, now);
-  }
+      stageId: checkpoint.stageId,
+      lastUpdatedAt: checkpoint.lastUpdatedAt,
+      route: checkpoint.audioRoute,
+      engineRunning: checkpoint.engineRunning,
+      playbackState: checkpoint.playbackState,
+      audioFocus: checkpoint.audioFocus,
+      foregroundServiceState: checkpoint.engineRunning ? 'running' : 'stopped',
+      desiredPlaying: checkpoint.desiredPlaying,
+      pauseReason: checkpoint.pauseReason,
+      lastStopReason: checkpoint.lastStopReason,
+      processId: checkpoint.processId,
+      processInstanceId: checkpoint.processInstanceId,
+      exitReason: processExit?.reason,
+      exitReasonCode: processExit?.reasonCode,
+      exitDescription: processExit?.description,
+      exitTimestamp: processExit?.timestamp,
+      processImportance: processExit?.importance,
+      processStatus: processExit?.status,
+      pssKb: processExit?.pssKb,
+      rssKb: processExit?.rssKb,
+    });
 
-  await recordJourneyMemoryEvent(checkpoint.sessionId, {
-    type: 'previous_session_interrupted_unexpectedly',
-    positionMs: checkpoint.positionMs,
-    stageId: checkpoint.stageId,
-    lastUpdatedAt: checkpoint.lastUpdatedAt,
-    route: checkpoint.audioRoute,
-    engineRunning: checkpoint.engineRunning,
-    playbackState: checkpoint.playbackState,
-    audioFocus: checkpoint.audioFocus,
-    foregroundServiceState: checkpoint.engineRunning ? 'running' : 'stopped',
-    desiredPlaying: checkpoint.desiredPlaying,
-    pauseReason: checkpoint.pauseReason,
-    lastStopReason: checkpoint.lastStopReason,
-    processId: checkpoint.processId,
-    exitReason: processExit?.reason,
-    exitReasonCode: processExit?.reasonCode,
-    exitDescription: processExit?.description,
-    exitTimestamp: processExit?.timestamp,
-    processImportance: processExit?.importance,
-    processStatus: processExit?.status,
-    pssKb: processExit?.pssKb,
-    rssKb: processExit?.rssKb,
-  }, storage, now);
-
-  const staleSeconds = Math.max(0, Math.round((now() - checkpoint.lastUpdatedAt) / 1_000));
-  await finishJourneyMemorySession(
-    checkpoint.sessionId,
-    outcome,
-    checkpoint.positionMs,
-    `reconciled from checkpoint (last written ${staleSeconds}s before relaunch, ${checkpoint.firedSignalIds.length}${checkpoint.plannedSignalCount != null ? `/${checkpoint.plannedSignalCount}` : ''} signals fired${processExit ? `, Android exit: ${processExit.reason}` : ', no matching Android exit reason'})`,
-    storage,
-    now,
-  );
-  return outcome;
+    const staleSeconds = Math.max(0, Math.round((now() - checkpoint.lastUpdatedAt) / 1_000));
+    const endedAt = checkpoint.terminalOutcome ? checkpoint.lastUpdatedAt : now();
+    const message = `reconciled from checkpoint (last written ${staleSeconds}s before relaunch, ${checkpoint.firedSignalIds.length}${checkpoint.plannedSignalCount != null ? `/${checkpoint.plannedSignalCount}` : ''} signals fired${processExit ? `, Android exit: ${processExit.reason}` : ', no matching process exit evidence'})`;
+    const { pendingDiagnostics: _pending, ...nativeCheckpoint } = checkpoint;
+    const completed = completedMemorySession(
+      { ...session, nativeCheckpoint, events: [...session.events, ...recoveredEvents] }, outcome, checkpoint.positionMs, endedAt, message,
+    );
+    await storage.setItem(JOURNEY_MEMORY_KEY, JSON.stringify({
+      ...state, sessions: state.sessions.map(item => item.id === session.id ? completed : item),
+    }));
+    return outcome;
+  });
 }

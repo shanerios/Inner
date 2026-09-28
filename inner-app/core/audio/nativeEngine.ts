@@ -30,8 +30,9 @@ type NativeInnerAudio = {
   triggerCue(): Promise<void>;
   setCheckpointSessionId?(sessionId: string | null): Promise<void>;
   getCheckpoint?(): NativeCheckpoint | null;
+  getCheckpoints?(): NativeCheckpoint[];
   getHistoricalProcessExitInfo?(): NativeProcessExitInfo[];
-  clearCheckpoint?(): Promise<void>;
+  clearCheckpoint?(sessionId?: string): Promise<void>;
   play(): Promise<void>;
   pause(): Promise<void>;
   stop(): Promise<void>;
@@ -125,6 +126,13 @@ class NativeProceduralAudioEngine implements InnerAudioEngine {
     return this.getNativeModule().getCheckpoint?.() ?? null;
   }
 
+  async getCheckpoints(): Promise<NativeCheckpoint[]> {
+    const module = this.getNativeModule();
+    if (module.getCheckpoints) return module.getCheckpoints();
+    const checkpoint = module.getCheckpoint?.();
+    return checkpoint ? [checkpoint] : [];
+  }
+
   async getHistoricalProcessExitInfo(): Promise<NativeProcessExitInfo[]> {
     try {
       return this.getNativeModule().getHistoricalProcessExitInfo?.() ?? [];
@@ -134,8 +142,15 @@ class NativeProceduralAudioEngine implements InnerAudioEngine {
     }
   }
 
-  async clearCheckpoint() {
-    await this.getNativeModule().clearCheckpoint?.();
+  async clearCheckpoint(sessionId?: string) {
+    const module = this.getNativeModule();
+    // Older builds have a global clear. Never let an old session erase a new one.
+    if (!module.getCheckpoints) {
+      if (sessionId && module.getCheckpoint?.()?.sessionId !== sessionId) return;
+      await module.clearCheckpoint?.();
+      return;
+    }
+    await module.clearCheckpoint?.(sessionId);
   }
 
   async play() {
