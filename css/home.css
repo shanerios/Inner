@@ -50,6 +50,55 @@
   will-change: transform;
 }
 
+/* Orb layering — DISTANT / AWARE / APPROACH compose as independent
+   nested layers rather than fighting over one `transform`:
+     .threshold-parallax--orb   (pointer PARALLAX translate, JS, existing)
+       .threshold-orb-breathe   (idle breathing scale, CSS keyframe, always on)
+         .threshold-orb-proximity (pointer PROXIMITY scale, CSS var, JS-fed)
+           .threshold-orb-aura  (proximity-driven glow, additive, not filter)
+           .threshold-orb-img   (env-zoom + scroll-Approach scale, unchanged)
+   Each nests inside the last, so their transforms compose naturally —
+   no single element ever declares more than one transform effect. */
+.threshold-parallax--orb {
+  --orb-focal-x: 50%;
+  --orb-focal-y: 43%;
+}
+
+.threshold-orb-breathe {
+  width: 100%;
+  height: 100%;
+  transform-origin: var(--orb-focal-x) var(--orb-focal-y);
+  animation: threshold-orb-breathe 9s ease-in-out infinite;
+}
+
+@keyframes threshold-orb-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.012); }
+}
+
+.threshold-orb-proximity {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-origin: var(--orb-focal-x) var(--orb-focal-y);
+  transform: scale(calc(1 + var(--orb-proximity, 0) * 0.01));
+  transition: transform 0.7s ease-out;
+}
+
+/* Additive glow layer, not a filter/brightness tweak on the artwork
+   itself — screens a soft light over the Orb rather than degrading it.
+   Baseline stays modest so there's headroom for the proximity response
+   to actually read as a change. */
+.threshold-orb-aura {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at var(--orb-focal-x) var(--orb-focal-y), rgba(150, 165, 255, 0.85) 0%, rgba(130, 145, 255, 0.32) 9%, transparent 24%);
+  opacity: calc(0.1 + var(--orb-proximity, 0) * 0.16);
+  transition: opacity 0.9s ease-out;
+  pointer-events: none;
+  mix-blend-mode: screen;
+}
+
 .threshold-bg,
 .threshold-orb-img {
   width: 100%;
@@ -114,9 +163,12 @@
 .threshold-content {
   position: relative;
   z-index: 2;
-  max-width: 42ch;
-  padding: 0 clamp(20px, 6vw, 96px);
-  opacity: calc(1 - var(--progress) * 1.6);
+  max-width: 38ch;
+  padding: 0 clamp(20px, 5.5vw, 84px);
+  /* Fully gone by 55% scroll progress (not just asymptotically fading),
+     so the final stretch of the Approach is environment/Orb alone —
+     see the Threshold -> Sanctum handoff note near .threshold-index. */
+  opacity: clamp(0, calc(1 - var(--progress) / 0.55), 1);
   transform: translateY(calc(var(--progress) * -36px));
   text-align: left;
 }
@@ -138,8 +190,8 @@
 .threshold-headline {
   font-family: var(--font-heading);
   font-weight: 600;
-  font-size: clamp(1.7rem, 3.1vw, 2.55rem);
-  line-height: 1.18;
+  font-size: clamp(1.55rem, 2.8vw, 2.3rem);
+  line-height: 1.22;
   letter-spacing: 0.005em;
   margin: 0 0 18px 0;
   color: rgba(246, 242, 235, 0.96);
@@ -154,15 +206,25 @@
   font-weight: 300;
   font-size: clamp(0.95rem, 1.2vw, 1.05rem);
   line-height: 1.55;
-  color: rgba(224, 220, 232, 0.7);
-  max-width: 38ch;
+  color: rgba(228, 225, 236, 0.82);
+  max-width: 36ch;
   margin: 0 0 28px 0;
+  text-align: left;
+}
+
+.threshold-cta-label {
+  font-family: var(--font-heading);
+  font-size: 0.64rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(200, 190, 255, 0.46);
+  margin: 0 0 11px 0;
   text-align: left;
 }
 
 .threshold-cta {
   justify-content: flex-start;
-  gap: 22px;
+  gap: 26px;
 }
 
 /* Quiet, editorial conversion links — not conventional SaaS buttons.
@@ -170,31 +232,46 @@
 .threshold-store-link {
   display: inline-flex;
   align-items: baseline;
-  gap: 7px;
+  gap: 6px;
   padding: 4px 0 6px 0;
   border: none;
-  border-bottom: 1px solid rgba(235, 232, 255, 0.34);
+  border-bottom: 1px solid rgba(235, 232, 255, 0.3);
   color: rgba(235, 232, 255, 0.86);
   font-family: var(--font-body);
-  font-size: 0.9rem;
+  font-size: 0.92rem;
   font-weight: 400;
   letter-spacing: 0.01em;
   text-decoration: none;
   background: transparent;
   transition: border-color 0.25s ease, color 0.25s ease;
 }
-.threshold-store-link:hover {
+.threshold-store-link:hover,
+.threshold-store-link:focus-visible {
   color: #fff;
   border-bottom-color: rgba(235, 232, 255, 0.75);
 }
-.threshold-store-link .glyph {
-  font-size: 0.78em;
-  opacity: 0.7;
+.threshold-store-link .arrow {
+  display: inline-block;
+  font-size: 0.82em;
+  opacity: 0.6;
+  transition: transform 0.25s ease, opacity 0.25s ease;
+}
+.threshold-store-link:hover .arrow,
+.threshold-store-link:focus-visible .arrow {
+  opacity: 0.95;
+  transform: translate(2px, -2px);
 }
 
 /* Bottom-left index marker and bottom-right scroll invitation — a
    symmetric corner frame, editorial/technical annotation rather than
-   marketing copy. */
+   marketing copy.
+
+   Threshold -> Sanctum handoff: both of these, plus .threshold-content
+   above, are fully gone (opacity: exactly 0, via clamp — not just
+   asymptotically small) well before the Approach finishes. That
+   leaves roughly the last 40-45% of the scroll range as environment
+   + Orb alone, so no Threshold UI is ever visible at the same time as
+   Sanctum's own content scrolling in beneath it. */
 .threshold-index {
   position: absolute;
   left: clamp(20px, 6vw, 96px);
@@ -206,7 +283,7 @@
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: rgba(225, 220, 255, 0.4);
-  opacity: calc(1 - var(--progress) * 2.4);
+  opacity: clamp(0, calc(1 - var(--progress) / 0.45), 1);
 }
 
 .threshold-scroll-cue {
@@ -214,16 +291,25 @@
   right: clamp(20px, 6vw, 96px);
   bottom: clamp(20px, 4vh, 36px);
   z-index: 2;
-  display: flex;
-  align-items: center;
-  gap: 8px;
   font-family: var(--font-heading);
   font-size: 0.66rem;
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: rgba(225, 220, 255, 0.55);
-  opacity: calc(1 - var(--progress) * 2.4);
+  /* The progress-driven fade lives here, on the outer element. The
+     breathing pulse (below) lives on an inner span instead of on this
+     element directly — an always-running CSS animation overrides
+     whatever opacity/transform this rule declares while it plays, so
+     if both lived on the same element the breathing animation would
+     silently win and this fade-to-zero would never actually finish. */
+  opacity: clamp(0, calc(1 - var(--progress) / 0.45), 1);
   pointer-events: none;
+}
+
+.threshold-scroll-cue .cue-pulse {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   animation: threshold-cue-breathe 3.4s ease-in-out infinite;
 }
 
@@ -248,19 +334,8 @@
   }
 }
 
-/* When JS hasn't enhanced yet (or reduced motion), keep breathing-orb
-   idle animation; once enhanced, scroll progress takes over scale. */
-.threshold-wrap:not(.is-enhanced) .threshold-orb-img {
-  animation: threshold-orb-breathe 8s ease-in-out infinite;
-}
-
-@keyframes threshold-orb-breathe {
-  0%, 100% { transform: scale(var(--env-zoom, 1)); filter: brightness(1); }
-  50% { transform: scale(calc(var(--env-zoom, 1) * 1.015)); filter: brightness(1.05); }
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .threshold-scroll-cue { animation: none; }
+  .threshold-scroll-cue .cue-pulse { animation: none; }
 }
 
 /* ---------- Responsive recomposition (not a shrink of desktop) ---------- */
@@ -281,6 +356,10 @@
     --env-zoom: 1.42;
     transform-origin: 50% 54%;
   }
+  .threshold-parallax--orb {
+    --orb-focal-x: 50%;
+    --orb-focal-y: 54%;
+  }
   .threshold-vignette {
     background:
       linear-gradient(180deg, rgba(3, 2, 8, 0.56) 0%, rgba(3, 2, 8, 0.08) 30%, rgba(3, 2, 8, 0) 58%, rgba(3, 2, 8, 0.6) 100%);
@@ -292,7 +371,8 @@
   }
   .threshold-kicker,
   .threshold-headline,
-  .threshold-lead {
+  .threshold-lead,
+  .threshold-cta-label {
     text-align: center;
   }
   .threshold-lead {

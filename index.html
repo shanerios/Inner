@@ -848,12 +848,17 @@
           </picture>
         </div>
         <div class="threshold-parallax threshold-parallax--orb">
-          <picture>
-            <source media="(max-width: 680px)" srcset="/media/images/orb_portrait.webp" type="image/webp" />
-            <source media="(max-width: 680px)" srcset="/media/images/orb_portrait.png" />
-            <source srcset="/media/images/home_orb.webp" type="image/webp" />
-            <img class="threshold-orb-img" src="/media/images/home_orb.png" alt="" width="1920" height="1080" />
-          </picture>
+          <div class="threshold-orb-breathe">
+            <div class="threshold-orb-proximity">
+              <div class="threshold-orb-aura" aria-hidden="true"></div>
+              <picture>
+                <source media="(max-width: 680px)" srcset="/media/images/orb_portrait.webp" type="image/webp" />
+                <source media="(max-width: 680px)" srcset="/media/images/orb_portrait.png" />
+                <source srcset="/media/images/home_orb.webp" type="image/webp" />
+                <img class="threshold-orb-img" src="/media/images/home_orb.png" alt="" width="1920" height="1080" />
+              </picture>
+            </div>
+          </div>
         </div>
         <div class="threshold-vignette"></div>
         <div class="threshold-darken"></div>
@@ -863,18 +868,19 @@
         <p class="threshold-kicker">Inner / The Threshold</p>
         <h1 class="threshold-headline">Beneath the veil,<br><span class="accent">something in you awakens.</span></h1>
         <p class="threshold-lead">Inner is a practice for cultivating awareness across waking, sleep, and dreams.</p>
+        <p class="threshold-cta-label">Available on</p>
         <div class="cta-row threshold-cta">
           <a class="threshold-store-link" href="https://apps.apple.com/us/app/inner-official/id6755213270" target="_blank" rel="noopener noreferrer" aria-label="Download Inner on the App Store">
-            Download on iOS
+            iOS <span class="arrow" aria-hidden="true">&#8599;</span>
           </a>
           <a class="threshold-store-link" href="https://play.google.com/store/apps/details?id=com.getinner.app" target="_blank" rel="noopener noreferrer" aria-label="Get Inner on Google Play">
-            Get it on Android
+            Android <span class="arrow" aria-hidden="true">&#8599;</span>
           </a>
         </div>
       </div>
 
       <p class="threshold-index" aria-hidden="true">01 / The Threshold</p>
-      <p class="threshold-scroll-cue" aria-hidden="true">Begin the Descent <span>&#8595;</span></p>
+      <p class="threshold-scroll-cue" aria-hidden="true"><span class="cue-pulse">Begin the Descent <span>&#8595;</span></span></p>
     </section>
   </div>
 

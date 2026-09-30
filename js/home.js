@@ -80,22 +80,62 @@
     reduceMotionQuery.addEventListener('change', syncMotionPreference);
   }
 
-  // Pointer parallax — fine pointer + motion allowed only, microscopic range.
+  // Pointer parallax + Orb proximity — fine pointer + motion allowed only,
+  // microscopic range. Geometry (the stage rect, and where the Orb's focal
+  // point sits within it) is cached and only recomputed on resize, so
+  // pointermove itself never forces a layout read.
   var bgLayer = document.querySelector('.threshold-parallax--bg');
   var orbLayer = document.querySelector('.threshold-parallax--orb');
+  var orbProximityTarget = document.querySelector('.threshold-orb-proximity');
+  var narrowQuery = window.matchMedia('(max-width: 680px)');
 
-  function onPointerMove(e) {
-    if (reduceMotionQuery.matches || !finePointerQuery.matches) return;
-    var rect = stage.getBoundingClientRect();
-    var px = (e.clientX - rect.left) / rect.width - 0.5;
-    var py = (e.clientY - rect.top) / rect.height - 0.5;
+  var stageRect = null;
+  function refreshStageRect() {
+    stageRect = stage.getBoundingClientRect();
+  }
+  refreshStageRect();
+  window.addEventListener('resize', refreshStageRect, { passive: true });
+
+  var pendingPointer = null;
+  var pointerTicking = false;
+
+  function applyPointer(px, py) {
     if (bgLayer) bgLayer.style.transform = 'translate(' + (-px * 2).toFixed(2) + 'px, ' + (-py * 1.4).toFixed(2) + 'px)';
     if (orbLayer) orbLayer.style.transform = 'translate(' + (-px * 5).toFixed(2) + 'px, ' + (-py * 4).toFixed(2) + 'px)';
+
+    if (orbProximityTarget) {
+      // Orb's approximate visual center as a fraction of the stage,
+      // matching the object-position/--orb-focal-* values in home.css
+      // for the currently active (landscape vs portrait) art direction.
+      var focalY = narrowQuery.matches ? 0.54 : 0.43;
+      var dx = px; // px/py are already centered fractions of stage size (-0.5..0.5)
+      var dy = (py + 0.5) - focalY;
+      var distance = Math.sqrt(dx * dx + dy * dy);
+      var radius = 0.42; // falloff radius, as a fraction of stage size
+      var proximity = Math.max(0, Math.min(1, 1 - distance / radius));
+      orbProximityTarget.style.setProperty('--orb-proximity', proximity.toFixed(3));
+    }
+  }
+
+  function onPointerMove(e) {
+    if (reduceMotionQuery.matches || !finePointerQuery.matches || !stageRect) return;
+    pendingPointer = {
+      px: (e.clientX - stageRect.left) / stageRect.width - 0.5,
+      py: (e.clientY - stageRect.top) / stageRect.height - 0.5
+    };
+    if (pointerTicking) return;
+    pointerTicking = true;
+    requestAnimationFrame(function () {
+      if (pendingPointer) applyPointer(pendingPointer.px, pendingPointer.py);
+      pointerTicking = false;
+    });
   }
 
   function resetPointer() {
+    pendingPointer = null;
     if (bgLayer) bgLayer.style.transform = '';
     if (orbLayer) orbLayer.style.transform = '';
+    if (orbProximityTarget) orbProximityTarget.style.setProperty('--orb-proximity', 0);
   }
 
   stage.addEventListener('pointermove', onPointerMove);
