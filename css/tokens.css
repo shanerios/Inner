@@ -1,0 +1,89 @@
+/* ==========================================================================
+   Inner — Design Tokens (Phase 0 foundation)
+
+   Canonical values extracted from the existing site. Adding this file
+   changes nothing on its own: pages either don't reference these
+   variables yet, or reference them in places where the resolved value
+   is identical to what was already hardcoded locally.
+
+   This is the single source of truth to design against for the
+   upcoming cinematic redesign. It does not yet replace every hardcoded
+   value across the 11 pages — that migration happens gradually, page
+   by page, as each is touched during the redesign.
+   ========================================================================== */
+
+:root {
+  /* Colors — backgrounds */
+  --color-bg-primary: #0D0C1F;
+  --color-bg-secondary: #1F233A;
+
+  /* Colors — text */
+  --color-text-primary: #FFFFFF;
+  --color-text-muted: rgba(210, 205, 240, 0.70);
+  --color-text-soft: rgba(235, 232, 255, 0.78);
+
+  /* Colors — accent (Inner purple). The RGB triplet lets new code compose
+     rgba(var(--color-accent-rgb), <alpha>) at whatever opacity a given
+     treatment needs, instead of hardcoding a new rgba() per use. */
+  --color-accent: #A18CFF;
+  --color-accent-rgb: 161, 140, 255;
+
+  /* Colors — structure */
+  --color-border-subtle: rgba(144, 140, 159, 0.26);
+  --color-panel-bg-start: rgba(31, 30, 56, 0.82);
+  --color-panel-bg-end: rgba(42, 41, 78, 0.72);
+
+  /* Typography */
+  --font-heading: 'CalSans', sans-serif;
+  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+  /* Type scale — named by role, not by page. Existing pages size their
+     own headings independently (intentional per-page hierarchy); this
+     scale is the reference point for new shared/redesigned components. */
+  --fs-kicker: 0.78rem;
+  --fs-body: 1rem;
+  --fs-heading-sm: 1.35rem;   /* card/section sub-heading */
+  --fs-heading-md: 1.9rem;    /* section heading */
+  --fs-heading-lg: 2.8rem;    /* page-level heading */
+
+  /* Layout */
+  --content-width: 1100px;         /* existing standard container */
+  --content-width-wide: 1180px;    /* existing "how-wrap" wide container */
+  --content-width-cinematic: 1440px; /* reserved for future full-bleed/cinematic sections — unused today */
+  --page-gutter: 18px;
+  --section-padding-y: 72px;
+  --topbar-height: 58px;
+
+  /* Motion */
+  --ease-standard: ease;
+  --duration-fast: 0.2s;
+  --duration-base: 0.25s;
+  --duration-reveal: 0.8s;
+}
+
+/* ==========================================================================
+   Breakpoint scale — documentation only.
+
+   CSS custom properties cannot be substituted inside @media query
+   conditions without a preprocessor or PostCSS step, which this project
+   deliberately does not introduce. This comment is the canonical scale
+   new shared CSS should converge on; treat it as the source of truth
+   when writing new @media rules.
+
+     --bp-xs:  480px   single-column collapse
+     --bp-sm:  640px   large phone / small tablet
+     --bp-md:  768px   tablet
+     --bp-lg:  900px   grid collapse / small desktop
+     --bp-xl:  1100px  content max-width
+
+   The current site's per-page styles use an ad hoc mix of
+   480/560/640/680/700/760/768/900px. Those were intentionally left
+   untouched in Phase 0 — rationalizing a breakpoint used by
+   page-specific CSS could shift exactly when that page's layout
+   changes, which would violate "visually and behaviorally identical."
+   The one exception is shell.css (shared nav chrome for the
+   index/guardians/auditory-ascension pages), which already used 680px
+   consistently across all three — that value was preserved as-is
+   rather than moved to the 768px slot on this scale, again to avoid
+   changing behavior.
+   ========================================================================== */

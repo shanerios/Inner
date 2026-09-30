@@ -58,28 +58,17 @@
 
     gtag('config', 'G-FVC3JDRGRM');
   </script>
+  <link rel="stylesheet" href="/css/tokens.css" />
+  <link rel="stylesheet" href="/css/fonts.css" />
+  <link rel="stylesheet" href="/css/base.css" />
+  <link rel="stylesheet" href="/css/shell.css" />
+  <link rel="stylesheet" href="/css/home.css" />
+  <link rel="preload" as="image" href="/media/images/home_background.webp" fetchpriority="high" />
   <style>
-    @font-face {
-      font-family: 'CalSans';
-      src: url('CalSans-SemiBold.woff2') format('woff2');
-      font-weight: 600;
-      font-style: normal;
-      font-display: swap;
-    }
-    :root {
-      --topbar-height: 58px;
-    }
-    @keyframes breathe {
-      0%, 100% {
-        transform: scale(1);
-      }
-      50% {
-        transform: scale(1.20);
-      }
-    }
     html, body {
       margin: 0;
       height: 100%;
+      overflow-x: hidden;
       background: linear-gradient(180deg, #0D0C1F 0%, #1F233A 100%);
       background-attachment: fixed;
       background-repeat: no-repeat;
@@ -97,42 +86,6 @@
       padding-top: calc(8px + env(safe-area-inset-top, 0px) + var(--topbar-height));
       box-sizing: border-box;
       scroll-padding-top: calc(var(--topbar-height) + 20px);
-    }
-    .breathing-orb {
-      width: min(370px, 76vw);
-      height: min(370px, 76vw);
-      margin: -34px auto 0 auto;
-      border-radius: 50%;
-      animation: breathe 4s ease-in-out infinite;
-      overflow: visible;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    @media (max-width: 768px) {
-      .breathing-orb {
-        margin-top: 0;
-      }
-      .section.compact {
-        padding-top: 8px;
-      }
-      .lead-main {
-        max-width: 42ch;
-      }
-    }
-    .breathing-orb img {
-      width: 100%;
-      height: 100%;
-      object-fit: contain;
-      user-select: none;
-      border-radius: 50%;
-      display: block;
-    }
-    .wordmark {
-      width: 188px;
-      margin-top: -126px;
-      margin-bottom: 0.6rem;
-      user-select: none;
     }
     h3 {
       font-weight: 600;
@@ -213,37 +166,6 @@
       margin-top: 6px;
       margin-bottom: 0;
     }
-    .secondary-row {
-      margin-top: 10px;
-    }
-    .hero-availability {
-      margin: 0 auto 0 auto;
-      font-size: 0.88rem;
-    }
-    .hero-entry {
-      margin: 8px auto 0 auto;
-      font-size: 0.92rem;
-      color: rgba(235, 232, 255, 0.78);
-      letter-spacing: 0.02em;
-    }
-        .hero-note-group {
-      margin: 14px auto 0 auto;
-      max-width: 720px;
-      text-align: center;
-    }
-    .hero-note-main {
-      margin: 0;
-      font-size: 0.92rem;
-      line-height: 1.35;
-      color: rgba(210, 205, 240, 0.76);
-    }
-    .hero-note-sub {
-      margin: 3px 0 0 0;
-      font-size: 0.8rem;
-      line-height: 1.3;
-      color: rgba(210, 205, 240, 0.58);
-    }
-
     /* --- Scroll Experience Layout --- */
     .section {
       width: 100%;
@@ -253,9 +175,6 @@
       position: relative;
       scroll-margin-top: calc(var(--topbar-height) + 20px);
     }
-    .section.compact {
-      padding: 0px 0;
-    }
     .container {
       width: 100%;
       padding: 0 18px;
@@ -264,18 +183,6 @@
     .section p {
       margin-left: auto;
       margin-right: auto;
-    }
-    .center {
-      text-align: center;
-    }
-    .kicker {
-      text-align: center;
-      letter-spacing: 0.14em;
-      text-transform: uppercase;
-      font-size: 0.78rem;
-      color: rgba(210, 205, 240, 0.70);
-      margin: 0 0 12px 0;
-      user-select: none;
     }
     h1 {
       font-weight: 700;
@@ -300,7 +207,6 @@
 
     p,
     .subtle,
-    .lead,
     .chamber-desc,
     .feature p,
     .badge {
@@ -321,46 +227,12 @@
     .section h3 {
       text-align: center;
     }
-    .lead {
-      max-width: 620px;
-      margin: 0 auto 12px auto;
-      color: rgba(235, 232, 255, 0.88);
-      text-align: center;
-    }
-    .lead-top {
-      display: block;
-      font-size: 0.88rem;
-      line-height: 1.4;
-      font-weight: 300;
-      letter-spacing: 0.005em;
-      color: rgba(235, 232, 255, 0.72);
-    }
-    .lead-main {
-      display: block;
-      margin: 10px auto 0 auto;
-      max-width: 42ch;
-      font-size: 1.02rem;
-      line-height: 1.48;
-      font-weight: 400;
-      color: rgba(235, 232, 255, 0.94);
-    }
-    .lead-emphasis {
-      font-weight: 500;
-      color: rgba(255, 255, 255, 0.98);
-    }
-    .subtle {
-      color: rgba(210, 205, 240, 0.70);
-    }
     .cta-row {
       display: flex;
       gap: 12px;
       justify-content: center;
       flex-wrap: wrap;
       margin-top: 10px;
-    }
-    .chamber-highlight {
-      color: #A18CFF;
-      text-shadow: 0 0 8px rgba(161, 140, 255, 0.4);
     }
     .ghost {
       background: rgba(144, 140, 159, 0.14);
@@ -370,16 +242,6 @@
     .ghost:hover {
       background: rgba(192, 186, 221, 0.18);
       border-color: rgba(192, 186, 221, 0.50);
-    }
-
-    /* Panels */
-    .panel {
-      background: linear-gradient(135deg, rgba(31, 30, 56, 0.82), rgba(42, 41, 78, 0.72));
-      border: 1px solid rgba(144, 140, 159, 0.26);
-      border-radius: 16px;
-      padding: 22px;
-      box-sizing: border-box;
-      backdrop-filter: blur(8px);
     }
 
     /* Feature grid */
@@ -628,185 +490,6 @@
       text-align: center;
     }
 
-    /* Scroll reveal */
-    .reveal {
-      opacity: 0;
-      transform: translateY(18px);
-      transition: opacity 0.8s ease, transform 0.8s ease;
-    }
-    .reveal.visible {
-      opacity: 1;
-      transform: translateY(0);
-    }
-
-    a:focus-visible,
-    button:focus-visible,
-    summary:focus-visible {
-      outline: 2px solid #b6a8ff;
-      outline-offset: 4px;
-    }
-
-    /* Section separators */
-    .veil-line {
-      width: 100%;
-      height: 1px;
-      background: linear-gradient(90deg, transparent, rgba(161, 140, 255, 0.35), transparent);
-      margin: 10px 0 0 0;
-      opacity: 0.7;
-    }
-
-    /* Footer links */
-    .footer-links {
-      display: inline-flex;
-      gap: 12px;
-      align-items: center;
-      justify-content: center;
-      flex-wrap: wrap;
-    }
-    .footer-links a {
-      color: rgba(210, 205, 240, 0.78);
-      text-decoration: none;
-      border-bottom: 1px solid rgba(161, 140, 255, 0.22);
-      padding-bottom: 1px;
-    }
-    .footer-links a:hover {
-      color: rgba(161, 140, 255, 0.95);
-      border-bottom-color: rgba(161, 140, 255, 0.55);
-    }
-
-    /* Top nav */
-    .topbar {
-      width: 100%;
-      max-width: 1100px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 14px 18px;
-      box-sizing: border-box;
-      position: fixed;
-      top: env(safe-area-inset-top, 0px);
-      left: 50%;
-      transform: translateX(-50%);
-      height: var(--topbar-height);
-      z-index: 10;
-      background: linear-gradient(180deg, rgba(13, 12, 31, 0.92) 0%, rgba(13, 12, 31, 0.35) 100%);
-      backdrop-filter: blur(10px);
-      border-bottom: 1px solid rgba(144, 140, 159, 0.16);
-    }
-    .topbar a {
-      color: rgba(235, 232, 255, 0.84);
-      text-decoration: none;
-      font-size: 0.95rem;
-      margin-left: 12px;
-    }
-    .topbar a:hover {
-      color: rgba(161, 140, 255, 0.95);
-    }
-    .topbar a.active {
-      color: rgba(161, 140, 255, 1);
-      position: relative;
-    }
-    .topbar a.active::after {
-      content: '';
-      position: absolute;
-      left: 0;
-      right: 0;
-      bottom: -6px;
-      height: 2px;
-      background: linear-gradient(90deg, transparent, rgba(161, 140, 255, 0.9), transparent);
-      border-radius: 2px;
-    }
-    .brand {
-      display: inline-flex;
-      align-items: center;
-      flex: 0 0 auto;
-    }
-    .brand-link {
-      font-family: 'CalSans', sans-serif !important;
-      font-weight: 600;
-      font-size: 1.35rem;
-      letter-spacing: 0.04em;
-      color: rgba(235, 232, 255, 0.96) !important;
-      text-decoration: none;
-      line-height: 1;
-      margin-left: 0;
-    }
-    .brand-link:hover {
-      color: rgba(161, 140, 255, 1) !important;
-    }
-
-    /* Hamburger */
-    .hamburger {
-      display: none;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      gap: 5px;
-      width: 36px;
-      height: 36px;
-      background: none;
-      border: none;
-      cursor: pointer;
-      padding: 4px;
-      border-radius: 6px;
-      transition: background 0.2s ease;
-    }
-    .hamburger:hover { background: rgba(144, 140, 159, 0.14); }
-    .hamburger span {
-      display: block;
-      width: 20px;
-      height: 1.5px;
-      background: rgba(235, 232, 255, 0.82);
-      border-radius: 2px;
-      transition: transform 0.25s ease, opacity 0.25s ease;
-    }
-    .hamburger.is-open span:nth-child(1) { transform: translateY(6.5px) rotate(45deg); }
-    .hamburger.is-open span:nth-child(2) { opacity: 0; }
-    .hamburger.is-open span:nth-child(3) { transform: translateY(-6.5px) rotate(-45deg); }
-
-    .mobile-nav {
-      display: none;
-      position: fixed;
-      top: var(--topbar-height);
-      left: 0;
-      right: 0;
-      z-index: 9;
-      background: rgba(13, 12, 31, 0.97);
-      backdrop-filter: blur(16px);
-      border-bottom: 1px solid rgba(144, 140, 159, 0.16);
-      padding: 8px 0 12px 0;
-      flex-direction: column;
-      transform: translateY(-8px);
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity 0.22s ease, transform 0.22s ease;
-    }
-    .mobile-nav.is-open {
-      opacity: 1;
-      transform: translateY(0);
-      pointer-events: all;
-    }
-    .mobile-nav a {
-      display: block;
-      padding: 13px 22px;
-      color: rgba(235, 232, 255, 0.84);
-      text-decoration: none;
-      font-family: 'CalSans', sans-serif;
-      font-size: 1rem;
-      letter-spacing: 0.03em;
-      border-bottom: 1px solid rgba(144, 140, 159, 0.10);
-      transition: color 0.2s ease, background 0.2s ease;
-    }
-    .mobile-nav a:last-child { border-bottom: none; }
-    .mobile-nav a:hover { color: rgba(161, 140, 255, 0.95); background: rgba(144, 140, 159, 0.06); }
-    .mobile-nav a.active { color: rgba(161, 140, 255, 1); }
-
-    @media (max-width: 680px) {
-      .hamburger { display: flex; }
-      .topbar nav { display: none; }
-      .mobile-nav { display: flex; }
-    }
-
     /* Responsive grids */
     @media (max-width: 900px) {
       .practice-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -1027,179 +710,6 @@
       .book-card { max-width: 320px; width: 100%; }
     }
 
-    /* Nav dropdown */
-    .nav-dropdown {
-      position: relative;
-      display: inline-flex;
-      align-items: center;
-    }
-    .nav-dropdown-toggle {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      cursor: pointer;
-    }
-    .dropdown-chevron {
-      font-size: 0.65em;
-      display: inline-block;
-      transition: transform 0.2s ease;
-      margin-top: 1px;
-    }
-    .nav-dropdown:hover .dropdown-chevron,
-    .nav-dropdown.is-open .dropdown-chevron { transform: rotate(180deg); }
-    .nav-dropdown-menu {
-      position: absolute;
-      top: calc(100% + 12px);
-      right: 0;
-      background: rgba(16, 14, 38, 0.97);
-      border: 1px solid rgba(144, 140, 159, 0.22);
-      border-radius: 12px;
-      padding: 6px 0;
-      min-width: 190px;
-      display: flex;
-      flex-direction: column;
-      visibility: hidden;
-      opacity: 0;
-      transform: translateY(-6px);
-      pointer-events: none;
-      transition: opacity 0.18s ease, transform 0.18s ease, visibility 0.18s;
-      backdrop-filter: blur(16px);
-      box-shadow: 0 8px 28px rgba(0, 0, 0, 0.4);
-      z-index: 20;
-    }
-    .nav-dropdown:hover .nav-dropdown-menu,
-    .nav-dropdown.is-open .nav-dropdown-menu {
-      visibility: visible;
-      opacity: 1;
-      transform: translateY(0);
-      pointer-events: all;
-    }
-    .nav-dropdown-menu a {
-      display: block;
-      padding: 10px 16px;
-      color: rgba(235, 232, 255, 0.84);
-      font-size: 0.9rem;
-      margin-left: 0;
-      border-bottom: 1px solid rgba(144, 140, 159, 0.10);
-      transition: color 0.18s ease, background 0.18s ease;
-      white-space: nowrap;
-    }
-    .nav-dropdown-menu a:last-child { border-bottom: none; }
-    .nav-dropdown-menu a:hover {
-      color: rgba(161, 140, 255, 0.95);
-      background: rgba(144, 140, 159, 0.08);
-    }
-
-    /* Book Modal */
-    .modal-backdrop {
-      position: fixed;
-      inset: 0;
-      z-index: 200;
-      background: rgba(5, 4, 18, 0.80);
-      backdrop-filter: blur(14px);
-      -webkit-backdrop-filter: blur(14px);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 20px;
-      box-sizing: border-box;
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity 0.28s ease;
-    }
-    .modal-backdrop.is-open {
-      opacity: 1;
-      pointer-events: all;
-    }
-    .modal-card {
-      position: relative;
-      background: linear-gradient(180deg, rgba(20, 18, 48, 0.99) 0%, rgba(26, 24, 58, 0.97) 100%);
-      border: 1px solid rgba(144, 140, 159, 0.28);
-      border-radius: 22px;
-      padding: 44px 36px 36px 36px;
-      max-width: 400px;
-      width: 100%;
-      box-shadow: 0 28px 70px rgba(0, 0, 0, 0.55), 0 0 60px rgba(161, 140, 255, 0.07);
-      transform: translateY(14px) scale(0.98);
-      transition: transform 0.28s ease;
-    }
-    .modal-backdrop.is-open .modal-card {
-      transform: translateY(0) scale(1);
-    }
-    .modal-close {
-      position: absolute;
-      top: 14px;
-      right: 14px;
-      width: 30px;
-      height: 30px;
-      background: rgba(144, 140, 159, 0.12);
-      border: 1px solid rgba(144, 140, 159, 0.26);
-      border-radius: 50%;
-      color: rgba(210, 205, 240, 0.65);
-      font-size: 0.78rem;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      padding: 0;
-      transition: background 0.2s ease, color 0.2s ease;
-      font-family: 'Inter', sans-serif;
-      font-weight: 300;
-    }
-    .modal-close:hover {
-      background: rgba(144, 140, 159, 0.22);
-      color: rgba(235, 232, 255, 0.92);
-    }
-    .modal-book-title {
-      text-align: center;
-      margin: 0 0 2px 0;
-      font-size: 1.6rem;
-    }
-    .modal-book-sub {
-      text-align: center;
-      font-size: 0.84rem;
-      color: rgba(161, 140, 255, 0.78);
-      margin: 0 0 28px 0;
-      max-width: none;
-      font-style: italic;
-    }
-    .modal-retailers {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-    .modal-retailer-btn {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 15px 20px;
-      border-radius: 12px;
-      border: 1px solid rgba(161, 140, 255, 0.28);
-      background: linear-gradient(135deg, rgba(154, 134, 245, 0.24), rgba(122, 109, 224, 0.16));
-      color: rgba(245, 243, 255, 0.96);
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-      font-size: 1rem;
-      font-weight: 500;
-      text-decoration: none;
-      cursor: pointer;
-      transition: background 0.25s ease, border-color 0.25s ease, transform 0.2s ease, box-shadow 0.25s ease;
-      box-sizing: border-box;
-    }
-    .modal-retailer-btn:hover {
-      background: linear-gradient(135deg, rgba(168, 150, 249, 0.32), rgba(137, 124, 232, 0.24));
-      border-color: rgba(183, 166, 255, 0.42);
-      box-shadow: 0 4px 16px rgba(161, 140, 255, 0.18);
-      transform: translateY(-1px);
-    }
-    .modal-coming-soon {
-      margin: 18px 0 0 0 !important;
-      text-align: center !important;
-      font-size: 0.78rem !important;
-      color: rgba(144, 140, 159, 0.52) !important;
-      max-width: none !important;
-      letter-spacing: 0.03em;
-    }
-
     /* Responsive tweaks */
     @media (max-width: 480px) {
       .practice-grid { grid-template-columns: 1fr; gap: 18px; }
@@ -1220,46 +730,6 @@
       }
       .chamber-card {
         max-width: 100%;
-      }
-      .breathing-orb {
-        width: 74vw;
-        height: 74vw;
-        margin-top: calc(env(safe-area-inset-top, 0px) - 4vh) !important;
-      }
-
-      .wordmark {
-        width: 38vw;
-        margin-top: -82px !important;
-        opacity: 0.88;
-        filter: drop-shadow(0 0 6px rgba(255,255,255,0.15));
-      }
-
-      h1 {
-        font-size: 1.92rem;
-        line-height: 1.05;
-        margin: -8px 0 6px 0;
-      }
-      .lead {
-        max-width: 92vw;
-      }
-      .lead-top {
-        font-size: 0.8rem;
-        line-height: 1.34;
-      }
-      .lead-main {
-        margin-top: 8px;
-        max-width: 34ch;
-        font-size: 0.92rem;
-        line-height: 1.4;
-      }
-      .hero-note-group {
-        margin-top: 12px;
-      }
-      .hero-note-main {
-        font-size: 0.86rem;
-      }
-      .hero-note-sub {
-        font-size: 0.76rem;
       }
       .how-header h3 {
         font-size: 1.7rem;
@@ -1313,22 +783,6 @@
         bottom: 4px;
       }
     }
-    @media (prefers-reduced-motion: reduce) {
-      html { scroll-behavior: auto; }
-      .breathing-orb { animation: none; }
-      .reveal,
-      .reveal.visible {
-        opacity: 1;
-        transform: none;
-        transition: none;
-      }
-      *, *::before, *::after {
-        scroll-behavior: auto !important;
-        transition-duration: 0.01ms !important;
-        animation-duration: 0.01ms !important;
-        animation-iteration-count: 1 !important;
-      }
-    }
   </style>
 </head>
 <body>
@@ -1377,35 +831,59 @@
     <a href="#join">Download</a>
   </nav>
 
-  <!-- HERO / THRESHOLD -->
-  <section class="section compact" aria-label="Hero">
-    <div class="container center visible">
-      <div class="breathing-orb" aria-hidden="true">
-        <img src="inner_orb.png" alt="" width="1080" height="1920" fetchpriority="high" />
+  <!-- THRESHOLD / APPROACH -->
+  <div class="threshold-wrap" id="threshold">
+    <section class="threshold-stage" aria-label="Hero">
+      <div class="threshold-env" aria-hidden="true">
+        <div class="threshold-parallax threshold-parallax--bg">
+          <picture>
+            <source srcset="/media/images/home_background.webp" type="image/webp" />
+            <img class="threshold-bg" src="/media/images/home_background.png" alt="" width="1920" height="1080" fetchpriority="high" />
+          </picture>
+        </div>
+        <div class="threshold-parallax threshold-parallax--orb">
+          <picture>
+            <source srcset="/media/images/home_orb.webp" type="image/webp" />
+            <img class="threshold-orb-img" src="/media/images/home_orb.png" alt="" width="1920" height="1080" />
+          </picture>
+        </div>
+        <div class="threshold-vignette"></div>
+        <div class="threshold-darken"></div>
       </div>
-      <img src="wordmark.svg" alt="Inner Wordmark" class="wordmark" width="175" height="99" />
-      <h1>Beneath the veil, <br><span style="color:#A18CFF;">something in you awakens.</span></h1>
-            <p class="lead">
-              <span class="lead-top">Not content. Not self-improvement. A practice that descends. Some doors only open from within.</span>
-              <span class="lead-main">Inner is a guided audio practice for <span class="lead-emphasis">lucid dreaming</span>, dream recall, sleep-state awareness, <span class="lead-emphasis">deep rest</span>, and OBE exploration.<br>Built as a ritual, not a feed.</span>
-            </p>
-            <p class="subtle hero-availability">Now available on iOS and Android.</p>
 
-      <div class="cta-row app-store-row">
-        <a class="store-btn" href="https://apps.apple.com/us/app/inner-official/id6755213270" target="_blank" rel="noopener noreferrer" aria-label="Download Inner on the App Store">
-          Download on iOS
-        </a>
-        <a class="store-btn" href="https://play.google.com/store/apps/details?id=com.getinner.app" target="_blank" rel="noopener noreferrer" aria-label="Get Inner on Google Play">
-          Get it on Android
-        </a>
+      <div class="threshold-content">
+        <p class="threshold-kicker">Inner / The Threshold</p>
+        <h1 class="threshold-headline">Beneath the veil,<br><span class="accent">something in you awakens.</span></h1>
+        <p class="threshold-lead">Inner is a practice for cultivating awareness across waking, sleep, and dreams.</p>
+        <div class="cta-row threshold-cta">
+          <a class="store-btn" href="https://apps.apple.com/us/app/inner-official/id6755213270" target="_blank" rel="noopener noreferrer" aria-label="Download Inner on the App Store">
+            Download on iOS
+          </a>
+          <a class="store-btn" href="https://play.google.com/store/apps/details?id=com.getinner.app" target="_blank" rel="noopener noreferrer" aria-label="Get Inner on Google Play">
+            Get it on Android
+          </a>
+        </div>
+        <p class="threshold-availability">Now available on iOS and Android.</p>
       </div>
-      <p class="subtle hero-entry">Start with <span class="chamber-highlight">Chamber I</span> — Outer Sanctum.</p>
 
-      <div class="veil-line" aria-hidden="true"></div>
-            <div class="hero-note-group subtle">
-              <p class="hero-note-main">Headphones recommended.</p>
-              <p class="hero-note-sub">Repeat sessions are part of the design.</p>
-            </div>
+      <p class="threshold-scroll-cue" aria-hidden="true">Begin the Descent <span>&#8595;</span></p>
+    </section>
+  </div>
+
+  <!-- SANCTUM -->
+  <section class="sanctum" id="sanctum" aria-label="The Sanctum">
+    <div class="sanctum-inner reveal">
+      <div class="sanctum-copy">
+        <p class="sanctum-kicker">02 / The Sanctum</p>
+        <h2 class="sanctum-headline">Not a dashboard.<br>A place to return to.</h2>
+        <p class="sanctum-lead">Your intention, practices, and return all begin here.</p>
+      </div>
+      <div class="sanctum-portal">
+        <picture>
+          <source srcset="/media/images/sanctum_ui.webp" type="image/webp" />
+          <img class="sanctum-ui" src="/media/images/sanctum_ui.png" alt="The Inner Sanctum home screen: an arched stone doorway framing the Orb, with paths toward the Garden, the Chambers, and the Archives." width="1320" height="2713" loading="lazy" decoding="async" />
+        </picture>
+      </div>
     </div>
   </section>
 
@@ -1677,17 +1155,9 @@
     </div>
   </div>
 
+  <script src="/js/site.js"></script>
+  <script src="/js/home.js"></script>
   <script>
-    // Scroll reveal
-    const revealEls = document.querySelectorAll('.reveal');
-    const io = new IntersectionObserver((entries) => {
-      entries.forEach((e) => {
-        if (e.isIntersecting) e.target.classList.add('visible');
-      });
-    }, { threshold: 0.12 });
-
-    revealEls.forEach((el) => io.observe(el));
-
     // Keep anchored section headings clear of the fixed navigation.
     function scrollToSection(hash, behavior = 'smooth') {
       if (!hash || hash === '#') return;
@@ -1804,88 +1274,6 @@
     smartStoreLinks.forEach((link) => {
       link.setAttribute('href', getSmartStoreUrl());
     });
-
-    // Hamburger menu
-    const hamburger = document.getElementById('hamburger');
-    const mobileNav = document.getElementById('mobile-nav');
-    hamburger.addEventListener('click', () => {
-      const isOpen = mobileNav.classList.toggle('is-open');
-      hamburger.classList.toggle('is-open', isOpen);
-      hamburger.setAttribute('aria-expanded', isOpen);
-      hamburger.setAttribute('aria-label', isOpen ? 'Close navigation' : 'Open navigation');
-    });
-    mobileNav.querySelectorAll('a').forEach(link => {
-      link.addEventListener('click', () => {
-        mobileNav.classList.remove('is-open');
-        hamburger.classList.remove('is-open');
-        hamburger.setAttribute('aria-expanded', 'false');
-        hamburger.setAttribute('aria-label', 'Open navigation');
-      });
-    });
-
-    // Generic modal
-    let modalTrigger = null;
-    function openModal(id, trigger) {
-      const modal = document.getElementById(id);
-      if (!modal) return;
-      modalTrigger = trigger || document.activeElement;
-      modal.setAttribute('aria-hidden', 'false');
-      modal.classList.add('is-open');
-      document.body.style.overflow = 'hidden';
-      const firstFocusable = modal.querySelector('button, a[href]');
-      if (firstFocusable) firstFocusable.focus();
-    }
-    function closeModal(id) {
-      const modal = document.getElementById(id);
-      if (!modal) return;
-      modal.setAttribute('aria-hidden', 'true');
-      modal.classList.remove('is-open');
-      document.body.style.overflow = '';
-      if (modalTrigger) modalTrigger.focus();
-      modalTrigger = null;
-    }
-    document.querySelectorAll('.modal-backdrop').forEach(function(modal) {
-      modal.addEventListener('click', function(e) {
-        if (e.target === this) closeModal(this.id);
-      });
-    });
-    document.addEventListener('keydown', function(e) {
-      const openModalEl = document.querySelector('.modal-backdrop.is-open');
-      if (e.key === 'Tab' && openModalEl) {
-        const focusable = Array.from(openModalEl.querySelectorAll('button, a[href]'));
-        if (focusable.length) {
-          const first = focusable[0];
-          const last = focusable[focusable.length - 1];
-          if (e.shiftKey && document.activeElement === first) {
-            e.preventDefault();
-            last.focus();
-          } else if (!e.shiftKey && document.activeElement === last) {
-            e.preventDefault();
-            first.focus();
-          }
-        }
-      }
-      if (e.key === 'Escape') {
-        document.querySelectorAll('.modal-backdrop.is-open').forEach(function(m) {
-          closeModal(m.id);
-        });
-      }
-    });
-
-    // Dropdowns (click toggle for keyboard/touch)
-    document.querySelectorAll('.nav-dropdown').forEach(function(dropdown) {
-      dropdown.querySelector('.nav-dropdown-toggle').addEventListener('click', function(e) {
-        e.preventDefault();
-        document.querySelectorAll('.nav-dropdown').forEach(function(other) {
-          if (other !== dropdown) other.classList.remove('is-open');
-        });
-        dropdown.classList.toggle('is-open');
-      });
-      document.addEventListener('click', function(e) {
-        if (!dropdown.contains(e.target)) dropdown.classList.remove('is-open');
-      });
-    });
-
   </script>
 </body>
 </html>

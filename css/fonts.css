@@ -1,0 +1,20 @@
+/* ==========================================================================
+   Inner — Font Loading (Phase 0 foundation)
+
+   The canonical CalSans @font-face declaration, split out from base.css
+   on purpose: two pages (support.html, download.html) reference
+   font-family: 'CalSans' in their headings but never declared this
+   @font-face locally — a pre-existing bug where those headings silently
+   fall back to a system font. Loading this file would silently fix
+   that (a visible change), so those two pages intentionally load
+   base.css without fonts.css. See the Phase 0 report for the full list
+   of affected/unaffected pages.
+   ========================================================================== */
+
+@font-face {
+  font-family: 'CalSans';
+  src: url('/CalSans-SemiBold.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}

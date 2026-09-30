@@ -1,0 +1,60 @@
+/* ==========================================================================
+   Inner — Base Styles (Phase 0 foundation)
+
+   Universal, page-agnostic primitives: the shared keyboard-focus
+   indicator, the scroll-reveal utility, and the global reduced-motion
+   strategy. Safe to load on every page — nothing here overrides
+   page-specific layout or color, and rules that a given page doesn't
+   use (e.g. .reveal on a page with no reveal elements) are simply
+   inert.
+
+   Loaded on all 11 pages. Depends on tokens.css being loaded first.
+   Font loading lives separately in fonts.css — see that file for why.
+   ========================================================================== */
+
+/* Shared keyboard-focus indicator (previously only on 2 of 11 pages) */
+a:focus-visible,
+button:focus-visible,
+summary:focus-visible {
+  outline: 2px solid #b6a8ff;
+  outline-offset: 4px;
+}
+
+/* Scroll-reveal utility — paired with the reveal observer in site.js
+   (Group-A pages) or an equivalent page-local observer. */
+.reveal {
+  opacity: 0;
+  transform: translateY(18px);
+  transition: opacity var(--duration-reveal, 0.8s) ease, transform var(--duration-reveal, 0.8s) ease;
+}
+.reveal.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ==========================================================================
+   Global reduced-motion strategy.
+
+   Previously implemented inconsistently (or not at all) per page — only
+   2 of 11 pages had any prefers-reduced-motion handling. This block
+   applies site-wide: it disables smooth scrolling, neutralizes the
+   reveal transition, and collapses every CSS animation/transition
+   duration to effectively zero, which covers page-specific animated
+   elements (the homepage's breathing orb, the download page's orb
+   pulse, etc.) without needing to know every class name in advance.
+   ========================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .reveal,
+  .reveal.visible {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

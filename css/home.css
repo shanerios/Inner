@@ -1,0 +1,374 @@
+/* ==========================================================================
+   Inner — Homepage Opening Sequence (Phase 1)
+
+   THRESHOLD (hero) -> APPROACH (scroll transition) -> SANCTUM (product reveal)
+
+   Scoped to index.html only. Built on Phase 0 tokens (css/tokens.css) —
+   no second/competing token system. The Approach's scroll-driven motion
+   is entirely CSS (calc()/clamp() reading a --progress custom property
+   set by js/home.js); reduced-motion and no-JS both fall back to a
+   plain static 100vh Threshold with no scroll-jacking, because the tall
+   sticky-scroll CSS only activates once JS adds `.is-enhanced`.
+   ========================================================================== */
+
+/* ---------- Full-bleed breakout ----------
+   index.html's <body> is a padded, centered flex column (built for the
+   old boxed hero) — every other section on the page relies on that for
+   its own layout, so it can't change. These two sections escape it
+   instead, to render truly edge-to-edge and start under the fixed
+   topbar rather than below body's top padding. */
+.threshold-wrap,
+.sanctum {
+  align-self: stretch;
+  flex-shrink: 0;
+  width: 100vw;
+  position: relative;
+  left: 50%;
+  right: 50%;
+  margin-left: -50vw;
+  margin-right: -50vw;
+}
+.threshold-wrap {
+  /* html AND body both carry the same padding-top (they share one
+     "html, body {...}" rule), so the reserved space compounds to 2x —
+     cancel both to reach true y:0 under the fixed topbar. */
+  margin-top: calc(-2 * (8px + env(safe-area-inset-top, 0px) + var(--topbar-height, 58px)));
+}
+
+/* ---------- THRESHOLD (resting state, always present) ---------- */
+
+.threshold-wrap {
+  height: 100vh;
+  min-height: 560px;
+}
+
+.threshold-stage {
+  position: relative;
+  height: 100vh;
+  min-height: 560px;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  background: var(--color-bg-primary);
+  --progress: 0;
+}
+
+.threshold-env {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.threshold-parallax {
+  position: absolute;
+  inset: -4%;
+  will-change: transform;
+}
+
+.threshold-bg,
+.threshold-orb-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 43%;
+  display: block;
+  will-change: transform;
+  --mobile-zoom: 1;
+}
+
+.threshold-bg {
+  transform: scale(var(--mobile-zoom, 1));
+}
+
+.threshold-orb-img {
+  transform: scale(calc(var(--mobile-zoom, 1) * (1 + var(--progress) * 1.05)));
+  opacity: clamp(0, calc((1 - var(--progress)) / 0.2), 1);
+}
+
+/* Minimum overlay needed for text contrast + edge integration — no
+   decorative gradient mesh, no glow blobs. */
+.threshold-vignette {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, rgba(5, 4, 14, 0.74) 0%, rgba(5, 4, 14, 0.34) 40%, rgba(5, 4, 14, 0) 66%),
+    linear-gradient(180deg, rgba(5, 4, 14, 0.4) 0%, rgba(5, 4, 14, 0) 24%, rgba(5, 4, 14, 0) 70%, rgba(5, 4, 14, 0.6) 100%);
+  pointer-events: none;
+}
+
+.threshold-darken {
+  position: absolute;
+  inset: 0;
+  background: #030308;
+  opacity: var(--progress);
+  pointer-events: none;
+}
+
+.threshold-content {
+  position: relative;
+  z-index: 2;
+  max-width: 44ch;
+  padding: 0 clamp(20px, 6vw, 96px);
+  opacity: calc(1 - var(--progress) * 1.6);
+  transform: translateY(calc(var(--progress) * -36px));
+  text-align: left;
+}
+
+.threshold-kicker {
+  font-family: var(--font-heading);
+  font-size: 0.76rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(200, 190, 255, 0.72);
+  margin: 0 0 18px 0;
+  text-align: left;
+}
+
+.threshold-headline {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: clamp(2.05rem, 4.6vw, 3.35rem);
+  line-height: 1.1;
+  letter-spacing: 0.01em;
+  margin: 0 0 18px 0;
+  color: var(--color-text-primary);
+  text-align: left;
+}
+
+.threshold-headline .accent {
+  color: var(--color-accent);
+}
+
+.threshold-lead {
+  font-family: var(--font-body);
+  font-weight: 300;
+  font-size: clamp(1rem, 1.4vw, 1.15rem);
+  line-height: 1.55;
+  color: var(--color-text-soft);
+  max-width: 40ch;
+  margin: 0 0 26px 0;
+  text-align: left;
+}
+
+.threshold-cta {
+  justify-content: flex-start;
+}
+
+.threshold-availability {
+  margin: 14px 0 0 0;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  text-align: left;
+}
+
+.threshold-scroll-cue {
+  position: absolute;
+  left: 50%;
+  bottom: clamp(18px, 4vh, 34px);
+  transform: translateX(-50%) translateY(calc(var(--progress) * 14px));
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-heading);
+  font-size: 0.68rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(225, 220, 255, 0.55);
+  opacity: calc(1 - var(--progress) * 2.4);
+  pointer-events: none;
+  animation: threshold-cue-breathe 3.4s ease-in-out infinite;
+}
+
+@keyframes threshold-cue-breathe {
+  0%, 100% { opacity: 0.55; transform: translateX(-50%) translateY(0); }
+  50% { opacity: 0.95; transform: translateX(-50%) translateY(4px); }
+}
+
+/* ---------- APPROACH (scroll-driven enhancement) ---------- */
+
+@media (prefers-reduced-motion: no-preference) {
+  .threshold-wrap.is-enhanced {
+    height: 220vh;
+  }
+  .threshold-wrap.is-enhanced .threshold-stage {
+    position: sticky;
+    top: 0;
+  }
+  .threshold-wrap.is-enhanced .threshold-bg {
+    transform: scale(calc(var(--mobile-zoom, 1) * (1 + var(--progress) * 0.32)));
+  }
+}
+
+/* When JS hasn't enhanced yet (or reduced motion), keep breathing-orb
+   idle animation; once enhanced, scroll progress takes over scale. */
+.threshold-wrap:not(.is-enhanced) .threshold-orb-img {
+  animation: threshold-orb-breathe 8s ease-in-out infinite;
+}
+
+@keyframes threshold-orb-breathe {
+  0%, 100% { transform: scale(1); filter: brightness(1); }
+  50% { transform: scale(1.018); filter: brightness(1.06); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .threshold-scroll-cue { animation: none; }
+}
+
+/* ---------- Responsive recomposition (not a shrink of desktop) ---------- */
+
+@media (max-width: 680px) {
+  .threshold-stage {
+    align-items: flex-start;
+  }
+  .threshold-bg,
+  .threshold-orb-img {
+    object-position: 50% 38%;
+    /* On a narrow/tall viewport, object-fit:cover is height-bound and
+       can't crop vertically at all, which leaves too much of the
+       corridor's dark upper archway visible above the candles/Orb. A
+       modest zoom (applied via the --mobile-zoom input to the actual
+       transform rules above, so it composes with the scroll-progress
+       scale instead of fighting it) crops into the corridor instead. */
+    --mobile-zoom: 1.32;
+    transform-origin: 50% 32%;
+  }
+  .threshold-vignette {
+    background:
+      linear-gradient(180deg, rgba(5, 4, 14, 0.62) 0%, rgba(5, 4, 14, 0.1) 30%, rgba(5, 4, 14, 0) 58%, rgba(5, 4, 14, 0.66) 100%);
+  }
+  .threshold-content {
+    max-width: none;
+    width: 100%;
+    padding: clamp(88px, 22vh, 150px) 24px 0 24px;
+  }
+  .threshold-kicker,
+  .threshold-headline,
+  .threshold-lead,
+  .threshold-availability {
+    text-align: center;
+  }
+  .threshold-lead {
+    max-width: 34ch;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .threshold-cta {
+    justify-content: center;
+  }
+}
+
+/* ---------- SANCTUM ---------- */
+
+.sanctum {
+  position: relative;
+  padding: 88px 0 104px 0;
+  background: linear-gradient(180deg, #030308 0%, var(--color-bg-primary) 100%);
+  overflow: hidden;
+}
+
+.sanctum-inner {
+  max-width: var(--content-width-wide, 1180px);
+  margin: 0 auto;
+  padding: 0 clamp(20px, 6vw, 64px);
+  display: grid;
+  grid-template-columns: minmax(260px, 0.85fr) minmax(280px, 1fr);
+  gap: clamp(32px, 5vw, 64px);
+  align-items: center;
+}
+
+.sanctum-kicker {
+  font-family: var(--font-heading);
+  font-size: 0.76rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(200, 190, 255, 0.72);
+  margin: 0 0 18px 0;
+  text-align: left;
+}
+
+.sanctum-headline {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: clamp(1.85rem, 3.2vw, 2.55rem);
+  line-height: 1.16;
+  margin: 0 0 16px 0;
+  color: var(--color-text-primary);
+  text-align: left;
+}
+
+.sanctum-lead {
+  font-family: var(--font-body);
+  font-weight: 300;
+  font-size: 1.05rem;
+  line-height: 1.6;
+  color: var(--color-text-soft);
+  max-width: 38ch;
+  margin: 0;
+  text-align: left;
+}
+
+.sanctum-portal {
+  position: relative;
+  justify-self: center;
+  width: 100%;
+  max-width: 400px;
+}
+
+.sanctum-ui {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1320 / 2713;
+}
+
+.sanctum-portal::before,
+.sanctum-portal::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 14%;
+  pointer-events: none;
+}
+.sanctum-portal::before {
+  top: 0;
+  background: linear-gradient(180deg, #030308 0%, transparent 100%);
+  opacity: 0.9;
+}
+.sanctum-portal::after {
+  bottom: 0;
+  background: linear-gradient(0deg, var(--color-bg-primary) 0%, transparent 100%);
+}
+
+@media (max-width: 900px) {
+  .sanctum-inner {
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
+  .sanctum-copy {
+    max-width: 46ch;
+  }
+  .sanctum-kicker,
+  .sanctum-headline,
+  .sanctum-lead {
+    text-align: center;
+  }
+  .sanctum-lead {
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .sanctum-portal {
+    max-width: 440px;
+  }
+}
+
+@media (max-width: 680px) {
+  .sanctum {
+    padding: 64px 0 80px 0;
+  }
+  .sanctum-portal {
+    max-width: none;
+    width: 92vw;
+  }
+}
