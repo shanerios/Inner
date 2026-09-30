@@ -63,7 +63,8 @@
   <link rel="stylesheet" href="/css/base.css" />
   <link rel="stylesheet" href="/css/shell.css" />
   <link rel="stylesheet" href="/css/home.css" />
-  <link rel="preload" as="image" href="/media/images/home_background.webp" fetchpriority="high" />
+  <link rel="preload" as="image" href="/media/images/home_background_portrait.webp" fetchpriority="high" media="(max-width: 680px)" />
+  <link rel="preload" as="image" href="/media/images/home_background.webp" fetchpriority="high" media="(min-width: 681px)" />
   <style>
     html, body {
       margin: 0;
@@ -73,19 +74,22 @@
       background-attachment: fixed;
       background-repeat: no-repeat;
       background-size: cover;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: flex-start;
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       font-weight: 200;
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
       color: #fff;
-      padding: 20px;
-      padding-top: calc(8px + env(safe-area-inset-top, 0px) + var(--topbar-height));
       box-sizing: border-box;
       scroll-padding-top: calc(var(--topbar-height) + 20px);
+    }
+    /* Everything except the full-bleed Threshold/Sanctum lives in here —
+       this carries the padding/centering that <body> used to apply to
+       every child. Threshold and Sanctum are direct body children
+       instead, specifically so they are NOT subject to this padding and
+       can structurally own the full viewport with no breakout hacks. */
+    .page-shell {
+      padding: 0 20px 20px 20px;
+      box-sizing: border-box;
     }
     h3 {
       font-weight: 600;
@@ -837,12 +841,16 @@
       <div class="threshold-env" aria-hidden="true">
         <div class="threshold-parallax threshold-parallax--bg">
           <picture>
+            <source media="(max-width: 680px)" srcset="/media/images/home_background_portrait.webp" type="image/webp" />
+            <source media="(max-width: 680px)" srcset="/media/images/home_background_portrait.png" />
             <source srcset="/media/images/home_background.webp" type="image/webp" />
             <img class="threshold-bg" src="/media/images/home_background.png" alt="" width="1920" height="1080" fetchpriority="high" />
           </picture>
         </div>
         <div class="threshold-parallax threshold-parallax--orb">
           <picture>
+            <source media="(max-width: 680px)" srcset="/media/images/orb_portrait.webp" type="image/webp" />
+            <source media="(max-width: 680px)" srcset="/media/images/orb_portrait.png" />
             <source srcset="/media/images/home_orb.webp" type="image/webp" />
             <img class="threshold-orb-img" src="/media/images/home_orb.png" alt="" width="1920" height="1080" />
           </picture>
@@ -856,16 +864,16 @@
         <h1 class="threshold-headline">Beneath the veil,<br><span class="accent">something in you awakens.</span></h1>
         <p class="threshold-lead">Inner is a practice for cultivating awareness across waking, sleep, and dreams.</p>
         <div class="cta-row threshold-cta">
-          <a class="store-btn" href="https://apps.apple.com/us/app/inner-official/id6755213270" target="_blank" rel="noopener noreferrer" aria-label="Download Inner on the App Store">
+          <a class="threshold-store-link" href="https://apps.apple.com/us/app/inner-official/id6755213270" target="_blank" rel="noopener noreferrer" aria-label="Download Inner on the App Store">
             Download on iOS
           </a>
-          <a class="store-btn" href="https://play.google.com/store/apps/details?id=com.getinner.app" target="_blank" rel="noopener noreferrer" aria-label="Get Inner on Google Play">
+          <a class="threshold-store-link" href="https://play.google.com/store/apps/details?id=com.getinner.app" target="_blank" rel="noopener noreferrer" aria-label="Get Inner on Google Play">
             Get it on Android
           </a>
         </div>
-        <p class="threshold-availability">Now available on iOS and Android.</p>
       </div>
 
+      <p class="threshold-index" aria-hidden="true">01 / The Threshold</p>
       <p class="threshold-scroll-cue" aria-hidden="true">Begin the Descent <span>&#8595;</span></p>
     </section>
   </div>
@@ -886,6 +894,8 @@
       </div>
     </div>
   </section>
+
+  <div class="page-shell">
 
   <!-- PRACTICE PATHS -->
   <section id="practice" class="section" aria-label="Choose your practice" style="padding-top:56px; padding-bottom:56px;">
@@ -1154,6 +1164,8 @@
       <p class="modal-coming-soon">More retailers coming soon.</p>
     </div>
   </div>
+
+  </div><!-- /.page-shell -->
 
   <script src="/js/site.js"></script>
   <script src="/js/home.js"></script>

@@ -1,43 +1,28 @@
 /* ==========================================================================
-   Inner — Homepage Opening Sequence (Phase 1)
+   Inner — Homepage Opening Sequence (Phase 1, revised)
 
    THRESHOLD (hero) -> APPROACH (scroll transition) -> SANCTUM (product reveal)
 
    Scoped to index.html only. Built on Phase 0 tokens (css/tokens.css) —
-   no second/competing token system. The Approach's scroll-driven motion
-   is entirely CSS (calc()/clamp() reading a --progress custom property
-   set by js/home.js); reduced-motion and no-JS both fall back to a
-   plain static 100vh Threshold with no scroll-jacking, because the tall
-   sticky-scroll CSS only activates once JS adds `.is-enhanced`.
-   ========================================================================== */
+   no second/competing token system.
 
-/* ---------- Full-bleed breakout ----------
-   index.html's <body> is a padded, centered flex column (built for the
-   old boxed hero) — every other section on the page relies on that for
-   its own layout, so it can't change. These two sections escape it
-   instead, to render truly edge-to-edge and start under the fixed
-   topbar rather than below body's top padding. */
-.threshold-wrap,
-.sanctum {
-  align-self: stretch;
-  flex-shrink: 0;
-  width: 100vw;
-  position: relative;
-  left: 50%;
-  right: 50%;
-  margin-left: -50vw;
-  margin-right: -50vw;
-}
-.threshold-wrap {
-  /* html AND body both carry the same padding-top (they share one
-     "html, body {...}" rule), so the reserved space compounds to 2x —
-     cancel both to reach true y:0 under the fixed topbar. */
-  margin-top: calc(-2 * (8px + env(safe-area-inset-top, 0px) + var(--topbar-height, 58px)));
-}
+   Structural note: .threshold-wrap and .sanctum are DIRECT children of
+   <body> (siblings of .page-shell, not inside it) specifically so they
+   own the full viewport with no padding/margin to fight — see the
+   .page-shell comment in index.html's own <style> block. No negative
+   margins, no 100vw breakout hack.
+
+   The Approach's scroll-driven motion is untouched from the first
+   pass: entirely CSS (calc()/clamp() reading a --progress custom
+   property set by js/home.js); reduced-motion and no-JS both fall back
+   to a plain static 100vh Threshold with no scroll-jacking, because the
+   tall sticky-scroll CSS only activates once JS adds `.is-enhanced`.
+   ========================================================================== */
 
 /* ---------- THRESHOLD (resting state, always present) ---------- */
 
 .threshold-wrap {
+  position: relative;
   height: 100vh;
   min-height: 560px;
 }
@@ -49,7 +34,7 @@
   display: flex;
   align-items: center;
   overflow: hidden;
-  background: var(--color-bg-primary);
+  background: #000;
   --progress: 0;
 }
 
@@ -61,7 +46,7 @@
 
 .threshold-parallax {
   position: absolute;
-  inset: -4%;
+  inset: -6%;
   will-change: transform;
 }
 
@@ -73,15 +58,25 @@
   object-position: 50% 43%;
   display: block;
   will-change: transform;
-  --mobile-zoom: 1;
+  /* home_background.png/home_orb.png both carry a baked-in black
+     letterbox border (the source frame is ~1920x1080 but the actual
+     corridor art only occupies the middle ~86% x ~98%). At most
+     desktop aspect ratios object-fit:cover doesn't crop enough on its
+     own to remove that border — this zoom does, so the corridor reads
+     as the environment itself rather than "an image on the page".
+     Both layers read the SAME variable so their registration stays
+     identical; only this scale (their shared base) needs to match —
+     the Approach's extra scroll-driven scale on top of it is allowed
+     to diverge (the Orb is meant to grow faster than the environment). */
+  --env-zoom: 1.2;
 }
 
 .threshold-bg {
-  transform: scale(var(--mobile-zoom, 1));
+  transform: scale(var(--env-zoom, 1));
 }
 
 .threshold-orb-img {
-  transform: scale(calc(var(--mobile-zoom, 1) * (1 + var(--progress) * 1.05)));
+  transform: scale(calc(var(--env-zoom, 1) * (1 + var(--progress) * 1.05)));
   opacity: clamp(0, calc((1 - var(--progress)) / 0.2), 1);
 }
 
@@ -91,8 +86,8 @@
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(90deg, rgba(5, 4, 14, 0.74) 0%, rgba(5, 4, 14, 0.34) 40%, rgba(5, 4, 14, 0) 66%),
-    linear-gradient(180deg, rgba(5, 4, 14, 0.4) 0%, rgba(5, 4, 14, 0) 24%, rgba(5, 4, 14, 0) 70%, rgba(5, 4, 14, 0.6) 100%);
+    linear-gradient(90deg, rgba(3, 2, 8, 0.66) 0%, rgba(3, 2, 8, 0.24) 38%, rgba(3, 2, 8, 0) 62%),
+    linear-gradient(180deg, rgba(3, 2, 8, 0.3) 0%, rgba(3, 2, 8, 0) 22%, rgba(3, 2, 8, 0) 74%, rgba(3, 2, 8, 0.5) 100%);
   pointer-events: none;
 }
 
@@ -104,10 +99,22 @@
   pointer-events: none;
 }
 
+/* Nav floats over the environment instead of sitting on its own
+   website-colored band — index.html-only override of shell.css's
+   default topbar (guardians.html/auditory-ascension.html keep the
+   original, more opaque treatment, which suits their plain gradient
+   background). Loads after shell.css, so this wins at equal
+   specificity. */
+.topbar {
+  background: linear-gradient(180deg, rgba(4, 3, 10, 0.4) 0%, rgba(4, 3, 10, 0.05) 100%);
+  backdrop-filter: blur(5px);
+  border-bottom-color: transparent;
+}
+
 .threshold-content {
   position: relative;
   z-index: 2;
-  max-width: 44ch;
+  max-width: 42ch;
   padding: 0 clamp(20px, 6vw, 96px);
   opacity: calc(1 - var(--progress) * 1.6);
   transform: translateY(calc(var(--progress) * -36px));
@@ -116,63 +123,103 @@
 
 .threshold-kicker {
   font-family: var(--font-heading);
-  font-size: 0.76rem;
+  font-size: 0.72rem;
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: rgba(200, 190, 255, 0.72);
-  margin: 0 0 18px 0;
+  color: rgba(200, 190, 255, 0.62);
+  margin: 0 0 20px 0;
   text-align: left;
 }
 
+/* Hierarchy: environment/Orb first, then headline — so the headline is
+   substantial but must not out-compete the artwork. Rendered in one
+   consistent warm off-white; the Orb and candlelight provide the
+   color, not the type. */
 .threshold-headline {
   font-family: var(--font-heading);
   font-weight: 600;
-  font-size: clamp(2.05rem, 4.6vw, 3.35rem);
-  line-height: 1.1;
-  letter-spacing: 0.01em;
+  font-size: clamp(1.7rem, 3.1vw, 2.55rem);
+  line-height: 1.18;
+  letter-spacing: 0.005em;
   margin: 0 0 18px 0;
-  color: var(--color-text-primary);
-  text-align: left;
+  color: rgba(246, 242, 235, 0.96);
 }
 
 .threshold-headline .accent {
-  color: var(--color-accent);
+  color: inherit;
 }
 
 .threshold-lead {
   font-family: var(--font-body);
   font-weight: 300;
-  font-size: clamp(1rem, 1.4vw, 1.15rem);
+  font-size: clamp(0.95rem, 1.2vw, 1.05rem);
   line-height: 1.55;
-  color: var(--color-text-soft);
-  max-width: 40ch;
-  margin: 0 0 26px 0;
+  color: rgba(224, 220, 232, 0.7);
+  max-width: 38ch;
+  margin: 0 0 28px 0;
   text-align: left;
 }
 
 .threshold-cta {
   justify-content: flex-start;
+  gap: 22px;
 }
 
-.threshold-availability {
-  margin: 14px 0 0 0;
-  font-size: 0.85rem;
-  color: var(--color-text-muted);
-  text-align: left;
+/* Quiet, editorial conversion links — not conventional SaaS buttons.
+   Thin underline, no fill, no saturated purple. */
+.threshold-store-link {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 7px;
+  padding: 4px 0 6px 0;
+  border: none;
+  border-bottom: 1px solid rgba(235, 232, 255, 0.34);
+  color: rgba(235, 232, 255, 0.86);
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  text-decoration: none;
+  background: transparent;
+  transition: border-color 0.25s ease, color 0.25s ease;
+}
+.threshold-store-link:hover {
+  color: #fff;
+  border-bottom-color: rgba(235, 232, 255, 0.75);
+}
+.threshold-store-link .glyph {
+  font-size: 0.78em;
+  opacity: 0.7;
+}
+
+/* Bottom-left index marker and bottom-right scroll invitation — a
+   symmetric corner frame, editorial/technical annotation rather than
+   marketing copy. */
+.threshold-index {
+  position: absolute;
+  left: clamp(20px, 6vw, 96px);
+  bottom: clamp(20px, 4vh, 36px);
+  z-index: 2;
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: 0.66rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(225, 220, 255, 0.4);
+  opacity: calc(1 - var(--progress) * 2.4);
 }
 
 .threshold-scroll-cue {
   position: absolute;
-  left: 50%;
-  bottom: clamp(18px, 4vh, 34px);
-  transform: translateX(-50%) translateY(calc(var(--progress) * 14px));
+  right: clamp(20px, 6vw, 96px);
+  bottom: clamp(20px, 4vh, 36px);
   z-index: 2;
   display: flex;
   align-items: center;
   gap: 8px;
   font-family: var(--font-heading);
-  font-size: 0.68rem;
-  letter-spacing: 0.18em;
+  font-size: 0.66rem;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
   color: rgba(225, 220, 255, 0.55);
   opacity: calc(1 - var(--progress) * 2.4);
@@ -181,11 +228,12 @@
 }
 
 @keyframes threshold-cue-breathe {
-  0%, 100% { opacity: 0.55; transform: translateX(-50%) translateY(0); }
-  50% { opacity: 0.95; transform: translateX(-50%) translateY(4px); }
+  0%, 100% { opacity: 0.55; transform: translateY(0); }
+  50% { opacity: 0.95; transform: translateY(4px); }
 }
 
-/* ---------- APPROACH (scroll-driven enhancement) ---------- */
+/* ---------- APPROACH (scroll-driven enhancement — unchanged from the
+   first pass; only the shared base zoom feeding into it changed) ---------- */
 
 @media (prefers-reduced-motion: no-preference) {
   .threshold-wrap.is-enhanced {
@@ -196,7 +244,7 @@
     top: 0;
   }
   .threshold-wrap.is-enhanced .threshold-bg {
-    transform: scale(calc(var(--mobile-zoom, 1) * (1 + var(--progress) * 0.32)));
+    transform: scale(calc(var(--env-zoom, 1) * (1 + var(--progress) * 0.32)));
   }
 }
 
@@ -207,8 +255,8 @@
 }
 
 @keyframes threshold-orb-breathe {
-  0%, 100% { transform: scale(1); filter: brightness(1); }
-  50% { transform: scale(1.018); filter: brightness(1.06); }
+  0%, 100% { transform: scale(var(--env-zoom, 1)); filter: brightness(1); }
+  50% { transform: scale(calc(var(--env-zoom, 1) * 1.015)); filter: brightness(1.05); }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -223,29 +271,28 @@
   }
   .threshold-bg,
   .threshold-orb-img {
-    object-position: 50% 38%;
-    /* On a narrow/tall viewport, object-fit:cover is height-bound and
-       can't crop vertically at all, which leaves too much of the
-       corridor's dark upper archway visible above the candles/Orb. A
-       modest zoom (applied via the --mobile-zoom input to the actual
-       transform rules above, so it composes with the scroll-progress
-       scale instead of fighting it) crops into the corridor instead. */
-    --mobile-zoom: 1.32;
-    transform-origin: 50% 32%;
+    /* home_background_portrait.png/orb_portrait.png are a dedicated
+       portrait pair (not a crop of the landscape asset) sharing their
+       own 1080x1920 coordinate system, registered the same way as the
+       landscape pair. Their own baked-in letterboxing sits mostly
+       top/bottom (content spans roughly y:20%-88%) rather than the
+       landscape pair's left/right margins, hence the different values. */
+    object-position: 50% 54%;
+    --env-zoom: 1.42;
+    transform-origin: 50% 54%;
   }
   .threshold-vignette {
     background:
-      linear-gradient(180deg, rgba(5, 4, 14, 0.62) 0%, rgba(5, 4, 14, 0.1) 30%, rgba(5, 4, 14, 0) 58%, rgba(5, 4, 14, 0.66) 100%);
+      linear-gradient(180deg, rgba(3, 2, 8, 0.56) 0%, rgba(3, 2, 8, 0.08) 30%, rgba(3, 2, 8, 0) 58%, rgba(3, 2, 8, 0.6) 100%);
   }
   .threshold-content {
     max-width: none;
     width: 100%;
-    padding: clamp(88px, 22vh, 150px) 24px 0 24px;
+    padding: clamp(84px, 20vh, 140px) 24px 0 24px;
   }
   .threshold-kicker,
   .threshold-headline,
-  .threshold-lead,
-  .threshold-availability {
+  .threshold-lead {
     text-align: center;
   }
   .threshold-lead {
@@ -256,9 +303,17 @@
   .threshold-cta {
     justify-content: center;
   }
+  .threshold-index,
+  .threshold-scroll-cue {
+    font-size: 0.6rem;
+    bottom: 16px;
+  }
+  .threshold-index { left: 20px; }
+  .threshold-scroll-cue { right: 20px; }
 }
 
-/* ---------- SANCTUM ---------- */
+/* ---------- SANCTUM (visual design unchanged from the first pass —
+   only the structural full-bleed mechanism changed, see index.html) ---------- */
 
 .sanctum {
   position: relative;
