@@ -397,7 +397,12 @@
 
 .sanctum {
   position: relative;
-  padding: 88px 0 104px 0;
+  /* More top clearance than before: the Threshold's Approach now ends in
+     a stretch of pure darkness+Orb (see the Threshold->Sanctum handoff
+     note near .threshold-index), and this extra padding lets that
+     darkness carry a moment longer before the Sanctum content itself
+     appears, rather than the portal arriving immediately at the seam. */
+  padding: 132px 0 150px 0;
   background: linear-gradient(180deg, #030308 0%, var(--color-bg-primary) 100%);
   overflow: hidden;
 }
@@ -408,7 +413,7 @@
   padding: 0 clamp(20px, 6vw, 64px);
   display: grid;
   grid-template-columns: minmax(260px, 0.85fr) minmax(280px, 1fr);
-  gap: clamp(32px, 5vw, 64px);
+  gap: clamp(48px, 7vw, 88px);
   align-items: center;
 }
 
@@ -447,7 +452,21 @@
   position: relative;
   justify-self: center;
   width: 100%;
-  max-width: 400px;
+  /* Restrained on purpose: this should feel like the Sanctum quietly
+     emerging inside the darkness, not a screenshot filling the page.
+     Reduced from 400px — see the Phase 1 refinement report for why. */
+  max-width: 280px;
+  /* A beat behind .sanctum-copy (below), so the portal reads as
+     materializing just after the words settle, not simultaneously —
+     composing with, not replacing, the Threshold's own darkness-first
+     handoff. Both still use the shared .reveal mechanism (opacity/
+     transform driven by site.js's IntersectionObserver); this only
+     delays when the portal's own transition starts once triggered. */
+  transition-delay: 0.15s;
+}
+
+.sanctum-copy {
+  transition-delay: 0s;
 }
 
 .sanctum-ui {
@@ -494,16 +513,16 @@
     margin-right: auto;
   }
   .sanctum-portal {
-    max-width: 440px;
+    max-width: 260px;
   }
 }
 
 @media (max-width: 680px) {
   .sanctum {
-    padding: 64px 0 80px 0;
+    padding: 96px 0 110px 0;
   }
   .sanctum-portal {
     max-width: none;
-    width: 92vw;
+    width: min(58vw, 250px);
   }
 }
