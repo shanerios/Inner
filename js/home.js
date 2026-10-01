@@ -111,7 +111,7 @@
       var dx = px; // px/py are already centered fractions of stage size (-0.5..0.5)
       var dy = (py + 0.5) - focalY;
       var distance = Math.sqrt(dx * dx + dy * dy);
-      var radius = 0.42; // falloff radius, as a fraction of stage size
+      var radius = 0.48; // falloff radius, as a fraction of stage size
       var proximity = Math.max(0, Math.min(1, 1 - distance / radius));
       orbProximityTarget.style.setProperty('--orb-proximity', proximity.toFixed(3));
     }
