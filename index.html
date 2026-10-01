@@ -63,6 +63,7 @@
   <link rel="stylesheet" href="/css/base.css" />
   <link rel="stylesheet" href="/css/shell.css" />
   <link rel="stylesheet" href="/css/home.css" />
+  <link rel="stylesheet" href="/css/practice.css" />
   <link rel="preload" as="image" href="/media/images/home_background_portrait.webp" fetchpriority="high" media="(max-width: 680px)" />
   <link rel="preload" as="image" href="/media/images/home_background.webp" fetchpriority="high" media="(min-width: 681px)" />
   <style>
@@ -867,7 +868,7 @@
       <div class="threshold-content">
         <p class="threshold-kicker">Inner / The Threshold</p>
         <h1 class="threshold-headline">Beneath the veil,<br><span class="accent">something in you awakens.</span></h1>
-        <p class="threshold-lead">Inner is a practice for cultivating awareness across waking, sleep, and dreams.</p>
+        <p class="threshold-lead">Inner is an environment for cultivating lucidity across the threshold of sleep.</p>
         <p class="threshold-cta-label">Available on</p>
         <div class="cta-row threshold-cta">
           <a class="threshold-store-link" href="https://apps.apple.com/us/app/inner-official/id6755213270" target="_blank" rel="noopener noreferrer" aria-label="Download Inner on the App Store">
@@ -897,6 +898,59 @@
           <source srcset="/media/images/sanctum_ui.webp" type="image/webp" />
           <img class="sanctum-ui" src="/media/images/sanctum_ui.png" alt="The Inner Sanctum home screen: an arched stone doorway framing the Orb, with paths toward the Garden, the Chambers, and the Archives." width="1320" height="2713" loading="lazy" decoding="async" />
         </picture>
+      </div>
+    </div>
+  </section>
+
+  <!-- THE PRACTICE / ARRIVE -->
+  <section class="practice" id="the-practice" aria-label="The Inner Practice — Arrive">
+    <div class="practice-atmosphere" aria-hidden="true">
+      <picture>
+        <source srcset="/media/images/practice_intentions_environment.webp" type="image/webp" />
+        <img class="practice-atmosphere-img" src="/media/images/practice_intentions_environment.png" alt="" loading="lazy" decoding="async" />
+      </picture>
+    </div>
+
+    <div class="practice-intro reveal">
+      <p class="practice-eyebrow">The Inner Practice / 01&ndash;05</p>
+      <h2 class="practice-title">One night.<br>Five movements of awareness.</h2>
+      <nav class="practice-progression" aria-label="Practice movements">
+        <span class="movement is-active">Arrive</span>
+        <span class="movement-sep" aria-hidden="true">&mdash;</span>
+        <span class="movement">Prepare</span>
+        <span class="movement-sep" aria-hidden="true">&mdash;</span>
+        <span class="movement">Descend</span>
+        <span class="movement-sep" aria-hidden="true">&mdash;</span>
+        <span class="movement">Recognize</span>
+        <span class="movement-sep" aria-hidden="true">&mdash;</span>
+        <span class="movement">Return</span>
+      </nav>
+    </div>
+
+    <div class="arrive-grid">
+      <div class="arrive-copy reveal">
+        <p class="arrive-kicker">01 / Arrive</p>
+        <h3 class="arrive-headline">Choose what you're moving toward.</h3>
+        <p class="arrive-lead">Inner begins with intention — before the descent, name what you want to carry with you.</p>
+      </div>
+
+      <div class="arrive-portal reveal">
+        <div class="arrive-portal-frame">
+          <picture>
+            <source srcset="/media/images/practice_intentions_environment.webp" type="image/webp" />
+            <img class="arrive-env-img" src="/media/images/practice_intentions_environment.png" alt="" width="1080" height="1920" loading="lazy" decoding="async" />
+          </picture>
+          <picture>
+            <source srcset="/media/images/practice_intentions_ui.webp" type="image/webp" />
+            <img class="arrive-ui-img" src="/media/images/practice_intentions_ui.png" alt="Inner's Intentions screen: choose Lucidity, Clarity, Grounding, Healing, Reawakening, or Expansion as what you're cultivating tonight." width="1080" height="1920" loading="lazy" decoding="async" />
+          </picture>
+          <div class="intention-glow intention-glow--lucidity" aria-hidden="true"></div>
+          <div class="intention-glow intention-glow--clarity" aria-hidden="true"></div>
+          <div class="intention-glow intention-glow--grounding" aria-hidden="true"></div>
+          <div class="intention-glow intention-glow--healing" aria-hidden="true"></div>
+          <div class="intention-glow intention-glow--reawakening" aria-hidden="true"></div>
+          <div class="intention-glow intention-glow--expansion" aria-hidden="true"></div>
+        </div>
       </div>
     </div>
   </section>
@@ -1175,6 +1229,7 @@
 
   <script src="/js/site.js"></script>
   <script src="/js/home.js"></script>
+  <script src="/js/practice.js"></script>
   <script>
     // Keep anchored section headings clear of the fixed navigation.
     function scrollToSection(hash, behavior = 'smooth') {
