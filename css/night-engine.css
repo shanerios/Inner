@@ -256,6 +256,8 @@
    .is-recognition rule below). */
 
 .ne-recognition-overlay {
+  position: relative;
+  z-index: 5;
   margin: 4px 0;
   padding: 30px 26px;
   border: 1px solid rgba(161, 140, 255, 0.18);
@@ -263,25 +265,28 @@
   text-align: center;
 }
 
-/* Small, instrumentation-style label — stays the least prominent piece
-   of text in the moment, on purpose. */
+/* Small, instrumentation-style label — the same readable purple as
+   every other kicker on the page (.sanctum-kicker, .arrive-kicker),
+   not a dimmer one-off. It stays the smallest TEXT in the hierarchy by
+   size/weight, not by being harder to read. */
 .ne-signal-eyebrow {
   font-family: var(--font-heading);
-  font-size: 0.64rem;
-  letter-spacing: 0.22em;
+  font-size: 0.68rem;
+  letter-spacing: 0.2em;
   text-transform: uppercase;
-  color: rgba(190, 180, 240, 0.55);
+  color: rgba(200, 190, 255, 0.78);
   margin: 0 0 16px 0;
 }
 
-/* Secondary: clearly readable, but deliberately quieter than the
-   question below it — smaller and dimmer, not the focal point. */
+/* Secondary: smaller than the question, but at the site's normal
+   body-copy contrast (matching --color-text-soft), not a muted
+   afterthought. */
 .ne-signal-copy {
   font-family: var(--font-body);
   font-weight: 300;
-  font-size: 0.86rem;
-  line-height: 1.55;
-  color: rgba(205, 202, 225, 0.6);
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: rgba(230, 228, 245, 0.78);
   max-width: 34ch;
   margin: 0 auto;
 }
@@ -553,11 +558,21 @@
      instrument (including its own "The Night" kicker) recedes to
      near-nothing so the overlay above reads as the one bright thing on
      screen, and the box it sits in grows to make room for its taller
-     content (question + button + portal) instead of clipping it. */
+     content (question + button + portal) instead of clipping it.
+
+     This targets the individual .ne-stage ITEMS, not their shared
+     .ne-stage-labels container — .ne-recognition-overlay is also a
+     child of that container (so the static/fallback reading order puts
+     it between the Recognition and Release rows), and CSS opacity
+     compounds through descendants with no escape hatch: dimming the
+     container to 0.08 would force the overlay's own opacity:1 to render
+     at 1 x 0.08 regardless of its "is-visible" state. Dimming only the
+     .ne-stage siblings leaves the overlay's own opacity fully in its
+     own control. */
   .ne-timeline-wrap.is-enhanced .ne-timeline-stage.is-recognition .ne-timeline-kicker,
   .ne-timeline-wrap.is-enhanced .ne-timeline-stage.is-recognition .ne-layers,
   .ne-timeline-wrap.is-enhanced .ne-timeline-stage.is-recognition .ne-line-track,
-  .ne-timeline-wrap.is-enhanced .ne-timeline-stage.is-recognition .ne-stage-labels {
+  .ne-timeline-wrap.is-enhanced .ne-timeline-stage.is-recognition .ne-stage-labels > .ne-stage {
     opacity: 0.08;
   }
 
