@@ -7,9 +7,9 @@
    binary hover toggle. Fine-pointer desktop only, fully inert under
    reduced motion or on touch — mirrors home.js's guards exactly.
 
-   Geometry (the portal's rect, and each region's center as a fraction
-   of it) is cached and only recomputed on resize, so pointermove never
-   forces a layout read. One rAF-throttled write per frame.
+   Each region's center is a fixed fraction of the portal; the portal's
+   own rect is read once per animation frame (not per raw pointermove),
+   because it scrolls with the page. One rAF-throttled write per frame.
    ========================================================================== */
 
 (function () {
@@ -40,13 +40,6 @@
     return portal.querySelector('.intention-glow--' + name);
   }
 
-  var rect = null;
-  function refreshRect() {
-    rect = portal.getBoundingClientRect();
-  }
-  refreshRect();
-  window.addEventListener('resize', refreshRect, { passive: true });
-
   var RADIUS = 0.22; // falloff radius, as a fraction of portal size
   var pending = null;
   var ticking = false;
@@ -68,15 +61,19 @@
   }
 
   function onPointerMove(e) {
-    if (reduceMotionQuery.matches || !finePointerQuery.matches || !rect) return;
-    pending = {
-      px: (e.clientX - rect.left) / rect.width,
-      py: (e.clientY - rect.top) / rect.height
-    };
+    if (reduceMotionQuery.matches || !finePointerQuery.matches) return;
+    // Raw client coords only; converted against a fresh portal rect in the
+    // rAF tick. This section scrolls with the page, so a rect cached at
+    // load (or only on resize) goes stale as soon as the user scrolls to
+    // it and the glow regions stop lining up with the pointer.
+    pending = { clientX: e.clientX, clientY: e.clientY };
     if (ticking) return;
     ticking = true;
     requestAnimationFrame(function () {
-      if (pending) apply(pending.px, pending.py);
+      if (pending) {
+        var r = portal.getBoundingClientRect();
+        apply((pending.clientX - r.left) / r.width, (pending.clientY - r.top) / r.height);
+      }
       ticking = false;
     });
   }

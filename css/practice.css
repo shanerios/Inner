@@ -202,6 +202,12 @@
   height: 14%;
   pointer-events: none;
 }
+/* The Intentions screen ends in a "Keep" CTA at ~89-96% of its height;
+   the full 14% fade used to wash it out, so the bottom edge gets a
+   shorter, softer fade than the top. */
+.arrive-portal-frame::after {
+  height: 5%;
+}
 .arrive-portal-frame::before {
   top: 0;
   background: linear-gradient(180deg, #050308 0%, transparent 100%);
@@ -210,6 +216,7 @@
 .arrive-portal-frame::after {
   bottom: 0;
   background: linear-gradient(0deg, var(--color-bg-primary) 0%, transparent 100%);
+  opacity: 0.7;
 }
 
 /* ---------- Intention hotspots ----------
