@@ -176,13 +176,17 @@
   height: 7px;
   background: rgba(255, 255, 255, 0.32);
 }
+/* Positions mark each stage's actual START (matching js/night-engine.js's
+   STAGE_BOUNDARIES), not an even 7-way split — Recognition's tick-to-tick
+   span (46%-80%) is deliberately much wider than any other stage's,
+   since it holds the scroll dwell time of the whole sequence. */
 .ne-tick[data-index="0"] { left: 0%; }
-.ne-tick[data-index="1"] { left: 16.6667%; }
-.ne-tick[data-index="2"] { left: 33.3333%; }
-.ne-tick[data-index="3"] { left: 50%; }
-.ne-tick[data-index="4"] { left: 66.6667%; }
-.ne-tick[data-index="5"] { left: 83.3333%; }
-.ne-tick[data-index="6"] { left: 100%; }
+.ne-tick[data-index="1"] { left: 10%; }
+.ne-tick[data-index="2"] { left: 20%; }
+.ne-tick[data-index="3"] { left: 32%; }
+.ne-tick[data-index="4"] { left: 46%; }
+.ne-tick[data-index="5"] { left: 80%; }
+.ne-tick[data-index="6"] { left: 90%; }
 
 .ne-marker {
   position: absolute;
@@ -195,6 +199,18 @@
   background: #cabfff;
   box-shadow: 0 0 11px 2px rgba(161, 140, 255, 0.65);
   transform: translateY(-50%);
+}
+
+/* One-shot pulse when the marker reaches Recognition (triggered once
+   per entry by js/night-engine.js, not re-played on every scroll tick). */
+.ne-marker.is-pulsing {
+  animation: ne-marker-pulse 0.9s ease-out;
+}
+
+@keyframes ne-marker-pulse {
+  0%   { box-shadow: 0 0 11px 2px rgba(161, 140, 255, 0.65); transform: translateY(-50%) scale(1); }
+  40%  { box-shadow: 0 0 30px 12px rgba(180, 165, 255, 0.95); transform: translateY(-50%) scale(2.2); }
+  100% { box-shadow: 0 0 11px 2px rgba(161, 140, 255, 0.65); transform: translateY(-50%) scale(1); }
 }
 
 /* ---------- Stage labels (the always-accessible content) ---------- */
@@ -247,23 +263,39 @@
   text-align: center;
 }
 
+/* Small, instrumentation-style label — stays the least prominent piece
+   of text in the moment, on purpose. */
 .ne-signal-eyebrow {
   font-family: var(--font-heading);
-  font-size: 0.68rem;
-  letter-spacing: 0.2em;
+  font-size: 0.64rem;
+  letter-spacing: 0.22em;
   text-transform: uppercase;
-  color: rgba(200, 190, 255, 0.75);
-  margin: 0 0 14px 0;
+  color: rgba(190, 180, 240, 0.55);
+  margin: 0 0 16px 0;
 }
 
+/* Secondary: clearly readable, but deliberately quieter than the
+   question below it — smaller and dimmer, not the focal point. */
 .ne-signal-copy {
   font-family: var(--font-body);
   font-weight: 300;
-  font-size: 0.98rem;
-  line-height: 1.6;
-  color: rgba(230, 228, 245, 0.85);
-  max-width: 38ch;
+  font-size: 0.86rem;
+  line-height: 1.55;
+  color: rgba(205, 202, 225, 0.6);
+  max-width: 34ch;
   margin: 0 auto;
+}
+
+/* The dominant statement — the brightest, largest thing in the moment. */
+.ne-signal-question {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: clamp(1.7rem, 3.2vw, 2.4rem);
+  line-height: 1.2;
+  color: #fff;
+  text-shadow: 0 0 32px rgba(161, 140, 255, 0.45);
+  max-width: 14ch;
+  margin: 18px auto 0 auto;
 }
 
 .ne-signal-btn {
@@ -271,23 +303,24 @@
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  margin: 26px 0 0 0;
-  padding: 11px 22px;
-  border: 1px solid rgba(200, 190, 255, 0.35);
+  margin: 30px 0 0 0;
+  padding: 13px 26px;
+  border: 1px solid rgba(210, 200, 255, 0.55);
   border-radius: 999px;
-  background: transparent;
-  color: rgba(235, 232, 255, 0.88);
+  background: rgba(161, 140, 255, 0.1);
+  color: #fff;
   font-family: var(--font-heading);
-  font-size: 0.72rem;
+  font-size: 0.74rem;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   cursor: pointer;
-  transition: border-color 0.3s ease, color 0.3s ease;
+  transition: border-color 0.3s ease, background 0.3s ease, box-shadow 0.3s ease;
 }
 
 .ne-signal-btn:hover {
-  border-color: rgba(200, 190, 255, 0.7);
-  color: #fff;
+  border-color: #fff;
+  background: rgba(161, 140, 255, 0.2);
+  box-shadow: 0 0 24px 2px rgba(161, 140, 255, 0.35);
 }
 
 .ne-signal-btn-dot {
@@ -313,12 +346,16 @@
   100% { opacity: 0;   transform: scale(1.9); }
 }
 
+/* Larger and brighter than the first pass, with a soft glow behind it —
+   this needs to read as real product proof "emerging from darkness,"
+   not a thumbnail. */
 .ne-recognition-portal {
   position: relative;
   width: 100%;
-  max-width: 200px;
-  margin: 26px auto 0 auto;
+  max-width: 260px;
+  margin: 30px auto 0 auto;
   aspect-ratio: 1080 / 1920;
+  box-shadow: 0 0 70px 14px rgba(140, 125, 255, 0.22);
 }
 
 .ne-recognition-portal img {
@@ -336,18 +373,18 @@
   position: absolute;
   left: 0;
   right: 0;
-  height: 16%;
+  height: 11%;
   pointer-events: none;
 }
 .ne-recognition-portal::before {
   top: 0;
   background: linear-gradient(180deg, #020205 0%, transparent 100%);
-  opacity: 0.9;
+  opacity: 0.6;
 }
 .ne-recognition-portal::after {
   bottom: 0;
   background: linear-gradient(0deg, #020205 0%, transparent 100%);
-  opacity: 0.9;
+  opacity: 0.6;
 }
 
 /* ---------- Enhanced desktop instrument presentation ---------- */
@@ -425,12 +462,15 @@
   .ne-timeline-wrap.is-enhanced .ne-stage.is-passed { opacity: 0.5; }
   .ne-timeline-wrap.is-enhanced .ne-stage.is-active { opacity: 1; }
 
+  /* Labels anchor to the same stage-start fractions as the ticks above,
+     except the first/last which stay edge-anchored (flex-start/flex-end)
+     so their 148px-wide boxes never clip past the container edge. */
   .ne-timeline-wrap.is-enhanced .ne-stage[data-index="0"] { left: 0; align-items: flex-start; text-align: left; }
-  .ne-timeline-wrap.is-enhanced .ne-stage[data-index="1"] { left: 16.6667%; transform: translateX(-50%); }
-  .ne-timeline-wrap.is-enhanced .ne-stage[data-index="2"] { left: 33.3333%; transform: translateX(-50%); }
-  .ne-timeline-wrap.is-enhanced .ne-stage[data-index="3"] { left: 50%; transform: translateX(-50%); }
-  .ne-timeline-wrap.is-enhanced .ne-stage[data-index="4"] { left: 66.6667%; transform: translateX(-50%); }
-  .ne-timeline-wrap.is-enhanced .ne-stage[data-index="5"] { left: 83.3333%; transform: translateX(-50%); }
+  .ne-timeline-wrap.is-enhanced .ne-stage[data-index="1"] { left: 10%; transform: translateX(-50%); }
+  .ne-timeline-wrap.is-enhanced .ne-stage[data-index="2"] { left: 20%; transform: translateX(-50%); }
+  .ne-timeline-wrap.is-enhanced .ne-stage[data-index="3"] { left: 32%; transform: translateX(-50%); }
+  .ne-timeline-wrap.is-enhanced .ne-stage[data-index="4"] { left: 46%; transform: translateX(-50%); }
+  .ne-timeline-wrap.is-enhanced .ne-stage[data-index="5"] { left: 80%; transform: translateX(-50%); }
   .ne-timeline-wrap.is-enhanced .ne-stage[data-index="6"] { left: 100%; transform: translateX(-100%); align-items: flex-end; text-align: right; }
 
   .ne-timeline-wrap.is-enhanced .ne-stage-name { flex: none; font-size: 0.7rem; }
@@ -468,11 +508,64 @@
     pointer-events: auto;
   }
 
-  /* Simplify the surrounding field once Recognition is reached. */
+  /* Staged reveal within Recognition — each beat gated by its own class
+     (js/night-engine.js toggles these from further progress thresholds,
+     not a timer), so instrumentation recedes, then the signal label,
+     then the dominant question, then the button, then the real product
+     screenshot emerge one at a time rather than all at once. */
+  .ne-timeline-wrap.is-enhanced .ne-signal-question {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+    transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+  }
+  .ne-timeline-wrap.is-enhanced .ne-recognition-overlay.show-question .ne-signal-question {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+
+  .ne-timeline-wrap.is-enhanced .ne-signal-btn {
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity 0.5s ease-out, transform 0.5s ease-out, border-color 0.3s ease, background 0.3s ease, box-shadow 0.3s ease;
+  }
+  .ne-timeline-wrap.is-enhanced .ne-recognition-overlay.show-detail .ne-signal-btn {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* The static/fallback portal is sized generously (260px) since it
+     just flows down the page with no height budget. Inside the fixed
+     instrument box it needs to stay modest, or its 16:9-inverse aspect
+     ratio (a 260px-wide portrait screenshot is ~460px tall) blows out
+     the box this sits in — hence the narrower override here. */
+  .ne-timeline-wrap.is-enhanced .ne-recognition-portal {
+    max-width: 180px;
+    opacity: 0;
+    transform: translateY(16px) scale(0.97);
+    transition: opacity 0.7s ease-out, transform 0.7s ease-out;
+  }
+  .ne-timeline-wrap.is-enhanced .ne-recognition-overlay.show-proof .ne-recognition-portal {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+
+  /* Simplify the surrounding field once Recognition is reached — the
+     instrument (including its own "The Night" kicker) recedes to
+     near-nothing so the overlay above reads as the one bright thing on
+     screen, and the box it sits in grows to make room for its taller
+     content (question + button + portal) instead of clipping it. */
+  .ne-timeline-wrap.is-enhanced .ne-timeline-stage.is-recognition .ne-timeline-kicker,
   .ne-timeline-wrap.is-enhanced .ne-timeline-stage.is-recognition .ne-layers,
   .ne-timeline-wrap.is-enhanced .ne-timeline-stage.is-recognition .ne-line-track,
   .ne-timeline-wrap.is-enhanced .ne-timeline-stage.is-recognition .ne-stage-labels {
-    opacity: 0.1;
+    opacity: 0.08;
+  }
+
+  .ne-timeline-wrap.is-enhanced .ne-timeline-inner {
+    transition: height 0.6s ease-out;
+  }
+  .ne-timeline-wrap.is-enhanced .ne-timeline-stage.is-recognition .ne-timeline-inner {
+    height: min(620px, 80vh);
   }
 }
 

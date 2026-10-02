@@ -4,8 +4,8 @@
    Mirrors js/home.js's Approach pattern exactly: a tall wrapper with a
    sticky stage, driven by a single --ne-progress (0..1) custom property
    that CSS reads for every visual change. This file only computes
-   numbers (progress, and three derived "signal layer" intensities) —
-   all visuals live in css/night-engine.css.
+   numbers (progress, derived "signal layer" intensities, and which
+   named stage is active) — all visuals live in css/night-engine.css.
 
    The sticky/scroll-scrubbed presentation only activates once
    .is-enhanced is added below, and it is deliberately withheld under
@@ -17,9 +17,18 @@
    same safe, fully-legible default rendering already present in the
    markup before any JS runs.
 
-   The "Hear the Signal" button is visual-only: no audio asset exists
-   for the actual Recognition tone, so this intentionally does not play,
-   synthesize, or substitute a sound. It only triggers a CSS ring-pulse.
+   Stage boundaries are deliberately NOT evenly spaced: Recognition gets
+   roughly three times the scroll range of any other single stage (see
+   STAGE_BOUNDARIES) so it reads as the dwell point of the journey, not
+   a stage like the others. Within that range, reaching Recognition
+   plays a one-shot sequence — marker pulse, instrumentation recedes,
+   "the signal" label, then the dominant question, then the button, then
+   the real product screenshot — staged by further progress thresholds
+   rather than a fixed timer, so it stays scroll-controlled.
+
+   The "Hear the Signal" button plays the real cue
+   (media/sounds/lucidity_cue.mp3/.wav) on click only — never
+   autoplayed, and only in response to a direct user gesture.
    ========================================================================== */
 
 (function () {
@@ -34,6 +43,22 @@
 
   var stages = Array.prototype.slice.call(document.querySelectorAll('.ne-stage'));
   var recognitionOverlay = document.querySelector('.ne-recognition-overlay');
+  var marker = document.querySelector('.ne-marker');
+
+  // Fraction of overall progress at which each stage BEGINS (7 stages,
+  // so 7 values — the 8th implicit boundary is 1). Recognition (index 4)
+  // spans 0.46-0.80: a 0.34 range versus ~0.10-0.14 for every other
+  // stage, i.e. substantially more dwell time than any individual
+  // stage, by design.
+  var STAGE_BOUNDARIES = [0, 0.10, 0.20, 0.32, 0.46, 0.80, 0.90];
+  var RECOGNITION_INDEX = 4;
+
+  // Within Recognition's own range, the progress points at which each
+  // beat of the sequence reveals. These are offsets from the stage's
+  // own start (0.46), not absolute progress.
+  var REC_QUESTION_AT = 0.50;
+  var REC_DETAIL_AT = 0.55;
+  var REC_PROOF_AT = 0.62;
 
   var enhanced = false;
   var ticking = false;
@@ -50,6 +75,12 @@
     return 1 - (p - c) / (d - c);
   }
 
+  function activeIndexFor(p) {
+    var i = STAGE_BOUNDARIES.length - 1;
+    while (i > 0 && p < STAGE_BOUNDARIES[i]) i--;
+    return i;
+  }
+
   function computeProgress() {
     var total = wrap.offsetHeight - window.innerHeight;
     if (total <= 0) return 0;
@@ -58,25 +89,39 @@
     return Math.min(1, Math.max(0, scrolled / total));
   }
 
+  function pulseMarker() {
+    if (!marker) return;
+    marker.classList.remove('is-pulsing');
+    void marker.offsetWidth; // force reflow so re-entering recognition restarts the pulse
+    marker.classList.add('is-pulsing');
+  }
+
   function applyProgress(p) {
     stage.style.setProperty('--ne-progress', p.toFixed(4));
-    stage.style.setProperty('--ne-l-entrainment', trapezoid(p, 0.1667, 0.3333, 0.8333, 1).toFixed(3));
-    stage.style.setProperty('--ne-l-noise', trapezoid(p, 0.3333, 0.5, 0.6667, 0.8333).toFixed(3));
-    stage.style.setProperty('--ne-l-signal', trapezoid(p, 0.6, 0.6667, 0.8333, 0.9).toFixed(3));
+    stage.style.setProperty('--ne-l-entrainment', trapezoid(p, 0.10, 0.20, 0.90, 1).toFixed(3));
+    stage.style.setProperty('--ne-l-noise', trapezoid(p, 0.20, 0.32, 0.46, 0.60).toFixed(3));
+    stage.style.setProperty('--ne-l-signal', trapezoid(p, 0.40, 0.46, 0.80, 0.86).toFixed(3));
 
-    var activeIndex = Math.min(6, Math.floor(p * 6 + 0.0001));
-    if (activeIndex === lastActiveIndex) return;
-    lastActiveIndex = activeIndex;
+    var activeIndex = activeIndexFor(p);
+    var atRecognition = activeIndex === RECOGNITION_INDEX;
 
-    stages.forEach(function (el) {
-      var i = parseInt(el.getAttribute('data-index'), 10);
-      el.classList.toggle('is-active', i === activeIndex);
-      el.classList.toggle('is-passed', i < activeIndex);
-    });
+    if (activeIndex !== lastActiveIndex) {
+      if (atRecognition && lastActiveIndex !== RECOGNITION_INDEX) pulseMarker();
+      lastActiveIndex = activeIndex;
+      stages.forEach(function (el) {
+        var i = parseInt(el.getAttribute('data-index'), 10);
+        el.classList.toggle('is-active', i === activeIndex);
+        el.classList.toggle('is-passed', i < activeIndex);
+      });
+      stage.classList.toggle('is-recognition', atRecognition);
+    }
 
-    var atRecognition = activeIndex === 4;
-    stage.classList.toggle('is-recognition', atRecognition);
-    if (recognitionOverlay) recognitionOverlay.classList.toggle('is-visible', atRecognition);
+    if (recognitionOverlay) {
+      recognitionOverlay.classList.toggle('is-visible', atRecognition);
+      recognitionOverlay.classList.toggle('show-question', atRecognition && p >= REC_QUESTION_AT);
+      recognitionOverlay.classList.toggle('show-detail', atRecognition && p >= REC_DETAIL_AT);
+      recognitionOverlay.classList.toggle('show-proof', atRecognition && p >= REC_PROOF_AT);
+    }
   }
 
   // Same capture-phase rationale as home.js: this page's <body> can end
@@ -117,7 +162,9 @@
     stages.forEach(function (el) {
       el.classList.remove('is-active', 'is-passed');
     });
-    if (recognitionOverlay) recognitionOverlay.classList.remove('is-visible');
+    if (recognitionOverlay) {
+      recognitionOverlay.classList.remove('is-visible', 'show-question', 'show-detail', 'show-proof');
+    }
   }
 
   function syncEnhancement() {
@@ -130,11 +177,21 @@
   if (narrowQuery.addEventListener) narrowQuery.addEventListener('change', syncEnhancement);
 
   var signalBtn = document.querySelector('.ne-signal-btn');
+  var signalAudio = document.querySelector('.ne-signal-audio');
   if (signalBtn) {
     signalBtn.addEventListener('click', function () {
       signalBtn.classList.remove('is-pulsing');
       void signalBtn.offsetWidth; // force reflow so rapid re-clicks still restart the animation
       signalBtn.classList.add('is-pulsing');
+
+      if (signalAudio) {
+        signalAudio.currentTime = 0;
+        // play() can reject (e.g. a user gesture edge case); this is a
+        // direct click handler so it should resolve, but never surface
+        // an unhandled rejection either way.
+        var playResult = signalAudio.play();
+        if (playResult && playResult.catch) playResult.catch(function () {});
+      }
     });
   }
 })();

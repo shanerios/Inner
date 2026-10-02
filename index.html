@@ -970,12 +970,17 @@
 
             <div class="ne-recognition-overlay">
               <p class="ne-signal-eyebrow">The Signal</p>
-              <p class="ne-signal-copy">A tone arrives at scheduled recognition windows across the night. Each time you hear it &mdash; ask: could this be a dream?</p>
+              <p class="ne-signal-copy">A tone arrives at scheduled recognition windows across the night.</p>
+              <p class="ne-signal-question">Could this be a dream?</p>
               <button type="button" class="ne-signal-btn">
                 <span class="ne-signal-btn-ring" aria-hidden="true"></span>
                 <span>Hear the Signal</span>
                 <span class="ne-signal-btn-dot" aria-hidden="true">&#9675;</span>
               </button>
+              <audio class="ne-signal-audio" preload="none">
+                <source src="/media/sounds/lucidity_cue.mp3" type="audio/mpeg" />
+                <source src="/media/sounds/lucidity_cue.wav" type="audio/wav" />
+              </audio>
               <div class="ne-recognition-portal">
                 <picture>
                   <source srcset="/media/images/night_engine_recognition_ui.webp" type="image/webp" />
