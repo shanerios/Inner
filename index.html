@@ -65,6 +65,7 @@
   <link rel="stylesheet" href="/css/home.css" />
   <link rel="stylesheet" href="/css/practice.css" />
   <link rel="stylesheet" href="/css/night-engine.css" />
+  <link rel="stylesheet" href="/css/sanctum-discovery.css" />
   <link rel="preload" as="image" href="/media/images/home_background_portrait.webp" fetchpriority="high" media="(max-width: 680px)" />
   <link rel="preload" as="image" href="/media/images/home_background.webp" fetchpriority="high" media="(min-width: 681px)" />
   <style>
@@ -893,12 +894,88 @@
         <p class="sanctum-kicker">02 / The Sanctum</p>
         <h2 class="sanctum-headline">It's not a dashboard,<br>but a place to return to.</h2>
         <p class="sanctum-lead">Your intention, practices, and return all begin here.</p>
+        <p class="sanctum-instrumentation">Your Sanctum <span aria-hidden="true">&middot;</span> Intention / Journeys / Garden / Chambers / Dream Log / Archives</p>
       </div>
       <div class="sanctum-portal reveal">
         <picture>
           <source srcset="/media/images/sanctum_ui.webp" type="image/webp" />
           <img class="sanctum-ui" src="/media/images/sanctum_ui.png" alt="The Inner Sanctum home screen: an arched stone doorway framing the Orb, with paths toward the Garden, the Chambers, and the Archives." width="1320" height="2713" loading="lazy" decoding="async" />
         </picture>
+
+        <!-- Desktop/fine-pointer discovery: invisible focusable hotspots
+             over real regions already visible in the screenshot. Each is
+             a genuine <button> (not a decorative div) so the same
+             destination + description reaches keyboard/AT users via its
+             accessible name, independent of pointer proximity. -->
+        <button type="button" class="sanctum-hotspot sanctum-hotspot--garden" data-region="garden" aria-label="The Garden. Soundscapes for stillness, sleep, focus, and return."></button>
+        <button type="button" class="sanctum-hotspot sanctum-hotspot--chambers" data-region="chambers" aria-label="The Chambers. Progressive guided experiences for deeper practice."></button>
+        <button type="button" class="sanctum-hotspot sanctum-hotspot--dream-log" data-region="dream-log" aria-label="Dream Log. Log and journal your dreams and connect them over time to the journey."></button>
+        <button type="button" class="sanctum-hotspot sanctum-hotspot--my-journey" data-region="my-journey" aria-label="My Journey. Resume your practice and continue where you left off."></button>
+        <button type="button" class="sanctum-hotspot sanctum-hotspot--lucid-journey" data-region="lucid-journey" aria-label="Lucid Journey. Begin with a practice shaped around what you're moving toward."></button>
+        <button type="button" class="sanctum-hotspot sanctum-hotspot--archives" data-region="archives" aria-label="The Archives. Guides, practices, and a glossary for understanding the experience."></button>
+
+        <div class="sanctum-annotation sanctum-annotation--garden" data-region="garden" aria-hidden="true">
+          <p class="sanctum-annotation-name">The Garden</p>
+          <p class="sanctum-annotation-desc">Soundscapes for stillness, sleep, focus, and return.</p>
+        </div>
+        <div class="sanctum-annotation sanctum-annotation--chambers" data-region="chambers" aria-hidden="true">
+          <p class="sanctum-annotation-name">The Chambers</p>
+          <p class="sanctum-annotation-desc">Progressive guided experiences for deeper practice.</p>
+        </div>
+        <div class="sanctum-annotation sanctum-annotation--dream-log" data-region="dream-log" aria-hidden="true">
+          <p class="sanctum-annotation-name">Dream Log</p>
+          <p class="sanctum-annotation-desc">Log and journal your dreams and connect them over time to the journey.</p>
+        </div>
+        <div class="sanctum-annotation sanctum-annotation--my-journey" data-region="my-journey" aria-hidden="true">
+          <p class="sanctum-annotation-name">My Journey</p>
+          <p class="sanctum-annotation-desc">Resume your practice and continue where you left off.</p>
+        </div>
+        <div class="sanctum-annotation sanctum-annotation--lucid-journey" data-region="lucid-journey" aria-hidden="true">
+          <p class="sanctum-annotation-name">Lucid Journey</p>
+          <p class="sanctum-annotation-desc">Begin with a practice shaped around what you're moving toward.</p>
+        </div>
+        <div class="sanctum-annotation sanctum-annotation--archives" data-region="archives" aria-hidden="true">
+          <p class="sanctum-annotation-name">The Archives</p>
+          <p class="sanctum-annotation-desc">Guides, practices, and a glossary for understanding the experience.</p>
+        </div>
+      </div>
+
+      <!-- Mobile/touch disclosure: shown in place of the hotspot system
+           on narrow or non-fine-pointer devices (see sanctum-discovery.css).
+           Independent of hover — intentional disclosure, not spatial
+           discovery. -->
+      <div class="sanctum-disclosure">
+        <button type="button" class="sanctum-disclosure-toggle" aria-expanded="false" aria-controls="sanctum-disclosure-panel">
+          Explore the Sanctum <span class="sanctum-disclosure-icon" aria-hidden="true">+</span>
+        </button>
+        <div class="sanctum-disclosure-panel" id="sanctum-disclosure-panel" inert>
+         <div class="sanctum-disclosure-inner">
+          <div class="sanctum-disclosure-item">
+            <p class="sanctum-disclosure-name">The Garden</p>
+            <p class="sanctum-disclosure-desc">Soundscapes for stillness, sleep, focus, and return.</p>
+          </div>
+          <div class="sanctum-disclosure-item">
+            <p class="sanctum-disclosure-name">The Chambers</p>
+            <p class="sanctum-disclosure-desc">Progressive guided experiences for deeper practice.</p>
+          </div>
+          <div class="sanctum-disclosure-item">
+            <p class="sanctum-disclosure-name">My Journey</p>
+            <p class="sanctum-disclosure-desc">Resume your practice and continue where you left off.</p>
+          </div>
+          <div class="sanctum-disclosure-item">
+            <p class="sanctum-disclosure-name">Lucid Journey</p>
+            <p class="sanctum-disclosure-desc">Begin with a practice shaped around what you're moving toward.</p>
+          </div>
+          <div class="sanctum-disclosure-item">
+            <p class="sanctum-disclosure-name">Dream Log</p>
+            <p class="sanctum-disclosure-desc">Log and journal your dreams and connect them over time to the journey.</p>
+          </div>
+          <div class="sanctum-disclosure-item">
+            <p class="sanctum-disclosure-name">The Archives</p>
+            <p class="sanctum-disclosure-desc">Guides, practices, and a glossary for understanding the experience.</p>
+          </div>
+         </div>
+        </div>
       </div>
     </div>
   </section>
@@ -1359,6 +1436,7 @@
   <script src="/js/home.js"></script>
   <script src="/js/practice.js"></script>
   <script src="/js/night-engine.js"></script>
+  <script src="/js/sanctum-discovery.js"></script>
   <script>
     // Keep anchored section headings clear of the fixed navigation.
     function scrollToSection(hash, behavior = 'smooth') {

@@ -1,0 +1,303 @@
+/* ==========================================================================
+   Inner — Sanctum information/discovery layer
+
+   Scoped to index.html only. Adds exactly two things to the existing,
+   approved Sanctum (css/home.css): a small always-visible instrumentation
+   line, and a proximity/focus-driven discovery layer over five real
+   regions already present in the Sanctum screenshot (css/home.css's own
+   .sanctum/.sanctum-portal rules are untouched).
+
+   Interaction principle (same one established by the Threshold Orb and
+   the Arrive intention cards): attention is tracked continuously and
+   rewarded proportionally, not a binary hover toggle. At rest, the
+   Sanctum looks exactly as it did before this file existed — every rule
+   below that changes appearance is gated behind .is-active/proximity
+   state that js/sanctum-discovery.js only sets once the pointer (or
+   keyboard focus) actually approaches a region.
+
+   Desktop (fine pointer, >680px): spatial discovery — hotspots + glow +
+   annotations. Mobile/touch/narrow: a single disclosure toggle instead
+   (see the .sanctum-disclosure rules) — intentional, not hover-based.
+   ========================================================================== */
+
+/* ---------- Ambient instrumentation line (always visible, both modes) ---------- */
+
+.sanctum-instrumentation {
+  font-family: var(--font-heading);
+  font-size: 0.66rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(190, 185, 225, 0.48);
+  margin: 20px 0 0 0;
+  text-align: left;
+}
+
+@media (max-width: 900px) {
+  .sanctum-instrumentation {
+    text-align: center;
+  }
+}
+
+/* ---------- Desktop hotspots (invisible, focusable hit targets) ---------- */
+
+.sanctum-hotspot {
+  position: absolute;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  /* --proximity is written per-frame by JS; default 0 keeps the Sanctum
+     looking exactly as it does at rest with no JS at all. */
+  --proximity: 0;
+}
+
+/* The glow itself — additive, screened over the artwork rather than a
+   filter/brightness change on it, same convention as the Threshold
+   Orb's aura and the Arrive intention-glows. */
+.sanctum-hotspot::before {
+  content: '';
+  position: absolute;
+  inset: -55%;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgba(205, 195, 255, 0.6) 0%, rgba(170, 150, 255, 0.24) 46%, transparent 74%);
+  opacity: var(--proximity, 0);
+  transition: opacity 0.35s ease-out;
+  pointer-events: none;
+  mix-blend-mode: screen;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sanctum-hotspot::before {
+    transition: none;
+  }
+}
+
+/* Regions measured directly from sanctum_ui.png's actual pixels (gold/
+   lit-text luminance clustering against its known 1320x2713 frame, not
+   guessed) — see the Phase pass report for the exact figures. Each
+   hitbox is padded beyond the measured glyph/icon bounds for an easier,
+   non-pixel-perfect target. */
+.sanctum-hotspot--garden     { left: 0%;    top: 50.5%; width: 9%;   height: 21%; }
+.sanctum-hotspot--chambers   { left: 89.5%; top: 50.5%; width: 10.5%; height: 20.5%; }
+.sanctum-hotspot--dream-log  { left: 23%;   top: 43%;   width: 15%;  height: 11%; }
+.sanctum-hotspot--my-journey { left: 37%; top: 74.5%; width: 26%; height: 6.5%; }
+/* The Orb itself — the circular viewport (sphere + visible nebula
+   within its stone ring), measured the same way as the others. */
+.sanctum-hotspot--lucid-journey { left: 29%; top: 21.5%; width: 43%; height: 20%; }
+.sanctum-hotspot--archives   { left: 27%;   top: 92.5%; width: 42%;  height: 6.5%; }
+
+/* ---------- Annotations ----------
+   Museum-label / instrument-readout treatment: a thin accent edge (the
+   "connecting line"), a small uppercase name, and one quiet sentence.
+   Deliberately not a tooltip/card — no rounded corners, no heavy
+   shadow, no chrome. Anchored outward from the portal (left or right)
+   per destination so the panel never covers the artwork itself. */
+
+.sanctum-annotation {
+  position: absolute;
+  z-index: 6;
+  width: 168px;
+  padding: 2px 0;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.35s ease-out, transform 0.35s ease-out;
+}
+
+.sanctum-annotation.is-active {
+  opacity: 1;
+}
+
+.sanctum-annotation-name {
+  font-family: var(--font-heading);
+  font-size: 0.66rem;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: rgba(214, 205, 255, 0.92);
+  margin: 0 0 6px 0;
+}
+
+.sanctum-annotation-desc {
+  font-family: var(--font-body);
+  font-weight: 300;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: rgba(224, 221, 240, 0.8);
+  margin: 0;
+}
+
+/* Left-extending (Garden, Dream Log): text right-aligned toward the
+   portal, thin accent on the right edge where it "connects". */
+.sanctum-annotation--garden,
+.sanctum-annotation--dream-log {
+  right: 100%;
+  margin-right: 16px;
+  text-align: right;
+  border-right: 1px solid rgba(161, 140, 255, 0.4);
+  padding-right: 14px;
+  transform: translateY(-50%) translateX(6px);
+}
+.sanctum-annotation--garden.is-active,
+.sanctum-annotation--dream-log.is-active {
+  transform: translateY(-50%) translateX(0);
+}
+
+/* Right-extending (Chambers, My Journey, Lucid Journey, Archives). */
+.sanctum-annotation--chambers,
+.sanctum-annotation--my-journey,
+.sanctum-annotation--lucid-journey,
+.sanctum-annotation--archives {
+  left: 100%;
+  margin-left: 16px;
+  text-align: left;
+  border-left: 1px solid rgba(161, 140, 255, 0.4);
+  padding-left: 14px;
+  width: 190px;
+  transform: translateY(-50%) translateX(-6px);
+}
+.sanctum-annotation--chambers.is-active,
+.sanctum-annotation--my-journey.is-active,
+.sanctum-annotation--lucid-journey.is-active,
+.sanctum-annotation--archives.is-active {
+  transform: translateY(-50%) translateX(0);
+}
+
+.sanctum-annotation--garden    { top: 60.5%; }
+.sanctum-annotation--chambers  { top: 60.5%; }
+.sanctum-annotation--dream-log { top: 48%; }
+.sanctum-annotation--my-journey { top: 78.5%; }
+.sanctum-annotation--lucid-journey { top: 31.6%; }
+.sanctum-annotation--archives  { top: 95%; }
+
+@media (prefers-reduced-motion: reduce) {
+  .sanctum-annotation {
+    transition: none;
+  }
+}
+
+/* Hotspots/annotations are a desktop, fine-pointer-only mechanism — on
+   touch or narrow viewports the .sanctum-disclosure toggle below takes
+   over entirely. display:none also removes these buttons from the tab
+   order, which is correct here since the disclosure panel provides the
+   same information through its own, always-keyboard-reachable control. */
+@media (max-width: 680px), (pointer: coarse) {
+  .sanctum-hotspot,
+  .sanctum-annotation {
+    display: none;
+  }
+}
+
+/* ---------- Mobile/touch disclosure ---------- */
+
+.sanctum-disclosure {
+  display: none;
+  grid-column: 1 / -1;
+  justify-self: center;
+  width: 100%;
+  max-width: 420px;
+  margin-top: 28px;
+}
+
+@media (max-width: 680px), (pointer: coarse) {
+  .sanctum-disclosure {
+    display: block;
+  }
+}
+
+.sanctum-disclosure-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  margin: 0;
+  padding: 12px 20px;
+  border: 1px solid rgba(161, 140, 255, 0.3);
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(225, 222, 240, 0.85);
+  font-family: var(--font-heading);
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: border-color 0.3s ease, color 0.3s ease;
+}
+.sanctum-disclosure-toggle:hover {
+  border-color: rgba(200, 190, 255, 0.6);
+  color: #fff;
+}
+
+/* Some browsers (notably Android Chrome) apply a native filled
+   highlight to a focused/active <button> with no explicit background
+   override — only :focus-visible is handled by the shared base.css
+   outline rule, which a tap doesn't trigger. Neutralize it explicitly
+   rather than letting native UA styling leak through on touch. */
+.sanctum-disclosure-toggle:focus,
+.sanctum-disclosure-toggle:active {
+  background: transparent;
+  color: rgba(225, 222, 240, 0.85);
+}
+
+.sanctum-disclosure-icon {
+  display: inline-block;
+  font-size: 1em;
+  line-height: 1;
+  transition: transform 0.3s ease-out;
+}
+.sanctum-disclosure-toggle[aria-expanded="true"] .sanctum-disclosure-icon {
+  transform: rotate(45deg);
+}
+
+.sanctum-disclosure-panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition: grid-template-rows 0.4s ease-out, opacity 0.3s ease-out;
+}
+.sanctum-disclosure-panel.is-open {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+/* The grid-rows 0fr->1fr trick needs exactly one child to collapse —
+   this wrapper holds all five items so they stack normally inside it
+   rather than each becoming its own (overlapping) implicit row. */
+.sanctum-disclosure-inner {
+  overflow: hidden;
+}
+
+.sanctum-disclosure-item {
+  overflow: hidden;
+  padding: 18px 4px;
+  border-top: 1px solid rgba(161, 140, 255, 0.16);
+  text-align: left;
+}
+.sanctum-disclosure-item:last-child {
+  padding-bottom: 2px;
+}
+
+.sanctum-disclosure-name {
+  font-family: var(--font-heading);
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(214, 205, 255, 0.88);
+  margin: 0 0 6px 0;
+}
+
+.sanctum-disclosure-desc {
+  font-family: var(--font-body);
+  font-weight: 300;
+  font-size: 0.86rem;
+  line-height: 1.55;
+  color: rgba(224, 221, 240, 0.78);
+  margin: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sanctum-disclosure-panel,
+  .sanctum-disclosure-icon {
+    transition: none;
+  }
+}
