@@ -1,0 +1,649 @@
+/* ==========================================================================
+   Inner — The Night Engine
+
+   Scoped to index.html only. Sits between the Sanctum and The Practice as
+   a full-bleed, direct-<body>-child section (same structural pattern as
+   .threshold-wrap/.sanctum/.practice — see index.html's .page-shell note).
+
+   Deliberate tonal contrast with what comes before: Threshold is
+   cinematic, Sanctum is product/atmospheric, this is INSTRUMENTAL —
+   near-black, fine lines, restrained typography. The Orb does not
+   appear here.
+
+   Accessibility/fallback model (mirrors js/home.js exactly): everything
+   in this file renders as a plain, fully-legible static list by
+   default. The tall sticky-scroll "instrument" presentation — the
+   moving timeline, the evolving signal layers, the Recognition reveal —
+   only exists inside `@media (prefers-reduced-motion: no-preference)`
+   rules scoped under a `.is-enhanced` class that js/night-engine.js adds
+   at runtime, and only at desktop widths (the same script withholds it
+   under reduced motion AND under 680px, recomposing mobile as the same
+   static list rather than shrinking a horizontal scrub timeline). No JS,
+   reduced motion, and narrow viewports therefore all resolve to the same
+   safe, accessible presentation.
+   ========================================================================== */
+
+.night-engine {
+  position: relative;
+  padding: 130px 0 120px 0;
+  background: linear-gradient(
+    180deg,
+    var(--color-bg-primary) 0%,
+    #030308 16%,
+    #020205 50%,
+    #030308 84%,
+    var(--color-bg-primary) 100%
+  );
+  /* No overflow:hidden here (unlike .sanctum/.practice): this section's
+     sticky timeline stage needs its nearest ancestor scroll container to
+     be <body> itself. overflow:hidden on an ancestor establishes its own
+     scroll container even with nothing to scroll, which freezes
+     position:sticky instead of letting it stick to the viewport. There
+     are no oversized decorative children here that need clipping. */
+}
+
+/* ---------- Intro ---------- */
+
+.ne-intro {
+  position: relative;
+  z-index: 2;
+  max-width: 680px;
+  margin: 0 auto 92px auto;
+  padding: 0 24px;
+  text-align: center;
+}
+
+.ne-eyebrow {
+  font-family: var(--font-heading);
+  font-size: 0.72rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(190, 195, 255, 0.6);
+  margin: 0 0 20px 0;
+}
+
+.ne-headline {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: clamp(1.9rem, 3.6vw, 2.7rem);
+  line-height: 1.22;
+  color: rgba(246, 242, 235, 0.97);
+  margin: 0 0 22px 0;
+}
+
+.ne-lead {
+  font-family: var(--font-body);
+  font-weight: 300;
+  font-size: 1.05rem;
+  line-height: 1.65;
+  color: rgba(220, 218, 235, 0.75);
+  max-width: 54ch;
+  margin: 0 auto;
+}
+
+/* ---------- Timeline: structural wrapper ---------- */
+
+.ne-timeline-wrap {
+  position: relative;
+}
+
+.ne-timeline-stage {
+  position: relative;
+}
+
+.ne-timeline-inner {
+  position: relative;
+  z-index: 2;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 0 clamp(20px, 6vw, 64px) 0;
+}
+
+.ne-timeline-kicker {
+  font-family: var(--font-heading);
+  font-size: 0.7rem;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: rgba(190, 195, 255, 0.5);
+  text-align: center;
+  margin: 0 0 52px 0;
+}
+
+/* ---------- Layers (Environment / Entrainment / Noise Field / Signal) ----------
+   Hidden by default (static fallback has no use for them); shown only
+   once js/night-engine.js adds .is-enhanced. Each bar's fill opacity is a
+   CSS custom property the script writes per animation frame — the script
+   only computes numbers, exactly like --progress elsewhere on this page. */
+
+.ne-layers {
+  display: none;
+  flex-direction: column;
+  gap: 14px;
+  margin: 0 0 40px 0;
+}
+
+.ne-layer {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.ne-layer-label {
+  flex: 0 0 112px;
+  font-family: var(--font-heading);
+  font-size: 0.62rem;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: rgba(200, 200, 222, 0.45);
+  text-align: right;
+}
+
+.ne-layer-bar {
+  position: relative;
+  flex: 1;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.07);
+  overflow: visible;
+}
+
+.ne-layer-bar::after {
+  content: '';
+  position: absolute;
+  inset: -1px 0;
+  background: linear-gradient(90deg, rgba(161, 140, 255, 0.9), rgba(130, 170, 255, 0.55));
+  transition: opacity 0.5s ease-out;
+}
+
+.ne-layer--environment .ne-layer-bar::after { opacity: 0.4; }
+.ne-layer--entrainment .ne-layer-bar::after { opacity: var(--ne-l-entrainment, 0); }
+.ne-layer--noise .ne-layer-bar::after       { opacity: var(--ne-l-noise, 0); }
+.ne-layer--signal .ne-layer-bar::after      { opacity: var(--ne-l-signal, 0); }
+
+/* ---------- The line + moving marker ---------- */
+
+.ne-line-track {
+  display: none;
+  position: relative;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.16);
+  margin: 0 0 34px 0;
+}
+
+.ne-tick {
+  position: absolute;
+  top: -3px;
+  width: 1px;
+  height: 7px;
+  background: rgba(255, 255, 255, 0.32);
+}
+.ne-tick[data-index="0"] { left: 0%; }
+.ne-tick[data-index="1"] { left: 16.6667%; }
+.ne-tick[data-index="2"] { left: 33.3333%; }
+.ne-tick[data-index="3"] { left: 50%; }
+.ne-tick[data-index="4"] { left: 66.6667%; }
+.ne-tick[data-index="5"] { left: 83.3333%; }
+.ne-tick[data-index="6"] { left: 100%; }
+
+.ne-marker {
+  position: absolute;
+  top: 50%;
+  left: calc(var(--ne-progress, 0) * 100%);
+  width: 7px;
+  height: 7px;
+  margin-left: -3.5px;
+  border-radius: 50%;
+  background: #cabfff;
+  box-shadow: 0 0 11px 2px rgba(161, 140, 255, 0.65);
+  transform: translateY(-50%);
+}
+
+/* ---------- Stage labels (the always-accessible content) ---------- */
+
+.ne-stage-labels {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  margin: 0;
+  padding: 0;
+}
+
+.ne-stage {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+}
+
+.ne-stage-name {
+  flex: 0 0 150px;
+  font-family: var(--font-heading);
+  font-size: 0.92rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(240, 238, 255, 0.9);
+}
+
+.ne-stage-desc {
+  font-family: var(--font-body);
+  font-weight: 300;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  color: rgba(210, 208, 230, 0.6);
+  margin: 0;
+}
+
+/* ---------- Recognition — the emotional peak ----------
+   Static fallback: an always-visible inline block sitting between the
+   Recognition and Release rows. Enhanced desktop: becomes a centered
+   overlay that only appears once the scroll position reaches the
+   Recognition stage, simplifying the surrounding field (see the
+   .is-recognition rule below). */
+
+.ne-recognition-overlay {
+  margin: 4px 0;
+  padding: 30px 26px;
+  border: 1px solid rgba(161, 140, 255, 0.18);
+  background: rgba(10, 8, 24, 0.4);
+  text-align: center;
+}
+
+.ne-signal-eyebrow {
+  font-family: var(--font-heading);
+  font-size: 0.68rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgba(200, 190, 255, 0.75);
+  margin: 0 0 14px 0;
+}
+
+.ne-signal-copy {
+  font-family: var(--font-body);
+  font-weight: 300;
+  font-size: 0.98rem;
+  line-height: 1.6;
+  color: rgba(230, 228, 245, 0.85);
+  max-width: 38ch;
+  margin: 0 auto;
+}
+
+.ne-signal-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin: 26px 0 0 0;
+  padding: 11px 22px;
+  border: 1px solid rgba(200, 190, 255, 0.35);
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(235, 232, 255, 0.88);
+  font-family: var(--font-heading);
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: border-color 0.3s ease, color 0.3s ease;
+}
+
+.ne-signal-btn:hover {
+  border-color: rgba(200, 190, 255, 0.7);
+  color: #fff;
+}
+
+.ne-signal-btn-dot {
+  font-size: 0.85em;
+  line-height: 1;
+}
+
+.ne-signal-btn-ring {
+  position: absolute;
+  inset: -10px;
+  border: 1px solid rgba(161, 140, 255, 0.8);
+  border-radius: 999px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.ne-signal-btn.is-pulsing .ne-signal-btn-ring {
+  animation: ne-ring-pulse 1.1s ease-out;
+}
+
+@keyframes ne-ring-pulse {
+  0%   { opacity: 0.9; transform: scale(0.82); }
+  100% { opacity: 0;   transform: scale(1.9); }
+}
+
+.ne-recognition-portal {
+  position: relative;
+  width: 100%;
+  max-width: 200px;
+  margin: 26px auto 0 auto;
+  aspect-ratio: 1080 / 1920;
+}
+
+.ne-recognition-portal img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.ne-recognition-portal::before,
+.ne-recognition-portal::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 16%;
+  pointer-events: none;
+}
+.ne-recognition-portal::before {
+  top: 0;
+  background: linear-gradient(180deg, #020205 0%, transparent 100%);
+  opacity: 0.9;
+}
+.ne-recognition-portal::after {
+  bottom: 0;
+  background: linear-gradient(0deg, #020205 0%, transparent 100%);
+  opacity: 0.9;
+}
+
+/* ---------- Enhanced desktop instrument presentation ---------- */
+
+@media (prefers-reduced-motion: no-preference) {
+  .ne-timeline-wrap.is-enhanced {
+    height: 280vh;
+  }
+
+  .ne-timeline-wrap.is-enhanced .ne-timeline-stage {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+  }
+
+  .ne-timeline-wrap.is-enhanced .ne-timeline-inner {
+    position: relative;
+    width: 100%;
+    height: min(360px, 56vh);
+  }
+
+  .ne-timeline-wrap.is-enhanced .ne-timeline-kicker {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    margin: 0;
+  }
+
+  .ne-timeline-wrap.is-enhanced .ne-layers {
+    display: flex;
+    position: absolute;
+    top: 46px;
+    left: 0;
+    right: 0;
+    margin: 0;
+    transition: opacity 0.6s ease-out;
+  }
+
+  .ne-timeline-wrap.is-enhanced .ne-line-track {
+    display: block;
+    position: absolute;
+    top: 168px;
+    left: 0;
+    right: 0;
+    margin: 0;
+    transition: opacity 0.6s ease-out;
+  }
+
+  /* Spans the full inner box (not just a thin row) so both the stage
+     items and the Recognition overlay — both absolutely positioned
+     within it — share one predictable, full-height containing block
+     instead of the stage row's own collapsed (children-are-absolute)
+     height. */
+  .ne-timeline-wrap.is-enhanced .ne-stage-labels {
+    position: absolute;
+    inset: 0;
+    display: block;
+    transition: opacity 0.6s ease-out;
+  }
+
+  .ne-timeline-wrap.is-enhanced .ne-stage {
+    position: absolute;
+    top: 192px;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    width: 148px;
+    text-align: center;
+    opacity: 0.32;
+    transition: opacity 0.4s ease-out;
+  }
+  .ne-timeline-wrap.is-enhanced .ne-stage.is-passed { opacity: 0.5; }
+  .ne-timeline-wrap.is-enhanced .ne-stage.is-active { opacity: 1; }
+
+  .ne-timeline-wrap.is-enhanced .ne-stage[data-index="0"] { left: 0; align-items: flex-start; text-align: left; }
+  .ne-timeline-wrap.is-enhanced .ne-stage[data-index="1"] { left: 16.6667%; transform: translateX(-50%); }
+  .ne-timeline-wrap.is-enhanced .ne-stage[data-index="2"] { left: 33.3333%; transform: translateX(-50%); }
+  .ne-timeline-wrap.is-enhanced .ne-stage[data-index="3"] { left: 50%; transform: translateX(-50%); }
+  .ne-timeline-wrap.is-enhanced .ne-stage[data-index="4"] { left: 66.6667%; transform: translateX(-50%); }
+  .ne-timeline-wrap.is-enhanced .ne-stage[data-index="5"] { left: 83.3333%; transform: translateX(-50%); }
+  .ne-timeline-wrap.is-enhanced .ne-stage[data-index="6"] { left: 100%; transform: translateX(-100%); align-items: flex-end; text-align: right; }
+
+  .ne-timeline-wrap.is-enhanced .ne-stage-name { flex: none; font-size: 0.7rem; }
+
+  .ne-timeline-wrap.is-enhanced .ne-stage-desc {
+    max-width: 150px;
+    font-size: 0.76rem;
+    opacity: 0;
+    max-height: 0;
+    overflow: hidden;
+    transition: opacity 0.4s ease-out;
+  }
+  .ne-timeline-wrap.is-enhanced .ne-stage.is-active .ne-stage-desc {
+    opacity: 1;
+    max-height: 80px;
+  }
+
+  .ne-timeline-wrap.is-enhanced .ne-recognition-overlay {
+    position: absolute;
+    inset: 0;
+    margin: 0;
+    padding: 0;
+    border: none;
+    background: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.6s ease-out;
+  }
+  .ne-timeline-wrap.is-enhanced .ne-recognition-overlay.is-visible {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* Simplify the surrounding field once Recognition is reached. */
+  .ne-timeline-wrap.is-enhanced .ne-timeline-stage.is-recognition .ne-layers,
+  .ne-timeline-wrap.is-enhanced .ne-timeline-stage.is-recognition .ne-line-track,
+  .ne-timeline-wrap.is-enhanced .ne-timeline-stage.is-recognition .ne-stage-labels {
+    opacity: 0.1;
+  }
+}
+
+/* ---------- Overnight Journey reveal (always the same layout/markup;
+   same asymmetric portal pattern as the Sanctum and Arrive) ---------- */
+
+.ne-overnight-grid {
+  position: relative;
+  z-index: 2;
+  max-width: var(--content-width-wide, 1180px);
+  margin: 0 auto 120px auto;
+  padding: 0 clamp(20px, 6vw, 64px);
+  display: grid;
+  grid-template-columns: minmax(260px, 0.85fr) minmax(280px, 1fr);
+  gap: clamp(48px, 7vw, 88px);
+  align-items: center;
+}
+
+.ne-overnight-kicker {
+  font-family: var(--font-heading);
+  font-size: 0.76rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(200, 190, 255, 0.72);
+  margin: 0 0 18px 0;
+  text-align: left;
+}
+
+.ne-overnight-headline {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: clamp(1.85rem, 3.2vw, 2.55rem);
+  line-height: 1.16;
+  margin: 0 0 16px 0;
+  color: var(--color-text-primary);
+  text-align: left;
+}
+
+.ne-overnight-lead {
+  font-family: var(--font-body);
+  font-weight: 300;
+  font-size: 1.05rem;
+  line-height: 1.6;
+  color: var(--color-text-soft);
+  max-width: 40ch;
+  margin: 0;
+  text-align: left;
+}
+
+.ne-overnight-portal {
+  justify-self: center;
+  width: 100%;
+}
+
+.ne-overnight-frame {
+  position: relative;
+  width: 100%;
+  max-width: 300px;
+  margin: 0 auto;
+  aspect-ratio: 1080 / 1920;
+}
+
+.ne-overnight-frame img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.ne-overnight-frame::before,
+.ne-overnight-frame::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 14%;
+  pointer-events: none;
+}
+.ne-overnight-frame::before {
+  top: 0;
+  background: linear-gradient(180deg, #020205 0%, transparent 100%);
+  opacity: 0.85;
+}
+.ne-overnight-frame::after {
+  bottom: 0;
+  background: linear-gradient(0deg, #020205 0%, transparent 100%);
+  opacity: 0.85;
+}
+
+/* ---------- Live Mix — a glimpse, not an explanation ---------- */
+
+.ne-livemix {
+  position: relative;
+  z-index: 2;
+  max-width: 460px;
+  margin: 0 auto;
+  padding: 0 24px;
+  text-align: center;
+}
+
+.ne-livemix-kicker {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 1.1rem;
+  color: rgba(240, 238, 255, 0.92);
+  margin: 0 0 12px 0;
+}
+
+.ne-livemix-lead {
+  font-family: var(--font-body);
+  font-weight: 300;
+  font-size: 0.92rem;
+  line-height: 1.6;
+  color: rgba(210, 208, 230, 0.6);
+  max-width: 36ch;
+  margin: 0 auto;
+}
+
+.ne-livemix-frame {
+  position: relative;
+  width: 100%;
+  max-width: 230px;
+  margin: 28px auto 0 auto;
+  aspect-ratio: 1080 / 1180;
+  overflow: hidden;
+}
+
+.ne-livemix-frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top center;
+  display: block;
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 38%, transparent 76%);
+  mask-image: linear-gradient(180deg, #000 0%, #000 38%, transparent 76%);
+}
+
+/* ---------- Responsive recomposition ---------- */
+
+@media (max-width: 900px) {
+  .ne-overnight-grid {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    text-align: center;
+  }
+  .ne-overnight-kicker,
+  .ne-overnight-headline,
+  .ne-overnight-lead {
+    text-align: center;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .ne-overnight-frame {
+    max-width: 320px;
+  }
+}
+
+@media (max-width: 680px) {
+  .night-engine {
+    padding: 104px 0 100px 0;
+  }
+  .ne-intro {
+    margin-bottom: 64px;
+  }
+  .ne-overnight-grid {
+    margin-bottom: 88px;
+  }
+  .ne-stage-name {
+    flex-basis: 118px;
+    font-size: 0.82rem;
+  }
+}

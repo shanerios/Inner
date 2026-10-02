@@ -64,6 +64,7 @@
   <link rel="stylesheet" href="/css/shell.css" />
   <link rel="stylesheet" href="/css/home.css" />
   <link rel="stylesheet" href="/css/practice.css" />
+  <link rel="stylesheet" href="/css/night-engine.css" />
   <link rel="preload" as="image" href="/media/images/home_background_portrait.webp" fetchpriority="high" media="(max-width: 680px)" />
   <link rel="preload" as="image" href="/media/images/home_background.webp" fetchpriority="high" media="(min-width: 681px)" />
   <style>
@@ -902,6 +903,128 @@
     </div>
   </section>
 
+  <!-- NIGHT ENGINE -->
+  <section class="night-engine" id="night-engine" aria-label="The Night Engine">
+    <div class="ne-intro reveal">
+      <p class="ne-eyebrow">Under the Surface / The Night Engine</p>
+      <h2 class="ne-headline">Inner doesn&rsquo;t play a sleep track.<br>It constructs the night.</h2>
+      <p class="ne-lead">An Overnight Journey unfolds across hours &mdash; procedural sound, entrainment, and noise fields evolving stage by stage, with recognition signals timed to support lucid dreaming, dream recall, and deep rest.</p>
+    </div>
+
+    <div class="ne-timeline-wrap">
+      <div class="ne-timeline-stage">
+        <div class="ne-timeline-inner">
+          <p class="ne-timeline-kicker">The Night</p>
+
+          <div class="ne-layers" aria-hidden="true">
+            <div class="ne-layer ne-layer--environment">
+              <span class="ne-layer-label">Environment</span>
+              <span class="ne-layer-bar"></span>
+            </div>
+            <div class="ne-layer ne-layer--entrainment">
+              <span class="ne-layer-label">Entrainment</span>
+              <span class="ne-layer-bar"></span>
+            </div>
+            <div class="ne-layer ne-layer--noise">
+              <span class="ne-layer-label">Noise Field</span>
+              <span class="ne-layer-bar"></span>
+            </div>
+            <div class="ne-layer ne-layer--signal">
+              <span class="ne-layer-label">Signal</span>
+              <span class="ne-layer-bar"></span>
+            </div>
+          </div>
+
+          <div class="ne-line-track" aria-hidden="true">
+            <span class="ne-tick" data-index="0"></span>
+            <span class="ne-tick" data-index="1"></span>
+            <span class="ne-tick" data-index="2"></span>
+            <span class="ne-tick" data-index="3"></span>
+            <span class="ne-tick" data-index="4"></span>
+            <span class="ne-tick" data-index="5"></span>
+            <span class="ne-tick" data-index="6"></span>
+            <span class="ne-marker"></span>
+          </div>
+
+          <div class="ne-stage-labels">
+            <div class="ne-stage" data-index="0">
+              <span class="ne-stage-name">Arrival</span>
+              <p class="ne-stage-desc">A short waking preparation begins the journey.</p>
+            </div>
+            <div class="ne-stage" data-index="1">
+              <span class="ne-stage-name">Descent</span>
+              <p class="ne-stage-desc">Sound eases the transition toward sleep.</p>
+            </div>
+            <div class="ne-stage" data-index="2">
+              <span class="ne-stage-name">Submergence</span>
+              <p class="ne-stage-desc">Entrainment and noise fields settle in.</p>
+            </div>
+            <div class="ne-stage" data-index="3">
+              <span class="ne-stage-name">Deep Night</span>
+              <p class="ne-stage-desc">The mix continues quietly through protected sleep.</p>
+            </div>
+            <div class="ne-stage" data-index="4">
+              <span class="ne-stage-name">Recognition</span>
+              <p class="ne-stage-desc">A signal arrives at scheduled windows across the night.</p>
+            </div>
+
+            <div class="ne-recognition-overlay">
+              <p class="ne-signal-eyebrow">The Signal</p>
+              <p class="ne-signal-copy">A tone arrives at scheduled recognition windows across the night. Each time you hear it &mdash; ask: could this be a dream?</p>
+              <button type="button" class="ne-signal-btn">
+                <span class="ne-signal-btn-ring" aria-hidden="true"></span>
+                <span>Hear the Signal</span>
+                <span class="ne-signal-btn-dot" aria-hidden="true">&#9675;</span>
+              </button>
+              <div class="ne-recognition-portal">
+                <picture>
+                  <source srcset="/media/images/night_engine_recognition_ui.webp" type="image/webp" />
+                  <img src="/media/images/night_engine_recognition_ui.png" alt="Inner's Overnight Recognition screen: a signal tone with the prompt, could this be a dream?" width="1080" height="1920" loading="lazy" decoding="async" />
+                </picture>
+              </div>
+            </div>
+
+            <div class="ne-stage" data-index="5">
+              <span class="ne-stage-name">Release</span>
+              <p class="ne-stage-desc">The mix eases, stage by stage.</p>
+            </div>
+            <div class="ne-stage" data-index="6">
+              <span class="ne-stage-name">Return</span>
+              <p class="ne-stage-desc">The journey resolves toward waking.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="ne-overnight-grid">
+      <div class="ne-overnight-copy reveal">
+        <p class="ne-overnight-kicker">The Overnight Journey</p>
+        <h3 class="ne-overnight-headline">Your night, configured.</h3>
+        <p class="ne-overnight-lead">Choose what you're seeking, the sound environment, how long you have, how it should feel, and the signal that marks recognition. Inner builds the rest.</p>
+      </div>
+      <div class="ne-overnight-portal reveal">
+        <div class="ne-overnight-frame">
+          <picture>
+            <source srcset="/media/images/night_engine_overnight_ui.webp" type="image/webp" />
+            <img src="/media/images/night_engine_overnight_ui.png" alt="Inner's Overnight Journey setup screen: choosing what you're seeking, a sound environment, duration, feel, and signal." width="1080" height="1920" loading="lazy" decoding="async" />
+          </picture>
+        </div>
+      </div>
+    </div>
+
+    <div class="ne-livemix reveal">
+      <p class="ne-livemix-kicker">Want the controls?</p>
+      <p class="ne-livemix-lead">Solfeggio tones, binaural entrainment, noise fields &mdash; the live mix underneath every journey.</p>
+      <div class="ne-livemix-frame">
+        <picture>
+          <source srcset="/media/images/night_engine_live_mix_ui.webp" type="image/webp" />
+          <img src="/media/images/night_engine_live_mix_ui.png" alt="A glimpse of Inner's Live Mix controls: solfeggio carrier, binaural entrainment, and noise field." width="1080" height="1920" loading="lazy" decoding="async" />
+        </picture>
+      </div>
+    </div>
+  </section>
+
   <!-- THE PRACTICE / ARRIVE -->
   <section class="practice" id="the-practice" aria-label="The Inner Practice — Arrive">
     <div class="practice-atmosphere" aria-hidden="true">
@@ -1230,6 +1353,7 @@
   <script src="/js/site.js"></script>
   <script src="/js/home.js"></script>
   <script src="/js/practice.js"></script>
+  <script src="/js/night-engine.js"></script>
   <script>
     // Keep anchored section headings clear of the fixed navigation.
     function scrollToSection(hash, behavior = 'smooth') {
