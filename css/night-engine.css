@@ -519,6 +519,10 @@
      then the dominant question, then the button, then the real product
      screenshot emerge one at a time rather than all at once. */
   .ne-timeline-wrap.is-enhanced .ne-signal-question {
+    /* Tighter than the static layout's 18px — reclaims vertical room so
+       the larger portal below still fits at shorter laptop heights
+       (~768px), without touching the static/fallback spacing at all. */
+    margin-top: 12px;
     opacity: 0;
     transform: translateY(10px) scale(0.98);
     transition: opacity 0.6s ease-out, transform 0.6s ease-out;
@@ -529,6 +533,7 @@
   }
 
   .ne-timeline-wrap.is-enhanced .ne-signal-btn {
+    margin-top: 20px;
     opacity: 0;
     transform: translateY(8px);
     transition: opacity 0.5s ease-out, transform 0.5s ease-out, border-color 0.3s ease, background 0.3s ease, box-shadow 0.3s ease;
@@ -541,10 +546,13 @@
   /* The static/fallback portal is sized generously (260px) since it
      just flows down the page with no height budget. Inside the fixed
      instrument box it needs to stay modest, or its 16:9-inverse aspect
-     ratio (a 260px-wide portrait screenshot is ~460px tall) blows out
-     the box this sits in — hence the narrower override here. */
+     ratio (a 215px-wide portrait screenshot is ~382px tall) blows out
+     the box this sits in — hence the narrower override here (bumped
+     ~19% from the first pass's 180px, with the box below grown to
+     match so it doesn't crowd the button above it). */
   .ne-timeline-wrap.is-enhanced .ne-recognition-portal {
-    max-width: 180px;
+    max-width: 215px;
+    margin-top: 18px;
     opacity: 0;
     transform: translateY(16px) scale(0.97);
     transition: opacity 0.7s ease-out, transform 0.7s ease-out;
@@ -580,7 +588,19 @@
     transition: height 0.6s ease-out;
   }
   .ne-timeline-wrap.is-enhanced .ne-timeline-stage.is-recognition .ne-timeline-inner {
-    height: min(620px, 80vh);
+    height: min(680px, 88vh);
+  }
+
+  /* The box above grows taller (and re-centers) for Recognition, but
+     the kicker's own top:0 offset never moved with it — at the new
+     height that offset lands almost exactly where the overlay's
+     centered content starts, so the (still-dimmed, not hidden) "The
+     Night" text was sitting directly behind "The Signal," and two
+     overlapping translucent text layers read as an indistinct blur
+     rather than two legible words. Same opacity treatment, just moved
+     clear of the overlay's territory. */
+  .ne-timeline-wrap.is-enhanced .ne-timeline-stage.is-recognition .ne-timeline-kicker {
+    transform: translateY(-48px);
   }
 }
 
