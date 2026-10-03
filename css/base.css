@@ -32,6 +32,16 @@ summary:focus-visible {
   transform: translateY(0);
 }
 
+/* Progressive enhancement: the reveal starts hidden only so a script can show
+   it. With scripting unavailable nothing ever would, so keep content visible.
+   (`scripting` is Baseline: Chrome/Edge 120, Firefox 113, Safari 17.) */
+@media (scripting: none) {
+  .reveal {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 /* ==========================================================================
    Global reduced-motion strategy.
 
