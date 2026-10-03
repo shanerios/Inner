@@ -66,6 +66,7 @@
         }
       ],
       "./plugins/withProceduralDevFlavor",
+      "./plugins/withNoFontWeightAdjustment",
       [
         "expo-notifications",
         {

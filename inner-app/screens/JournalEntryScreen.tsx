@@ -329,6 +329,7 @@ export default function JournalEntryScreen({ route, navigation }: Props) {
     navigation.setOptions({
       // NativeStack title prefers a string; keeps layout stable and avoids yellow iOS back styling.
       headerTitle: entry ? fmtDate(entry.updatedAt) : 'Dream Log',
+      headerTitleAlign: 'center', // Android defaults to left, which crowded the RETURN control
       headerTransparent: true,
       headerShadowVisible: false,
       headerStyle: { backgroundColor: 'transparent' },
