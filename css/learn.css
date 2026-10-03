@@ -109,7 +109,7 @@ body.learn {
   background: rgba(161, 140, 255, 0.5);
 }
 .learn-label .learn-no {
-  color: rgba(235, 232, 255, 0.46);
+  color: rgba(235, 232, 255, 0.5);
   font-weight: 400;
 }
 
@@ -424,7 +424,7 @@ body.learn {
   font-family: var(--font-heading);
   font-size: 0.72rem;
   letter-spacing: 0.12em;
-  color: rgba(190, 178, 255, 0.55);
+  color: rgba(190, 178, 255, 0.63);
 }
 
 /* ==========================================================================
@@ -551,7 +551,7 @@ body.learn {
   font-size: 2.1rem;
   line-height: 1;
   letter-spacing: 0.02em;
-  color: rgba(200, 190, 255, 0.4);
+  color: rgba(200, 190, 255, 0.47);
 }
 
 /* Practice groups: when each method belongs. */
@@ -565,7 +565,7 @@ body.learn {
   font-size: 0.64rem;
   letter-spacing: 0.24em;
   text-transform: uppercase;
-  color: rgba(190, 178, 255, 0.5);
+  color: rgba(190, 178, 255, 0.63);
 }
 .learn-group .learn-entries {
   border-bottom: 0;
@@ -1264,7 +1264,7 @@ body.learn--obe {
 .obe-diagram-labels b {
   font-weight: 400;
   margin-right: 6px;
-  color: rgba(160, 182, 226, 0.6);
+  color: rgba(160, 182, 226, 0.66);
 }
 
 .js .obe-diagram .obe-line {
@@ -1439,7 +1439,7 @@ body.learn--recall {
   color: rgba(232, 196, 140, 0.82);
 }
 .learn--recall .learn-label::before { background: rgba(232, 196, 140, 0.5); }
-.learn--recall .learn-label .learn-no { color: rgba(246, 236, 222, 0.46); }
+.learn--recall .learn-label .learn-no { color: rgba(246, 236, 222, 0.5); }
 .learn--recall .learn-guide-no span { color: rgba(240, 206, 156, 0.95); }
 .learn--recall .learn-guide-no { color: rgba(246, 238, 226, 0.62); }
 .learn--recall .learn-sub { color: rgba(238, 212, 172, 0.88); }
@@ -1604,7 +1604,7 @@ body.learn--recall {
   font-size: 0.7rem;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: rgba(246, 238, 226, 0.46);
+  color: rgba(246, 238, 226, 0.5);
 }
 .recall-pattern .recall-fragment { font-size: clamp(1.1rem, 2vw, 1.28rem); }
 .recall-pattern .recall-fragment em {
