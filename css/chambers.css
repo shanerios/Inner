@@ -1,0 +1,375 @@
+/* ==========================================================================
+   Inner — The Chambers (homepage "Go deeper" section)
+
+   Scoped to index.html. A full-bleed, direct-<body>-child section like the
+   Sanctum / Night Engine / Practice, built on the existing tokens and kicker
+   language — no second design system. Three "doors" — each Chamber's own
+   environment art, feathered into the dark rather than boxed in a card —
+   each with a quiet preview control. Behavior lives in js/chambers.js.
+
+   While a preview plays, only that chamber's glow breathes — slowly, a gentle
+   swell of luminance, no equalizer, no waveform, no scaling. Under
+   prefers-reduced-motion the breathing is replaced by a static, faint
+   illumination so the "this one is open" state is still legible.
+   ========================================================================== */
+
+.chambers {
+  position: relative;
+  padding: 130px 0 140px 0;
+  /* Eases down from the Practice's --color-bg-primary and then simply stays
+     dark: the closing sequence (css/closing.css) picks up from the same
+     #06050f, so there is no brighter seam between the two. */
+  background: linear-gradient(180deg, var(--color-bg-primary) 0%, #06050f 20%, #06050f 100%);
+}
+
+.chambers-head {
+  max-width: 640px;
+  /* Tight on purpose: the art's top edge is feathered into the dark, so it
+     needs to start close to the headline to feel connected to it. */
+  margin: 0 auto 34px auto;
+  padding: 0 24px;
+  text-align: center;
+}
+
+.chambers-eyebrow {
+  font-family: var(--font-heading);
+  font-size: 0.76rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(200, 190, 255, 0.72);
+  margin: 0 0 18px 0;
+  max-width: none;
+}
+
+.chambers-title {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: clamp(1.9rem, 3.6vw, 2.7rem);
+  line-height: 1.16;
+  letter-spacing: 0.01em;
+  color: var(--color-text-primary);
+  margin: 0 0 18px 0;
+}
+
+.chambers-lead {
+  font-family: var(--font-body);
+  font-weight: 300;
+  font-size: 1.05rem;
+  line-height: 1.6;
+  color: var(--color-text-soft);
+  max-width: 40ch;
+  margin: 0 auto;
+}
+
+/* ---------- The three doors ---------- */
+
+.chambers-doors {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 0 clamp(20px, 5vw, 56px);
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: clamp(12px, 2.4vw, 32px);
+}
+
+.chamber {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  --chamber-tint: 160, 140, 255;
+}
+.chamber--sanctum   { --chamber-tint: 58, 150, 255;  --focus: 16%; --focus-sq: 24%; }
+.chamber--gate      { --chamber-tint: 118, 126, 255; --focus: 47%; --focus-sq: 45%; }
+.chamber--resonance { --chamber-tint: 100, 205, 150; --focus: 65%; --focus-sq: 57%; }
+
+/* Staggered arrival, reusing the shared .reveal/.visible mechanism. */
+.chamber:nth-child(2) { transition-delay: 0.12s; }
+.chamber:nth-child(3) { transition-delay: 0.24s; }
+
+/* The Chamber's own environment art (the app's player screen before audio
+   starts), cropped so the three orbs share a height and feathered into the
+   darkness at the top, bottom and sides — a glimpse through a door left
+   ajar, not a screenshot in a frame. --focus is where the crop sits on the
+   1080x1920 source (tuned per chamber so each orb lands ~40% down the
+   panel; --focus-sq is the same for the squarer mobile crop). Idle it is held back; opening a preview brings it forward and
+   lets the orb's light breathe. */
+.chamber-art {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 5;
+  overflow: hidden;
+  -webkit-mask-image:
+    linear-gradient(180deg, transparent 0%, #000 22%, #000 64%, transparent 100%),
+    linear-gradient(90deg, transparent 0%, #000 16%, #000 84%, transparent 100%);
+  -webkit-mask-composite: source-in;
+  mask-image:
+    linear-gradient(180deg, transparent 0%, #000 22%, #000 64%, transparent 100%),
+    linear-gradient(90deg, transparent 0%, #000 16%, #000 84%, transparent 100%);
+  mask-composite: intersect;
+}
+
+.chamber-art img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% var(--focus, 40%);
+  /* Zoom about the orb (which sits ~40% down the panel) so it isn't lost
+     in the dark. */
+  transform: scale(1.22);
+  transform-origin: 50% 40%;
+  opacity: 0.68;
+  transition: opacity 0.8s ease;
+}
+
+.chamber:hover .chamber-art img {
+  opacity: 0.84;
+}
+.chamber[data-state="playing"] .chamber-art img,
+.chamber[data-state="paused"] .chamber-art img {
+  opacity: 0.96;
+}
+
+/* Light of the orb itself, in the chamber's tint, additive over the art. */
+.chamber-glow {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 34% 27% at 50% 40%, rgba(var(--chamber-tint), 0.55) 0%, rgba(var(--chamber-tint), 0.16) 55%, transparent 100%);
+  mix-blend-mode: screen;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.chamber[data-state="playing"] .chamber-glow {
+  animation: chamber-breathe 9s ease-in-out infinite;
+}
+.chamber[data-state="paused"] .chamber-glow {
+  opacity: 0.18;
+  transition: opacity 0.8s ease;
+}
+
+@keyframes chamber-breathe {
+  0%, 100% { opacity: 0.06; }
+  50%      { opacity: 0.42; }
+}
+
+.chamber-name {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 1.28rem;
+  line-height: 1.2;
+  letter-spacing: 0.02em;
+  color: rgba(246, 242, 235, 0.96);
+  text-align: center;
+  margin: 22px 0 10px 0;
+}
+
+.chamber-numeral {
+  display: inline-block;
+  margin-right: 0.45em;
+  color: rgba(200, 190, 255, 0.78);
+}
+
+.chamber-desc {
+  font-family: var(--font-body);
+  font-weight: 300;
+  font-size: 0.98rem;
+  line-height: 1.55;
+  color: var(--color-text-soft);
+  max-width: 24ch;
+  margin: 0 auto 24px auto;
+  /* Rows stretch to equal height; letting the description absorb the
+     slack keeps all three controls on one line when copy wraps unevenly. */
+  flex: 1 0 auto;
+  text-wrap: balance;
+}
+
+/* ---------- Preview control ----------
+   index.html's global `button { background-color… }` and
+   `button:hover { background-color: #c0badd }` would otherwise paint this
+   as a solid lavender block (and the <=480px `button { width: 100% }`
+   rule would stretch it), so every state is pinned explicitly. */
+
+button.chamber-play,
+button.chamber-play:hover,
+button.chamber-play:focus,
+button.chamber-play:active {
+  background: transparent;
+  background-color: transparent;
+}
+
+button.chamber-play {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: auto;
+  min-height: 44px;
+  margin: 0;
+  padding: 11px 22px;
+  border: 1px solid rgba(161, 140, 255, 0.32);
+  border-radius: 999px;
+  color: rgba(235, 232, 255, 0.9);
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: border-color 0.3s ease, color 0.3s ease;
+}
+
+button.chamber-play:hover,
+.chamber[data-state="playing"] button.chamber-play {
+  border-color: rgba(200, 190, 255, 0.62);
+  color: #fff;
+}
+
+/* Play / pause glyphs drawn in CSS — the ▶ character renders as a colour
+   emoji on some platforms. */
+.chamber-play-icon {
+  position: relative;
+  width: 10px;
+  height: 11px;
+  flex: none;
+}
+.chamber-play-icon::before,
+.chamber-play-icon::after {
+  content: '';
+  position: absolute;
+  background: currentColor;
+}
+.chamber-play-icon::before {
+  inset: 0;
+  clip-path: polygon(0 0, 100% 50%, 0 100%);
+}
+.chamber-play-icon::after {
+  display: none;
+}
+.chamber[data-state="playing"] .chamber-play-icon::before,
+.chamber[data-state="playing"] .chamber-play-icon::after {
+  display: block;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  clip-path: none;
+}
+.chamber[data-state="playing"] .chamber-play-icon::before { left: 1px; right: auto; inset: 0 auto 0 1px; }
+.chamber[data-state="playing"] .chamber-play-icon::after  { right: 1px; }
+
+/* Restrained progress: one hairline under the control, only once the
+   preview has started. Not a scrubber, not a waveform. */
+.chamber-progress {
+  display: block;
+  width: min(160px, 70%);
+  height: 1px;
+  margin-top: 18px;
+  background: rgba(161, 140, 255, 0.14);
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  overflow: hidden;
+}
+.chamber[data-state="playing"] .chamber-progress,
+.chamber[data-state="paused"] .chamber-progress {
+  opacity: 1;
+}
+.chamber-progress-bar {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: rgba(205, 195, 255, 0.82);
+  transform-origin: left center;
+  transform: scaleX(0);
+  transition: transform 0.3s linear;
+}
+
+.chamber-status {
+  min-height: 1.3em;
+  margin: 10px 0 0 0;
+  font-family: var(--font-body);
+  font-weight: 300;
+  font-size: 0.82rem;
+  line-height: 1.3;
+  color: rgba(210, 205, 240, 0.6);
+  max-width: none;
+}
+
+/* ---------- Closing ---------- */
+
+.chambers-close {
+  max-width: 640px;
+  margin: 88px auto 0 auto;
+  padding: 0 24px;
+  text-align: center;
+}
+
+.chambers-close-copy {
+  font-family: var(--font-body);
+  font-weight: 300;
+  font-size: 1.12rem;
+  line-height: 1.6;
+  color: rgba(240, 238, 255, 0.88);
+  max-width: 36ch;
+  margin: 0 auto 22px auto;
+}
+
+.chambers-close-link {
+  display: inline-block;
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 0.74rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(205, 196, 255, 0.94);
+  text-decoration: none;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(161, 140, 255, 0.42);
+  transition: color 0.3s ease, border-color 0.3s ease;
+}
+.chambers-close-link:hover {
+  color: #fff;
+  border-bottom-color: rgba(200, 190, 255, 0.8);
+}
+
+/* ---------- Reduced motion ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .chamber[data-state="playing"] .chamber-glow {
+    animation: none;
+    opacity: 0.32;
+  }
+  .chamber-art img,
+  .chamber-progress,
+  .chamber-progress-bar {
+    transition: none;
+  }
+}
+
+/* ---------- Responsive ---------- */
+
+@media (max-width: 720px) {
+  .chambers-head { margin-bottom: 64px; }
+  .chambers-doors {
+    grid-template-columns: 1fr;
+    gap: 56px;
+    max-width: 460px;
+  }
+  .chamber:nth-child(2),
+  .chamber:nth-child(3) { transition-delay: 0s; }
+}
+
+@media (max-width: 680px) {
+  .chambers {
+    padding: 100px 0 110px 0;
+  }
+  .chambers-head { margin-bottom: 48px; }
+  .chambers-doors { gap: 44px; }
+  /* Squarer and a little smaller than desktop so three stacked doors don't
+     turn into a very long scroll; --focus-sq re-seats each crop so the orb
+     still lands ~40% down the shorter panel. */
+  .chamber-art { max-width: 300px; aspect-ratio: 1 / 1; }
+  .chamber-art img { object-position: 50% var(--focus-sq, 40%); }
+  .chamber-name { margin-top: 14px; }
+  .chambers-close { margin-top: 64px; }
+}
