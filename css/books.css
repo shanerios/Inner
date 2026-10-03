@@ -454,3 +454,67 @@ body.book {
 @media (prefers-reduced-motion: reduce) {
   .book-btn { transition: none; }
 }
+
+
+/* ==========================================================================
+   Additive components (first used by Guardians)
+   ========================================================================== */
+
+/* Guardians: midnight / sapphire atmosphere with gold from the cover */
+html.books--guardians {
+  --book-field-0: #070a14;
+  --book-field-1: #06080f;
+  --book-field-2: #05060b;
+  --book-field-3: #040408;
+  --book-accent: 239, 176, 107;
+  --book-glow-rgb: 136, 202, 254;
+  --book-glow: 0.13;
+  --book-ink-strong: #f3f5ff;
+  --book-ink: rgba(232, 236, 248, 0.88);
+  --book-ink-soft: rgba(206, 212, 230, 0.76);
+}
+
+/* a quiet footnote: availability, rest-first, framework status */
+.book-note {
+  max-width: 34rem;
+  margin: 22px auto 0 auto;
+  text-align: center;
+  font-size: 0.92rem;
+  line-height: 1.65;
+  color: var(--book-ink-soft);
+  text-wrap: pretty;
+}
+.book-note strong {
+  font-weight: 500;
+  color: var(--book-ink-strong);
+}
+
+/* more than one action: wrap, centred */
+.book-actions--pair {
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+/* product / app action: restrained Inner violet, book action stays gold */
+.book-btn--secondary {
+  border-color: rgba(var(--book-violet), 0.5);
+  background: rgba(var(--book-violet), 0.06);
+}
+.book-btn--secondary:hover {
+  border-color: rgba(var(--book-violet), 0.85);
+  background: rgba(var(--book-violet), 0.12);
+}
+
+/* sequence with a label instead of a numeral (phases, not an order) */
+.book-sequence--labels .book-track {
+  padding-top: 6px;
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(var(--book-accent), 0.92);
+}
+@media (max-width: 720px) {
+  .book-sequence--labels .book-track { padding-top: 0; }
+}
