@@ -21,7 +21,7 @@
   var hasIO = 'IntersectionObserver' in window;
 
   /* 1 + 3 — Arrival and ticks */
-  var revealEls = Array.prototype.slice.call(document.querySelectorAll('.learn-rv, .learn-plate'));
+  var revealEls = Array.prototype.slice.call(document.querySelectorAll('.learn-rv, .learn-plate, .obe-diagram'));
   var ticks = Array.prototype.slice.call(document.querySelectorAll('.learn-night'));
 
   if (!hasIO || reduce) {

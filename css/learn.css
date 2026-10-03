@@ -1063,3 +1063,351 @@ body.learn {
   .learn-faq summary::after,
   .learn-contents summary::after { transition: none; }
 }
+
+
+/* ==========================================================================
+   02 — OBE Awareness  (body.learn--obe)
+
+   Same publication, different territory: colder, sparser, stiller. Shared
+   Learn components are reused as-is; everything below is namespaced
+   `.learn--obe` / `.obe-*` and only re-tints or adds OBE-specific pieces.
+   Its signature element is the single-line diagram of the crossing.
+   ========================================================================== */
+
+body.learn--obe {
+  background: #05070c;
+  color: rgba(226, 232, 246, 0.84);
+}
+.learn--obe .learn-article,
+.learn--obe .learn-contents {
+  background: #05070c;
+}
+
+/* cold slate in place of lavender */
+.learn--obe .learn-eyebrow,
+.learn--obe .learn-label,
+.learn--obe .learn-fieldnote .learn-fieldnote-label,
+.learn--obe .learn-contents summary {
+  color: rgba(176, 194, 232, 0.8);
+}
+.learn--obe .learn-label::before { background: rgba(150, 172, 220, 0.5); }
+.learn--obe .learn-guide-no span { color: rgba(184, 204, 244, 0.95); }
+.learn--obe .learn-sub { color: rgba(186, 204, 238, 0.86); }
+.learn--obe .learn-meta { color: rgba(160, 180, 222, 0.5); }
+.learn--obe .learn-meta::before { background: rgba(150, 172, 220, 0.35); }
+.learn--obe .learn-lead { color: rgba(232, 238, 250, 0.88); }
+.learn--obe .learn-promise,
+.learn--obe .learn-intro { color: rgba(206, 216, 238, 0.66); }
+.learn--obe .learn-prose p { color: rgba(226, 232, 246, 0.84); }
+.learn--obe .learn-link {
+  color: rgba(190, 208, 242, 0.95);
+  border-bottom-color: rgba(150, 172, 220, 0.45);
+}
+.learn--obe .learn-link:hover { color: #fff; border-bottom-color: rgba(190, 208, 242, 0.85); }
+.learn--obe .learn-text-link { border-bottom-color: rgba(150, 172, 220, 0.5); }
+.learn--obe .learn-fieldnote { border-left-color: rgba(150, 172, 220, 0.4); }
+.learn--obe .learn-fieldnote p { color: rgba(220, 228, 245, 0.8); }
+.learn--obe .learn-index-title,
+.learn--obe .learn-next-label { color: rgba(160, 180, 222, 0.55); }
+.learn--obe .learn-index ol::before { background: rgba(150, 172, 220, 0.16); }
+.learn--obe .learn-index ol::after { background: rgba(190, 208, 244, 0.6); }
+.learn--obe .learn-progress { background: rgba(150, 172, 220, 0.1); }
+.learn--obe .learn-progress-bar { background: rgba(190, 208, 244, 0.55); }
+.learn--obe .learn-contents details { border-color: rgba(150, 172, 220, 0.16); }
+.learn--obe .learn-contents summary::after,
+.learn--obe .learn-contents .learn-no { color: rgba(160, 182, 226, 0.7); }
+.learn--obe .learn-epilogue-title span + span { color: rgba(190, 208, 244, 0.92); }
+.learn--obe .learn-next { border-top-color: rgba(150, 172, 220, 0.16); }
+.learn--obe .learn-next-line { color: rgba(186, 204, 238, 0.78); }
+.learn--obe .learn-store { border-color: rgba(150, 172, 220, 0.32); }
+.learn--obe .learn-store:hover { border-color: rgba(190, 208, 242, 0.65); background-color: rgba(150, 172, 220, 0.08); }
+
+/* ---------- Opening: a still window, sparse text ---------- */
+
+.learn-open--obe {
+  min-height: clamp(500px, 70vh, 700px);
+  background: linear-gradient(180deg, #090d17 0%, #06080f 70%, #05070c 100%);
+}
+.learn--obe .learn-title {
+  font-size: clamp(2.2rem, 5vw, 3.6rem);
+  max-width: 12.5em !important;
+}
+.learn--obe .learn-open-inner > * { max-width: 36rem; }
+
+@media (min-width: 901px) {
+  /* a tall, narrow glimpse of the window on the right — not a poster */
+  .learn-open--obe .learn-open-art {
+    left: auto;
+    right: max(24px, calc(50% - 500px));
+    width: min(36%, 400px);
+    top: calc(var(--topbar-height, 58px) + 24px);
+    bottom: 24px;
+    -webkit-mask-image:
+      linear-gradient(90deg, transparent 0%, #000 30%, #000 70%, transparent 100%),
+      linear-gradient(180deg, transparent 0%, #000 24%, #000 70%, transparent 100%);
+    -webkit-mask-composite: source-in;
+    mask-image:
+      linear-gradient(90deg, transparent 0%, #000 30%, #000 70%, transparent 100%),
+      linear-gradient(180deg, transparent 0%, #000 24%, #000 70%, transparent 100%);
+    mask-composite: intersect;
+  }
+  .learn-open--obe .learn-open-art img {
+    object-position: 50% 38%;
+    opacity: 0.66;
+    filter: saturate(0.8);
+  }
+}
+
+.obe-promise {
+  margin-top: 26px !important;
+  font-size: 0.98rem;
+  line-height: 1.85;
+  color: rgba(206, 216, 238, 0.62);
+}
+.obe-promise span { display: block; }
+.obe-promise .is-key { color: rgba(214, 226, 250, 0.94); }
+
+/* ---------- 01: the stance, held as a note ---------- */
+
+.obe-stance { margin-top: 38px; }
+.obe-stance p:not(.learn-fieldnote-label) {
+  font-size: 1.0625rem;
+  line-height: 1.8;
+  color: rgba(234, 240, 252, 0.88);
+}
+
+/* ---------- 02: reported phenomena, term-led (not keyed rows) ---------- */
+
+.obe-phenomena { border-bottom: 1px solid rgba(150, 172, 220, 0.14); }
+.obe-phenomenon {
+  padding: 30px 0 34px 0;
+  border-top: 1px solid rgba(150, 172, 220, 0.14);
+}
+.obe-phenomenon h3 { margin: 0; }
+.obe-term {
+  display: block;
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: clamp(1.4rem, 2.4vw, 1.8rem);
+  line-height: 1.2;
+  letter-spacing: 0.01em;
+  color: rgba(248, 250, 255, 0.97);
+}
+.obe-phrase {
+  display: block;
+  margin-top: 6px;
+  font-family: var(--font-body);
+  font-weight: 300;
+  font-style: italic;
+  font-size: 1rem;
+  letter-spacing: 0;
+  line-height: 1.5;
+  color: rgba(176, 198, 238, 0.86);
+}
+.obe-phenomenon p {
+  margin-top: 14px;
+  max-width: 58ch;
+  font-size: 1.0625rem;
+  line-height: 1.75;
+  color: rgba(220, 229, 246, 0.8);
+}
+
+.obe-plate { max-width: 760px; height: clamp(200px, 34vh, 340px); }
+.obe-plate img { opacity: 0.85; }
+
+/* ---------- 05: the crossing — one line, three points ---------- */
+
+.obe-diagram {
+  margin: 46px 0 14px 0;
+  padding: 0;
+}
+.obe-line {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+.obe-seg {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;   /* keep the line weight on small screens */
+}
+.obe-seg--anchor  { stroke: rgba(190, 208, 244, 0.85); stroke-width: 1.7; }
+.obe-seg--clarity { stroke: rgba(206, 198, 255, 0.92); stroke-width: 1.5; }
+.obe-seg--nav     { stroke: url(#obe-fade); stroke-width: 1.7; stroke-dasharray: 0.5 8; }
+.obe-node {
+  r: 5px;
+  fill: #05070c;
+  stroke: rgba(216, 228, 252, 0.95);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+.obe-node--end { stroke: rgba(216, 228, 252, 0.6); }
+
+.obe-diagram-labels {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  margin-top: 16px;
+}
+.obe-diagram-labels span {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 0.78rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(216, 228, 250, 0.92);
+}
+.obe-diagram-labels span:first-child { justify-self: start; }
+.obe-diagram-labels span:nth-child(2) { justify-self: center; }
+.obe-diagram-labels span:last-child { justify-self: end; }
+.obe-diagram-labels b {
+  font-weight: 400;
+  margin-right: 6px;
+  color: rgba(160, 182, 226, 0.6);
+}
+
+.js .obe-diagram .obe-line {
+  clip-path: inset(-8px 100% -8px -8px);
+  transition: clip-path 2.4s ease;
+}
+.js .obe-diagram .obe-diagram-labels {
+  opacity: 0;
+  transition: opacity 1.2s ease 0.7s;
+}
+.js .obe-diagram.is-in .obe-line { clip-path: inset(-8px -8px -8px -8px); }
+.js .obe-diagram.is-in .obe-diagram-labels { opacity: 1; }
+
+.obe-witnesses {
+  margin-top: 40px;
+  border-top: 1px solid rgba(150, 172, 220, 0.14);
+}
+.obe-witness {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 0 32px;
+  padding: 28px 0 30px 0;
+  border-bottom: 1px solid rgba(150, 172, 220, 0.14);
+}
+.obe-glyph {
+  display: block;
+  width: 72px;
+  height: 12px;
+  margin-top: 0.4em;
+  overflow: visible;
+}
+.obe-glyph path {
+  fill: none;
+  stroke: rgba(190, 208, 244, 0.85);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.obe-witness--clarity .obe-glyph path { stroke: rgba(206, 198, 255, 0.92); }
+.obe-witness--nav .obe-glyph path { stroke: rgba(190, 208, 244, 0.6); stroke-dasharray: 0.5 7; }
+.obe-witness-no,
+.obe-step-no {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 0.7rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  line-height: 1.4;
+  color: rgba(176, 194, 232, 0.72);
+}
+.obe-witness h3 {
+  margin-top: 8px;
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: clamp(1.25rem, 2vw, 1.45rem);
+  line-height: 1.25;
+  color: rgba(248, 250, 255, 0.97);
+}
+.obe-witness p:not(.obe-witness-no) {
+  margin-top: 10px;
+  max-width: 58ch;
+  font-size: 1.0625rem;
+  line-height: 1.75;
+  color: rgba(220, 229, 246, 0.8);
+}
+.obe-after { margin-top: 44px; }
+
+/* ---------- 06: practice — calm, shorter, sequential ---------- */
+
+.obe-before { margin-top: 0; }
+.obe-steps {
+  list-style: none;
+  margin-top: 48px !important;
+}
+.obe-step {
+  position: relative;
+  margin-top: 32px;
+  padding-top: 26px;
+}
+.obe-step:first-child { margin-top: 0; }
+.obe-step::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 28px;
+  height: 1px;
+  background: rgba(150, 172, 220, 0.4);
+}
+.obe-step h3 {
+  margin-top: 8px;
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: clamp(1.15rem, 1.9vw, 1.35rem);
+  line-height: 1.3;
+  color: rgba(248, 250, 255, 0.96);
+}
+.obe-step p:not(.obe-step-no) {
+  margin-top: 8px;
+  max-width: 56ch;
+  font-size: 1.0625rem;
+  line-height: 1.72;
+  color: rgba(220, 229, 246, 0.8);
+}
+
+/* ---------- Epilogue ---------- */
+
+.obe-epilogue-line {
+  max-width: 46ch;
+  margin: 26px auto 0 auto !important;
+  font-size: 1rem;
+  line-height: 1.7;
+  color: rgba(206, 216, 238, 0.66);
+}
+.obe-epilogue-links { margin-top: 20px !important; }
+.obe-epilogue-links + .learn-enter { margin-top: 34px; }
+
+/* ---------- OBE responsive ---------- */
+
+@media (max-width: 720px) {
+  .obe-witness {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+  .obe-glyph { margin-top: 0; }
+  .obe-phenomenon p,
+  .obe-witness p:not(.obe-witness-no),
+  .obe-step p:not(.obe-step-no) { font-size: 1.0625rem; }
+  .obe-diagram { margin-top: 38px; }
+}
+@media (max-width: 520px) {
+  .obe-node { r: 8px; }
+}
+@media (max-width: 420px) {
+  .obe-diagram-labels span { font-size: 0.75rem; letter-spacing: 0.12em; }
+  .obe-diagram-labels b { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .js .obe-diagram .obe-line,
+  .js .obe-diagram .obe-diagram-labels {
+    clip-path: none;
+    opacity: 1;
+    transition: none;
+  }
+}
