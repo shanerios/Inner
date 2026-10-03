@@ -15,7 +15,10 @@
 
 .chambers {
   position: relative;
-  padding: 130px 0 140px 0;
+  /* Top padding is deliberately modest: the Night Engine's own bottom
+     padding plus the faded foot of the Live Mix image already give the
+     hand-off its breath. */
+  padding: 90px 0 140px 0;
   /* Eases down from the Practice's --color-bg-primary and then simply stays
      dark: the closing sequence (css/closing.css) picks up from the same
      #06050f, so there is no brighter seam between the two. */
@@ -361,7 +364,7 @@ button.chamber-play:hover,
 
 @media (max-width: 680px) {
   .chambers {
-    padding: 100px 0 110px 0;
+    padding: 72px 0 110px 0;
   }
   .chambers-head { margin-bottom: 48px; }
   .chambers-doors { gap: 44px; }
