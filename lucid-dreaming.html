@@ -54,6 +54,7 @@
   <link rel="stylesheet" href="/css/tokens.css" />
   <link rel="stylesheet" href="/css/fonts.css" />
   <link rel="stylesheet" href="/css/base.css" />
+  <link rel="stylesheet" href="/css/shell.css" />
   <style>
     :root { --topbar-height: 58px; --ink: #f5f3ff; --muted: rgba(224,220,242,.78); --violet: #A18CFF; }
     * { box-sizing: border-box; }
@@ -69,32 +70,6 @@
       line-height: 1.7;
     }
     a { color: inherit; }
-    .topbar {
-      height: var(--topbar-height);
-      position: fixed;
-      inset: 0 0 auto 0;
-      z-index: 20;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      max-width: 1100px;
-      margin: 0 auto;
-      padding: 0 18px;
-      background: linear-gradient(180deg, rgba(13,12,31,.96), rgba(13,12,31,.58));
-      backdrop-filter: blur(12px);
-      border-bottom: 1px solid rgba(144,140,159,.16);
-    }
-    .topbar::before { content: ''; position: fixed; inset: 0; height: var(--topbar-height); z-index: -1; background: rgba(13,12,31,.74); }
-    .brand, .topbar nav a { font-family: 'CalSans', sans-serif; text-decoration: none; }
-    .brand { font-size: 1.35rem; letter-spacing: .04em; }
-    .topbar nav { display: flex; gap: 22px; align-items: center; }
-    .topbar nav a { color: rgba(235,232,255,.84); font-size: .95rem; }
-    .topbar nav a:hover, .topbar nav a.active { color: var(--violet); }
-    .nav-dropdown { position: relative; }
-    .nav-dropdown-toggle { display: inline-flex; align-items: center; gap: 5px; }
-    .nav-dropdown-menu { position: absolute; top: 100%; left: 50%; width: 220px; padding: 9px; border: 1px solid rgba(161,140,255,.2); border-radius: 10px; background: rgba(18,17,39,.98); opacity: 0; transform: translate(-50%,8px); pointer-events: none; transition: .18s ease; }
-    .nav-dropdown:hover .nav-dropdown-menu, .nav-dropdown:focus-within .nav-dropdown-menu { opacity: 1; transform: translate(-50%,4px); pointer-events: auto; }
-    .nav-dropdown-menu a { display: block; padding: 9px 10px; border-radius: 6px; }
     .hero { max-width: 900px; margin: 0 auto; padding: 142px 24px 84px; text-align: center; }
     .orb { width: 118px; height: 118px; margin: 0 auto 22px; overflow: hidden; border-radius: 50%; }
     .orb img { width: 100%; height: 100%; display: block; object-fit: cover; object-position: center 30%; }
@@ -142,11 +117,8 @@
     .faq summary { cursor: pointer; color: #fff; font-family: 'CalSans',sans-serif; font-size: 1.06rem; }
     .faq details p { margin: 12px 0 0; color: var(--muted); }
     footer { max-width: 1040px; margin: 0 auto; padding: 26px 24px 42px; border-top: 1px solid rgba(161,140,255,.18); color: rgba(210,205,240,.64); font-size: .85rem; text-align: center; }
-    footer a { margin-left: 12px; text-decoration: none; }
     @media (max-width: 760px) {
       :root { --topbar-height: 64px; }
-      .topbar nav a:not(.download-link) { display: none; }
-      .nav-dropdown { display: none; }
       .hero { padding-top: 120px; padding-bottom: 60px; }
       .steps, .techniques, .mistakes { grid-template-columns: 1fr; gap: 20px; }
       .section { padding: 48px 0; }
@@ -159,23 +131,46 @@
 </head>
 <body>
   <header class="topbar" aria-label="Inner navigation">
-    <a class="brand" href="index.html">inner</a>
+    <div class="brand">
+      <a href="/" class="brand-link">inner</a>
+    </div>
     <nav aria-label="Site navigation">
-      <div class="nav-dropdown">
-        <a class="nav-dropdown-toggle active" href="lucid-dreaming.html">Practices ▾</a>
-        <div class="nav-dropdown-menu">
-          <a class="active" href="lucid-dreaming.html">Lucid Dreaming</a>
-          <a href="#recall">Dream Recall</a>
-          <a href="obe-awareness.html">OBE Awareness</a>
-          <a href="index.html#chambers">Deep Rest</a>
+      <a href="/chambers.html">Chambers</a>
+      <div class="nav-dropdown" id="learn-dropdown">
+        <a href="#" class="nav-dropdown-toggle active" onclick="event.preventDefault();">Learn <span class="dropdown-chevron">▾</span></a>
+        <div class="nav-dropdown-menu" role="menu">
+          <a href="/lucid-dreaming.html" class="active" role="menuitem">Lucid Dreaming</a>
+          <a href="/lucid-dreaming.html#recall" role="menuitem">Dream Recall</a>
+          <a href="/obe-awareness.html" role="menuitem">OBE Awareness</a>
         </div>
       </div>
-      <a href="chambers.html">Chambers</a>
-      <a href="auditory-ascension.html">Books</a>
-      <a href="about.html">About</a>
-      <a class="download-link" href="#download">Download</a>
+      <div class="nav-dropdown" id="books-dropdown">
+        <a href="#" class="nav-dropdown-toggle" onclick="event.preventDefault();">Books <span class="dropdown-chevron">▾</span></a>
+        <div class="nav-dropdown-menu" role="menu">
+          <a href="/auditory-ascension.html" role="menuitem">Auditory Ascension</a>
+          <a href="/guardians.html" role="menuitem">Guardians</a>
+        </div>
+      </div>
+      <a href="/about.html">About</a>
+      <a href="/#join" class="nav-download">Download</a>
     </nav>
+    <button class="hamburger" id="hamburger" aria-label="Open navigation" aria-expanded="false">
+      <span></span><span></span><span></span>
+    </button>
   </header>
+
+  <nav class="mobile-nav" id="mobile-nav" aria-label="Mobile navigation">
+    <a href="/chambers.html">Chambers</a>
+    <span class="mobile-nav-label">Learn</span>
+    <a href="/lucid-dreaming.html" class="mobile-nav-sub active">Lucid Dreaming</a>
+    <a href="/lucid-dreaming.html#recall" class="mobile-nav-sub">Dream Recall</a>
+    <a href="/obe-awareness.html" class="mobile-nav-sub">OBE Awareness</a>
+    <span class="mobile-nav-label">Books</span>
+    <a href="/auditory-ascension.html" class="mobile-nav-sub">Auditory Ascension</a>
+    <a href="/guardians.html" class="mobile-nav-sub">Guardians</a>
+    <a href="/about.html">About</a>
+    <a href="/#join" class="nav-download">Download</a>
+  </nav>
 
   <main>
     <header class="hero">
@@ -302,6 +297,15 @@
     </article>
   </main>
 
-  <footer>© Inner • getinner.app <a href="about.html">About</a><a href="impact.html">Impact</a><a href="privacy.html">Privacy</a><a href="support.html">Support</a></footer>
+  <footer class="site-footer">
+    <nav class="site-footer-nav" aria-label="Footer">
+      <a href="/chambers.html">Chambers</a>
+      <span class="site-footer-group"><span class="site-footer-label">Learn</span> <a href="/lucid-dreaming.html">Lucid Dreaming</a> <a href="/lucid-dreaming.html#recall">Dream Recall</a> <a href="/obe-awareness.html">OBE Awareness</a></span>
+      <span class="site-footer-group"><span class="site-footer-label">Books</span> <a href="/auditory-ascension.html">Auditory Ascension</a> <a href="/guardians.html">Guardians</a></span>
+      <a href="/about.html">About</a>
+    </nav>
+    <p class="site-footer-legal">&copy; Inner &bull; getinner.app <a href="/privacy.html">Privacy</a> <a href="/support.html">Support</a></p>
+  </footer>
+  <script src="/js/site.js"></script>
 </body>
 </html>

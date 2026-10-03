@@ -43,30 +43,27 @@
 <body class="chambers-page">
   <header class="topbar" aria-label="Inner navigation">
     <div class="brand">
-      <a href="index.html" class="brand-link">inner</a>
+      <a href="/" class="brand-link">inner</a>
     </div>
     <nav aria-label="Site navigation">
-      <div class="nav-dropdown" id="practices-dropdown">
-        <a href="#" class="nav-dropdown-toggle" onclick="event.preventDefault();">Practices <span class="dropdown-chevron">▾</span></a>
+      <a href="/chambers.html" class="active">Chambers</a>
+      <div class="nav-dropdown" id="learn-dropdown">
+        <a href="#" class="nav-dropdown-toggle" onclick="event.preventDefault();">Learn <span class="dropdown-chevron">▾</span></a>
         <div class="nav-dropdown-menu" role="menu">
-          <a href="lucid-dreaming.html" role="menuitem">Lucid Dreaming</a>
-          <a href="lucid-dreaming.html#recall" role="menuitem">Dream Recall</a>
-          <a href="obe-awareness.html" role="menuitem">OBE Awareness</a>
-          <a href="/#chambers" role="menuitem">Deep Rest</a>
+          <a href="/lucid-dreaming.html" role="menuitem">Lucid Dreaming</a>
+          <a href="/lucid-dreaming.html#recall" role="menuitem">Dream Recall</a>
+          <a href="/obe-awareness.html" role="menuitem">OBE Awareness</a>
         </div>
       </div>
       <div class="nav-dropdown" id="books-dropdown">
         <a href="#" class="nav-dropdown-toggle" onclick="event.preventDefault();">Books <span class="dropdown-chevron">▾</span></a>
         <div class="nav-dropdown-menu" role="menu">
-          <a href="auditory-ascension.html" role="menuitem">Auditory Ascension</a>
-          <a href="guardians.html" role="menuitem">Guardians</a>
+          <a href="/auditory-ascension.html" role="menuitem">Auditory Ascension</a>
+          <a href="/guardians.html" role="menuitem">Guardians</a>
         </div>
       </div>
-      <a href="chambers.html" class="active" aria-current="page">Chambers</a>
-      <a href="/#night-engine">Experience</a>
-      <a href="/#trust">Trust</a>
-      <a href="about.html">About</a>
-      <a href="/#join">Download</a>
+      <a href="/about.html">About</a>
+      <a href="/#join" class="nav-download">Download</a>
     </nav>
     <button class="hamburger" id="hamburger" aria-label="Open navigation" aria-expanded="false">
       <span></span><span></span><span></span>
@@ -74,17 +71,16 @@
   </header>
 
   <nav class="mobile-nav" id="mobile-nav" aria-label="Mobile navigation">
-    <a href="lucid-dreaming.html">Lucid Dreaming</a>
-    <a href="lucid-dreaming.html#recall">Dream Recall</a>
-    <a href="obe-awareness.html">OBE Awareness</a>
-    <a href="/#chambers">Deep Rest</a>
-    <a href="auditory-ascension.html">Auditory Ascension</a>
-    <a href="guardians.html">Guardians</a>
-    <a href="chambers.html" class="active" aria-current="page">Chambers</a>
-    <a href="/#night-engine">Experience</a>
-    <a href="/#trust">Trust</a>
-    <a href="about.html">About</a>
-    <a href="/#join">Download</a>
+    <a href="/chambers.html" class="active">Chambers</a>
+    <span class="mobile-nav-label">Learn</span>
+    <a href="/lucid-dreaming.html" class="mobile-nav-sub">Lucid Dreaming</a>
+    <a href="/lucid-dreaming.html#recall" class="mobile-nav-sub">Dream Recall</a>
+    <a href="/obe-awareness.html" class="mobile-nav-sub">OBE Awareness</a>
+    <span class="mobile-nav-label">Books</span>
+    <a href="/auditory-ascension.html" class="mobile-nav-sub">Auditory Ascension</a>
+    <a href="/guardians.html" class="mobile-nav-sub">Guardians</a>
+    <a href="/about.html">About</a>
+    <a href="/#join" class="nav-download">Download</a>
   </nav>
 
   <!-- Descent rail: a quiet position marker that gives way before the end. -->
@@ -316,9 +312,15 @@
 
       <div class="cp-footer">
         <div class="veil-line" aria-hidden="true"></div>
-        <p>
-          <span class="footer-links">&copy; Inner &bull; getinner.app <a href="/about.html">About</a> <a href="/impact.html">Impact</a> <a href="/privacy.html">Privacy</a> <a href="/support.html">Support</a></span>
-        </p>
+        <div class="site-footer">
+          <nav class="site-footer-nav" aria-label="Footer">
+            <a href="/chambers.html">Chambers</a>
+            <span class="site-footer-group"><span class="site-footer-label">Learn</span> <a href="/lucid-dreaming.html">Lucid Dreaming</a> <a href="/lucid-dreaming.html#recall">Dream Recall</a> <a href="/obe-awareness.html">OBE Awareness</a></span>
+            <span class="site-footer-group"><span class="site-footer-label">Books</span> <a href="/auditory-ascension.html">Auditory Ascension</a> <a href="/guardians.html">Guardians</a></span>
+            <a href="/about.html">About</a>
+          </nav>
+          <p class="site-footer-legal">&copy; Inner &bull; getinner.app <a href="/privacy.html">Privacy</a> <a href="/support.html">Support</a></p>
+        </div>
       </div>
     </section>
 

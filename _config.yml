@@ -1,0 +1,23 @@
+# Jekyll config for the GitHub Pages "legacy" build (Settings > Pages > Deploy from branch: main, /).
+#
+# This repository also contains the Inner mobile app (inner-app/, a React Native / Expo project).
+# It is NOT part of the website and must never be published at getinner.app. Jekyll's `exclude`
+# drops paths from the BUILT SITE only; every file below stays in the repository untouched.
+exclude:
+  # App source and project notes (not website content)
+  - inner-app
+  - memory
+  # Build tooling defaults
+  - node_modules
+  - Gemfile
+  - Gemfile.lock
+  - vendor
+  # Verified unreferenced design-source / remnant files (checked against all pages, CSS, JS,
+  # download.html, explorer/index.html and git history)
+  - "Feature Graphic.ai"
+  - logo2.png
+  - Assets
+  - calsans-semibold.otf
+  - outer_sanctum_card.webp
+  - inner_flame_card.webp
+  - horizon_gate_card.webp

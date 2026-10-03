@@ -226,30 +226,27 @@
 <body>
   <header class="topbar" aria-label="Inner navigation">
     <div class="brand">
-      <a href="index.html" class="brand-link">inner</a>
+      <a href="/" class="brand-link">inner</a>
     </div>
-    <nav aria-label="Sections">
-      <div class="nav-dropdown" id="practices-dropdown">
-        <a href="#practice" class="nav-dropdown-toggle" onclick="event.preventDefault();">Practices <span class="dropdown-chevron">▾</span></a>
+    <nav aria-label="Site navigation">
+      <a href="/chambers.html">Chambers</a>
+      <div class="nav-dropdown" id="learn-dropdown">
+        <a href="#" class="nav-dropdown-toggle" onclick="event.preventDefault();">Learn <span class="dropdown-chevron">▾</span></a>
         <div class="nav-dropdown-menu" role="menu">
-          <a href="lucid-dreaming.html" role="menuitem">Lucid Dreaming</a>
-          <a href="lucid-dreaming.html#recall" role="menuitem">Dream Recall</a>
-          <a href="obe-awareness.html" role="menuitem">OBE Awareness</a>
-          <a href="#chambers" role="menuitem">Deep Rest</a>
+          <a href="/lucid-dreaming.html" role="menuitem">Lucid Dreaming</a>
+          <a href="/lucid-dreaming.html#recall" role="menuitem">Dream Recall</a>
+          <a href="/obe-awareness.html" role="menuitem">OBE Awareness</a>
         </div>
       </div>
       <div class="nav-dropdown" id="books-dropdown">
-        <a href="#books" class="nav-dropdown-toggle" onclick="event.preventDefault();">Books <span class="dropdown-chevron">▾</span></a>
+        <a href="#" class="nav-dropdown-toggle" onclick="event.preventDefault();">Books <span class="dropdown-chevron">▾</span></a>
         <div class="nav-dropdown-menu" role="menu">
-          <a href="auditory-ascension.html" role="menuitem">Auditory Ascension</a>
-          <a href="guardians.html" role="menuitem">Guardians</a>
+          <a href="/auditory-ascension.html" role="menuitem">Auditory Ascension</a>
+          <a href="/guardians.html" role="menuitem">Guardians</a>
         </div>
       </div>
-      <a href="chambers.html">Chambers</a>
-      <a href="#night-engine">Experience</a>
-      <a href="#trust">Trust</a>
-      <a href="about.html">About</a>
-      <a href="#join">Download</a>
+      <a href="/about.html">About</a>
+      <a href="#join" class="nav-download">Download</a>
     </nav>
     <button class="hamburger" id="hamburger" aria-label="Open navigation" aria-expanded="false">
       <span></span><span></span><span></span>
@@ -257,17 +254,16 @@
   </header>
 
   <nav class="mobile-nav" id="mobile-nav" aria-label="Mobile navigation">
-    <a href="lucid-dreaming.html">Lucid Dreaming</a>
-    <a href="lucid-dreaming.html#recall">Dream Recall</a>
-    <a href="obe-awareness.html">OBE Awareness</a>
-    <a href="#chambers">Deep Rest</a>
-    <a href="auditory-ascension.html">Auditory Ascension</a>
-    <a href="guardians.html">Guardians</a>
-    <a href="chambers.html">Chambers</a>
-    <a href="#night-engine">Experience</a>
-    <a href="#trust">Trust</a>
-    <a href="about.html">About</a>
-    <a href="#join">Download</a>
+    <a href="/chambers.html">Chambers</a>
+    <span class="mobile-nav-label">Learn</span>
+    <a href="/lucid-dreaming.html" class="mobile-nav-sub">Lucid Dreaming</a>
+    <a href="/lucid-dreaming.html#recall" class="mobile-nav-sub">Dream Recall</a>
+    <a href="/obe-awareness.html" class="mobile-nav-sub">OBE Awareness</a>
+    <span class="mobile-nav-label">Books</span>
+    <a href="/auditory-ascension.html" class="mobile-nav-sub">Auditory Ascension</a>
+    <a href="/guardians.html" class="mobile-nav-sub">Guardians</a>
+    <a href="/about.html">About</a>
+    <a href="#join" class="nav-download">Download</a>
   </nav>
 
   <!-- THRESHOLD / APPROACH -->
@@ -662,9 +658,15 @@
 
       <div class="download-footer">
         <div class="veil-line" aria-hidden="true"></div>
-        <p>
-          <span class="footer-links">&copy; Inner &bull; getinner.app <a href="/about.html">About</a> <a href="/impact.html">Impact</a> <a href="/privacy.html">Privacy</a> <a href="/support.html">Support</a></span>
-        </p>
+        <div class="site-footer">
+          <nav class="site-footer-nav" aria-label="Footer">
+            <a href="/chambers.html">Chambers</a>
+            <span class="site-footer-group"><span class="site-footer-label">Learn</span> <a href="/lucid-dreaming.html">Lucid Dreaming</a> <a href="/lucid-dreaming.html#recall">Dream Recall</a> <a href="/obe-awareness.html">OBE Awareness</a></span>
+            <span class="site-footer-group"><span class="site-footer-label">Books</span> <a href="/auditory-ascension.html">Auditory Ascension</a> <a href="/guardians.html">Guardians</a></span>
+            <a href="/about.html">About</a>
+          </nav>
+          <p class="site-footer-legal">&copy; Inner &bull; getinner.app <a href="/privacy.html">Privacy</a> <a href="/support.html">Support</a></p>
+        </div>
       </div>
     </section>
 
@@ -677,13 +679,19 @@
   <script src="/js/chambers.js"></script>
   <script>
     // Keep anchored section headings clear of the fixed navigation.
+    // On this page <body> is the scroll container (html/body are height:100% with
+    // overflow hidden on x), so window.scrollTo() alone does not move the page.
     function scrollToSection(hash, behavior = 'smooth') {
       if (!hash || hash === '#') return;
       const target = document.querySelector(hash);
       if (!target) return;
       const topbarHeight = document.querySelector('.topbar')?.offsetHeight || 0;
-      const top = window.scrollY + target.getBoundingClientRect().top - topbarHeight - 16;
-      window.scrollTo({ top: Math.max(0, top), behavior });
+      const body = document.body;
+      const bodyScrolls = body.scrollHeight > body.clientHeight + 1 && getComputedStyle(body).overflowY !== 'visible';
+      const scroller = bodyScrolls ? body : window;
+      const base = bodyScrolls ? body.scrollTop : window.scrollY;
+      const top = base + target.getBoundingClientRect().top - topbarHeight - 16;
+      scroller.scrollTo({ top: Math.max(0, top), behavior });
     }
 
     document.querySelectorAll('a[href^="#"]').forEach((link) => {
@@ -701,21 +709,6 @@
       window.addEventListener('load', () => scrollToSection(window.location.hash, 'auto'), { once: true });
     }
 
-    // Active nav tracking
-    const sections = document.querySelectorAll('section[id]');
-    const navLinks = document.querySelectorAll('.topbar nav a');
-
-    const navObserver = new IntersectionObserver((entries) => {
-      entries.forEach(entry => {
-        if (entry.isIntersecting) {
-          navLinks.forEach(link => link.classList.remove('active'));
-          const activeLink = document.querySelector(`.topbar nav a[href="#${entry.target.id}"]`);
-          if (activeLink) activeLink.classList.add('active');
-        }
-      });
-    }, { threshold: 0.4 });
-
-    sections.forEach(section => navObserver.observe(section));
   </script>
 </body>
 </html>
