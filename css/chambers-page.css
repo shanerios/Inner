@@ -1,0 +1,801 @@
+/* ==========================================================================
+   Inner — The Chambers (dedicated page, chambers.html)
+
+   One long vertical descent. Nothing here is a card or a grid of equals:
+   each Chamber is its own composition (centered, offset, overlaid, empty)
+   and the whole page darkens as it goes — until Chamber VII, where the
+   direction turns toward emergence, and VIII–IX, which strip everything
+   back. Artwork is the Chambers' own environments, feathered into the page
+   darkness exactly like the homepage doors; colour lives in the art, a
+   faint ambient aura, and small typographic details (the canonical accents
+   from inner-app/theme/chamberEnvironments.ts).
+
+   Preview controls reuse css/chambers.css (.chamber-play, progress, status)
+   and js/chambers.js unchanged — the .chamber wrapper here is just the
+   control group that carries data-state.
+   ========================================================================== */
+
+html {
+  scroll-padding-top: calc(var(--topbar-height, 58px) + 20px);
+}
+
+body.chambers-page {
+  margin: 0;
+  background: #010103;
+  color: #fff;
+  font-family: var(--font-body);
+  font-weight: 200;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.chambers-page .topbar a,
+.chambers-page .brand-link {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+.chambers-page main {
+  display: block;
+  overflow-x: clip;
+}
+
+:where(.chambers-page) h1,
+:where(.chambers-page) h2,
+:where(.chambers-page) p {
+  margin: 0;
+  max-width: none;
+  text-align: inherit;
+}
+
+/* ---------- Reveal (only when JS is present) ---------- */
+
+.js .rv {
+  opacity: 0;
+  transform: translateY(22px);
+  transition: opacity 1.1s ease, transform 1.1s ease;
+  transition-delay: var(--d, 0s);
+}
+.js .rv--slow {
+  transition-duration: 3.2s;
+  transform: none;
+}
+.js .is-in .rv,
+.js .rv.is-in {
+  opacity: 1;
+  transform: none;
+}
+
+/* ---------- Opening ---------- */
+
+.cp-open {
+  position: relative;
+  min-height: 100vh;
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: calc(var(--topbar-height, 58px) + 48px) 24px 120px 24px;
+  background:
+    radial-gradient(ellipse 60% 44% at 50% 40%, rgba(84, 74, 190, 0.17), transparent 72%),
+    linear-gradient(180deg, #0d0c1f 0%, #0a0a1a 100%);
+}
+
+.cp-eyebrow {
+  font-family: var(--font-heading);
+  font-size: 0.76rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(200, 190, 255, 0.72);
+  margin-bottom: 26px !important;
+}
+
+.cp-title {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: clamp(2.5rem, 7vw, 5.2rem);
+  line-height: 1.06;
+  letter-spacing: 0.005em;
+  color: #fff;
+  margin-bottom: 34px !important;
+}
+.cp-title span {
+  display: block;
+}
+.cp-title-b {
+  color: rgba(206, 197, 255, 0.92);
+}
+
+.cp-lead {
+  font-family: var(--font-body);
+  font-weight: 300;
+  font-size: clamp(1.02rem, 1.5vw, 1.18rem);
+  line-height: 1.7;
+  color: var(--color-text-soft);
+  max-width: 50ch !important;
+  text-wrap: pretty;
+}
+.cp-lead--sub {
+  margin-top: 18px !important;
+  color: rgba(235, 232, 255, 0.62);
+}
+
+.cp-cue {
+  position: absolute;
+  left: 50%;
+  bottom: 36px;
+  width: 1px;
+  height: 64px;
+  background: linear-gradient(180deg, rgba(190, 178, 255, 0), rgba(190, 178, 255, 0.5));
+  overflow: hidden;
+}
+.cp-cue::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1px;
+  height: 22px;
+  background: linear-gradient(180deg, transparent, #e4deff);
+  animation: cp-cue 3.4s ease-in-out infinite;
+}
+@keyframes cp-cue {
+  0%   { transform: translateY(-24px); opacity: 0; }
+  30%  { opacity: 1; }
+  100% { transform: translateY(70px); opacity: 0; }
+}
+
+/* ---------- A Chamber ---------- */
+
+.chm {
+  /* Per-chamber knobs (overridden below). Accent = canonical app accent;
+     --glow = the art's own light, for the ambient aura and orb glow. */
+  --accent: 160, 140, 255;
+  --glow: 160, 140, 255;
+  --bg-a: #0a0a1a;
+  --bg-b: #080816;
+  --h: 105vh;          /* minimum scroll presence */
+  --arn: 0.8;          /* art box aspect (w/h) */
+  --aw: 520px;         /* art max width */
+  --o: 0.4;            /* orb height as a fraction of the source image */
+  --ty: 0.42;          /* where that orb should sit in the art box */
+  --z: 1;              /* zoom of the source inside the box */
+  --io: 0.72;          /* art opacity at rest */
+  --aura: 0.1;
+  position: relative;
+  isolation: isolate;
+  min-height: var(--h);
+  padding: clamp(64px, 10vh, 120px) clamp(24px, 5vw, 64px);
+  box-sizing: border-box;
+  display: grid;
+  align-items: center;
+  background: linear-gradient(180deg, var(--bg-a) 0%, var(--bg-b) 100%);
+}
+
+/* Faint ambient aura in the Chamber's own colour, behind everything. */
+.chm::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: radial-gradient(ellipse 54% 46% at var(--ax, 50%) 46%, rgba(var(--glow), var(--aura)), transparent 72%);
+  pointer-events: none;
+}
+
+.chm-inner {
+  position: relative;
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: clamp(32px, 6vw, 96px);
+  align-items: center;
+}
+
+/* Oversized numeral, barely there — scale and orientation, not decoration. */
+.chm-ghost {
+  position: absolute;
+  z-index: -1;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: clamp(9rem, 30vw, 26rem);
+  line-height: 1;
+  letter-spacing: 0.04em;
+  color: rgba(var(--accent), 0.02);
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* ---------- Art ----------
+   The source (9:16) is sized by width inside a feathered box; the orb's
+   position within it is solved in CSS (--o / --ty / --z) so the glow, which
+   lives in the same coordinate space, always sits on the orb at any crop. */
+
+.chm-art {
+  --k: calc(1.7778 * 1.12 * var(--z) * var(--arn));
+  position: relative;
+  width: 100%;
+  max-width: var(--aw);
+  aspect-ratio: var(--arn);
+  justify-self: center;
+  -webkit-mask-image:
+    linear-gradient(180deg, transparent 0%, #000 24%, #000 64%, transparent 100%),
+    linear-gradient(90deg, transparent 0%, #000 17%, #000 83%, transparent 100%);
+  -webkit-mask-composite: source-in;
+  mask-image:
+    linear-gradient(180deg, transparent 0%, #000 24%, #000 64%, transparent 100%),
+    linear-gradient(90deg, transparent 0%, #000 17%, #000 83%, transparent 100%);
+  mask-composite: intersect;
+}
+.js .chm-art {
+  opacity: 0;
+  transition: opacity 2s ease;
+}
+.js .is-in .chm-art {
+  opacity: 1;
+}
+
+.chm-art-inner {
+  position: absolute;
+  left: calc(50% - 56% * var(--z));
+  width: calc(112% * var(--z));
+  aspect-ratio: 9 / 16;
+  top: calc(100% * clamp(1 - var(--k), var(--ty) - var(--o) * var(--k), 0));
+  transform: translate3d(0, var(--py, 0px), 0);
+  will-change: transform;
+}
+.chm-art-inner img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: var(--io);
+  transition: opacity 1s ease;
+}
+
+.chm-glow {
+  position: absolute;
+  left: calc(var(--ox, 0.5) * 100%);
+  top: calc(var(--o) * 100%);
+  width: 62%;
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(var(--glow), 0.55) 0%, rgba(var(--glow), 0.16) 42%, transparent 70%);
+  mix-blend-mode: screen;
+  opacity: var(--gi, 0.1);
+  pointer-events: none;
+}
+
+/* Preview playing / paused: that Chamber's light breathes and the art comes
+   forward. (:has() — older engines simply skip the effect, not the preview.) */
+.chm:has(.chamber[data-state="playing"]) .chm-glow {
+  animation: chm-breathe 9s ease-in-out infinite;
+}
+.chm:has(.chamber[data-state="paused"]) .chm-glow {
+  opacity: 0.2;
+}
+.chm:has(.chamber[data-state="playing"]) .chm-art-inner img,
+.chm:has(.chamber[data-state="paused"]) .chm-art-inner img {
+  opacity: min(1, calc(var(--io) + 0.2));
+}
+@keyframes chm-breathe {
+  0%, 100% { opacity: 0.06; }
+  50%      { opacity: 0.42; }
+}
+
+/* ---------- Text ---------- */
+
+.chm-text {
+  position: relative;
+  z-index: 2;
+  text-align: left;
+}
+
+.chm-label {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 18px !important;
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 0.72rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(var(--accent), 0.82);
+}
+.chm-label::before {
+  content: '';
+  width: 30px;
+  height: 1px;
+  background: rgba(var(--accent), 0.5);
+}
+.chm-label i {
+  font-style: normal;
+  font-weight: 400;
+  color: rgba(235, 232, 255, 0.46);
+}
+.chm-label i::before {
+  content: '\00b7';
+  margin-right: 14px;
+  color: rgba(235, 232, 255, 0.3);
+}
+
+.chm-name {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: clamp(2.1rem, 4.6vw, 3.5rem);
+  line-height: 1.08;
+  letter-spacing: 0.01em;
+  color: rgba(247, 244, 238, 0.97);
+  margin-bottom: 20px !important;
+}
+.chm-sub {
+  display: block;
+  margin-top: 10px;
+  font-size: max(0.72rem, 0.42em);
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  font-weight: 400;
+  color: rgba(var(--accent), 0.82);
+}
+
+.chm-line {
+  font-family: var(--font-body);
+  font-weight: 300;
+  font-size: clamp(1.14rem, 1.9vw, 1.5rem);
+  line-height: 1.5;
+  color: rgba(238, 235, 255, 0.84);
+  margin-bottom: 30px !important;
+}
+.chm-line span {
+  display: block;
+}
+
+.chm-preview {
+  align-items: flex-start;
+}
+.chm-preview .chamber-status {
+  text-align: left;
+}
+
+/* Centered compositions */
+.chm--center .chm-text {
+  text-align: center;
+}
+.chm--center .chm-label {
+  justify-content: center;
+}
+.chm--center .chm-label::before {
+  display: none;
+}
+.chm--center .chm-label i:first-of-type::before {
+  content: '\00b7';
+}
+.chm--center .chm-preview {
+  align-items: center;
+}
+.chm--center .chm-preview .chamber-status {
+  text-align: center;
+}
+
+/* ==========================================================================
+   The nine compositions. Colours are the canonical accents; --glow is the
+   art's own light where it differs.
+   ========================================================================== */
+
+/* I — Outer Sanctum: architectural, symmetric, cold. Grounded. */
+.chm--1 {
+  --accent: 226, 232, 240;
+  --glow: 58, 150, 255;
+  --bg-a: #0a0a1a; --bg-b: #080816;
+  --h: 100vh; --arn: 0.78; --aw: 500px; --o: 0.37; --ty: 0.4; --io: 0.74; --aura: 0.11; --gi: 0.12;
+}
+.chm--1 .chm-inner { grid-template-columns: minmax(0, 1fr); justify-items: center; }
+.chm--1 .chm-text { margin-top: -96px; }
+
+/* II — Inner Flame: warmth, off-axis. */
+.chm--2 {
+  --accent: 249, 115, 22;
+  --glow: 249, 115, 22;
+  --bg-a: #080816; --bg-b: #070711;
+  --h: 92vh; --arn: 0.82; --aw: 470px; --o: 0.42; --ty: 0.44; --io: 0.7; --aura: 0.085; --gi: 0.1; --ax: 28%;
+}
+.chm--2 .chm-art { justify-self: end; }
+
+/* III — Horizon Gate: wide, the text emerges from the gate's own dark. */
+.chm--3 {
+  --accent: 129, 140, 248;
+  --glow: 118, 126, 255;
+  --bg-a: #070711; --bg-b: #06060f;
+  --h: 100vh; --arn: 1.4; --aw: 920px; --o: 0.37; --ty: 0.4; --io: 0.8; --aura: 0.1; --gi: 0.12;
+}
+.chm--3 .chm-inner { grid-template-columns: minmax(0, 1fr); justify-items: center; }
+.chm--3 .chm-text { margin-top: -64px; }
+
+/* IV — Resonance Field: text first, art on the right; the field opens up. */
+.chm--4 {
+  --accent: 34, 197, 94;
+  --glow: 100, 205, 150;
+  --bg-a: #06060f; --bg-b: #05050c;
+  --h: 94vh; --arn: 0.8; --aw: 520px; --o: 0.45; --ty: 0.44; --io: 0.74; --aura: 0.09; --gi: 0.1; --ax: 70%;
+}
+.chm--4 .chm-art { order: 2; justify-self: start; }
+.chm--4 .chm-text { order: 1; justify-self: end; max-width: 460px; }
+
+/* V — Remembrance Code: the image sits behind the words, recognised
+   rather than presented. */
+.chm--5 {
+  --accent: 20, 184, 166;
+  --glow: 120, 110, 255;
+  --bg-a: #05050c; --bg-b: #05040b;
+  --h: 96vh; --arn: 1.45; --aw: 1100px; --o: 0.43; --ty: 0.5; --io: 0.46; --aura: 0.08; --gi: 0.08; --ax: 62%;
+}
+.chm--5 .chm-inner { grid-template-columns: minmax(0, 1fr); }
+.chm--5 .chm-art { grid-area: 1 / 1; justify-self: end; }
+.chm--5 .chm-text { grid-area: 1 / 1; justify-self: start; max-width: 460px; }
+
+/* VI — Transcendence Veil: large, slow, ambiguous; drifts more than the
+   others and keeps its second line behind a veil. */
+.chm--6 {
+  --accent: 168, 85, 247;
+  --glow: 168, 85, 247;
+  --bg-a: #05040b; --bg-b: #040309;
+  --h: 116vh; --arn: 0.72; --aw: 600px; --o: 0.57; --ty: 0.5; --io: 0.66; --aura: 0.09; --gi: 0.06; --ax: 66%;
+}
+.chm--6 .chm-art { order: 2; justify-self: end; }
+.chm--6 .chm-text { order: 1; max-width: 420px; }
+.chm-late {
+  opacity: 0;
+  filter: blur(7px);
+  transition: opacity 3.4s ease 1.3s, filter 3.4s ease 1.3s;
+}
+.is-in .chm-late,
+html:not(.js) .chm-late {
+  opacity: 1;
+  filter: none;
+}
+
+/* VII — Return to Light: emergence. Wider, brighter, warm; the page itself
+   lifts for the first time. */
+.chm--7 {
+  --accent: 253, 230, 138;
+  --glow: 253, 214, 130;
+  --bg-a: #040309; --bg-b: #050408;
+  --h: 104vh; --arn: 1.55; --aw: 1180px; --o: 0.52; --ty: 0.46; --io: 0.95; --aura: 0.17; --gi: 0.16;
+  background:
+    radial-gradient(ellipse 62% 54% at 50% 38%, rgba(236, 196, 110, 0.13), transparent 74%),
+    linear-gradient(180deg, #040309 0%, #0a0806 38%, #0a0806 62%, #040308 100%);
+}
+.chm--7 .chm-inner { grid-template-columns: minmax(0, 1fr); justify-items: center; }
+.chm--7 .chm-text { margin-top: -120px; }
+.chm--7 .chm-name { color: #fffaf0; }
+.chm--7 .chm-line { color: rgba(255, 248, 232, 0.88); }
+.chm--7 .chm-ghost { color: rgba(253, 230, 138, 0.03); }
+
+/* VIII — Free Flow Corridor: less of everything. A distant glimpse, space,
+   and three beats of presence. */
+.chm--8 {
+  --accent: 96, 165, 250;
+  --glow: 96, 165, 250;
+  --bg-a: #040308; --bg-b: #030307;
+  --h: 108vh; --arn: 0.5; --aw: 190px; --z: 1.1; --o: 0.48; --ty: 0.46; --io: 0.3; --aura: 0.03; --gi: 0.04;
+}
+.chm--8 .chm-inner { grid-template-columns: minmax(0, 1fr); justify-items: center; }
+.chm--8 .chm-art { margin-bottom: 14px; }
+.chm--8 .chm-name { font-size: clamp(1.7rem, 3.4vw, 2.5rem); }
+.chm--8 .chm-line { font-size: clamp(1.1rem, 1.7vw, 1.35rem); color: rgba(228, 230, 248, 0.74); }
+.chm-beat {
+  opacity: 0;
+  transition: opacity 2.4s ease;
+}
+.chm-beat:nth-child(1) { transition-delay: 0.5s; }
+.chm-beat:nth-child(2) { transition-delay: 2.4s; }
+.chm-beat:nth-child(3) { transition-delay: 4.4s; }
+.is-in .chm-beat,
+html:not(.js) .chm-beat {
+  opacity: 1;
+}
+
+/* IX — Inquiry Gate: the quietest. Near-black, a sliver of the gate,
+   room, and one question left unanswered. */
+.chm--9 {
+  --accent: 148, 163, 184;
+  --glow: 148, 163, 184;
+  --bg-a: #030307; --bg-b: #010103;
+  --h: 110vh; --arn: 0.34; --aw: 130px; --z: 1.6; --o: 0.45; --ty: 0.46; --io: 0.34; --aura: 0.025; --gi: 0;
+  align-content: start;
+  padding-top: clamp(120px, 20vh, 220px);
+  padding-bottom: clamp(140px, 26vh, 260px);
+}
+.chm--9 .chm-inner { grid-template-columns: minmax(0, 1fr); justify-items: center; }
+.chm--9 .chm-art { margin-bottom: 20px; }
+.chm--9 .chm-name { font-size: clamp(1.7rem, 3.4vw, 2.4rem); color: rgba(226, 232, 244, 0.88); }
+.chm--9 .chm-line { font-size: clamp(1.05rem, 1.6vw, 1.3rem); color: rgba(214, 222, 238, 0.7); margin-bottom: 0 !important; }
+.chm--9 .chm-ghost { display: none; }
+
+.cp-question {
+  margin: clamp(220px, 46vh, 460px) auto 0 auto !important;
+  max-width: 21ch !important;
+  text-align: center;
+  font-family: var(--font-body);
+  font-weight: 200;
+  font-size: clamp(1.3rem, 2.5vw, 1.95rem);
+  line-height: 1.5;
+  letter-spacing: 0.02em;
+  color: rgba(214, 222, 238, 0.8);
+  text-wrap: balance;
+  transition-delay: 0.4s;
+}
+
+/* ---------- Ending ---------- */
+
+.cp-end {
+  padding: clamp(160px, 28vh, 300px) 24px 56px 24px;
+  text-align: center;
+  background: #010103;
+}
+
+.cp-end-title {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: clamp(1.7rem, 3.6vw, 2.7rem);
+  line-height: 1.2;
+  letter-spacing: 0.01em;
+  color: rgba(247, 244, 238, 0.95);
+  max-width: 22ch !important;
+  margin: 0 auto 28px auto !important;
+  text-wrap: balance;
+}
+.cp-end-title span {
+  display: block;
+}
+.cp-end-b {
+  margin-top: 0.5em;
+  color: rgba(206, 197, 255, 0.9);
+}
+
+.cp-end-copy {
+  font-family: var(--font-body);
+  font-weight: 300;
+  font-size: 1.05rem;
+  line-height: 1.65;
+  color: rgba(235, 232, 255, 0.66);
+  max-width: 44ch !important;
+  margin: 0 auto !important;
+  text-wrap: pretty;
+}
+
+.cp-enter {
+  /* An epilogue: the Chambers' ending has concluded before anything is asked. */
+  margin-top: clamp(120px, 18vh, 170px);
+}
+.cp-enter-label {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 0.74rem;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: rgba(200, 190, 255, 0.78);
+  margin-bottom: 22px !important;
+}
+.cp-enter-row {
+  display: flex;
+  gap: 14px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.cp-store {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  min-width: 176px;
+  padding: 11px 24px;
+  box-sizing: border-box;
+  border: 1px solid rgba(161, 140, 255, 0.32);
+  border-radius: 999px;
+  color: rgba(235, 232, 255, 0.9);
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 0.78rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-decoration: none;
+  transition: border-color 0.3s ease, color 0.3s ease, background-color 0.3s ease;
+}
+.cp-store:hover {
+  border-color: rgba(200, 190, 255, 0.65);
+  color: #fff;
+  background-color: rgba(161, 140, 255, 0.08);
+}
+
+.cp-footer {
+  margin-top: 120px;
+  padding-bottom: 8px;
+}
+.cp-footer .veil-line {
+  margin: 0 auto;
+  max-width: 720px;
+}
+.cp-footer p {
+  margin: 20px auto 0 auto;
+  font-size: 0.9rem;
+  color: rgba(210, 205, 240, 0.7);
+}
+
+/* ---------- Descent rail ---------- */
+
+.descent {
+  position: fixed;
+  z-index: 8;
+  right: clamp(14px, 2.2vw, 34px);
+  top: 50%;
+  transform: translateY(-50%);
+  height: 232px;
+  width: 22px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 1.2s ease;
+}
+.descent[data-n="1"], .descent[data-n="2"], .descent[data-n="3"], .descent[data-n="4"],
+.descent[data-n="5"], .descent[data-n="6"], .descent[data-n="7"] {
+  opacity: 1;
+}
+.descent[data-n="8"] {
+  opacity: 0.38;
+}
+.descent-line {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: linear-gradient(180deg, transparent, rgba(190, 178, 255, 0.28) 12%, rgba(190, 178, 255, 0.28) 88%, transparent);
+}
+.descent-ticks {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding: 6px 0;
+  box-sizing: border-box;
+}
+.descent-ticks li {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  height: 1px;
+  width: 7px;
+  background: rgba(190, 178, 255, 0.34);
+  transition: width 0.6s ease, background-color 0.6s ease;
+}
+.descent-ticks li b {
+  position: absolute;
+  right: calc(100% + 10px);
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 0.62rem;
+  letter-spacing: 0.14em;
+  color: rgba(226, 220, 255, 0.9);
+  opacity: 0;
+  transition: opacity 0.6s ease;
+}
+.descent[data-n="1"] li[data-n="1"], .descent[data-n="2"] li[data-n="2"], .descent[data-n="3"] li[data-n="3"],
+.descent[data-n="4"] li[data-n="4"], .descent[data-n="5"] li[data-n="5"], .descent[data-n="6"] li[data-n="6"],
+.descent[data-n="7"] li[data-n="7"], .descent[data-n="8"] li[data-n="8"], .descent[data-n="9"] li[data-n="9"] {
+  width: 18px;
+  background: rgba(226, 220, 255, 0.95);
+}
+.descent[data-n="1"] li[data-n="1"] b, .descent[data-n="2"] li[data-n="2"] b, .descent[data-n="3"] li[data-n="3"] b,
+.descent[data-n="4"] li[data-n="4"] b, .descent[data-n="5"] li[data-n="5"] b, .descent[data-n="6"] li[data-n="6"] b,
+.descent[data-n="7"] li[data-n="7"] b, .descent[data-n="8"] li[data-n="8"] b, .descent[data-n="9"] li[data-n="9"] b {
+  opacity: 1;
+}
+
+/* ---------- Responsive ---------- */
+
+@media (max-width: 900px) {
+  .chm-inner {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+    justify-items: center;
+  }
+  .chm {
+    min-height: 0;
+    padding: 84px 24px 96px 24px;
+  }
+  .chm-art {
+    --arn: 0.84;
+    --aw: 420px;
+    width: min(100%, 420px);
+    order: 0 !important;
+    justify-self: center !important;
+  }
+  .chm-text {
+    order: 1 !important;
+    justify-self: stretch !important;
+    max-width: 480px !important;
+    margin: -20px auto 0 auto !important;
+  }
+  .chm-ghost { font-size: clamp(8rem, 44vw, 16rem); }
+
+  /* Chambers that lean left/right on desktop keep a hint of that on small
+     screens: text aligned with the lean, art nudged the other way. */
+  .chm--2 .chm-art,
+  .chm--5 .chm-art { justify-self: start !important; margin-left: -4%; }
+  .chm--4 .chm-art,
+  .chm--6 .chm-art { justify-self: end !important; margin-right: -4%; }
+  .chm--5 .chm-inner { display: grid; }
+  .chm--5 .chm-art, .chm--5 .chm-text { grid-area: auto; }
+
+  .chm--3 .chm-art { --arn: 0.9; --aw: 440px; }
+  .chm--5 .chm-art { --arn: 0.95; --io: 0.5; }
+  .chm--7 .chm-art { --arn: 0.9; --aw: 440px; }
+  .chm--8 { padding-top: 56px; padding-bottom: 120px; }
+  .chm--8 .chm-art { --arn: 0.5; --aw: 150px; }
+  .chm--8 .chm-text { margin-top: 8px !important; }
+  .chm--9 { padding: 96px 24px 120px 24px; }
+  .chm--9 .chm-art { --aw: 110px; }
+  .chm--9 .chm-text { margin-top: 12px !important; }
+  .cp-question { margin-top: clamp(150px, 34vh, 280px) !important; }
+}
+
+@media (max-width: 680px) {
+  .descent {
+    height: 150px;
+    width: 14px;
+    right: 8px;
+  }
+  .descent-ticks li { width: 5px; }
+  .descent-ticks li b { display: none; }
+  .descent[data-n="1"] li[data-n="1"], .descent[data-n="2"] li[data-n="2"], .descent[data-n="3"] li[data-n="3"],
+  .descent[data-n="4"] li[data-n="4"], .descent[data-n="5"] li[data-n="5"], .descent[data-n="6"] li[data-n="6"],
+  .descent[data-n="7"] li[data-n="7"], .descent[data-n="8"] li[data-n="8"] {
+    width: 11px;
+  }
+
+  .cp-open { padding-bottom: 100px; }
+  .cp-title { margin-bottom: 26px !important; }
+  .cp-end { padding-top: clamp(130px, 22vh, 220px); }
+  .cp-enter { margin-top: 104px; }
+  .cp-footer { margin-top: 88px; }
+}
+
+@media (max-width: 380px) {
+  .chm-label { letter-spacing: 0.18em; gap: 10px; }
+  .chm-label::before { width: 20px; }
+  .cp-store { min-width: 150px; padding-inline: 18px; }
+}
+
+/* ---------- Reduced motion ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .js .rv,
+  .js .rv--slow {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  .js .chm-art { opacity: 1; transition: none; }
+  .chm-late, .chm-beat { opacity: 1; filter: none; transition: none; }
+  .cp-cue::after { animation: none; opacity: 0.8; transform: translateY(20px); }
+  .chm:has(.chamber[data-state="playing"]) .chm-glow {
+    animation: none;
+    opacity: 0.3;
+  }
+  .chm-art-inner { transform: none !important; }
+}

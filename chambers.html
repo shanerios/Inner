@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>The Chambers &mdash; Nine Thresholds, One Descent Inward | Inner</title>
+  <meta name="description" content="Nine guided Chambers designed to carry awareness progressively inward, toward the threshold of lucid dreaming, conscious sleep, and out-of-body exploration." />
+  <link rel="canonical" href="https://www.getinner.app/chambers.html" />
+  <meta name="theme-color" content="#0D0C1F" />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://www.getinner.app/chambers.html" />
+  <meta property="og:title" content="The Chambers &mdash; Nine thresholds. One descent inward." />
+  <meta property="og:description" content="A progressive series of guided experiences designed to carry awareness deeper toward the threshold of lucid dreaming, conscious sleep, and out-of-body exploration." />
+  <meta property="og:image" content="https://www.getinner.app/favicon-master.png" />
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="The Chambers &mdash; Nine thresholds. One descent inward." />
+  <meta name="twitter:description" content="A progressive series of guided experiences designed to carry awareness deeper toward the threshold of lucid dreaming, conscious sleep, and out-of-body exploration." />
+  <meta name="twitter:image" content="https://www.getinner.app/favicon-master.png" />
+  <link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48" />
+  <link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
+  <script>document.documentElement.className += ' js';</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,200;0,300;0,400;0,500;0,600;1,200;1,300&display=swap" rel="stylesheet">
+
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-FVC3JDRGRM"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+
+    gtag('config', 'G-FVC3JDRGRM');
+  </script>
+  <link rel="stylesheet" href="/css/tokens.css" />
+  <link rel="stylesheet" href="/css/fonts.css" />
+  <link rel="stylesheet" href="/css/base.css" />
+  <link rel="stylesheet" href="/css/shell.css" />
+  <link rel="stylesheet" href="/css/chambers.css" />
+  <link rel="stylesheet" href="/css/chambers-page.css" />
+</head>
+<body class="chambers-page">
+  <header class="topbar" aria-label="Inner navigation">
+    <div class="brand">
+      <a href="index.html" class="brand-link">inner</a>
+    </div>
+    <nav aria-label="Site navigation">
+      <div class="nav-dropdown" id="practices-dropdown">
+        <a href="#" class="nav-dropdown-toggle" onclick="event.preventDefault();">Practices <span class="dropdown-chevron">▾</span></a>
+        <div class="nav-dropdown-menu" role="menu">
+          <a href="lucid-dreaming.html" role="menuitem">Lucid Dreaming</a>
+          <a href="lucid-dreaming.html#recall" role="menuitem">Dream Recall</a>
+          <a href="obe-awareness.html" role="menuitem">OBE Awareness</a>
+          <a href="/#chambers" role="menuitem">Deep Rest</a>
+        </div>
+      </div>
+      <div class="nav-dropdown" id="books-dropdown">
+        <a href="#" class="nav-dropdown-toggle" onclick="event.preventDefault();">Books <span class="dropdown-chevron">▾</span></a>
+        <div class="nav-dropdown-menu" role="menu">
+          <a href="auditory-ascension.html" role="menuitem">Auditory Ascension</a>
+          <a href="guardians.html" role="menuitem">Guardians</a>
+        </div>
+      </div>
+      <a href="chambers.html" class="active" aria-current="page">Chambers</a>
+      <a href="/#night-engine">Experience</a>
+      <a href="/#trust">Trust</a>
+      <a href="about.html">About</a>
+      <a href="/#join">Download</a>
+    </nav>
+    <button class="hamburger" id="hamburger" aria-label="Open navigation" aria-expanded="false">
+      <span></span><span></span><span></span>
+    </button>
+  </header>
+
+  <nav class="mobile-nav" id="mobile-nav" aria-label="Mobile navigation">
+    <a href="lucid-dreaming.html">Lucid Dreaming</a>
+    <a href="lucid-dreaming.html#recall">Dream Recall</a>
+    <a href="obe-awareness.html">OBE Awareness</a>
+    <a href="/#chambers">Deep Rest</a>
+    <a href="auditory-ascension.html">Auditory Ascension</a>
+    <a href="guardians.html">Guardians</a>
+    <a href="chambers.html" class="active" aria-current="page">Chambers</a>
+    <a href="/#night-engine">Experience</a>
+    <a href="/#trust">Trust</a>
+    <a href="about.html">About</a>
+    <a href="/#join">Download</a>
+  </nav>
+
+  <!-- Descent rail: a quiet position marker that gives way before the end. -->
+  <div class="descent" id="descent" data-n="0" aria-hidden="true">
+    <span class="descent-line"></span>
+    <ol class="descent-ticks">
+      <li data-n="1"><b>I</b></li>
+      <li data-n="2"><b>II</b></li>
+      <li data-n="3"><b>III</b></li>
+      <li data-n="4"><b>IV</b></li>
+      <li data-n="5"><b>V</b></li>
+      <li data-n="6"><b>VI</b></li>
+      <li data-n="7"><b>VII</b></li>
+      <li data-n="8"><b>VIII</b></li>
+      <li data-n="9"><b>IX</b></li>
+    </ol>
+  </div>
+
+  <!-- Preview audio (/media/sounds/chamber_{one,three,four}_preview.mp3) is
+       fetched only when a preview is pressed (see js/chambers.js). Chambers
+       II, V, VI, VII, VIII and IX have no preview and no control. -->
+  <main id="main" data-chamber-previews>
+
+    <!-- OPENING -->
+    <section class="cp-open" data-n="0" aria-labelledby="cp-title">
+      <p class="cp-eyebrow rv">The Chambers</p>
+      <h1 class="cp-title rv" id="cp-title" style="--d:.15s"><span>Nine thresholds.</span> <span class="cp-title-b">One descent inward.</span></h1>
+      <p class="cp-lead rv" style="--d:.35s">The Chambers are a progressive series of guided experiences designed to carry awareness deeper toward the threshold of lucid dreaming, conscious sleep, and out-of-body exploration.</p>
+      <p class="cp-lead cp-lead--sub rv" style="--d:.55s">Each Chamber moves further inward. Some are crossed once. Others reveal more through return.</p>
+      <span class="cp-cue" aria-hidden="true"></span>
+    </section>
+
+    <!-- I — OUTER SANCTUM -->
+    <section class="chm chm--1 chm--center" id="outer-sanctum" data-n="1" aria-labelledby="chm-1-name">
+      <span class="chm-ghost" aria-hidden="true">I</span>
+      <div class="chm-inner">
+        <div class="chm-art" aria-hidden="true">
+          <div class="chm-art-inner">
+            <img src="/media/images/chamber_one_screenshot.webp" alt="" width="1080" height="1920" loading="lazy" decoding="async" />
+            <span class="chm-glow"></span>
+          </div>
+        </div>
+        <div class="chm-text">
+          <p class="chm-label rv"><span>Chamber I</span><i>Descent</i></p>
+          <h2 class="chm-name rv" id="chm-1-name" style="--d:.1s">Outer Sanctum</h2>
+          <p class="chm-line rv" style="--d:.2s"><span>Begin the descent.</span> <span>Your first threshold.</span></p>
+          <div class="chamber chm-preview rv" style="--d:.3s" data-preview-src="/media/sounds/chamber_one_preview.mp3">
+            <button type="button" class="chamber-play" aria-describedby="chm-1-name">
+              <span class="chamber-play-icon" aria-hidden="true"></span>
+              <span class="chamber-play-label">Preview Chamber</span>
+            </button>
+            <span class="chamber-progress" aria-hidden="true"><span class="chamber-progress-bar"></span></span>
+            <p class="chamber-status" role="status" aria-live="polite"></p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- II — INNER FLAME -->
+    <section class="chm chm--2" id="inner-flame" data-n="2" aria-labelledby="chm-2-name">
+      <span class="chm-ghost" aria-hidden="true">II</span>
+      <div class="chm-inner">
+        <div class="chm-art" aria-hidden="true">
+          <div class="chm-art-inner">
+            <img src="/media/images/chamber_two_environment.webp" alt="" width="720" height="1280" loading="lazy" decoding="async" />
+            <span class="chm-glow"></span>
+          </div>
+        </div>
+        <div class="chm-text">
+          <p class="chm-label rv"><span>Chamber II</span><i>Ignition</i></p>
+          <h2 class="chm-name rv" id="chm-2-name" style="--d:.1s">Inner Flame</h2>
+          <p class="chm-line rv" style="--d:.2s"><span>Ignite the awareness</span> <span>already within you.</span></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- III — HORIZON GATE -->
+    <section class="chm chm--3 chm--center" id="horizon-gate" data-n="3" aria-labelledby="chm-3-name">
+      <span class="chm-ghost" aria-hidden="true">III</span>
+      <div class="chm-inner">
+        <div class="chm-art" aria-hidden="true">
+          <div class="chm-art-inner">
+            <img src="/media/images/chamber_three_screenshot.webp" alt="" width="1080" height="1920" loading="lazy" decoding="async" />
+            <span class="chm-glow"></span>
+          </div>
+        </div>
+        <div class="chm-text">
+          <p class="chm-label rv"><span>Chamber III</span><i>Crossing</i></p>
+          <h2 class="chm-name rv" id="chm-3-name" style="--d:.1s">Horizon Gate</h2>
+          <p class="chm-line rv" style="--d:.2s"><span>The boundary dissolves.</span> <span>Step&nbsp;through.</span></p>
+          <div class="chamber chm-preview rv" style="--d:.3s" data-preview-src="/media/sounds/chamber_three_preview.mp3">
+            <button type="button" class="chamber-play" aria-describedby="chm-3-name">
+              <span class="chamber-play-icon" aria-hidden="true"></span>
+              <span class="chamber-play-label">Preview Chamber</span>
+            </button>
+            <span class="chamber-progress" aria-hidden="true"><span class="chamber-progress-bar"></span></span>
+            <p class="chamber-status" role="status" aria-live="polite"></p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- IV — RESONANCE FIELD -->
+    <section class="chm chm--4" id="resonance-field" data-n="4" aria-labelledby="chm-4-name">
+      <span class="chm-ghost" aria-hidden="true">IV</span>
+      <div class="chm-inner">
+        <div class="chm-art" aria-hidden="true">
+          <div class="chm-art-inner">
+            <img src="/media/images/chamber_four_screenshot.webp" alt="" width="1080" height="1920" loading="lazy" decoding="async" />
+            <span class="chm-glow"></span>
+          </div>
+        </div>
+        <div class="chm-text">
+          <p class="chm-label rv"><span>Chamber IV</span><i>Surrender</i></p>
+          <h2 class="chm-name rv" id="chm-4-name" style="--d:.1s">Resonance Field</h2>
+          <p class="chm-line rv" style="--d:.2s"><span>Feel everything resonate.</span> <span>Let&nbsp;go.</span></p>
+          <div class="chamber chm-preview rv" style="--d:.3s" data-preview-src="/media/sounds/chamber_four_preview.mp3">
+            <button type="button" class="chamber-play" aria-describedby="chm-4-name">
+              <span class="chamber-play-icon" aria-hidden="true"></span>
+              <span class="chamber-play-label">Preview Chamber</span>
+            </button>
+            <span class="chamber-progress" aria-hidden="true"><span class="chamber-progress-bar"></span></span>
+            <p class="chamber-status" role="status" aria-live="polite"></p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- V — REMEMBRANCE CODE -->
+    <section class="chm chm--5" id="remembrance-code" data-n="5" aria-labelledby="chm-5-name">
+      <span class="chm-ghost" aria-hidden="true">V</span>
+      <div class="chm-inner">
+        <div class="chm-art" aria-hidden="true">
+          <div class="chm-art-inner">
+            <img src="/media/images/chamber_five_environment.webp" alt="" width="720" height="1280" loading="lazy" decoding="async" />
+            <span class="chm-glow"></span>
+          </div>
+        </div>
+        <div class="chm-text">
+          <p class="chm-label rv"><span>Chamber V</span><i>Remembrance</i></p>
+          <h2 class="chm-name rv" id="chm-5-name" style="--d:.1s">Remembrance Code</h2>
+          <p class="chm-line rv" style="--d:.2s"><span>Remember what was</span> <span>never truly forgotten.</span></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- VI — TRANSCENDENCE VEIL -->
+    <section class="chm chm--6" id="transcendence-veil" data-n="6" aria-labelledby="chm-6-name">
+      <span class="chm-ghost" aria-hidden="true">VI</span>
+      <div class="chm-inner">
+        <div class="chm-art" aria-hidden="true" data-drift="46">
+          <div class="chm-art-inner">
+            <img src="/media/images/chamber_six_environment.webp" alt="" width="720" height="1280" loading="lazy" decoding="async" />
+            <span class="chm-glow"></span>
+          </div>
+        </div>
+        <div class="chm-text">
+          <p class="chm-label rv"><span>Chamber VI</span><i>Transcendence</i></p>
+          <h2 class="chm-name rv" id="chm-6-name" style="--d:.1s">Transcendence Veil</h2>
+          <p class="chm-line rv" style="--d:.2s"><span>Return again.</span> <span class="chm-late">The veil reveals itself slowly.</span></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- VII — RETURN TO LIGHT -->
+    <section class="chm chm--7 chm--center" id="return-to-light" data-n="7" aria-labelledby="chm-7-name">
+      <span class="chm-ghost" aria-hidden="true">VII</span>
+      <div class="chm-inner">
+        <div class="chm-art" aria-hidden="true">
+          <div class="chm-art-inner">
+            <img src="/media/images/chamber_seven_environment.webp" alt="" width="720" height="1280" loading="lazy" decoding="async" />
+            <span class="chm-glow"></span>
+          </div>
+        </div>
+        <div class="chm-text">
+          <p class="chm-label rv"><span>Chamber VII</span><i>Illumination</i></p>
+          <h2 class="chm-name rv" id="chm-7-name" style="--d:.1s">Return to Light</h2>
+          <p class="chm-line rv" style="--d:.2s"><span>Beyond the veil,</span> <span>return to the light.</span></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- VIII — FREE FLOW CORRIDOR -->
+    <section class="chm chm--8 chm--center" id="free-flow-corridor" data-n="8" aria-labelledby="chm-8-name">
+      <div class="chm-inner">
+        <div class="chm-art" aria-hidden="true">
+          <div class="chm-art-inner">
+            <img src="/media/images/chamber_eight_environment.webp" alt="" width="720" height="1280" loading="lazy" decoding="async" />
+            <span class="chm-glow"></span>
+          </div>
+        </div>
+        <div class="chm-text">
+          <p class="chm-label rv"><span>Chamber VIII</span><i>Presence</i></p>
+          <h2 class="chm-name rv" id="chm-8-name" style="--d:.1s">Free Flow Corridor</h2>
+          <p class="chm-line chm-line--still"><span class="chm-beat">No path.</span> <span class="chm-beat">No destination.</span> <span class="chm-beat">Only presence.</span></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- IX — INQUIRY GATE (THE MIRROR) -->
+    <section class="chm chm--9 chm--center" id="inquiry-gate" data-n="9" aria-labelledby="chm-9-name">
+      <div class="chm-inner">
+        <div class="chm-art" aria-hidden="true">
+          <div class="chm-art-inner">
+            <img src="/media/images/chamber_nine_environment.webp" alt="" width="720" height="1280" loading="lazy" decoding="async" />
+          </div>
+        </div>
+        <div class="chm-text">
+          <p class="chm-label rv"><span>Chamber IX</span><i>Inquiry</i></p>
+          <h2 class="chm-name rv" id="chm-9-name" style="--d:.1s">Inquiry Gate <span class="chm-sub">The Mirror</span></h2>
+          <p class="chm-line rv" style="--d:.3s"><span>At the final threshold,</span> <span>meet yourself.</span></p>
+        </div>
+      </div>
+      <p class="cp-question rv rv--slow">What remains when there is nowhere left to go?</p>
+    </section>
+
+    <!-- ENDING -->
+    <section class="cp-end" data-n="0" aria-labelledby="cp-end-title">
+      <h2 class="cp-end-title rv rv--slow" id="cp-end-title"><span>The Chambers aren&rsquo;t meant to be completed.</span> <span class="cp-end-b">Return changes the experience.</span></h2>
+      <p class="cp-end-copy rv" style="--d:.3s">With repetition, attention, and a changing state, the same Chamber can feel different each time you return.</p>
+
+      <div class="cp-enter rv" style="--d:.5s">
+        <p class="cp-enter-label">Enter Inner</p>
+        <div class="cp-enter-row">
+          <a class="cp-store" href="https://apps.apple.com/us/app/inner-official/id6755213270" target="_blank" rel="noopener noreferrer" aria-label="Download Inner on the App Store">Download on iOS</a>
+          <a class="cp-store" href="https://play.google.com/store/apps/details?id=com.getinner.app" target="_blank" rel="noopener noreferrer" aria-label="Get Inner on Google Play">Get it on Android</a>
+        </div>
+      </div>
+
+      <div class="cp-footer">
+        <div class="veil-line" aria-hidden="true"></div>
+        <p>
+          <span class="footer-links">&copy; Inner &bull; getinner.app <a href="/about.html">About</a> <a href="/impact.html">Impact</a> <a href="/privacy.html">Privacy</a> <a href="/support.html">Support</a></span>
+        </p>
+      </div>
+    </section>
+
+  </main>
+
+  <script src="/js/site.js"></script>
+  <script src="/js/chambers.js"></script>
+  <script src="/js/chambers-page.js"></script>
+</body>
+</html>

@@ -23,7 +23,8 @@
 (function () {
   'use strict';
 
-  var root = document.querySelector('.chambers');
+  // The homepage section, or the dedicated Chambers page (chambers.html).
+  var root = document.querySelector('.chambers, [data-chamber-previews]');
   if (!root) return;
 
   var items = Array.prototype.map.call(root.querySelectorAll('.chamber[data-preview-src]'), function (card) {
