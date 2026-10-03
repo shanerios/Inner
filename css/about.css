@@ -1,0 +1,333 @@
+/* ==========================================================================
+   Inner — About (a first-person letter)
+
+   The quietest page on the site. Near-monochrome, one narrow column, no
+   cards, no imagery. The only large moment is the central question. The four
+   epistemic registers are typographic: a hairline, a small label, and a
+   different voice for each kind of statement.
+
+   Namespaced `.about-*`. Depends on tokens.css, fonts.css, base.css, shell.css.
+   ========================================================================== */
+
+body.about {
+  margin: 0;
+  background: #08080b;
+  color: rgba(238, 236, 232, 0.88);
+  font-family: var(--font-body);
+  font-weight: 300;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.about .topbar a,
+.about .brand-link {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+:where(.about) h1,
+:where(.about) h2,
+:where(.about) h3,
+:where(.about) p,
+:where(.about) ul,
+:where(.about) ol {
+  margin: 0;
+  padding: 0;
+}
+
+.about-main {
+  display: block;
+  overflow-x: clip;
+  padding: calc(var(--topbar-height, 58px) + clamp(72px, 14vh, 140px)) 24px clamp(40px, 8vh, 80px) 24px;
+}
+
+.about-letter {
+  max-width: 46rem;
+  margin: 0 auto;
+}
+/* one left edge: reading text holds a 36rem measure inside the 46rem frame */
+.about-letter-body,
+.about-p,
+.about-h2,
+.about-register,
+.about-signature,
+.about-note,
+.about-onward,
+.about-statement,
+.about-deepq {
+  max-width: 36rem;
+}
+
+/* ---------- Reveal (only when JS is present; reduced-motion off) ---------- */
+
+.js .about-rv {
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 1s ease, transform 1s ease;
+}
+.js .about-rv.is-in {
+  opacity: 1;
+  transform: none;
+}
+
+/* ---------- Small type ---------- */
+
+.about-kicker,
+.about-label,
+.about-register-label {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.about-kicker {
+  font-size: 0.72rem;
+  letter-spacing: 0.2em;
+  color: rgba(214, 212, 208, 0.72);
+}
+
+/* ---------- Opening ---------- */
+
+.about-title {
+  margin-top: 18px !important;
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: clamp(2.5rem, 6.4vw, 4.2rem);
+  line-height: 1.05;
+  letter-spacing: 0.005em;
+  color: #fff;
+  text-wrap: balance;
+}
+
+.about-letter-body {
+  margin-top: clamp(44px, 8vh, 80px);
+}
+
+.about-p {
+  margin-top: 1.35em !important;
+  font-size: 1.1875rem;
+  line-height: 1.8;
+  color: rgba(238, 236, 232, 0.88);
+  text-wrap: pretty;
+}
+.about-letter-body > .about-p:first-child {
+  margin-top: 0 !important;
+  font-size: 1.3125rem;
+  line-height: 1.7;
+  color: rgba(246, 244, 240, 0.94);
+}
+
+.about-link {
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px solid rgba(238, 236, 232, 0.4);
+  transition: border-color 0.3s ease, color 0.3s ease;
+}
+.about-link:hover {
+  color: #fff;
+  border-bottom-color: rgba(255, 255, 255, 0.85);
+}
+
+/* ---------- The question: the page's one large moment ---------- */
+
+.about-question-block {
+  position: relative;
+  margin: clamp(104px, 18vh, 190px) auto clamp(56px, 10vh, 100px) auto;
+  max-width: 46rem;
+  text-align: left;
+}
+.about-question-block::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: -80px -12% -60px -12%;
+  background: radial-gradient(ellipse 50% 55% at 38% 48%, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.012) 55%, transparent 78%);
+  pointer-events: none;
+}
+
+.about-label {
+  font-size: 0.72rem;
+  letter-spacing: 0.2em;
+  color: rgba(214, 212, 208, 0.72);
+}
+
+.about-question {
+  margin-top: 28px !important;
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: clamp(1.95rem, 4.8vw, 3.15rem);
+  line-height: 1.2;
+  letter-spacing: 0.005em;
+  color: #fff;
+  text-wrap: balance;
+}
+
+/* ---------- Section headings ---------- */
+
+.about-h2 {
+  margin-top: clamp(96px, 15vh, 150px) !important;
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: clamp(1.55rem, 3.2vw, 2.1rem);
+  line-height: 1.18;
+  color: #fff;
+  text-wrap: balance;
+}
+.about-h2 + .about-p,
+.about-h2 + .about-intro { margin-top: 28px !important; }
+
+/* ---------- The four registers: typographic, not cards ---------- */
+
+.about-register {
+  margin-top: 52px;
+  padding-top: 26px;
+  border-top: 1px solid rgba(238, 236, 232, 0.14);
+}
+.about-register-label {
+  font-size: 0.74rem;
+  letter-spacing: 0.18em;
+  color: rgba(226, 224, 220, 0.8);
+}
+.about-register .about-p:first-of-type { margin-top: 20px !important; }
+
+/* What we know: firm, upright */
+.about-register--know .about-p {
+  font-weight: 400;
+  color: rgba(248, 246, 242, 0.93);
+}
+/* What people report: testimony, set in italic */
+.about-register--report .about-p {
+  font-style: italic;
+  font-weight: 300;
+}
+.about-register--report .about-p:last-child {
+  font-style: normal;
+  color: rgba(226, 224, 220, 0.84);
+}
+/* What we're beginning to learn: lighter, tentative */
+.about-register--learn .about-p {
+  font-weight: 300;
+  color: rgba(226, 224, 220, 0.86);
+}
+/* What Inner explores: a statement, then plain description */
+.about-register--explore .about-statement {
+  margin-top: 20px !important;
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 1.3rem;
+  line-height: 1.38;
+  color: #fff;
+  text-wrap: balance;
+}
+.about-term {
+  font-weight: 500;
+  color: #fff;
+}
+
+/* ---------- What I'd like to find out ---------- */
+
+.about-deepq {
+  margin-top: 1.7em !important;
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: clamp(1.3rem, 2.6vw, 1.7rem);
+  line-height: 1.3;
+  color: #fff;
+  text-wrap: balance;
+}
+.about-closing {
+  margin-top: calc(2em + 10px) !important;
+  font-style: italic;
+  font-size: 1.3125rem;
+  line-height: 1.6;
+  color: rgba(248, 246, 242, 0.95);
+}
+.about-closing span { display: block; }
+
+/* ---------- Who makes Inner ---------- */
+
+.about-signature {
+  margin-top: 44px !important;
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 1.2rem;
+  letter-spacing: 0.01em;
+  color: #fff;
+}
+
+.about-note {
+  margin-top: 28px !important;
+  max-width: 30rem;
+  font-size: 0.875rem;
+  line-height: 1.65;
+  color: rgba(214, 212, 208, 0.68);
+}
+
+.about-onward {
+  margin-top: clamp(64px, 11vh, 110px);
+  padding-top: 26px;
+  border-top: 1px solid rgba(238, 236, 232, 0.14);
+  list-style: none;
+}
+.about-onward li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  align-items: baseline;
+  padding: 7px 0;
+  font-size: 1rem;
+  line-height: 1.6;
+}
+.about-onward-label {
+  min-width: 8.5rem;
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 0.7rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(214, 212, 208, 0.72);
+}
+.about-onward a {
+  color: rgba(238, 236, 232, 0.9);
+  text-decoration: none;
+  border-bottom: 1px solid rgba(238, 236, 232, 0.32);
+  transition: border-color 0.3s ease, color 0.3s ease;
+}
+.about-onward a:hover {
+  color: #fff;
+  border-bottom-color: rgba(255, 255, 255, 0.85);
+}
+.about-onward .about-dot { color: rgba(214, 212, 208, 0.7); margin: 0 6px; }
+
+/* ---------- Footer on About ---------- */
+
+.about .site-footer {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: clamp(72px, 12vh, 120px) 24px 52px 24px;
+}
+
+/* ---------- Responsive ---------- */
+
+@media (max-width: 720px) {
+  .about-main { padding-left: 22px; padding-right: 22px; }
+  .about-p { font-size: 1.125rem; }
+  .about-letter-body > .about-p:first-child { font-size: 1.22rem; }
+  .about-question { font-size: clamp(1.75rem, 7.6vw, 2.3rem); }
+  .about-register--explore .about-statement { font-size: 1.2rem; }
+  .about-onward-label { min-width: 100%; }
+  .about .site-footer { padding-top: 64px; }
+}
+
+/* ---------- Reduced motion ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .js .about-rv {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  .about-link,
+  .about-onward a { transition: none; }
+}
