@@ -1,0 +1,456 @@
+/* ==========================================================================
+   Inner — Books (shared visual system for the book pages)
+
+   One grammar, many covers. The structure below is book-agnostic: a hero that
+   holds the cover, an editorial reading column, a vertical I–V sequence, a
+   quiet closing, a ghost-pill CTA, and the standard footer. A book supplies
+   only its atmosphere: a handful of custom properties on <html>.
+
+     <html class="books books--auditory-ascension">
+     <body class="book">
+
+   Atmosphere should read as light escaping from the cover, not as a new
+   site-wide brand colour: deep midnight / near-black dominates, the accent is
+   used for hairlines, numerals and one closing line, and Inner violet stays
+   for secondary interactive states.
+
+   The canvas is a genuine full-document gradient on <body> (scroll-attached,
+   never `fixed`), over an <html> floor colour, so it renders identically in
+   normal scrolling, tall or full-page captures, print and mobile browsers.
+
+   Depends on tokens.css, fonts.css, base.css, shell.css. Does not alter any
+   shared selector outside `.books` / `.book`.
+   ========================================================================== */
+
+/* ---------- Atmosphere (per-book custom properties) ---------- */
+
+html.books {
+  /* canvas: four near-continuous tones, deepest at the floor */
+  --book-field-0: #0a0b17;
+  --book-field-1: #09080f;
+  --book-field-2: #07060b;
+  --book-field-3: #050407;
+  --book-floor: var(--book-field-3);
+
+  /* light escaping from the cover (rgb triplet, composed with alpha at use) */
+  --book-accent: 217, 165, 102;
+  --book-glow-rgb: var(--book-accent); /* the glow behind the cover may differ from the line accent */
+  --book-glow: 0.12;
+  --book-line: 0.2;
+
+  /* restrained Inner violet: secondary interactive states only */
+  --book-violet: 161, 140, 255;
+
+  /* type colours */
+  --book-ink-strong: #f6f3ee;
+  --book-ink: rgba(238, 235, 230, 0.88);
+  --book-ink-soft: rgba(214, 210, 204, 0.74);
+
+  background-color: var(--book-floor);
+}
+
+/* Auditory Ascension: ring-and-door amber on warm black */
+html.books--auditory-ascension {
+  --book-field-0: #0a0b17;
+  --book-field-1: #09080f;
+  --book-field-2: #07060b;
+  --book-field-3: #050407;
+  --book-accent: 217, 165, 102;
+  --book-glow: 0.12;
+}
+
+/* ---------- Canvas and base ---------- */
+
+body.book {
+  margin: 0;
+  min-height: 100vh;
+  background-color: var(--book-floor);
+  background-image: linear-gradient(
+    180deg,
+    var(--book-field-0) 0%,
+    var(--book-field-1) 24%,
+    var(--book-field-2) 60%,
+    var(--book-field-3) 100%
+  );
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  color: var(--book-ink);
+  font-family: var(--font-body);
+  font-weight: 300;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.book .topbar a,
+.book .brand-link {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+:where(.book) h1,
+:where(.book) h2,
+:where(.book) h3,
+:where(.book) h4,
+:where(.book) p,
+:where(.book) ol {
+  margin: 0;
+  padding: 0;
+}
+
+.book-main {
+  display: block;
+  overflow-x: clip;
+  padding-top: calc(var(--topbar-height, 58px) + clamp(40px, 8vh, 88px));
+}
+
+@media (max-width: 560px) {
+  :root { --topbar-height: 64px; }
+}
+
+/* ---------- Hero: the cover is the object ---------- */
+
+.book-hero {
+  position: relative;
+  isolation: isolate;
+  padding: 0 22px clamp(36px, 7vh, 72px) 22px;
+  text-align: center;
+}
+
+/* a very faint warm light behind the cover; no imagery */
+.book-hero::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  top: -40px;
+  left: 50%;
+  width: min(1000px, 130vw);
+  height: 820px;
+  transform: translateX(-50%);
+  background: radial-gradient(
+    ellipse 40% 44% at 50% 36%,
+    rgba(var(--book-glow-rgb), var(--book-glow)) 0%,
+    rgba(var(--book-glow-rgb), calc(var(--book-glow) * 0.34)) 46%,
+    transparent 74%
+  );
+  pointer-events: none;
+}
+
+.book-cover {
+  display: block;
+  width: clamp(190px, 21vw, 270px);
+  height: auto;
+  aspect-ratio: 25 / 37;
+  margin: 0 auto;
+  border-radius: 4px;
+  background: #0b0a0e;
+  box-shadow:
+    0 24px 64px rgba(0, 0, 0, 0.7),
+    0 0 90px rgba(var(--book-glow-rgb), calc(var(--book-glow) * 0.8));
+}
+
+.book-kicker {
+  margin-top: 40px;
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 0.72rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgba(214, 210, 204, 0.78);
+}
+
+.book-title {
+  margin-top: 16px;
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: clamp(2.4rem, 6vw, 3.9rem);
+  line-height: 1.05;
+  letter-spacing: 0.005em;
+  color: #fff;
+  text-wrap: balance;
+}
+
+.book-subtitle {
+  margin-top: 12px;
+  font-weight: 300;
+  font-style: italic;
+  font-size: 1rem;
+  letter-spacing: 0.02em;
+  color: rgba(var(--book-accent), 0.9);
+}
+
+.book-lede {
+  max-width: 34rem;
+  margin: 26px auto 0 auto;
+  font-size: 1.125rem;
+  line-height: 1.72;
+  color: var(--book-ink);
+  text-wrap: pretty;
+}
+
+.book-actions {
+  margin-top: 34px;
+  display: flex;
+  justify-content: center;
+}
+
+/* ---------- Button: ghost pill, the site's grammar ---------- */
+
+.book-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  min-width: 176px;
+  padding: 11px 28px;
+  box-sizing: border-box;
+  border: 1px solid rgba(var(--book-accent), 0.5);
+  border-radius: 999px;
+  background: rgba(var(--book-accent), 0.05);
+  color: var(--book-ink-strong);
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 0.78rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-decoration: none;
+  cursor: pointer;
+  transition: border-color 0.3s ease, color 0.3s ease, background-color 0.3s ease;
+}
+.book-btn:hover {
+  border-color: rgba(var(--book-accent), 0.85);
+  background: rgba(var(--book-accent), 0.1);
+  color: #fff;
+}
+
+/* ---------- Sections ---------- */
+
+.book-section {
+  max-width: 46rem;
+  margin: 0 auto;
+  padding: clamp(72px, 12vh, 128px) 22px 0 22px;
+}
+
+.book-label {
+  text-align: center;
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 0.72rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgba(214, 210, 204, 0.78);
+}
+
+.book-h2 {
+  margin-top: 18px;
+  text-align: center;
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: clamp(1.7rem, 3.6vw, 2.3rem);
+  line-height: 1.15;
+  color: #fff;
+  text-wrap: balance;
+}
+
+.book-intro {
+  max-width: 34rem;
+  margin: 20px auto 0 auto;
+  text-align: center;
+  font-size: 1.0625rem;
+  line-height: 1.7;
+  color: var(--book-ink-soft);
+  text-wrap: pretty;
+}
+
+/* ---------- Editorial reading column ---------- */
+
+.book-prose {
+  max-width: 36rem;
+  margin: clamp(36px, 6vh, 56px) auto 0 auto;
+  text-align: left;
+}
+.book-prose p {
+  margin-top: 1.3em;
+  font-size: 1.125rem;
+  line-height: 1.8;
+  color: var(--book-ink);
+  text-wrap: pretty;
+}
+.book-prose p:first-child { margin-top: 0; }
+
+/* the one sentence the page leans on: larger, with a thin amber rule */
+.book-prose p.book-emphasis {
+  margin: 1.9em 0;
+  padding: 2px 0 2px 22px;
+  border-left: 1px solid rgba(var(--book-accent), 0.6);
+  font-size: 1.34rem;
+  line-height: 1.5;
+  color: var(--book-ink-strong);
+}
+
+/* the page's strongest, still restrained, warm accent */
+.book-prose p.book-final-line {
+  margin-top: 2em;
+  font-style: italic;
+  font-size: 1.3rem;
+  line-height: 1.6;
+  color: rgb(236, 192, 138);
+}
+
+/* ---------- Vertical I–V sequence (no cards) ---------- */
+
+.book-sequence {
+  list-style: none;
+  max-width: 44rem;
+  margin: clamp(40px, 7vh, 64px) auto 0 auto;
+}
+.book-sequence-item {
+  display: grid;
+  grid-template-columns: 7.5rem minmax(0, 1fr);
+  column-gap: 32px;
+  padding: 34px 0 38px 0;
+  border-top: 1px solid rgba(var(--book-accent), var(--book-line));
+}
+.book-sequence-item:last-child {
+  border-bottom: 1px solid rgba(var(--book-accent), var(--book-line));
+}
+
+.book-numeral {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding-top: 4px;
+}
+.book-numeral-word {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 0.66rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--book-ink-soft);
+}
+.book-numeral-roman {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 1.9rem;
+  line-height: 1;
+  color: rgba(var(--book-accent), 0.92);
+}
+
+.book-sequence-title {
+  text-align: left;
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 1.25rem;
+  line-height: 1.3;
+  color: #fff;
+}
+.book-sequence-text {
+  margin-top: 12px;
+  font-size: 1.0625rem;
+  line-height: 1.75;
+  color: var(--book-ink);
+  text-wrap: pretty;
+}
+
+/* ---------- Closing call ---------- */
+
+.book-cta {
+  text-align: center;
+  padding-bottom: 0;
+}
+.book-cta-title {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: clamp(1.6rem, 3.2vw, 2.1rem);
+  line-height: 1.15;
+  color: #fff;
+}
+.book-cta-sub {
+  margin-top: 10px;
+  font-style: italic;
+  font-size: 0.98rem;
+  color: rgba(var(--book-accent), 0.9);
+}
+.book-cta .book-actions { margin-top: 30px; }
+
+/* ---------- Link and modal (scoped to the book pages) ---------- */
+
+.book .modal-backdrop {
+  background: rgba(4, 4, 8, 0.84);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+.book .modal-card {
+  background: #0b0a10;
+  border: 1px solid rgba(var(--book-accent), 0.24);
+  border-radius: 14px;
+  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.6);
+}
+.book .modal-book-title {
+  font-weight: 600;
+  color: #fff;
+}
+.book .modal-book-sub {
+  color: rgba(var(--book-accent), 0.9);
+}
+.book .modal-retailer-btn {
+  border-radius: 999px;
+  border: 1px solid rgba(var(--book-accent), 0.5);
+  background: rgba(var(--book-accent), 0.05);
+  color: var(--book-ink-strong);
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 0.78rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.book .modal-retailer-btn:hover {
+  border-color: rgba(var(--book-accent), 0.85);
+  background: rgba(var(--book-accent), 0.1);
+  box-shadow: none;
+  transform: none;
+}
+.book .modal-coming-soon {
+  color: rgba(214, 210, 204, 0.66) !important;
+}
+
+/* ---------- Footer on the book pages ---------- */
+
+.book .site-footer {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: clamp(88px, 14vh, 140px) 24px 52px 24px;
+}
+
+/* ---------- Responsive ---------- */
+
+@media (max-width: 720px) {
+  .book-prose p { font-size: 1.0625rem; }
+  .book-prose p.book-emphasis { font-size: 1.22rem; }
+  .book-prose p.book-final-line { font-size: 1.2rem; }
+  .book-lede { font-size: 1.0625rem; }
+  .book-sequence-item {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 12px;
+    padding: 28px 0 32px 0;
+  }
+  .book-numeral {
+    flex-direction: row;
+    align-items: baseline;
+    gap: 10px;
+    padding-top: 0;
+  }
+  .book-numeral-roman { font-size: 1.5rem; }
+  .book-sequence-text { margin-top: 8px; }
+}
+@media (max-width: 380px) {
+  .book-btn { min-width: 0; width: 100%; }
+}
+
+/* ---------- Reduced motion ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .book-btn { transition: none; }
+}
