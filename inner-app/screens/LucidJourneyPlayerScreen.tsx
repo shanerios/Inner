@@ -26,9 +26,11 @@ import {
 } from '../core/recognitionSignals';
 import {
   beginJourneyMemorySession,
+  attachNightPlanToJourneyMemory,
   finishJourneyMemorySession,
   recordJourneyMemoryEvent,
 } from '../core/journeyMemory';
+import { bindNightPlanToJourney } from '../core/nightPlans';
 
 const LUCIDITY_CUE_TRAINING_JOURNEY_ID = 'lucid-signal';
 /** How long a requested start may take before it is treated as stalled. */
@@ -38,14 +40,14 @@ const START_HEALTH_POLL_MS = 1_000;
 const START_HANG_MS = 20_000;
 const JOURNEY_NOT_BEGUN_MESSAGE = 'The journey did not begin. Nothing has been lost.';
 
-type Params = { journeyId?: string; journey?: FactoryAudioJourney };
+type Params = { journeyId?: string; journey?: FactoryAudioJourney; nightPlanId?: string };
 
 export default function LucidJourneyPlayerScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute();
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
-  const { journeyId, journey: suppliedJourney } = (route.params || {}) as Params;
+  const { journeyId, journey: suppliedJourney, nightPlanId } = (route.params || {}) as Params;
   const journey = useMemo(
     () => suppliedJourney ?? FACTORY_AUDIO_JOURNEYS.find(item => item.id === journeyId),
     [journeyId, suppliedJourney],
@@ -201,6 +203,10 @@ export default function LucidJourneyPlayerScreen() {
           DEFAULT_PROCEDURAL_AUDIO_CONFIG,
         );
         memorySessionIdRef.current = memorySession.id;
+        if (nightPlanId) {
+          await attachNightPlanToJourneyMemory(memorySession.id, nightPlanId);
+          await bindNightPlanToJourney(nightPlanId, memorySession.id, memorySession.startedAt).catch(() => {});
+        }
         if (!mounted) {
           finishMemory('user_stopped');
           return;
@@ -434,7 +440,7 @@ export default function LucidJourneyPlayerScreen() {
       // checkpoint alone for the reconstructed UI or next cold launch.
       if (explicitEffectRestartRef.current) closeForExplicitExit(false);
     };
-  }, [journey, attempt]);
+  }, [journey, attempt, nightPlanId]);
 
   const retryStart = () => {
     setError(null);

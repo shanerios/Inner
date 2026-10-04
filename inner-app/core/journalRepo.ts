@@ -1,6 +1,8 @@
 // core/journalRepo.ts
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { secureGetItem, secureRemoveItem, secureSetItem } from './secureStorage';
+import { DreamDetails, normalizeDreamDetails } from './dreamDetails';
+import type { PracticeContextSnapshot } from './practiceContext';
 
 // Lightweight uuid generator (no external deps). RFC4122-ish, good enough for client IDs.
 function uuidv4(): string {
@@ -14,6 +16,7 @@ function uuidv4(): string {
 export type JournalKind = 'dream' | 'astral' | 'note' | 'chamber';
 
 export type JournalEntry = {
+  schemaVersion: 2;
   id: string;
   createdAt: number;
   updatedAt: number;
@@ -26,7 +29,19 @@ export type JournalEntry = {
   chamberTitle?: string;    // human-readable title of the chamber session
   dreamSigns?: string[];
   journeySessionId?: string;
+  nightPlanId?: string;
   captureSource?: 'morning_return';
+  /** Development QA evidence; excluded from personalization and user exports. */
+  testSession?: boolean;
+  captureMinutesFromWake?: number;
+  dreamDetails?: DreamDetails;
+  practiceContext?: PracticeContextSnapshot;
+  captureInput?: {
+    method: 'typed' | 'voice_transcription' | 'morning_quick_capture';
+    startedAt?: number;
+    completedAt?: number;
+    recognitionMode?: 'on_device' | 'platform_service' | 'unknown';
+  };
 };
 
 const INDEX_KEY = 'journal:index';
@@ -45,6 +60,33 @@ async function writeIndex(ids: string[]) {
   await AsyncStorage.setItem(INDEX_KEY, JSON.stringify(ids));
 }
 
+export function normalizeJournalEntry(value: unknown): JournalEntry | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  if (typeof raw.id !== 'string' || typeof raw.createdAt !== 'number') return null;
+
+  const normalized = {
+    ...raw,
+    schemaVersion: 2,
+    id: raw.id,
+    createdAt: raw.createdAt,
+    updatedAt: typeof raw.updatedAt === 'number' ? raw.updatedAt : raw.createdAt,
+    title: typeof raw.title === 'string' ? raw.title : '',
+    body: typeof raw.body === 'string' ? raw.body : '',
+    dreamDetails: normalizeDreamDetails(raw.dreamDetails),
+  } as JournalEntry;
+
+  return normalized;
+}
+
+function parseEntry(raw: string): JournalEntry | null {
+  try {
+    return normalizeJournalEntry(JSON.parse(raw));
+  } catch {
+    return null;
+  }
+}
+
 export async function listEntries(): Promise<JournalEntry[]> {
   const ids = await readIndex();
   const results: JournalEntry[] = [];
@@ -52,7 +94,8 @@ export async function listEntries(): Promise<JournalEntry[]> {
   for (const id of ids) {
     const raw = await secureGetItem(ENTRY_KEY(id));
     if (raw) {
-      try { results.push(JSON.parse(raw)); } catch {}
+      const entry = parseEntry(raw);
+      if (entry) results.push(entry);
     }
   }
   return results;
@@ -61,12 +104,13 @@ export async function listEntries(): Promise<JournalEntry[]> {
 export async function getEntry(id: string): Promise<JournalEntry | null> {
   const raw = await secureGetItem(ENTRY_KEY(id));
   if (!raw) return null;
-  try { return JSON.parse(raw); } catch { return null; }
+  return parseEntry(raw);
 }
 
 export async function createEntry(partial?: Partial<JournalEntry>): Promise<JournalEntry> {
   const now = Date.now();
   const entry: JournalEntry = {
+    schemaVersion: 2,
     id: uuidv4(),
     createdAt: now,
     updatedAt: now,
@@ -76,8 +120,16 @@ export async function createEntry(partial?: Partial<JournalEntry>): Promise<Jour
     mood: partial?.mood ?? undefined,
     kind: partial?.kind || 'note',
     dreamSigns: partial?.dreamSigns || [],
+    chamberId: partial?.chamberId,
+    chamberTitle: partial?.chamberTitle,
     journeySessionId: partial?.journeySessionId,
+    nightPlanId: partial?.nightPlanId,
     captureSource: partial?.captureSource,
+    testSession: partial?.testSession,
+    captureMinutesFromWake: partial?.captureMinutesFromWake,
+    dreamDetails: normalizeDreamDetails(partial?.dreamDetails),
+    practiceContext: partial?.practiceContext,
+    captureInput: partial?.captureInput,
   };
   await secureSetItem(ENTRY_KEY(entry.id), JSON.stringify(entry));
   const ids = await readIndex();
@@ -86,8 +138,9 @@ export async function createEntry(partial?: Partial<JournalEntry>): Promise<Jour
 }
 
 export async function saveEntry(entry: JournalEntry): Promise<void> {
-  entry.updatedAt = Date.now();
-  await secureSetItem(ENTRY_KEY(entry.id), JSON.stringify(entry));
+  const normalized = normalizeJournalEntry({ ...entry, schemaVersion: 2, updatedAt: Date.now() });
+  if (!normalized) throw new Error('Invalid journal entry.');
+  await secureSetItem(ENTRY_KEY(entry.id), JSON.stringify(normalized));
   // ensure it's in index (in case it was created elsewhere)
   const ids = await readIndex();
   if (!ids.includes(entry.id)) {

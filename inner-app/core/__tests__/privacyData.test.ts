@@ -29,6 +29,12 @@ describe('clearPrivateUserData', () => {
       ['inner.dream-incubation.seed.v1', '{"text":"A red door","createdAt":1}'],
       ['inner.recognition-signal.v1', 'droplets'],
       ['inner.journey-memory.v1', '{"schemaVersion":1,"sessions":[]}'],
+      ['inner.practiceHistory.v1', '[{"id":"practice-1"}]'],
+      ['inner.nightRecords.v1', '{"schemaVersion":1,"records":[]}'],
+      ['inner.recurringSignalFocus.v1', '{"sign":"Water"}'],
+      ['inner.selectedRecommendation.v1', '{"id":"environment:ocean"}'],
+      ['inner.practiceExperiments.v1', '{"schemaVersion":1,"experiments":[]}'],
+      ['inner.nightPlans.v1', '{"schemaVersion":1,"plans":[]}'],
       ['profileName', 'preserved'],
     ]);
 
@@ -42,6 +48,12 @@ describe('clearPrivateUserData', () => {
     await expect(AsyncStorage.getItem('inner.dream-incubation.seed.v1')).resolves.toBeNull();
     await expect(AsyncStorage.getItem('inner.recognition-signal.v1')).resolves.toBeNull();
     await expect(AsyncStorage.getItem('inner.journey-memory.v1')).resolves.toBeNull();
+    await expect(AsyncStorage.getItem('inner.practiceHistory.v1')).resolves.toBeNull();
+    await expect(AsyncStorage.getItem('inner.nightRecords.v1')).resolves.toBeNull();
+    await expect(AsyncStorage.getItem('inner.recurringSignalFocus.v1')).resolves.toBeNull();
+    await expect(AsyncStorage.getItem('inner.selectedRecommendation.v1')).resolves.toBeNull();
+    await expect(AsyncStorage.getItem('inner.practiceExperiments.v1')).resolves.toBeNull();
+    await expect(AsyncStorage.getItem('inner.nightPlans.v1')).resolves.toBeNull();
     await expect(AsyncStorage.getItem('profileName')).resolves.toBe('preserved');
   });
 });

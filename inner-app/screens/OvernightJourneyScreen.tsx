@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { Alert, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useVideoPlayer, VideoView } from '../core/memorySafeVideo';
@@ -24,6 +24,10 @@ import {
 } from '../core/recognitionSignals';
 import { Typography } from '../core/typography';
 import { createMorningReturnTestSession, loadJourneyMemory, type JourneyMemorySession } from '../core/journeyMemory';
+import { createNightPlan, type NightPlanSource } from '../core/nightPlans';
+import { experimentContextForPractice, loadCurrentPracticeExperiment } from '../core/practiceExperiments';
+import { loadSelectedRecommendation, recommendationForPracticeContext } from '../core/recommendationMemory';
+import type { AdaptiveNightProposal } from '../core/adaptiveNight';
 
 type OvernightEnvironment = Exclude<ProceduralEnvironment, 'none' | 'wind'>;
 type OvernightFeel = 'gentle' | 'deep' | 'immersive';
@@ -85,25 +89,61 @@ function eventLabel(event: JourneyMemorySession['events'][number]): string {
 
 export default function OvernightJourneyScreen() {
   const navigation = useNavigation<any>();
+  const route = useRoute<any>();
   const insets = useSafeAreaInsets();
   const [durationMinutes, setDurationMinutes] = useState<(typeof DURATIONS)[number]>(450);
-  const [environment, setEnvironment] = useState<OvernightEnvironment>('ocean');
-  const [feel, setFeel] = useState<OvernightFeel>('gentle');
+  const adaptiveProposal = route.params?.adaptiveProposal as AdaptiveNightProposal | undefined;
+  const suggestedEnvironment = adaptiveProposal?.proposedConfiguration.environment ?? route.params?.suggestedEnvironment;
+  const initialEnvironment = ENVIRONMENTS.some(item => item.id === suggestedEnvironment)
+    ? suggestedEnvironment as OvernightEnvironment
+    : 'ocean';
+  const [environment, setEnvironment] = useState<OvernightEnvironment>(initialEnvironment);
+  const [feel, setFeel] = useState<OvernightFeel>(adaptiveProposal?.proposedConfiguration.feel ?? 'gentle');
   const [signalId, setSignalId] = useState<RecognitionSignalId>('ascending');
-  const [cuePlan, setCuePlan] = useState<LucidSignalCuePlan>('standard');
+  const [cuePlan, setCuePlan] = useState<LucidSignalCuePlan>(
+    adaptiveProposal?.proposedConfiguration.cuePlan
+      ?? (route.params?.suggestedCuePlan === 'gentle' ? 'gentle' : 'standard'),
+  );
   const [accelerated, setAccelerated] = useState(false);
   const [inspectorVisible, setInspectorVisible] = useState(false);
   const [latestMemory, setLatestMemory] = useState<JourneyMemorySession | null>(null);
+  const [planExplanation, setPlanExplanation] = useState<{ source: string; reason?: string }>({ source: 'SHAPED BY YOU' });
   const background = useVideoPlayer(require('../assets/videos/lucidscreen.mp4'), player => {
     player.loop = true; player.muted = true; player.audioMixingMode = 'mixWithOthers'; player.play();
   });
 
   useEffect(() => {
     void Promise.all([getRecognitionSignalId(), getLucidSignalCuePlan()]).then(([storedSignal, storedPlan]) => {
-      setSignalId(storedSignal);
-      setCuePlan(storedPlan);
+      setSignalId((adaptiveProposal?.proposedConfiguration.signalId as RecognitionSignalId | undefined) ?? storedSignal);
+      if (!adaptiveProposal?.proposedConfiguration.cuePlan && !route.params?.suggestedCuePlan) setCuePlan(storedPlan);
     });
-  }, []);
+  }, [adaptiveProposal, route.params?.suggestedCuePlan]);
+
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      if (route.params?.experimentId) {
+        const experiment = await loadCurrentPracticeExperiment();
+        if (active && experiment && experiment.id === route.params.experimentId) {
+          setPlanExplanation({ source: 'PERSONAL EXPERIMENT', reason: experiment.question });
+          return;
+        }
+      }
+      if (adaptiveProposal) {
+        if (active) setPlanExplanation({ source: "INNER'S ADAPTIVE PLAN", reason: adaptiveProposal.reason });
+        return;
+      }
+      if (route.params?.recommendationId) {
+        const recommendation = await loadSelectedRecommendation();
+        if (active && recommendation && recommendation.id === route.params.recommendationId) {
+          setPlanExplanation({ source: 'INNER RECOMMENDATION', reason: recommendation.reason });
+          return;
+        }
+      }
+      if (active) setPlanExplanation({ source: 'SHAPED BY YOU' });
+    })();
+    return () => { active = false; };
+  }, [adaptiveProposal, route.params?.experimentId, route.params?.recommendationId]);
 
   const compiled = useMemo(() => {
     const realProtocol = createRecognitionOvernightProtocol({
@@ -126,8 +166,57 @@ export default function OvernightJourneyScreen() {
   };
 
   const begin = async () => {
-    await setRecognitionSignalId(signalId);
-    navigation.navigate('LucidJourneyPlayer', { journey: overnightJourney(environment, feel, compiled, accelerated && INNER_LAB_BUILD, createNightSeed()) });
+    try {
+      await setRecognitionSignalId(signalId);
+      const plannedAt = Date.now();
+      const experiment = route.params?.experimentId
+        ? await experimentContextForPractice(environment, plannedAt)
+        : undefined;
+      const selectedRecommendation = route.params?.recommendationId
+        ? recommendationForPracticeContext(await loadSelectedRecommendation(), plannedAt)
+        : undefined;
+      const recommendation = selectedRecommendation?.id === route.params?.recommendationId
+        ? selectedRecommendation
+        : undefined;
+      const source: NightPlanSource = experiment
+        ? 'experiment'
+        : adaptiveProposal
+          ? 'adaptive_rule'
+        : recommendation
+          ? 'recommendation'
+          : 'manual';
+      const proposedConfiguration = {
+        ...(adaptiveProposal?.proposedConfiguration ?? {}),
+        ...(route.params?.suggestedEnvironment ? { environment: route.params.suggestedEnvironment as string } : {}),
+        ...(route.params?.suggestedCuePlan ? { cuePlan: route.params.suggestedCuePlan as LucidSignalCuePlan } : {}),
+      };
+      const plan = await createNightPlan({
+        source,
+        reason: experiment?.question ?? adaptiveProposal?.reason ?? recommendation?.reason,
+        proposedConfiguration: Object.keys(proposedConfiguration).length ? proposedConfiguration : undefined,
+        configuration: {
+          durationMinutes,
+          environment,
+          feel,
+          signalId,
+          cuePlan,
+          recognitionWindowCount: recognitionWindows,
+        },
+        experiment,
+        recommendation,
+        adaptiveRule: adaptiveProposal ? {
+          id: adaptiveProposal.id,
+          rule: adaptiveProposal.rule,
+          title: adaptiveProposal.title,
+        } : undefined,
+      });
+      navigation.navigate('LucidJourneyPlayer', {
+        journey: overnightJourney(environment, feel, compiled, accelerated && INNER_LAB_BUILD, createNightSeed()),
+        nightPlanId: plan.id,
+      });
+    } catch {
+      Alert.alert('Night not started', 'Inner could not preserve tonight’s plan. Please try again.');
+    }
   };
 
   const openMemoryInspector = async () => {
@@ -190,10 +279,13 @@ export default function OvernightJourneyScreen() {
 
         <View style={styles.readyCard}>
           <Text style={styles.readyEyebrow}>YOUR NIGHT</Text>
+          <Text style={styles.readySource}>{planExplanation.source}</Text>
           <Text style={[Typography.display, styles.readyTitle]}>Recognition · {environment.charAt(0).toUpperCase() + environment.slice(1)}</Text>
           <Text style={styles.readyLine}>{durationLabel(durationMinutes)} · {recognitionWindows} later recognition windows</Text>
           <Text style={styles.readyLine}>{recognitionSignalById(signalId).name} · {feel}</Text>
           <Text style={styles.readyCopy}>Your journey begins with a seven-minute waking preparation, then continues quietly through descent, protected sleep, recognition windows, and return.</Text>
+          {!!planExplanation.reason && <Text style={styles.readyReason}>{planExplanation.reason}</Text>}
+          <Text style={styles.readyReview}>You can change any setting. Inner records the plan you begin.</Text>
         </View>
 
         {INNER_LAB_BUILD ? (
@@ -309,9 +401,12 @@ const styles = StyleSheet.create({
   choiceTextSelected: { color: '#F0EAFB' },
   readyCard: { maxWidth: 300, width: '100%', alignSelf: 'center', alignItems: 'center', marginTop: 30, paddingHorizontal: 18, paddingVertical: 18, borderRadius: 21, borderWidth: 1, borderColor: 'rgba(190,174,238,0.28)', backgroundColor: 'rgba(7,8,19,0.72)' },
   readyEyebrow: { color: '#AFA4D5', fontFamily: 'Inter-Medium', fontSize: 7, letterSpacing: 1.5 },
+  readySource: { color: '#8F84B7', fontFamily: 'Inter-Medium', fontSize: 7, letterSpacing: 1.25, marginTop: 7 },
   readyTitle: { color: '#F0ECF7', fontSize: 17, marginTop: 7, textAlign: 'center' },
   readyLine: { color: '#C4BCCF', fontFamily: 'Inter-ExtraLight', fontSize: 9, marginTop: 7, textTransform: 'capitalize' },
   readyCopy: { color: '#9991A4', fontFamily: 'Inter-ExtraLight', fontSize: 10, lineHeight: 15, textAlign: 'center', marginTop: 12 },
+  readyReason: { color: '#B8B0C5', fontFamily: 'Inter-Light', fontSize: 9, lineHeight: 14, textAlign: 'center', marginTop: 10 },
+  readyReview: { color: '#81798D', fontFamily: 'Inter-ExtraLight', fontSize: 8, lineHeight: 13, textAlign: 'center', marginTop: 9 },
   begin: { width: 214, minHeight: 47, alignSelf: 'center', alignItems: 'center', justifyContent: 'center', marginTop: 22, borderRadius: 24, borderWidth: 1, borderColor: 'rgba(218,207,255,0.65)', backgroundColor: 'rgba(95,73,157,0.44)' },
   beginText: { color: '#F3EEFF', fontFamily: 'Inter-Medium', fontSize: 10, letterSpacing: 1.65 },
   developmentTools: { width: 240, alignSelf: 'center', marginTop: 18 },

@@ -98,9 +98,9 @@ describe('the forest: Kotlin and Swift are the same model', () => {
     }
     expect(engine).toContain('forestModel.render(sampleRate, intensity, presence, density, variety, worldSalience)');
     expect(swiftAll).toContain('forestModel.render(sampleRate: sampleRate, intensity: intensity, presence: presence, density: density, variety: variety, salience: worldSalience)');
-    expect(engine).toContain('forestSample.set(forestModel.left + birdLeft, forestModel.right + birdRight)');
+    expect(engine).toContain('forestSample.set(forestModel.left + birdLeft + cricketModel.left, forestModel.right + birdRight + cricketModel.right)');
     expect(engine).toContain('forestBirdActive');
-    expect(swiftAll).toContain('(forestModel.left + birdLeft, forestModel.right + birdRight)');
+    expect(swiftAll).toContain('(forestModel.left + birdLeft + cricketModel.left, forestModel.right + birdRight + cricketModel.right)');
   });
 
   it('reseeds with every journey, on its own random stream', () => {

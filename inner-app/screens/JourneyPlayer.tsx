@@ -46,6 +46,7 @@ import {
   FACTORY_AUDIO_JOURNEYS,
 } from '../core/audio';
 import type { AudioJourneyTimeline, ProceduralAudioConfig, ProceduralAudioPatch } from '../core/audio';
+import { createPracticeActivityId, finishPracticeActivity, recordPracticeActivity } from '../core/practiceHistory';
 
 type RouteParams = { id?: string; chamber?: string; trackId?: string; proceduralJourneyId?: string; openLiveMix?: boolean };
 
@@ -569,7 +570,23 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
   const [isPrimed, setIsPrimed] = useState(false);
   const isPrimedRef = useRef(false);
   const startedAtRef = useRef<number>(0); // timestamp when playback actually advances (>0 position)
+  const practiceActivityIdRef = useRef<string | null>(null);
   const suppressCompleteRef = useRef<boolean>(true); // block early complete until real start
+
+  useEffect(() => {
+    if (!isPlaying || !isPrimed || practiceActivityIdRef.current) return;
+    const type = isSoundscape ? 'soundscape' : 'chamber';
+    const startedAt = startedAtRef.current || Date.now();
+    const activityId = createPracticeActivityId(type, startedAt);
+    practiceActivityIdRef.current = activityId;
+    void recordPracticeActivity({
+      id: activityId,
+      type,
+      contentId: selectedTrack?.id || legacyId || requestedProceduralJourney?.id || 'default',
+      contentTitle: displayTitle,
+      startedAt,
+    });
+  }, [displayTitle, isPlaying, isPrimed, isSoundscape, legacyId, requestedProceduralJourney?.id, selectedTrack?.id]);
 
   // Guarded completion predicate – avoids false "complete" when no real playback occurred
   const shouldMarkComplete = useCallback((posMs: number, durMs: number) => {
@@ -1348,6 +1365,9 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
       tightLoopDidJumpAtRef.current = 0;
       try { (saveNow as any).__tpEndSub?.remove?.(); (saveNow as any).__tpEndSub = null; } catch {}
       presentingGateRef.current = false;
+      const practiceActivityId = practiceActivityIdRef.current;
+      practiceActivityIdRef.current = null;
+      if (practiceActivityId) void finishPracticeActivity(practiceActivityId);
     };
   }, [selectedTrack?.id, legacyId, isSoundscape, proceduralJourneyId, openLiveMix]);
 
@@ -1486,6 +1506,9 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
       }
       if (usingProcedural) await proceduralSessionRef.current.pause();
       else await TrackPlayer.pause();
+      const practiceActivityId = practiceActivityIdRef.current;
+      practiceActivityIdRef.current = null;
+      if (practiceActivityId) await finishPracticeActivity(practiceActivityId);
     } catch {}
     navigation.goBack();
   };

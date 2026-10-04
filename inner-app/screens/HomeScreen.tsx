@@ -11,9 +11,6 @@ import { isAerisLimitReached } from '../src/core/aeris/aerisUsage';
 import FogPulse from '../components/FogPulse';
 import HomeAuraContinuity from '../components/HomeAuraContinuity';
 import SettingsModal from '../components/SettingsModal';
-import { CHAMBERS, LESSONS, SOUNDSCAPES } from '../data/suggestions';
-import { getTodaySuggestion } from '../utils/suggest';
-import type { Suggestion } from '../types/suggestion';
 import * as ThresholdEngine from '../src/core/thresholds/ThresholdEngine';
 
 import { useFocusEffect, useIsFocused } from '@react-navigation/native';
@@ -34,7 +31,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useIntention } from '../core/IntentionProvider';
-import { startFromSuggestion } from '../lib/startRoutes';
 
 import * as Sentry from '@sentry/react-native';
 import { Button } from 'react-native';
@@ -48,6 +44,27 @@ import { useWalkthrough } from '../hooks/useWalkthrough';
 import { useScale } from '../utils/scale';
 import LunarWhisperModal from '../src/lunar/LunarWhisperModal';
 import ReviewPromptModal from '../components/ReviewPromptModal';
+import MorningReturnCard from '../components/MorningReturnCard';
+import TonightRecommendationCard from '../components/TonightRecommendationCard';
+import ActiveExperimentHomeCard from '../components/ActiveExperimentHomeCard';
+import { useMorningReturnContinuation } from '../components/MorningReturnContext';
+import { deriveTonightRecommendation, type TonightRecommendation } from '../core/tonightRecommendation';
+import { saveSelectedRecommendation } from '../core/recommendationMemory';
+import {
+  adaptiveNightProposalFromRecommendation,
+  deriveAdaptiveRuleEvaluations,
+} from '../core/adaptiveNight';
+import { listEntries } from '../core/journalRepo';
+import { loadNightRecords } from '../core/nightRecords';
+import { loadJourneyMemory } from '../core/journeyMemory';
+import { createRecurringSignalJourney, deriveRecurringDreamSignal, saveRecurringSignalFocus } from '../core/recurringDreamSignals';
+import { FACTORY_AUDIO_JOURNEYS } from '../core/audio';
+import {
+  armPracticeExperimentNight,
+  loadCurrentPracticeExperiment,
+  practiceExperimentView,
+  type PracticeExperiment,
+} from '../core/practiceExperiments';
 import { useReviewScore } from '../hooks/useReviewScore';
 import { orbMoonImages } from '../src/ui/orbMoonImages';
 const Body = _Body ?? ({ regular: { ..._Typography.body }, subtle: { ..._Typography.caption } } as const);
@@ -214,6 +231,7 @@ const tourStyles = StyleSheet.create({
 const GUARDIAN_SWIPE_STEP_INDEX = 1;
 
 export default function HomeScreen({ navigation, route }: any) {
+  const morningReturnContinuation = useMorningReturnContinuation();
   // --- DEBUG: visualize/tune orb hit area ---
   const DEBUG_ORB_HIT = false; // set to false to hide the debug ring
   const portalScale = useRef(new Animated.Value(1)).current;
@@ -994,124 +1012,131 @@ const loop = Animated.loop(
   const [resumeLabel, setResumeLabel] = React.useState('My Journey');
   const [resumeSub, setResumeSub] = React.useState('');
   const [resumePct, setResumePct] = React.useState(0);
-  const [suggestion, setSuggestion] = React.useState<Suggestion | null>(null);
-  const [suggDismissed, setSuggDismissed] = React.useState(false);
-  const todayKey = React.useMemo(() => {
+  const [tonightRecommendation, setTonightRecommendation] = React.useState<TonightRecommendation | null>(null);
+  const [practiceExperiment, setPracticeExperiment] = React.useState<PracticeExperiment | null>(null);
+  const [recommendationDismissed, setRecommendationDismissed] = React.useState(false);
+  const [experimentDismissed, setExperimentDismissed] = React.useState(false);
+  const recommendationDismissKey = React.useMemo(() => {
     const d = new Date();
     const y = d.getFullYear();
     const m = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
-    return `suggestion:dismissed:${y}-${m}-${day}`;
+    return `recommendation:dismissed:${y}-${m}-${day}`;
   }, []);
+  const experimentDismissKey = React.useMemo(() => `${recommendationDismissKey}:experiment`, [recommendationDismissKey]);
+  const experimentView = React.useMemo(
+    () => practiceExperiment?.status === 'active' ? practiceExperimentView(practiceExperiment) : null,
+    [practiceExperiment],
+  );
+  const adaptiveNightProposal = React.useMemo(
+    () => adaptiveNightProposalFromRecommendation(tonightRecommendation),
+    [tonightRecommendation],
+  );
   useEffect(() => {
-    if (!suggestion) return;
+    if (!tonightRecommendation) return;
     (async () => {
       try {
-        const v = await AsyncStorage.getItem(todayKey);
-        setSuggDismissed(!!v);
+        const v = await AsyncStorage.getItem(recommendationDismissKey);
+        setRecommendationDismissed(!!v);
       } catch {
-        setSuggDismissed(false);
+        setRecommendationDismissed(false);
       }
     })();
-  }, [suggestion, todayKey]);
-
-  const suggOpacity = useRef(new Animated.Value(0)).current;
-  const suggTranslate = useRef(new Animated.Value(-verticalScale(6))).current;
-  const suggPress = useRef(new Animated.Value(0)).current;
-
-  const suggPressScale = suggPress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [1, 0.992],
-  });
-
-  const suggPressGlow = suggPress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, 1],
-  });
-  const suggPressBorder = suggPress.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['rgba(255,255,255,0.08)', 'rgba(255,255,255,0.14)'],
-  });
-
-  const handleDismissSuggestion = useCallback(async () => {
-    // subtle haptic to acknowledge the choice
-    try { await Haptics.selectionAsync(); } catch {}
-
-    try {
-      Animated.parallel([
-        Animated.timing(suggOpacity, {
-          toValue: 0,
-          duration: 800,
-          easing: Easing.out(Easing.cubic),
-          useNativeDriver: true,
-        }),
-        Animated.timing(suggTranslate, {
-          toValue: -verticalScale(6),
-          duration: 800,
-          easing: Easing.out(Easing.cubic),
-          useNativeDriver: true,
-        }),
-      ]).start(async () => {
-        // small post-fade linger so the longer fade is perceived
-        await new Promise(res => setTimeout(res, 240));
-        setSuggDismissed(true);
-        try { await AsyncStorage.setItem(todayKey, '1'); } catch {}
-      });
-    } catch {
-      setSuggDismissed(true);
-      try { await AsyncStorage.setItem(todayKey, '1'); } catch {}
-    }
-  }, [todayKey, suggOpacity, suggTranslate, verticalScale]);
+  }, [recommendationDismissKey, tonightRecommendation]);
   useEffect(() => {
+    if (!experimentView) return;
     (async () => {
-      try {
-        const s = await getTodaySuggestion(CHAMBERS, SOUNDSCAPES, LESSONS);
-        setSuggestion(s);
-      } catch {}
+      try { setExperimentDismissed(!!(await AsyncStorage.getItem(experimentDismissKey))); }
+      catch { setExperimentDismissed(false); }
     })();
-  }, []);
+  }, [experimentDismissKey, experimentView]);
 
-  useEffect(() => {
-    if (!suggestion) return;
-    // reset & fade/slide in
-    suggOpacity.setValue(0);
-    suggTranslate.setValue(-verticalScale(6));
-    Animated.parallel([
-      Animated.timing(suggOpacity, {
-        toValue: 1,
-        duration: 700,
-        delay: 1000,
-        useNativeDriver: true,
-      }),
-      Animated.timing(suggTranslate, {
-        toValue: 0,
-        duration: 700,
-        delay: 1000,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, [suggestion, suggOpacity, suggTranslate, verticalScale]);
-
-  const handleStartSuggestion = useCallback(async () => {
-    if (!suggestion || startingRef.current) return;
-    startingRef.current = true;
-
-    // gentle haptic tick on start
+  const handleDismissRecommendation = useCallback(async () => {
     try { await Haptics.selectionAsync(); } catch {}
+    setRecommendationDismissed(true);
+    try { await AsyncStorage.setItem(recommendationDismissKey, '1'); } catch {}
+  }, [recommendationDismissKey]);
 
-    // Fade the card out more slowly, then pause briefly so the fade is actually perceived before navigation kicks in
-    Animated.parallel([
-      Animated.timing(suggOpacity, { toValue: 0, duration: 800, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-      Animated.timing(suggTranslate, { toValue: -6, duration: 800, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-    ]).start(async () => {
-      // small post-fade linger so the longer fade reads
-      await new Promise(res => setTimeout(res, 240));
-      startFromSuggestion(suggestion, navigation);
-      // allow future starts after we leave this screen; safe reset
+  const handleDismissExperiment = useCallback(async () => {
+    try { await Haptics.selectionAsync(); } catch {}
+    setExperimentDismissed(true);
+    try { await AsyncStorage.setItem(experimentDismissKey, '1'); } catch {}
+  }, [experimentDismissKey]);
+
+  useFocusEffect(useCallback(() => {
+    let active = true;
+    void Promise.all([listEntries(), loadNightRecords(), loadJourneyMemory(), loadCurrentPracticeExperiment()])
+      .then(([entries, nightRecords, journeyMemory, currentExperiment]) => {
+        if (active) {
+          const evaluations = deriveAdaptiveRuleEvaluations(nightRecords);
+          const excludedKinds = evaluations.flatMap(evaluation => evaluation.status !== 'paused'
+            ? []
+            : [evaluation.rule === 'gentler_signal' ? 'gentler_signal' as const : 'repeat_environment' as const]);
+          const recommendation = deriveTonightRecommendation(
+            entries,
+            nightRecords,
+            journeyMemory.sessions,
+            Date.now(),
+            { excludedKinds },
+          );
+          setTonightRecommendation(recommendation);
+          setPracticeExperiment(currentExperiment);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setTonightRecommendation(null);
+          setPracticeExperiment(null);
+        }
+      });
+    return () => { active = false; };
+  }, []));
+
+  const handleTonightRecommendation = useCallback(async () => {
+    if (!tonightRecommendation || startingRef.current) return;
+    startingRef.current = true;
+    try { await Haptics.selectionAsync(); } catch {}
+    try {
+      try { await saveSelectedRecommendation(tonightRecommendation); } catch {}
+      if (adaptiveNightProposal) {
+        navigation.navigate('OvernightJourney', {
+          recommendationId: tonightRecommendation.id,
+          adaptiveProposal: adaptiveNightProposal,
+        });
+      } else if (tonightRecommendation.kind === 'recurring_signal' && tonightRecommendation.sign) {
+        const signal = deriveRecurringDreamSignal(await listEntries());
+        const baseJourney = FACTORY_AUDIO_JOURNEYS.find(journey => journey.id === 'lucid-signal');
+        if (signal && baseJourney) {
+          await saveRecurringSignalFocus(signal);
+          navigation.navigate('LucidJourneyPlayer', {
+            journey: createRecurringSignalJourney(baseJourney, tonightRecommendation.sign),
+          });
+        } else {
+          navigation.navigate('LucidJourneys');
+        }
+      } else {
+        navigation.navigate('LucidJourneys');
+      }
+    } finally {
       setTimeout(() => { startingRef.current = false; }, 1000);
-    });
-  }, [suggestion, navigation, suggOpacity, suggTranslate]);
+    }
+  }, [adaptiveNightProposal, navigation, tonightRecommendation]);
+
+  const handlePracticeExperiment = useCallback(async () => {
+    if (!practiceExperiment || !experimentView?.nextCondition || startingRef.current) return;
+    startingRef.current = true;
+    try { await Haptics.selectionAsync(); } catch {}
+    try {
+      const armed = await armPracticeExperimentNight(practiceExperiment.id);
+      if (!armed) return;
+      navigation.navigate('OvernightJourney', {
+        suggestedEnvironment: experimentView.nextCondition.id,
+        experimentId: practiceExperiment.id,
+      });
+    } finally {
+      setTimeout(() => { startingRef.current = false; }, 1000);
+    }
+  }, [experimentView, navigation, practiceExperiment]);
 
   // Intentions (global)
   const { intentions, label: intentionLabel, theme } = useIntention();
@@ -2759,9 +2784,9 @@ const openInnerFlame = useCallback(async () => {
         />
       </Animated.View>
 
-      {/* Top Suggestion Card (fixed near top, above orb) */}
-      {suggestion && !suggDismissed && (
-        <Animated.View
+      {/* Morning Return, active experiment, or evidence-based recommendation */}
+      {morningReturnContinuation.visible ? (
+        <View
           pointerEvents="box-none"
           style={{
             position: 'absolute',
@@ -2770,8 +2795,6 @@ const openInnerFlame = useCallback(async () => {
             right: 0,
             zIndex: 80,
             elevation: 80,
-            opacity: suggOpacity,
-            transform: [{ translateY: suggTranslate }],
           }}
         >
           <View
@@ -2782,158 +2805,54 @@ const openInnerFlame = useCallback(async () => {
               paddingHorizontal: scale(6),
             }}
           >
-            <AnimatedPressable
-              accessibilityRole="button"
-              accessibilityLabel={`Tonight's practice: ${suggestion.title}. Double tap to begin.`}
-              accessibilityHint="Starts the suggested practice"
-              onPress={handleStartSuggestion}
-             onPressIn={() => {
-                Animated.timing(suggPress, {
-                    toValue: 1,
-                    duration: 140,
-                    easing: Easing.out(Easing.cubic),
-                    useNativeDriver: true,
-                }).start();
-            }}
-            onPressOut={() => {
-                Animated.timing(suggPress, {
-                    toValue: 0,
-                    duration: 220,
-                    easing: Easing.out(Easing.cubic),
-                    useNativeDriver: true,
-                }).start();
-            }}
-            style={{
-                paddingVertical: verticalScale(10),
-                paddingHorizontal: scale(14),
-                borderRadius: scale(16),
-                overflow: 'hidden',
-                transform: [{ scale: suggPressScale }],
-            }}
-            >
-              <BlurView intensity={18} tint="dark" style={StyleSheet.absoluteFill} />
-              <LinearGradient
-                pointerEvents="none"
-                colors={['rgba(255,255,255,0.08)', 'rgba(255,255,255,0.02)']}
-                start={{ x: 0.5, y: 0 }}
-                end={{ x: 0.5, y: 1 }}
-                style={StyleSheet.absoluteFill}
-              />
-              {/* Soft inner vignette */}
-              <LinearGradient
-                pointerEvents="none"
-                colors={[
-                  'rgba(0,0,0,0.22)',
-                  'rgba(0,0,0,0.00)',
-                  'rgba(0,0,0,0.22)',
-                ]}
-                locations={[0, 0.5, 1]}
-                start={{ x: 0, y: 0.5 }}
-                end={{ x: 1, y: 0.5 }}
-                style={StyleSheet.absoluteFill}
-              />
-              <Animated.View
-                pointerEvents="none"
-                style={{
-                  ...StyleSheet.absoluteFillObject,
-                  borderWidth: 1,
-                  borderColor: suggPressBorder,
-                  borderRadius: scale(16),
-                }}
-              />
-              {/* Press glow (subtle) */}
-              <Animated.View
-                pointerEvents="none"
-                style={{
-                  ...StyleSheet.absoluteFillObject,
-                  backgroundColor: 'rgba(255,255,255,0.04)',
-                  opacity: suggPressGlow,
-                  borderRadius: scale(16),
-                }}
-              />
-              {/* Whisper copy */}
-              <Text
-                style={{
-                  fontFamily: 'Inter-ExtraLight',
-                  fontSize: scale(12),
-                  color: 'rgba(191,199,255,0.78)',
-                  letterSpacing: scale(0.2),
-                  textAlign: 'center',
-                  marginBottom: verticalScale(4),
-                }}
-              >
-                Tonight, a door is open.
-              </Text>
-
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
-                <Text
-                  numberOfLines={1}
-                  style={{
-                    fontFamily: 'CalSans-SemiBold',
-                    fontSize: scale(14),
-                    color: 'rgba(255,255,255,0.94)',
-                    letterSpacing: scale(0.15),
-                    textAlign: 'center',
-                    maxWidth: scale(280),
-                  }}
-                >
-                  {suggestion.title}
-                </Text>
-
-                {suggestion.minutes ? (
-                  <Text
-                    style={{
-                      marginLeft: scale(8),
-                      fontFamily: 'Inter-ExtraLight',
-                      fontSize: scale(12),
-                      color: 'rgba(207,213,255,0.70)',
-                    }}
-                  >
-                    · {suggestion.minutes} min
-                  </Text>
-                ) : null}
-                {/* Chevron removed */}
-              </View>
-
-              {/* Hairline underline to keep it intentional */}
-              <View
-                style={{
-                  marginTop: verticalScale(8),
-                  alignSelf: 'center',
-                  width: scale(190),
-                  height: 1,
-                  backgroundColor: 'rgba(255,255,255,0.06)',
-                }}
-              />
-            </AnimatedPressable>
-
-            {/* Dismiss (kept subtle, separate tap target) */}
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Dismiss tonight's practice"
-              onPress={handleDismissSuggestion}
-              hitSlop={scale(10)}
-              style={{
-                alignSelf: 'center',
-                marginTop: verticalScale(2),
-                paddingVertical: verticalScale(6),
-                paddingHorizontal: scale(10),
-              }}
-            >
-              <Text
-                style={{
-                  fontFamily: 'Inter-ExtraLight',
-                  fontSize: scale(12),
-                  color: 'rgba(207,195,224,0.78)',
-                  letterSpacing: scale(0.2),
-                }}
-              >
-                Later
-              </Text>
-            </Pressable>
+            <MorningReturnCard
+              visible
+              onOpen={morningReturnContinuation.open}
+              onDismiss={morningReturnContinuation.dismiss}
+            />
           </View>
-        </Animated.View>
-      )}
+        </View>
+      ) : experimentView && !experimentDismissed ? (
+        <View
+          pointerEvents="box-none"
+          style={{
+            position: 'absolute',
+            top: insets.top + verticalScale(16),
+            left: 0,
+            right: 0,
+            zIndex: 80,
+            elevation: 80,
+          }}
+        >
+          <View style={{ alignSelf: 'center', width: '78%', maxWidth: scale(380), paddingHorizontal: scale(6) }}>
+            <ActiveExperimentHomeCard
+              view={experimentView}
+              onOpen={() => { void handlePracticeExperiment(); }}
+              onDismiss={() => { void handleDismissExperiment(); }}
+            />
+          </View>
+        </View>
+      ) : tonightRecommendation && !recommendationDismissed ? (
+        <View
+          pointerEvents="box-none"
+          style={{
+            position: 'absolute',
+            top: insets.top + verticalScale(16),
+            left: 0,
+            right: 0,
+            zIndex: 80,
+            elevation: 80,
+          }}
+        >
+          <View style={{ alignSelf: 'center', width: '78%', maxWidth: scale(380), paddingHorizontal: scale(6) }}>
+            <TonightRecommendationCard
+              recommendation={tonightRecommendation}
+              onOpen={() => { void handleTonightRecommendation(); }}
+              onDismiss={() => { void handleDismissRecommendation(); }}
+            />
+          </View>
+        </View>
+      ) : null}
 
 
       {/* Portal / Orb */}

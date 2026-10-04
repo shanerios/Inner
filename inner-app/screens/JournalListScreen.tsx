@@ -7,6 +7,15 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useHeaderHeight } from '@react-navigation/elements';
 import { JournalEntry, listEntries, createEntry } from '../core/journalRepo';
 import { Typography, Body as _Body } from '../core/typography';
+import { buildPracticeContext } from '../core/practiceLinking';
+import { loadJourneyMemory, type JourneyMemorySession } from '../core/journeyMemory';
+import { derivePracticeMemoryInsights } from '../core/practiceMemory';
+import { loadNightRecords, type NightRecord } from '../core/nightRecords';
+import {
+  loadCurrentPracticeExperiment,
+  practiceExperimentView,
+  type PracticeExperiment,
+} from '../core/practiceExperiments';
 // Safe fallback to avoid hot-reload issues if Body is undefined momentarily
 const Body = _Body ?? ({
   regular: { ...Typography.body },
@@ -34,32 +43,13 @@ function formatCaptureLabel(minutesFromWake?: number | null) {
   return `Captured ${minutes} min before waking`;
 }
 
-function getRecurringSigns(entries: JournalEntry[]) {
-  const counts = new Map<string, number>();
-
-  entries.forEach((entry) => {
-    const signs = (((entry as any).dreamSigns || []) as string[]);
-    signs.forEach((sign) => {
-      counts.set(sign, (counts.get(sign) || 0) + 1);
-    });
-  });
-
-  return Array.from(counts.entries())
-    .filter(([, count]) => count >= 2)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 3);
-}
-
-function formatNightsRemembered(count: number) {
-  if (count <= 0) return null;
-  if (count === 1) return '1 night remembered';
-  return `${count} nights remembered`;
-}
-
 export default function JournalListScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
   const [items, setItems] = useState<JournalEntry[]>([]);
+  const [journeySessions, setJourneySessions] = useState<JourneyMemorySession[]>([]);
+  const [nightRecords, setNightRecords] = useState<NightRecord[]>([]);
+  const [practiceExperiment, setPracticeExperiment] = useState<PracticeExperiment | null>(null);
   const [query, setQuery] = useState('');
 
   useLayoutEffect(() => {
@@ -117,8 +107,16 @@ export default function JournalListScreen({ navigation }: Props) {
   }, []);
 
   const load = useCallback(async () => {
-    const all = await listEntries();
+    const [all, journeyMemory, recordedNights, experiment] = await Promise.all([
+      listEntries(),
+      loadJourneyMemory(),
+      loadNightRecords(),
+      loadCurrentPracticeExperiment(),
+    ]);
     setItems(all);
+    setJourneySessions(journeyMemory.sessions);
+    setNightRecords(recordedNights);
+    setPracticeExperiment(experiment);
   }, []);
 
   useEffect(() => { const unsub = navigation.addListener('focus', load); return unsub; }, [navigation, load]);
@@ -126,8 +124,14 @@ export default function JournalListScreen({ navigation }: Props) {
 
   const normalizedQuery = query.trim().toLowerCase();
   const mostRecentEntry = items[0] || null;
-  const recurringSigns = getRecurringSigns(items);
-  const nightsRemembered = formatNightsRemembered(items.length);
+  const practiceMemoryInsights = derivePracticeMemoryInsights(items, journeySessions, nightRecords);
+  const experimentView = practiceExperiment ? practiceExperimentView(practiceExperiment) : null;
+  const activeExperiment = practiceExperiment?.status === 'active' ? experimentView : null;
+  const memorySummary = activeExperiment
+    ? `Experiment ${activeExperiment.completedNights}/${activeExperiment.targetNights}`
+    : practiceMemoryInsights.length
+      ? `${practiceMemoryInsights.length} ${practiceMemoryInsights.length === 1 ? 'observation' : 'observations'}`
+      : `${items.filter(item => !item.testSession).length} ${items.filter(item => !item.testSession).length === 1 ? 'dream' : 'dreams'} remembered`;
 
   const filteredItems = !normalizedQuery
     ? items
@@ -184,30 +188,6 @@ export default function JournalListScreen({ navigation }: Props) {
       />
       */}
       
-      {!normalizedQuery && !!items.length && (
-        <View style={styles.summaryCard}>
-          {!!nightsRemembered && (
-            <Text style={styles.summaryOverline}>{nightsRemembered}</Text>
-          )}
-
-          <Text style={styles.summaryTitle}>
-            {mostRecentEntry ? 'Something has been carried back.' : 'Patterns are beginning to form.'}
-          </Text>
-
-          {!!recurringSigns.length && (
-            <>
-              <Text style={styles.summarySub}>Recurring signals</Text>
-              <View style={styles.summarySignRow}>
-                {recurringSigns.map(([sign, count]) => (
-                  <View key={sign} style={styles.summarySignChip}>
-                    <Text style={styles.summarySignText}>{sign} · {count}</Text>
-                  </View>
-                ))}
-              </View>
-            </>
-          )}
-        </View>
-      )}
       <View style={styles.searchWrap}>
         <TextInput
           value={query}
@@ -219,6 +199,20 @@ export default function JournalListScreen({ navigation }: Props) {
           clearButtonMode="while-editing"
         />
       </View>
+      {!normalizedQuery && (!!items.length || practiceMemoryInsights.length > 0 || !!practiceExperiment) && (
+        <Pressable
+          onPress={() => navigation.navigate('PracticeMemory')}
+          accessibilityRole="button"
+          accessibilityLabel={`Open Practice Memory. ${memorySummary}`}
+          style={({ pressed }) => [styles.memoryRow, pressed && styles.memoryRowPressed]}
+        >
+          <View>
+            <Text style={styles.memoryTitle}>PRACTICE MEMORY</Text>
+            <Text style={styles.memorySummary}>{memorySummary}</Text>
+          </View>
+          <Text style={styles.memoryChevron}>›</Text>
+        </Pressable>
+      )}
       {sections.length === 0 ? (
         <View style={styles.empty}>
           <Text style={styles.emptyTitle}>
@@ -287,7 +281,10 @@ export default function JournalListScreen({ navigation }: Props) {
         style={[styles.fab, { bottom: insets.bottom + 24 }]}
         onPress={async () => {
           try { await Haptics.selectionAsync(); } catch {}
-          const entry = await createEntry({});
+          const entry = await createEntry({
+            kind: 'dream',
+            practiceContext: await buildPracticeContext(),
+          });
           navigation.navigate('JournalEntry', { id: entry.id, isNew: true });
         }}
         activeOpacity={0.9}
@@ -317,30 +314,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 12,
   },
-  summaryCard: {
-    marginBottom: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-  },
-  summaryOverline: { ...Body.subtle, color: '#B9B2D6', marginBottom: 4, opacity: 0.76 },
-  summaryTitle: { ...Typography.body, color: '#EDEAF6', opacity: 0.96 },
-  summarySub: { ...Body.subtle, color: '#CFC9E8', marginTop: 10, marginBottom: 6, opacity: 0.84 },
-  summarySignRow: { flexDirection: 'row', flexWrap: 'wrap' },
-  summarySignChip: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    marginRight: 6,
-    marginBottom: 4,
-  },
-  summarySignText: { ...Body.subtle, fontSize: 11, color: '#D8D3EA' },
+  memoryRow: { minHeight: 54, marginBottom: 10, paddingHorizontal: 4, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(255,255,255,0.10)' },
+  memoryRowPressed: { opacity: 0.65 },
+  memoryTitle: { ...Body.subtle, color: '#B9B2D6', fontSize: 9, letterSpacing: 1.3 },
+  memorySummary: { ...Body.subtle, color: '#8F88A8', fontSize: 10, marginTop: 3 },
+  memoryChevron: { color: '#A99BC8', fontFamily: 'Inter-Light', fontSize: 25, marginRight: 4, marginBottom: 2 },
   card: {
     backgroundColor: 'rgba(255,255,255,0.06)',
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)',

@@ -3,6 +3,7 @@ import {
   saveOvernightReflection,
   saveOvernightMorningCapture,
   beginJourneyMemorySession,
+  attachNightPlanToJourneyMemory,
   deriveJourneyMemoryProfile,
   createMorningReturnTestSession,
   finishJourneyMemorySession,
@@ -84,6 +85,15 @@ describe('journey memory', () => {
     await finishJourneyMemorySession(session.id, 'completed', 60_000, undefined, storage as any, () => 200);
     await finishJourneyMemorySession(session.id, 'user_stopped', 10_000, undefined, storage as any, () => 300);
     expect((await loadJourneyMemory(storage as any)).sessions[0].outcome).toBe('completed');
+  });
+
+  it('binds an exact Night Plan identity to a started journey', async () => {
+    const storage = memoryStorage();
+    const session = await beginJourneyMemorySession(
+      'test-journey', timeline, DEFAULT_PROCEDURAL_AUDIO_CONFIG, storage as any, () => 100,
+    );
+    await attachNightPlanToJourneyMemory(session.id, 'night-plan-1', storage as any);
+    expect((await loadJourneyMemory(storage as any)).sessions[0].nightPlanId).toBe('night-plan-1');
   });
 
   it('derives explainable preferences only from completed listening', () => {
@@ -225,6 +235,27 @@ describe('overnight reflection linkage', () => {
     expect(saved.sessions[0].morningReflection?.answers).toEqual(answers);
     expect(saved.sessions[0].outcome).toBeUndefined();
     expect(pendingOvernightReflection(saved, 60_100)).toBeNull();
+  });
+
+  it('stores multidimensional dream outcomes on the exact overnight session', async () => {
+    const storage = memoryStorage();
+    const session = await beginJourneyMemorySession('overnight-recognition-ocean-standard', overnight,
+      DEFAULT_PROCEDURAL_AUDIO_CONFIG, storage, () => 100);
+    const reflection = {
+      recall: 'dream' as const,
+      noticed: 'unsure' as const,
+      sleepImpact: 'gentle' as const,
+      dreamDetails: {
+        awareness: 'yes' as const,
+        agency: 'a_little' as const,
+        control: { attempted: 'no' as const },
+        innerCue: { status: 'recognized' as const, types: ['sound' as const] },
+      },
+    };
+    await saveOvernightReflection(session.id, reflection, storage, () => 60_100);
+    const saved = await loadJourneyMemory(storage);
+    expect(saved.sessions[0].morningReflection?.answers).toEqual(reflection);
+    expect(saved.sessions[0].morningReflection?.answers.lucid).toBeUndefined();
   });
 
   it('saves to the selected session even after another night starts and a completion arrives', async () => {

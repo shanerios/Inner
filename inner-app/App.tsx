@@ -33,6 +33,7 @@ import LessonReader from './learn/screens/LessonReader';
 import JournalListScreen from './screens/JournalListScreen';
 import JournalEntryScreen from './screens/JournalEntryScreen';
 import DreamArchiveScreen from './screens/DreamArchiveScreen';
+import PracticeMemoryScreen from './screens/PracticeMemoryScreen';
 import HomeScreen from './screens/HomeScreen';
 import PointZeroScreen from './screens/PointZeroScreen';
 import CleanSlateScreen from './screens/CleanSlateScreen';
@@ -89,6 +90,7 @@ async function preloadTracks() {
 }
 
 import FogTransitionOverlay from './components/FogTransitionOverlay';
+import MorningReturnHost from './components/MorningReturnHost';
 import PaywallScreen from './screens/PaywallScreen';
 import { navigationRef } from './src/navigation/navigationRef';
 import * as Sentry from '@sentry/react-native';
@@ -138,7 +140,13 @@ type RootStackParamList = {
   LucidJourneys: undefined;
   CreateLucidJourney: undefined;
   LiveMix: undefined;
-  OvernightJourney: undefined;
+  OvernightJourney: {
+    suggestedEnvironment?: string;
+    suggestedCuePlan?: 'gentle' | 'standard';
+    recommendationId?: string;
+    experimentId?: string;
+    adaptiveProposal?: import('./core/adaptiveNight').AdaptiveNightProposal;
+  } | undefined;
   PlaybackDiagnostics: undefined;
   LucidJourneyPlayer: { journeyId?: string; journey?: import('./core/audio').FactoryAudioJourney };
   JourneyPlayer: { trackId?: string; chamber?: string; proceduralJourneyId?: string; openLiveMix?: boolean } | undefined;
@@ -146,6 +154,7 @@ type RootStackParamList = {
   Journal: undefined;
   JournalEntry: { id: string; isNew?: boolean };
   DreamArchive: undefined;
+  PracticeMemory: undefined;
   Guardian: undefined;
   GuardianPlayer: { trackId: string };
   PointZero: undefined;
@@ -216,7 +225,7 @@ async function handleNotificationResponse(response: Notifications.NotificationRe
 
   if (type === 'wake') {
     try {
-      const entry = await createEntry({});
+      const entry = await createEntry({ kind: 'dream', captureInput: { method: 'morning_quick_capture' } });
       // Home sits beneath JournalEntry so the entry's own back button has
       // somewhere to go — a bare single-route reset leaves goBack() with
       // nothing and RETURN throws "action not handled".
@@ -270,6 +279,7 @@ export default Sentry.wrap(function App() {
 
   const [fogVisible, setFogVisible] = React.useState(false);
   const [sealBoost, setSealBoost] = React.useState(0);
+  const [currentRouteName, setCurrentRouteName] = React.useState<string | undefined>(undefined);
 
   // Expose global controls so screens can trigger the shared fog without remounting
   React.useEffect(() => {
@@ -420,13 +430,16 @@ export default Sentry.wrap(function App() {
               theme={InnerTheme}
               ref={navigationRef}
               onReady={() => {
-                previousRouteName.current = (navigationRef.getCurrentRoute() as any)?.name;
+                const current = (navigationRef.getCurrentRoute() as any)?.name as string | undefined;
+                previousRouteName.current = current;
+                setCurrentRouteName(current);
                 // Cold launch via a notification tap — the live listener above
                 // only catches taps while already running.
                 Notifications.getLastNotificationResponseAsync().then(handleNotificationResponse);
               }}
               onStateChange={() => {
                 const current = (navigationRef.getCurrentRoute() as any)?.name as string | undefined;
+                setCurrentRouteName(current);
                 if (!current || current === previousRouteName.current) return;
                 Sentry.addBreadcrumb({
                   category: 'navigation.lifecycle',
@@ -439,6 +452,7 @@ export default Sentry.wrap(function App() {
               }}
             >
               <StatusBar style="light" backgroundColor="#0d0d1a" translucent={false} />
+              <MorningReturnHost currentRouteName={currentRouteName}>
               <Stack.Navigator initialRouteName="Splash"
                 detachInactiveScreens
                 screenOptions={{
@@ -559,6 +573,11 @@ export default Sentry.wrap(function App() {
                     },
                   }}
                 />
+                <Stack.Screen
+                  name="PracticeMemory"
+                  component={PracticeMemoryScreen}
+                  options={{ headerShown: true, headerTransparent: true, headerTitle: '' }}
+                />
                 <Stack.Screen name="DreamArchive" component={DreamArchiveScreen} options={{ headerShown: false }} />
                 <Stack.Screen name="Guardian" component={GuardianScreen} options={{ headerShown: false }} />
                 <Stack.Screen name="GuardianPlayer" component={GuardianPlayerScreen} options={{ headerShown: false }} />
@@ -608,6 +627,7 @@ export default Sentry.wrap(function App() {
                   options={{ headerShown: false, presentation: 'modal' }}
                 />
               </Stack.Navigator>
+              </MorningReturnHost>
               <FogTransitionOverlay
                 visible={fogVisible}
                 tint={'#5e3b7c'}

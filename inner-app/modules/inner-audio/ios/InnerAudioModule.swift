@@ -312,6 +312,7 @@ final class ProceduralAudioEngine: NSObject {
   private let worldSalience = WorldSalienceScheduler()
   private var forestEnvelope = 0.0
   private let forestModel = ForestModel()
+  private let cricketModel = CricketModel()
   private var forestRandom: UInt64 = 0x9e3779b97f4a7c15 ^ 0xc2b2ae35
   private var forestBirdActive = false
   private var forestBirdFramesRemaining = 0.0
@@ -728,6 +729,7 @@ final class ProceduralAudioEngine: NSObject {
     forestBirdAmp = 0
     forestBirdPan = 0
     forestModel.reset(seed: 0x9e3779b97f4a7c15, sampleRate: sampleRate)
+    cricketModel.reset(seed: 0x9e3779b97f4a7c15, sampleRate: sampleRate)
     templeSpaceEnvelope = 0
     templeSpaceRandom = 0x9e3779b97f4a7c15 ^ 0x6a09e667
     templeSpaceAirLeft = 0
@@ -972,6 +974,7 @@ final class ProceduralAudioEngine: NSObject {
       forestBirdActive = false
       forestBirdFramesRemaining = 0
       forestModel.reset(seed: activeTimeline.seed, sampleRate: sampleRate)
+      cricketModel.reset(seed: activeTimeline.seed, sampleRate: sampleRate)
       templeSpaceRandom = activeTimeline.seed ^ 0x6a09e667
       templeSpaceAirLeft = 0
       templeSpaceAirRight = 0
@@ -1707,7 +1710,8 @@ final class ProceduralAudioEngine: NSObject {
     let birdLeft = birdMono * (1 - forestBirdPan)
     let birdRight = birdMono * (1 + forestBirdPan)
     forestModel.render(sampleRate: sampleRate, intensity: intensity, presence: presence, density: density, variety: variety, salience: worldSalience)
-    return (forestModel.left + birdLeft, forestModel.right + birdRight)
+    cricketModel.render(sampleRate: sampleRate)
+    return (forestModel.left + birdLeft + cricketModel.left, forestModel.right + birdRight + cricketModel.right)
   }
 
   private func nextForestWhite() -> Double {
@@ -3718,6 +3722,176 @@ final class ForestModel {
     left = leavesLeft * ForestModel.leafGain + howlLeft * ForestModel.howlGain
     right = leavesRight * ForestModel.leafGain + howlRight * ForestModel.howlGain
     sample = i + 1
+  }
+}
+
+/// A cricket chorus for the forest floor: a small fixed cast of singers, each its own pitch, pulse rate, chirp-or-trill
+/// style, pan and distance, calling on its own schedule from its own random stream -- never synced to the leaves, the
+/// gusts, or the howl, the way a real chorus runs on its own clock. A near singer is brighter and drier; a far one is
+/// duller and carries more of the shared night air. Deliberately steady: unlike the howl (the forest's identity, which
+/// the night thins down) the chorus holds its level through every stage, the way insects do not go quiet for a sleeper.
+/// The Kotlin engine mirrors this file.
+final class CricketModel {
+  var left = 0.0
+  var right = 0.0
+
+  static let singers = 6
+  static let carrierLowHz = 3_600.0
+  static let carrierHighHz = 5_600.0
+  /// The whole chorus, level-checked by ear through the real engine render (not just the offline mockup), on the
+  /// forest bed it was approved over.
+  static let chorusGain = 0.504
+  static let secondHarmonic = 0.35
+  /// A pulse's attack, and the fraction of its length that sets its decay.
+  static let pulseAttackSeconds = 0.002
+  static let pulseDecayFraction = 0.45
+  /// How far a singer's pitch wanders, pulse to pulse.
+  static let wanderHz = 6.0
+  static let wanderRange = 0.06
+  /// A trill runs this many pulses before its breath; a chirp this few.
+  static let trillBurstLow = 40
+  static let trillBurstRange = 50
+  static let chirpBurstLow = 3
+  static let chirpBurstRange = 3
+  static let trillGapLowSeconds = 1.2
+  static let trillGapRangeSeconds = 3.3
+  static let chirpGapLowSeconds = 0.25
+  static let chirpGapRangeSeconds = 0.65
+  /// A near singer's cutoff; a far one's is this many Hz lower.
+  static let nearCutoffHz = 7_500.0
+  static let distanceCutoffRangeHz = 2_500.0
+  static let spaceSeconds = 0.34
+
+  private var rate = 48_000.0
+  private var seed: UInt64 = 1
+  private var random: UInt64 = 1
+
+  // fixed for the life of the model, drawn once at reset: the cast
+  private var carrierHz = [Double](repeating: 0, count: CricketModel.singers)
+  private var isTrill = [Bool](repeating: false, count: CricketModel.singers)
+  private var pulseSeconds = [Double](repeating: 0, count: CricketModel.singers)
+  private var pulseRateHz = [Double](repeating: 0, count: CricketModel.singers)
+  private var panLeftGain = [Double](repeating: 0, count: CricketModel.singers)
+  private var panRightGain = [Double](repeating: 0, count: CricketModel.singers)
+  private var levelFactor = [Double](repeating: 0, count: CricketModel.singers)
+  private var cutoffPole = [Double](repeating: 0, count: CricketModel.singers)
+  private var distance = [Double](repeating: 0, count: CricketModel.singers)
+
+  // per-sample state
+  private var phase = [Double](repeating: 0, count: CricketModel.singers)
+  private var freq = [Double](repeating: 0, count: CricketModel.singers)
+  private var amp = [Double](repeating: 0, count: CricketModel.singers)
+  private var sounding = [Bool](repeating: false, count: CricketModel.singers)
+  private var ageSamples = [Double](repeating: 0, count: CricketModel.singers)
+  private var countdownSamples = [Double](repeating: 0, count: CricketModel.singers)
+  private var burstRemaining = [Int](repeating: 0, count: CricketModel.singers)
+  private var lowpassOne = [Double](repeating: 0, count: CricketModel.singers)
+  private var lowpassTwo = [Double](repeating: 0, count: CricketModel.singers)
+
+  // one shared, short night-air send so distant singers carry a touch of the same space, not a separate room each
+  private var space = [Double](repeating: 0, count: 1)
+  private var spaceIndex = 0
+  private var spaceSmoothed = 0.0
+
+  func reset(seed: UInt64, sampleRate: Double) {
+    self.seed = seed
+    rate = sampleRate
+    random = seed ^ 0x437269636b657473
+    if random == 0 { random = 1 }
+    for s in 0..<CricketModel.singers {
+      carrierHz[s] = CricketModel.carrierLowHz + unit() * (CricketModel.carrierHighHz - CricketModel.carrierLowHz)
+      isTrill[s] = unit() < 0.4
+      pulseSeconds[s] = 0.012 + unit() * 0.010
+      pulseRateHz[s] = 28.0 + unit() * 10.0
+      let pan = unit() * 2.0 - 1.0
+      let angle = (pan + 1.0) * Double.pi / 4.0
+      panLeftGain[s] = cos(angle) * sqrt(2.0)
+      panRightGain[s] = sin(angle) * sqrt(2.0)
+      distance[s] = 0.15 + unit() * 0.85
+      levelFactor[s] = 0.35 + 0.65 * (1.0 - distance[s])
+      cutoffPole[s] = pole(CricketModel.nearCutoffHz - distance[s] * CricketModel.distanceCutoffRangeHz)
+      phase[s] = unit() * 2.0 * Double.pi
+      freq[s] = carrierHz[s]
+      amp[s] = 0.0
+      sounding[s] = false
+      ageSamples[s] = 0.0
+      countdownSamples[s] = unit() * rate * 1.5
+      burstRemaining[s] = 0
+      lowpassOne[s] = 0.0; lowpassTwo[s] = 0.0
+    }
+    space = [Double](repeating: 0, count: max(2, Int(rate * CricketModel.spaceSeconds)))
+    spaceIndex = 0
+    spaceSmoothed = 0.0
+    left = 0.0; right = 0.0
+  }
+
+  private func pole(_ hz: Double) -> Double { 1.0 - exp(-2.0 * Double.pi * hz / rate) }
+
+  private func unit() -> Double {
+    random ^= random << 13; random ^= random >> 7; random ^= random << 17
+    return Double(random >> 11) / 9_007_199_254_740_992.0
+  }
+
+  func render(sampleRate: Double) {
+    if rate != sampleRate { reset(seed: seed, sampleRate: sampleRate) }
+    var dryLeft = 0.0
+    var dryRight = 0.0
+    var farMono = 0.0
+    for s in 0..<CricketModel.singers {
+      countdownSamples[s] -= 1.0
+      if countdownSamples[s] <= 0.0 {
+        if burstRemaining[s] > 0 {
+          sounding[s] = true
+          ageSamples[s] = 0.0
+          freq[s] = clampHz(freq[s] + (unit() * 2.0 - 1.0) * CricketModel.wanderHz, carrier: carrierHz[s])
+          amp[s] = (0.75 + 0.25 * unit()) * (isTrill[s] ? 0.6 : 1.0)
+          burstRemaining[s] -= 1
+          countdownSamples[s] = (rate / pulseRateHz[s]) * (1.0 + 0.06 * (unit() * 2.0 - 1.0))
+        } else {
+          burstRemaining[s] = isTrill[s]
+            ? CricketModel.trillBurstLow + Int(unit() * Double(CricketModel.trillBurstRange))
+            : CricketModel.chirpBurstLow + Int(unit() * Double(CricketModel.chirpBurstRange))
+          let gapSeconds = isTrill[s]
+            ? CricketModel.trillGapLowSeconds + unit() * CricketModel.trillGapRangeSeconds
+            : CricketModel.chirpGapLowSeconds + unit() * CricketModel.chirpGapRangeSeconds
+          countdownSamples[s] = gapSeconds * rate
+        }
+      }
+      var voice = 0.0
+      if sounding[s] {
+        let t = ageSamples[s] / rate
+        if t >= pulseSeconds[s] {
+          sounding[s] = false
+        } else {
+          let envelope = min(1.0, t / CricketModel.pulseAttackSeconds) * exp(-t / (pulseSeconds[s] * CricketModel.pulseDecayFraction))
+          phase[s] = (phase[s] + 2.0 * Double.pi * freq[s] / rate).truncatingRemainder(dividingBy: 2.0 * Double.pi)
+          let tone = sin(phase[s]) + CricketModel.secondHarmonic * sin(2.0 * phase[s])
+          voice = amp[s] * envelope * tone
+          ageSamples[s] += 1.0
+        }
+      }
+      lowpassOne[s] += cutoffPole[s] * (voice - lowpassOne[s])
+      lowpassTwo[s] += cutoffPole[s] * (lowpassOne[s] - lowpassTwo[s])
+      let filtered = lowpassTwo[s]
+      dryLeft += filtered * panLeftGain[s] * levelFactor[s]
+      dryRight += filtered * panRightGain[s] * levelFactor[s]
+      farMono += filtered * distance[s]
+    }
+    // one shared, cheap sense of the night air around the chorus, carried mostly by the farther singers
+    let size = space.count
+    let tap = space[(spaceIndex - Int(rate * 0.07) + size) % size] * 0.6 +
+      space[(spaceIndex - Int(rate * 0.15) + size) % size] * 0.4
+    spaceSmoothed += 0.03 * (tap - spaceSmoothed)
+    space[spaceIndex] = farMono + spaceSmoothed * 0.3
+    spaceIndex = (spaceIndex + 1) % size
+    left = (dryLeft + spaceSmoothed * 0.5) * CricketModel.chorusGain
+    right = (dryRight + spaceSmoothed * 0.5) * CricketModel.chorusGain
+  }
+
+  private func clampHz(_ value: Double, carrier: Double) -> Double {
+    let low = carrier * (1.0 - CricketModel.wanderRange)
+    let high = carrier * (1.0 + CricketModel.wanderRange)
+    return value < low ? low : (value > high ? high : value)
   }
 }
 

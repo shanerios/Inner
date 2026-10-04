@@ -91,6 +91,13 @@
         }
       ],
       "expo-localization",
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Allow Inner to use the microphone when you choose voice capture.",
+          "speechRecognitionPermission": "Allow Inner to turn your spoken dream into editable text. Inner does not keep the audio."
+        }
+      ],
       "expo-secure-store"
     ],
     "web": {

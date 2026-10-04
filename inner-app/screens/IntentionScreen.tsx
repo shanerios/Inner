@@ -20,6 +20,7 @@ import { getNudge } from '../src/core/language/nudgeLibrary';
 import { getIntentions, getIntentionSetAt, getLastNudgeShownAt, setLastNudgeShownAt, touchIntentionSetAt } from '../core/session';
 import { useScale } from '../utils/scale';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { createPracticeActivityId, recordPracticeActivity } from '../core/practiceHistory';
 
 const Body = _Body ?? ({
   regular: { ...Typography.body },
@@ -375,6 +376,15 @@ export default function IntentionScreen() {
 
   const handleContinue = async () => {
     await setIntentions(selectedIntentions);
+    const tunedAt = Date.now();
+    await recordPracticeActivity({
+      id: createPracticeActivityId('tuning', tunedAt),
+      type: 'tuning',
+      contentId: selectedIntentions.join(','),
+      contentTitle: 'Intention Tuning',
+      startedAt: tunedAt,
+      endedAt: tunedAt,
+    });
 
     // Returning users re-tuning a stale intention (see SplashScreen) land back
     // on Home instead of re-entering the first-run Essence/paywall chain.

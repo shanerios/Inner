@@ -237,6 +237,7 @@ object ProceduralAudioEngine {
   private val cosmicSample = StereoSample()
   private val forestSample = StereoSample()
   private val forestModel = ForestModel()
+  private val cricketModel = CricketModel()
   private val templeSpaceSample = StereoSample()
   private val cueSample = StereoSample()
   private val templeSample = StereoSample()
@@ -663,6 +664,7 @@ object ProceduralAudioEngine {
     forestBirdAmp = 0.0
     forestBirdPan = 0.0
     forestModel.reset(XORSHIFT_SEED, sampleRate)
+    cricketModel.reset(XORSHIFT_SEED, sampleRate)
     templeSpaceEnvelope = 0.0
     aumChant.reset(XORSHIFT_SEED)
     templeSpaceRandom = XORSHIFT_SEED xor 0x6a09e667L
@@ -766,6 +768,7 @@ object ProceduralAudioEngine {
       forestBirdActive = false
       forestBirdFramesRemaining = 0.0
       forestModel.reset(activeTimeline.seed, sampleRate)
+      cricketModel.reset(activeTimeline.seed, sampleRate)
       templeSpaceRandom = activeTimeline.seed xor 0x6a09e667L
       aumChant.reset(activeTimeline.seed)
       templeSpaceAirLeft = 0.0
@@ -1428,7 +1431,8 @@ object ProceduralAudioEngine {
     val birdLeft = birdMono * (1 - forestBirdPan)
     val birdRight = birdMono * (1 + forestBirdPan)
     forestModel.render(sampleRate, intensity, presence, density, variety, worldSalience)
-    return forestSample.set(forestModel.left + birdLeft, forestModel.right + birdRight)
+    cricketModel.render(sampleRate)
+    return forestSample.set(forestModel.left + birdLeft + cricketModel.left, forestModel.right + birdRight + cricketModel.right)
   }
 
   private fun nextForestWhite(): Double {

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, AppState, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
@@ -24,11 +24,11 @@ import {
 } from '../utils/notifications';
 import {
   abandonPendingLucidSignalNight,
-  getPendingLucidSignalReflection,
   getLucidSignalCuePlan,
   loadLucidSignalLearning,
   lucidSignalLearningSummary,
   lucidSignalRecommendation,
+  lucidSignalAwarenessLabel,
   LucidSignalCuePlan,
   LucidSignalLearningSummary,
   LucidSignalNight,
@@ -40,6 +40,9 @@ import {
   SleepImpact,
   DreamRecall,
 } from '../core/lucidSignalLearning';
+import type { DreamDetails } from '../core/dreamDetails';
+import { normalizeDreamDetails } from '../core/dreamDetails';
+import DreamDetailsEditor from '../components/DreamDetailsEditor';
 import { clearDreamSeed, DreamSeed, loadDreamSeed, saveDreamSeed } from '../core/dreamIncubation';
 import {
   createRecognitionSignalSound,
@@ -50,14 +53,13 @@ import {
   setRecognitionSignalId,
 } from '../core/recognitionSignals';
 import {
-  pendingOvernightReflection,
   saveOvernightReflection,
   saveOvernightMorningCapture,
   deriveJourneyMemoryProfile,
   JourneyMemoryProfile,
   loadJourneyMemory,
 } from '../core/journeyMemory';
-import { createEntry } from '../core/journalRepo';
+import { createEntry, getEntry, saveEntry } from '../core/journalRepo';
 import type { Audio } from 'expo-av';
 
 export default function LucidJourneysScreen() {
@@ -83,7 +85,7 @@ export default function LucidJourneysScreen() {
   const [dreamSeedDraft, setDreamSeedDraft] = useState('');
   const [recognitionSignalId, setRecognitionSignalIdState] = useState<RecognitionSignalId>('ascending');
   const [noticed, setNoticed] = useState<SignalNotice | null>(null);
-  const [lucid, setLucid] = useState<boolean | null>(null);
+  const [dreamDetails, setDreamDetails] = useState<DreamDetails | undefined>(undefined);
   const [sleepImpact, setSleepImpact] = useState<SleepImpact | null>(null);
   const [dreamRecall, setDreamRecall] = useState<DreamRecall | null>(null);
   const [morningStep, setMorningStep] = useState<'capture' | 'reflection'>('capture');
@@ -179,15 +181,13 @@ export default function LucidJourneysScreen() {
 
   useEffect(() => {
     setNoticed(null);
-    setLucid(null);
+    setDreamDetails(undefined);
     setSleepImpact(null);
-    setDreamRecall(null);
+    setDreamRecall(pendingReflection?.morningCaptureEntryId ? 'dream' : null);
     setMorningStep(pendingReflection?.morningCaptureEntryId ? 'reflection' : 'capture');
     setMorningCapture('');
     setMorningCaptureEntryId(null);
   }, [pendingReflection?.id, pendingReflection?.morningCaptureEntryId]);
-
-  const offeredReflectionIdRef = useRef<string | null>(null);
 
   const captureMorningDream = useCallback(async () => {
     if (!pendingReflection || !morningCapture.trim() || morningCaptureSaving) return;
@@ -213,6 +213,7 @@ export default function LucidJourneysScreen() {
       } else {
         await saveLucidSignalMorningCapture(pendingReflection.id, entryId);
       }
+      setDreamRecall('dream');
       setMorningStep('reflection');
     } catch {
       Alert.alert(
@@ -232,12 +233,28 @@ export default function LucidJourneysScreen() {
   }, []);
 
   const submitReflection = useCallback(async () => {
-    if (!pendingReflection || !dreamRecall || !noticed || lucid === null || !sleepImpact) return;
+    if (!pendingReflection || !dreamRecall) return;
+    const details = normalizeDreamDetails({
+      ...(dreamRecall === 'none' ? {} : dreamDetails),
+      recall: dreamRecall,
+      sleepImpact: sleepImpact ?? undefined,
+    });
+    const reflection = {
+      recall: dreamRecall,
+      noticed: noticed ?? undefined,
+      dreamDetails: details,
+      sleepImpact: sleepImpact ?? undefined,
+    };
     try {
+      const linkedEntryId = morningCaptureEntryId ?? pendingReflection.morningCaptureEntryId;
+      if (linkedEntryId && !pendingReflection.preview) {
+        const linkedEntry = await getEntry(linkedEntryId);
+        if (linkedEntry) await saveEntry({ ...linkedEntry, dreamDetails: details });
+      }
       if (pendingReflection.journeySessionId) {
-        await saveOvernightReflection(pendingReflection.journeySessionId, { recall: dreamRecall, noticed, lucid, sleepImpact });
+        await saveOvernightReflection(pendingReflection.journeySessionId, reflection);
       } else if (!pendingReflection.preview) {
-        const learning = await saveLucidSignalReflection(pendingReflection.id, { recall: dreamRecall, noticed, lucid, sleepImpact });
+        const learning = await saveLucidSignalReflection(pendingReflection.id, reflection);
         setLearningNights(learning.nights);
         setLearningSummary(lucidSignalLearningSummary(learning.nights));
       }
@@ -248,13 +265,13 @@ export default function LucidJourneysScreen() {
     setPendingReflection(null);
     setMorningReflectionVisible(false);
     setNoticed(null);
-    setLucid(null);
+    setDreamDetails(undefined);
     setSleepImpact(null);
     setDreamRecall(null);
     setMorningCapture('');
     setMorningCaptureEntryId(null);
     setMorningStep('capture');
-  }, [dreamRecall, lucid, noticed, pendingReflection, sleepImpact]);
+  }, [dreamDetails, dreamRecall, morningCaptureEntryId, noticed, pendingReflection, sleepImpact]);
 
   const previewMorningReflection = useCallback(async () => {
     const now = Date.now();
@@ -273,33 +290,19 @@ export default function LucidJourneysScreen() {
 
   useFocusEffect(useCallback(() => {
     let active = true;
-    offeredReflectionIdRef.current = null;
     const refresh = () => {
       void Promise.all([
       loadPersonalizedJourneys(),
       hasLucidityCueNotificationsScheduled(),
-      getPendingLucidSignalReflection(),
       loadLucidSignalLearning(),
       getLucidSignalCuePlan(),
       loadDreamSeed(),
       getRecognitionSignalId(),
       loadJourneyMemory(),
-    ]).then(([journeys, hasCues, reflection, learning, selectedCuePlan, savedDreamSeed, selectedSignalId, journeyMemory]) => {
+    ]).then(([journeys, hasCues, learning, selectedCuePlan, savedDreamSeed, selectedSignalId, journeyMemory]) => {
       if (!active) return;
       setSavedJourneys(journeys);
       setCueScheduled(hasCues);
-      const overnight = pendingOvernightReflection(journeyMemory);
-      const pending = overnight ? {
-        id: overnight.id, journeySessionId: overnight.id,
-        scheduledAt: overnight.startedAt, sleepOnsetAt: overnight.startedAt,
-        cueTimes: [], reviewAt: overnight.startedAt + overnight.plannedDurationMs,
-        morningCaptureEntryId: overnight.morningCapture?.journalEntryId,
-      } : reflection;
-      if ((pending?.id ?? null) !== offeredReflectionIdRef.current) {
-        offeredReflectionIdRef.current = pending?.id ?? null;
-        setPendingReflection(pending);
-        setMorningReflectionVisible(Boolean(pending));
-      }
       setLearningNights(learning.nights);
       setLearningSummary(lucidSignalLearningSummary(learning.nights));
       setCuePlan(selectedCuePlan);
@@ -310,10 +313,7 @@ export default function LucidJourneysScreen() {
       }).catch(() => {});
     };
     refresh();
-    const subscription = AppState.addEventListener('change', state => {
-      if (state === 'active') refresh();
-    });
-    return () => { active = false; subscription.remove(); };
+    return () => { active = false; };
   }, []));
 
   const removeSavedJourney = (journey: SavedPersonalizedJourney) => {
@@ -574,9 +574,9 @@ export default function LucidJourneysScreen() {
                         <View key={night.id} style={styles.historyRow}>
                           <Text style={styles.historyDate}>{new Date(night.sleepOnsetAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</Text>
                           <Text style={styles.historyResult}>
-                            {night.reflection?.noticed === 'yes' ? 'Signal noticed' : night.reflection?.noticed === 'unsure' ? 'Signal unclear' : 'Not noticed'}
-                            {' · '}{night.reflection?.lucid ? 'Lucid' : 'Not lucid'}
-                            {' · '}{night.reflection?.sleepImpact === 'woke' ? 'Woke me' : night.reflection?.sleepImpact === 'gentle' ? 'Gentle' : 'Undisturbed'}
+                            {night.reflection?.noticed === 'yes' ? 'Signal noticed' : night.reflection?.noticed === 'unsure' ? 'Signal unclear' : night.reflection?.noticed === 'no' ? 'Not noticed' : 'Signal unanswered'}
+                            {' · '}{lucidSignalAwarenessLabel(night.reflection)}
+                            {' · '}{night.reflection?.sleepImpact === 'woke' ? 'Woke me' : night.reflection?.sleepImpact === 'gentle' ? 'Gentle' : night.reflection?.sleepImpact === 'none' ? 'Undisturbed' : 'Sleep impact unanswered'}
                           </Text>
                         </View>
                       ))}
@@ -790,7 +790,11 @@ export default function LucidJourneysScreen() {
                       { label: 'NONE', value: 'none' }, { label: 'A FRAGMENT', value: 'fragment' }, { label: 'A DREAM', value: 'dream' },
                     ]}
                     value={dreamRecall}
-                    onChange={value => setDreamRecall(value as DreamRecall)}
+                    onChange={value => {
+                      const recall = value as DreamRecall;
+                      setDreamRecall(recall);
+                      if (recall === 'none') setDreamDetails(undefined);
+                    }}
                   />
                   <ReflectionQuestion
                     prompt="Did you notice the signal?"
@@ -800,12 +804,15 @@ export default function LucidJourneysScreen() {
                     value={noticed}
                     onChange={value => setNoticed(value as SignalNotice)}
                   />
-                  <ReflectionQuestion
-                    prompt="Did you become lucid?"
-                    options={[{ label: 'YES', value: 'yes' }, { label: 'NO', value: 'no' }]}
-                    value={lucid === null ? null : lucid ? 'yes' : 'no'}
-                    onChange={value => setLucid(value === 'yes')}
-                  />
+                  {dreamRecall !== 'none' && (
+                    <View style={styles.morningDreamDetails}>
+                      <DreamDetailsEditor
+                        value={dreamDetails}
+                        onChange={setDreamDetails}
+                        initiallyExpanded
+                      />
+                    </View>
+                  )}
                   <ReflectionQuestion
                     prompt="How did it affect your sleep?"
                     options={[
@@ -816,10 +823,10 @@ export default function LucidJourneysScreen() {
                   />
                   <Pressable
                     onPress={() => { void submitReflection(); }}
-                    disabled={!dreamRecall || !noticed || lucid === null || !sleepImpact}
+                    disabled={!dreamRecall}
                     accessibilityRole="button"
                     accessibilityLabel="Save morning reflection"
-                    style={[styles.saveReflection, (!dreamRecall || !noticed || lucid === null || !sleepImpact) && styles.disabledReflection]}
+                    style={[styles.saveReflection, !dreamRecall && styles.disabledReflection]}
                   >
                     <Text style={styles.saveReflectionText}>SAVE REFLECTION</Text>
                   </Pressable>
@@ -943,9 +950,9 @@ export default function LucidJourneysScreen() {
                             <View key={night.id} style={styles.historyRow}>
                               <Text style={styles.historyDate}>{new Date(night.sleepOnsetAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</Text>
                               <Text style={styles.historyResult}>
-                                {night.reflection?.noticed === 'yes' ? 'Signal noticed' : night.reflection?.noticed === 'unsure' ? 'Signal unclear' : 'Not noticed'}
-                                {' · '}{night.reflection?.lucid ? 'Lucid' : 'Not lucid'}
-                                {' · '}{night.reflection?.sleepImpact === 'woke' ? 'Woke me' : night.reflection?.sleepImpact === 'gentle' ? 'Gentle' : 'Undisturbed'}
+                                {night.reflection?.noticed === 'yes' ? 'Signal noticed' : night.reflection?.noticed === 'unsure' ? 'Signal unclear' : night.reflection?.noticed === 'no' ? 'Not noticed' : 'Signal unanswered'}
+                                {' · '}{lucidSignalAwarenessLabel(night.reflection)}
+                                {' · '}{night.reflection?.sleepImpact === 'woke' ? 'Woke me' : night.reflection?.sleepImpact === 'gentle' ? 'Gentle' : night.reflection?.sleepImpact === 'none' ? 'Undisturbed' : 'Sleep impact unanswered'}
                               </Text>
                             </View>
                           ))}
@@ -1141,6 +1148,7 @@ const styles = StyleSheet.create({
   noRecallButton: { minHeight: 34, justifyContent: 'center', marginTop: 8, paddingHorizontal: 14 },
   noRecallText: { color: '#91899D', fontFamily: 'Inter-Medium', fontSize: 7, letterSpacing: 1.15 },
   reflectionQuestion: { alignItems: 'center', marginTop: 12 },
+  morningDreamDetails: { alignSelf: 'stretch', marginTop: 16 },
   reflectionPrompt: { color: '#D7D0E0', fontFamily: 'Inter-Light', fontSize: 11, textAlign: 'center', marginBottom: 7 },
   reflectionOptions: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 6 },
   reflectionOption: { minHeight: 29, justifyContent: 'center', paddingHorizontal: 10, borderRadius: 15, borderWidth: 1, borderColor: 'rgba(205,194,255,0.2)', backgroundColor: 'rgba(15,16,31,0.55)' },

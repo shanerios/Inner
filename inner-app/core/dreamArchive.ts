@@ -1,13 +1,18 @@
 import type { JournalEntry } from './journalRepo';
+import { dreamDetailsSummary } from './dreamDetails';
+import { practiceContextSummary } from './practiceContext';
+import type { NightRecord } from './nightRecords';
 
 export type DreamArchiveRange = 'all' | 'year' | '30days';
 
 export type DreamArchiveExport = {
-  schemaVersion: 1;
+  schemaVersion: 3;
   generatedAt: number;
   range: DreamArchiveRange;
   entryCount: number;
   entries: JournalEntry[];
+  nightRecordCount: number;
+  nightRecords: NightRecord[];
 };
 
 export const DREAM_ARCHIVE_RANGE_LABELS: Record<DreamArchiveRange, string> = {
@@ -29,21 +34,35 @@ export function filterDreamArchiveEntries(
 ): JournalEntry[] {
   const start = rangeStart(range, now);
   return entries
-    .filter(entry => entry.createdAt >= start)
+    .filter(entry => !entry.testSession && entry.createdAt >= start)
     .sort((a, b) => b.createdAt - a.createdAt);
+}
+
+export function filterDreamArchiveNightRecords(
+  records: NightRecord[],
+  range: DreamArchiveRange,
+  now = Date.now(),
+): NightRecord[] {
+  const start = rangeStart(range, now);
+  return records
+    .filter(record => !record.testSession && record.reflectedAt >= start)
+    .sort((a, b) => b.reflectedAt - a.reflectedAt);
 }
 
 export function buildDreamArchiveExport(
   entries: JournalEntry[],
   range: DreamArchiveRange,
   generatedAt = Date.now(),
+  nightRecords: NightRecord[] = [],
 ): DreamArchiveExport {
   return {
-    schemaVersion: 1,
+    schemaVersion: 3,
     generatedAt,
     range,
     entryCount: entries.length,
     entries,
+    nightRecordCount: nightRecords.length,
+    nightRecords,
   };
 }
 
@@ -92,12 +111,16 @@ export function buildDreamArchiveHtml(archive: DreamArchiveExport): string {
     const metadata = entryMeta(entry);
     const signs = entry.dreamSigns?.filter(Boolean) ?? [];
     const intentions = entry.intentionTags?.filter(Boolean) ?? [];
+    const details = dreamDetailsSummary(entry.dreamDetails);
+    const practice = practiceContextSummary(entry.practiceContext);
     return `
       <article class="entry${index > 0 ? ' continued' : ''}">
         <div class="entry-date">${escapeHtml(formatDate(entry.createdAt))}</div>
         <h2>${escapeHtml(title)}</h2>
         ${metadata.length ? `<div class="metadata">${metadata.map(escapeHtml).join(' &middot; ')}</div>` : ''}
         <div class="body">${bodyHtml(entry.body)}</div>
+        ${practice.length ? `<div class="details"><strong>The night before this dream</strong>${practice.map(line => `<div>${escapeHtml(line)}</div>`).join('')}</div>` : ''}
+        ${details.length ? `<div class="details"><strong>Dream details</strong>${details.map(line => `<div>${escapeHtml(line)}</div>`).join('')}</div>` : ''}
         ${signs.length ? `<div class="tags"><strong>Dream signs</strong>${signs.map(sign => `<span>${escapeHtml(sign)}</span>`).join('')}</div>` : ''}
         ${intentions.length ? `<div class="tags"><strong>Intentions</strong>${intentions.map(tag => `<span>${escapeHtml(tag)}</span>`).join('')}</div>` : ''}
       </article>`;
@@ -124,6 +147,8 @@ export function buildDreamArchiveHtml(archive: DreamArchiveExport): string {
     .body p { margin: 0 0 10px; white-space: normal; }
     .body p:last-child { margin-bottom: 0; }
     .empty { color: #918a96; font-style: italic; }
+    .details { margin-top: 14px; color: #5f5668; background: #f6f3f8; border-radius: 8px; padding: 9px 11px; font-family: Arial, sans-serif; font-size: 8px; line-height: 1.7; }
+    .details strong { display: block; color: #6f637e; letter-spacing: 0.5px; margin-bottom: 2px; }
     .tags { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-top: 14px; font-family: Arial, sans-serif; font-size: 8px; }
     .tags strong { color: #6f637e; letter-spacing: 0.5px; margin-right: 3px; }
     .tags span { color: #5f5668; background: #f0ecf3; border: 1px solid #ded6e4; border-radius: 10px; padding: 3px 7px; }

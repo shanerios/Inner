@@ -1,24 +1,29 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { RecognitionSignalId } from './recognitionSignals';
 import type { LucidSignalCuePlan } from './lucidSignalPlans';
+import { normalizeDreamDetails } from './dreamDetails';
+import type { DreamAwareness, DreamDetails, DreamRecall, DreamSleepImpact } from './dreamDetails';
 export { LUCID_SIGNAL_CUE_OFFSETS_HOURS } from './lucidSignalPlans';
 export type { LucidSignalCuePlan } from './lucidSignalPlans';
 
 export const LUCID_SIGNAL_LEARNING_KEY = 'inner.lucid-signal.learning.v1';
 export const LUCID_SIGNAL_PLAN_KEY = 'inner.lucid-signal.plan.v1';
+export const LUCID_SIGNAL_LEARNING_SCHEMA_VERSION = 2 as const;
 const MAX_NIGHTS = 30;
 
 type Storage = Pick<typeof AsyncStorage, 'getItem' | 'setItem'>;
 
 export type SignalNotice = 'yes' | 'unsure' | 'no';
-export type SleepImpact = 'none' | 'gentle' | 'woke';
-export type DreamRecall = 'none' | 'fragment' | 'dream';
+export type SleepImpact = DreamSleepImpact;
+export type { DreamRecall };
 
 export type LucidSignalReflection = {
   recall?: DreamRecall;
-  noticed: SignalNotice;
-  lucid: boolean;
-  sleepImpact: SleepImpact;
+  noticed?: SignalNotice;
+  /** Legacy answer retained for older nights. New reflections use dreamDetails.awareness. */
+  lucid?: boolean;
+  dreamDetails?: DreamDetails;
+  sleepImpact?: SleepImpact;
 };
 
 export type LucidSignalNight = {
@@ -35,11 +40,11 @@ export type LucidSignalNight = {
 };
 
 type LucidSignalLearningState = {
-  schemaVersion: 1;
+  schemaVersion: typeof LUCID_SIGNAL_LEARNING_SCHEMA_VERSION;
   nights: LucidSignalNight[];
 };
 
-const EMPTY_STATE: LucidSignalLearningState = { schemaVersion: 1, nights: [] };
+const EMPTY_STATE: LucidSignalLearningState = { schemaVersion: LUCID_SIGNAL_LEARNING_SCHEMA_VERSION, nights: [] };
 
 function validNight(value: unknown): value is LucidSignalNight {
   if (!value || typeof value !== 'object') return false;
@@ -56,8 +61,11 @@ export async function loadLucidSignalLearning(storage: Storage = AsyncStorage): 
   try {
     const raw = await storage.getItem(LUCID_SIGNAL_LEARNING_KEY);
     const parsed = raw ? JSON.parse(raw) : null;
-    if (parsed?.schemaVersion !== 1 || !Array.isArray(parsed.nights)) return EMPTY_STATE;
-    return { schemaVersion: 1, nights: parsed.nights.filter(validNight).slice(0, MAX_NIGHTS) };
+    if (![1, LUCID_SIGNAL_LEARNING_SCHEMA_VERSION].includes(parsed?.schemaVersion) || !Array.isArray(parsed.nights)) return EMPTY_STATE;
+    return {
+      schemaVersion: LUCID_SIGNAL_LEARNING_SCHEMA_VERSION,
+      nights: parsed.nights.filter(validNight).slice(0, MAX_NIGHTS),
+    };
   } catch {
     return EMPTY_STATE;
   }
@@ -83,14 +91,14 @@ export async function recordLucidSignalNight(
   };
   const state = await loadLucidSignalLearning(storage);
   const nights = [night, ...state.nights.filter(item => item.reflection)].slice(0, MAX_NIGHTS);
-  await storage.setItem(LUCID_SIGNAL_LEARNING_KEY, JSON.stringify({ schemaVersion: 1, nights }));
+  await storage.setItem(LUCID_SIGNAL_LEARNING_KEY, JSON.stringify({ schemaVersion: LUCID_SIGNAL_LEARNING_SCHEMA_VERSION, nights }));
   return night;
 }
 
 export async function abandonPendingLucidSignalNight(storage: Storage = AsyncStorage): Promise<void> {
   const state = await loadLucidSignalLearning(storage);
   const nights = state.nights.filter(night => night.reflection);
-  await storage.setItem(LUCID_SIGNAL_LEARNING_KEY, JSON.stringify({ schemaVersion: 1, nights }));
+  await storage.setItem(LUCID_SIGNAL_LEARNING_KEY, JSON.stringify({ schemaVersion: LUCID_SIGNAL_LEARNING_SCHEMA_VERSION, nights }));
 }
 
 export async function getPendingLucidSignalReflection(
@@ -108,12 +116,35 @@ export async function saveLucidSignalReflection(
   now: () => number = Date.now,
 ): Promise<LucidSignalLearningState> {
   const state = await loadLucidSignalLearning(storage);
+  const normalizedReflection = normalizeLucidSignalReflection(reflection);
   const nights = state.nights.map(night => night.id === nightId
-    ? { ...night, reflection, reflectedAt: now() }
+    ? { ...night, reflection: normalizedReflection, reflectedAt: now() }
     : night);
-  const next = { schemaVersion: 1 as const, nights };
+  const next = { schemaVersion: LUCID_SIGNAL_LEARNING_SCHEMA_VERSION, nights };
   await storage.setItem(LUCID_SIGNAL_LEARNING_KEY, JSON.stringify(next));
   return next;
+}
+
+export function normalizeLucidSignalReflection(reflection: LucidSignalReflection): LucidSignalReflection {
+  const { dreamDetails, ...legacyAndNightAnswers } = reflection;
+  const normalizedDetails = normalizeDreamDetails(dreamDetails);
+  return normalizedDetails
+    ? { ...legacyAndNightAnswers, dreamDetails: normalizedDetails }
+    : legacyAndNightAnswers;
+}
+
+export function lucidSignalReflectionAwareness(reflection?: LucidSignalReflection): DreamAwareness | null {
+  if (reflection?.dreamDetails?.awareness) return reflection.dreamDetails.awareness;
+  if (typeof reflection?.lucid === 'boolean') return reflection.lucid ? 'yes' : 'no';
+  return null;
+}
+
+export function lucidSignalAwarenessLabel(reflection?: LucidSignalReflection): string {
+  const awareness = lucidSignalReflectionAwareness(reflection);
+  if (awareness === 'yes') return 'Aware in dream';
+  if (awareness === 'maybe') return 'Awareness uncertain';
+  if (awareness === 'no') return 'Not aware in dream';
+  return 'Awareness unanswered';
 }
 
 export async function saveLucidSignalMorningCapture(
@@ -125,20 +156,34 @@ export async function saveLucidSignalMorningCapture(
   const nights = state.nights.map(night => night.id === nightId
     ? { ...night, morningCaptureEntryId: journalEntryId }
     : night);
-  await storage.setItem(LUCID_SIGNAL_LEARNING_KEY, JSON.stringify({ schemaVersion: 1, nights }));
+  await storage.setItem(LUCID_SIGNAL_LEARNING_KEY, JSON.stringify({ schemaVersion: LUCID_SIGNAL_LEARNING_SCHEMA_VERSION, nights }));
 }
 
 export function lucidSignalInsight(nights: LucidSignalNight[]): string | null {
   const reflected = nights.filter((night): night is LucidSignalNight & { reflection: LucidSignalReflection } => Boolean(night.reflection));
   if (reflected.length < 3) return null;
   const recent = reflected.slice(0, 7);
-  const noticed = recent.filter(night => night.reflection.noticed === 'yes').length;
-  const lucid = recent.filter(night => night.reflection.lucid).length;
-  const woke = recent.filter(night => night.reflection.sleepImpact === 'woke').length;
-  if (woke >= Math.ceil(recent.length / 2)) return 'The signal may be arriving too strongly for your sleep. A gentler volume is worth trying next.';
-  if (noticed >= Math.ceil(recent.length / 2) && lucid > 0) return 'You are noticing the signal, and some of those nights have carried into lucidity.';
-  if (noticed >= Math.ceil(recent.length / 2)) return 'You tend to notice the signal without it consistently becoming a lucid cue yet. Recognition practice may help strengthen the link.';
-  return 'The signal has stayed subtle across your recent nights. A small volume adjustment may make it easier to recognize.';
+  const sleepObserved = recent.filter(night => Boolean(night.reflection.sleepImpact));
+  const noticedObserved = recent.filter(night => Boolean(night.reflection.noticed));
+  const awarenessObserved = recent.filter(night => lucidSignalReflectionAwareness(night.reflection) !== null);
+  const noticed = noticedObserved.filter(night => night.reflection.noticed === 'yes').length;
+  const lucid = awarenessObserved.filter(night => lucidSignalReflectionAwareness(night.reflection) === 'yes').length;
+  const woke = sleepObserved.filter(night => night.reflection.sleepImpact === 'woke').length;
+  if (sleepObserved.length >= 3 && woke >= Math.ceil(sleepObserved.length / 2)) {
+    return 'The signal may be arriving too strongly for your sleep. A gentler volume is worth trying next.';
+  }
+  if (noticedObserved.length >= 3 && noticed >= Math.ceil(noticedObserved.length / 2) && lucid > 0) {
+    return 'You are noticing the signal, and some of those nights have carried into lucidity.';
+  }
+  if (noticedObserved.length >= 3 && noticed >= Math.ceil(noticedObserved.length / 2)) {
+    return awarenessObserved.length >= 3
+      ? 'You tend to notice the signal without it consistently becoming a lucid cue yet. Recognition practice may help strengthen the link.'
+      : 'You tend to notice the signal. More dream reflections will show whether it carries into lucid awareness.';
+  }
+  if (noticedObserved.length >= 3) {
+    return 'The signal has stayed subtle across your recent nights. A small volume adjustment may make it easier to recognize.';
+  }
+  return 'Your recent reflections are recorded. There is not enough answered signal information for a pattern yet.';
 }
 
 export type LucidSignalLearningSummary = {
@@ -199,11 +244,12 @@ export function lucidSignalRecommendation(
     .filter((night): night is LucidSignalNight & { reflection: LucidSignalReflection } => Boolean(night.reflection))
     .slice(0, 7);
   if (reflected.length < 3) return null;
-  const threshold = Math.ceil(reflected.length / 2);
-  const woke = reflected.filter(night => night.reflection.sleepImpact === 'woke').length;
-  const noticed = reflected.filter(night => night.reflection.noticed === 'yes').length;
-  const lucid = reflected.filter(night => night.reflection.lucid).length;
-  if (woke >= threshold) {
+  const sleepObserved = reflected.filter(night => Boolean(night.reflection.sleepImpact));
+  const noticedObserved = reflected.filter(night => Boolean(night.reflection.noticed));
+  const woke = sleepObserved.filter(night => night.reflection.sleepImpact === 'woke').length;
+  const noticed = noticedObserved.filter(night => night.reflection.noticed === 'yes').length;
+  const lucid = reflected.filter(night => lucidSignalReflectionAwareness(night.reflection) === 'yes').length;
+  if (sleepObserved.length >= 3 && woke >= Math.ceil(sleepObserved.length / 2)) {
     return {
       plan: 'gentle',
       title: 'A gentler signal night',
@@ -211,7 +257,9 @@ export function lucidSignalRecommendation(
       volumeGuidance: 'Consider lowering notification volume slightly before sleep.',
     };
   }
-  if (noticed < threshold) {
+  if (noticedObserved.length < 3) return null;
+  const noticeThreshold = Math.ceil(noticedObserved.length / 2);
+  if (noticed < noticeThreshold) {
     return {
       plan: 'standard',
       title: 'Make the signal easier to meet',

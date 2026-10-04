@@ -23,6 +23,7 @@ import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { TRACKS, getTrackUrl } from '../data/tracks';
+import { createPracticeActivityId, finishPracticeActivity, recordPracticeActivity } from '../core/practiceHistory';
 
 function mmss(ms: number): string {
   const totalSec = Math.max(0, Math.floor(ms / 1000));
@@ -63,6 +64,7 @@ export default function GuardianPlayerScreen({ route, navigation }: any) {
   const pollRef         = useRef<ReturnType<typeof setInterval> | null>(null);
   const saveIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastSavedMsRef  = useRef(-1);
+  const practiceActivityIdRef = useRef<string | null>(null);
 
   const savePosition = async (ms: number) => {
     if (ms === lastSavedMsRef.current) return;
@@ -143,6 +145,16 @@ export default function GuardianPlayerScreen({ route, navigation }: any) {
         } catch {}
 
         await TrackPlayer.play();
+        const startedAt = Date.now();
+        const activityId = createPracticeActivityId('guardian', startedAt);
+        practiceActivityIdRef.current = activityId;
+        void recordPracticeActivity({
+          id: activityId,
+          type: 'guardian',
+          contentId: track.id,
+          contentTitle: track.title,
+          startedAt,
+        });
         setupDoneRef.current = true;
         setIsPlaying(true);
 
@@ -178,6 +190,9 @@ export default function GuardianPlayerScreen({ route, navigation }: any) {
       if (pollRef.current) clearInterval(pollRef.current);
       if (saveIntervalRef.current) clearInterval(saveIntervalRef.current);
       TrackPlayer.pause().catch(() => {});
+      const practiceActivityId = practiceActivityIdRef.current;
+      practiceActivityIdRef.current = null;
+      if (practiceActivityId) void finishPracticeActivity(practiceActivityId);
     };
   }, [track]);
 
@@ -283,6 +298,9 @@ export default function GuardianPlayerScreen({ route, navigation }: any) {
       await TrackPlayer.pause();
       await TrackPlayer.reset();
     } catch {}
+    const practiceActivityId = practiceActivityIdRef.current;
+    practiceActivityIdRef.current = null;
+    if (practiceActivityId) await finishPracticeActivity(practiceActivityId);
     navigation.goBack();
   };
 

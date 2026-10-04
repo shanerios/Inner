@@ -13,6 +13,7 @@ import {
   recordLucidSignalNight,
   saveLucidSignalReflection,
   saveLucidSignalMorningCapture,
+  LUCID_SIGNAL_LEARNING_SCHEMA_VERSION,
 } from '../lucidSignalLearning';
 
 function memoryStorage() {
@@ -40,6 +41,42 @@ describe('Lucid Signal learning', () => {
     expect((await loadLucidSignalLearning(storage as any)).nights[0].reflection?.lucid).toBe(true);
   });
 
+  it('stores multidimensional awareness without creating a new binary lucid answer', async () => {
+    const storage = memoryStorage();
+    const night = await recordLucidSignalNight(1_000, [2_000], storage as any, () => 500);
+    await saveLucidSignalReflection(night.id, {
+      recall: 'dream',
+      noticed: 'yes',
+      sleepImpact: 'none',
+      dreamDetails: {
+        awareness: 'maybe',
+        agency: 'a_little',
+        control: { attempted: 'yes', domains: ['place'], result: 'partly_worked' },
+        innerCue: { status: 'recognized', types: ['sound'] },
+      },
+    }, storage as any, () => 9_000);
+    const saved = (await loadLucidSignalLearning(storage as any)).nights[0].reflection;
+    expect(saved?.lucid).toBeUndefined();
+    expect(saved?.dreamDetails).toEqual(expect.objectContaining({
+      awareness: 'maybe',
+      agency: 'a_little',
+    }));
+  });
+
+  it('upgrades the learning envelope while preserving legacy binary reflections', async () => {
+    const storage = memoryStorage();
+    await storage.setItem('ignored', JSON.stringify({
+      schemaVersion: 1,
+      nights: [{
+        id: 'legacy', scheduledAt: 1, sleepOnsetAt: 2, cueTimes: [3], reviewAt: 4,
+        reflection: { noticed: 'yes', lucid: true, sleepImpact: 'none' },
+      }],
+    }));
+    const loaded = await loadLucidSignalLearning(storage as any);
+    expect(loaded.schemaVersion).toBe(LUCID_SIGNAL_LEARNING_SCHEMA_VERSION);
+    expect(loaded.nights[0].reflection?.lucid).toBe(true);
+  });
+
   it('keeps a morning capture linked while the structured reflection remains pending', async () => {
     const storage = memoryStorage();
     const night = await recordLucidSignalNight(1_000, [2_000], storage as any, () => 500);
@@ -56,6 +93,29 @@ describe('Lucid Signal learning', () => {
     expect(lucidSignalInsight([reflected('yes', true, 'none'), reflected('yes', false, 'none')])).toBeNull();
     expect(lucidSignalInsight([reflected('yes', true, 'none'), reflected('yes', false, 'none'), reflected('no', false, 'none')]))
       .toContain('carried into lucidity');
+  });
+
+  it('uses structured awareness for new-night insights', () => {
+    const night = (id: string, awareness: 'no' | 'maybe' | 'yes') => ({
+      id, scheduledAt: 1, sleepOnsetAt: 2, cueTimes: [3], reviewAt: 4,
+      reflection: {
+        noticed: 'yes' as const,
+        sleepImpact: 'none' as const,
+        dreamDetails: { awareness },
+      },
+    });
+    expect(lucidSignalInsight([
+      night('one', 'yes'), night('two', 'maybe'), night('three', 'no'),
+    ])).toContain('carried into lucidity');
+  });
+
+  it('does not treat skipped signal and sleep questions as negative outcomes', () => {
+    const nights = ['one', 'two', 'three'].map(id => ({
+      id, scheduledAt: 1, sleepOnsetAt: 2, cueTimes: [3], reviewAt: 4,
+      reflection: { recall: 'dream' as const, dreamDetails: { awareness: 'maybe' as const } },
+    }));
+    expect(lucidSignalInsight(nights)).toContain('not enough answered signal information');
+    expect(lucidSignalRecommendation(nights)).toBeNull();
   });
 
   it('acknowledges early reflections without calling them a pattern', () => {

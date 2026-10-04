@@ -1,4 +1,4 @@
-import type { LucidSignalReflection } from './lucidSignalLearning';
+import { normalizeLucidSignalReflection, type LucidSignalReflection } from './lucidSignalLearning';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type {
   CompiledAudioJourneyTimeline,
@@ -124,6 +124,7 @@ export type JourneyMemoryEvent = {
 export type JourneyMemorySession = {
   schemaVersion: typeof JOURNEY_MEMORY_SCHEMA_VERSION;
   id: string;
+  nightPlanId?: string;
   journeyId: string;
   title: string;
   startedAt: number;
@@ -360,6 +361,21 @@ export function recordJourneyMemoryEvent(
   });
 }
 
+export function attachNightPlanToJourneyMemory(
+  sessionId: string,
+  nightPlanId: string,
+  storage: Storage = AsyncStorage,
+): Promise<void> {
+  return enqueue(async () => {
+    const state = await loadJourneyMemory(storage, true);
+    if (!state.sessions.some(session => session.id === sessionId)) throw new Error('Journey Memory session is unavailable');
+    const sessions = state.sessions.map(session => session.id === sessionId
+      ? { ...session, nightPlanId }
+      : session);
+    await storage.setItem(JOURNEY_MEMORY_KEY, JSON.stringify({ ...state, sessions }));
+  });
+}
+
 function completedMemorySession(
   session: JourneyMemorySession,
   outcome: JourneyMemoryOutcome,
@@ -514,8 +530,9 @@ export function saveOvernightReflection(
     if (!session || pendingOvernightReflection({ ...state, sessions: [session] }, now()) === null) {
       throw new Error('This overnight session is no longer available for reflection.');
     }
+    const normalizedAnswers = normalizeLucidSignalReflection(answers);
     const sessions = state.sessions.map(item => item.id === sessionId
-      ? { ...item, morningReflection: { answers, savedAt: now() } }
+      ? { ...item, morningReflection: { answers: normalizedAnswers, savedAt: now() } }
       : item);
     await storage.setItem(JOURNEY_MEMORY_KEY, JSON.stringify({ ...state, sessions }));
   });

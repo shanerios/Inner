@@ -8,6 +8,8 @@ import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { usePostHog } from 'posthog-react-native';
 import { getEntry, saveEntry, deleteEntry, JournalEntry } from '../core/journalRepo';
+import type { DreamDetails } from '../core/dreamDetails';
+import DreamDetailsEditor from '../components/DreamDetailsEditor';
 import { requestNotificationPermission, scheduleDailyWakeNotification, hasWakeNotificationScheduled, WAKE_TIME_KEY, parseWakeTime } from '../utils/notifications';
 import { addReviewScore, REVIEW_SCORE_THRESHOLD } from '../hooks/useReviewScore';
 import { useBreath } from '../core/BreathProvider';
@@ -17,6 +19,8 @@ import { hasInnerAccess } from '../src/core/subscriptions/revenueCat';
 import { safePresentPaywall } from '../src/core/subscriptions/safePresentPaywall';
 import { isAerisLimitReached } from '../src/core/aeris/aerisUsage';
 import { Typography, Body as _Body } from '../core/typography';
+import VoiceCaptureButton, { type VoiceRecognitionMode } from '../components/VoiceCaptureButton';
+import { practiceContextSections } from '../core/practiceContext';
 const Body = _Body ?? ({ regular: { ...Typography.body }, subtle: { ...Typography.caption } } as const);
 
 type Props = { navigation: any; route: any };
@@ -112,8 +116,11 @@ export default function JournalEntryScreen({ route, navigation }: Props) {
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [dreamSigns, setDreamSigns] = useState<string[]>([]);
+  const [dreamDetails, setDreamDetails] = useState<DreamDetails | undefined>(undefined);
   const [chamberId, setChamberId] = useState<string | undefined>(undefined);
   const [chamberTitle, setChamberTitle] = useState<string | undefined>(undefined);
+  const [voiceRecognitionMode, setVoiceRecognitionMode] = useState<VoiceRecognitionMode | null>(null);
+  const [practiceContextExpanded, setPracticeContextExpanded] = useState(false);
 
   // Tracks whether the body currently shows a prefill placeholder
   const isPrefillActiveRef = useRef(false);
@@ -128,9 +135,30 @@ export default function JournalEntryScreen({ route, navigation }: Props) {
   const gradFade = useRef(new Animated.Value(1)).current;
 
   const saveTimer = useRef<any>(null);
+  const saveChainRef = useRef<Promise<void>>(Promise.resolve());
+  const editRevisionRef = useRef(0);
+  const savedRevisionRef = useRef(0);
+  const entryRef = useRef<JournalEntry | null>(null);
+  const latestDraftRef = useRef({ title, body, dreamSigns, dreamDetails, chamberId, chamberTitle, captureInput: entry?.captureInput });
+  latestDraftRef.current = {
+    title,
+    body,
+    dreamSigns,
+    dreamDetails,
+    chamberId,
+    chamberTitle,
+    captureInput: voiceRecognitionMode
+      ? {
+          method: 'voice_transcription' as const,
+          completedAt: Date.now(),
+          recognitionMode: voiceRecognitionMode,
+        }
+      : entry?.captureInput,
+  };
   const notifAttemptedRef = useRef(false);
   const entryCountedRef = useRef(false);
   const reviewScoreAwardedRef = useRef(false);
+  const practiceSections = practiceContextSections(entry?.practiceContext);
 
   const posthog = usePostHog();
   const breath = useBreath();
@@ -173,8 +201,10 @@ export default function JournalEntryScreen({ route, navigation }: Props) {
       }
 
       setEntry(hydrated);
+      entryRef.current = hydrated;
       setTitle(hydrated.title || '');
       setDreamSigns((hydrated as any).dreamSigns || []);
+      setDreamDetails(hydrated.dreamDetails);
       setChamberId(hydrated.chamberId);
       setChamberTitle(hydrated.chamberTitle);
 
@@ -192,12 +222,13 @@ export default function JournalEntryScreen({ route, navigation }: Props) {
   useEffect(() => { load(); }, [load]);
 
   useEffect(() => {
+    if (isNew && routeKind === 'dream') return;
     const timeout = setTimeout(() => {
       bodyInputRef.current?.focus();
     }, 120);
 
     return () => clearTimeout(timeout);
-  }, []);
+  }, [isNew, routeKind]);
 
   useEffect(() => {
     const next = dreamSigns.length > 0
@@ -214,70 +245,82 @@ export default function JournalEntryScreen({ route, navigation }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dreamSigns.join('|')]);
 
-  useEffect(() => {
-    if (!entry) return;
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    setSaveState('saving');
-    saveTimer.current = setTimeout(async () => {
-      const updated: JournalEntry = { ...entry, title, body, dreamSigns, chamberId, chamberTitle };
-      await saveEntry(updated);
-      setEntry(updated);
-      setSaveState('saved');
-      setTimeout(() => setSaveState('idle'), 1200);
-    }, 1000);
-  }, [dreamSigns]);
-
   // Autosave after idle 1s
   const scheduleSave = useCallback(() => {
-    if (!entry) return;
+    if (!entryRef.current) return;
+    const revision = ++editRevisionRef.current;
     if (saveTimer.current) clearTimeout(saveTimer.current);
     setSaveState('saving');
-    saveTimer.current = setTimeout(async () => {
-      const updated: JournalEntry = { ...entry, title, body, dreamSigns, chamberId, chamberTitle };
-      await saveEntry(updated);
-      setEntry(updated);
-      setSaveState('saved');
-      setTimeout(() => setSaveState('idle'), 1200);
-      if (!reviewScoreAwardedRef.current) {
-        reviewScoreAwardedRef.current = true;
-        addReviewScore(3).catch(() => {});
-      }
-      if (!notifAttemptedRef.current) {
-        try {
-          if (!entryCountedRef.current) {
-            entryCountedRef.current = true;
-            const raw = await AsyncStorage.getItem('journalSaveCount');
-            const count = (parseInt(raw ?? '0', 10) || 0) + 1;
-            await AsyncStorage.setItem('journalSaveCount', String(count));
-            if (count === 1 && !(await hasSeenAccountPrompt())) {
-              await markAccountPromptSeen();
-              setShowAccountPrompt(true);
-            }
-            if (count >= 2) {
-              notifAttemptedRef.current = true;
-              const alreadyScheduled = await hasWakeNotificationScheduled();
-              if (!alreadyScheduled) {
-                const wakeTime = await AsyncStorage.getItem(WAKE_TIME_KEY);
-                if (wakeTime) {
-                  const granted = await requestNotificationPermission();
-                  if (granted) await scheduleDailyWakeNotification(wakeTime);
+    saveTimer.current = setTimeout(() => {
+      const base = entryRef.current;
+      if (!base) return;
+      const draft = latestDraftRef.current;
+      const updated: JournalEntry = { ...base, ...draft, updatedAt: Date.now() };
+      saveChainRef.current = saveChainRef.current
+        .catch(() => {})
+        .then(async () => {
+          await saveEntry(updated);
+          savedRevisionRef.current = Math.max(savedRevisionRef.current, revision);
+          entryRef.current = updated;
+          setEntry(updated);
+          setSaveState('saved');
+          setTimeout(() => setSaveState('idle'), 1200);
+          if (!reviewScoreAwardedRef.current) {
+            reviewScoreAwardedRef.current = true;
+            addReviewScore(3).catch(() => {});
+          }
+          if (!notifAttemptedRef.current) {
+            try {
+              if (!entryCountedRef.current) {
+                entryCountedRef.current = true;
+                const raw = await AsyncStorage.getItem('journalSaveCount');
+                const count = (parseInt(raw ?? '0', 10) || 0) + 1;
+                await AsyncStorage.setItem('journalSaveCount', String(count));
+                if (count === 1 && !(await hasSeenAccountPrompt())) {
+                  await markAccountPromptSeen();
+                  setShowAccountPrompt(true);
+                }
+                if (count >= 2) {
+                  notifAttemptedRef.current = true;
+                  const alreadyScheduled = await hasWakeNotificationScheduled();
+                  if (!alreadyScheduled) {
+                    const wakeTime = await AsyncStorage.getItem(WAKE_TIME_KEY);
+                    if (wakeTime) {
+                      const granted = await requestNotificationPermission();
+                      if (granted) await scheduleDailyWakeNotification(wakeTime);
+                    }
+                  }
+                }
+                if (count === 2) {
+                  addReviewScore(REVIEW_SCORE_THRESHOLD).catch(() => {});
                 }
               }
-            }
-            // On their 2nd distinct saved entry, guarantee the existing
-            // score-based review gate clears next time they land on Home —
-            // asked there (after they've stepped away from writing) rather
-            // than interrupting the entry they're mid-way through.
-            if (count === 2) {
-              addReviewScore(REVIEW_SCORE_THRESHOLD).catch(() => {});
-            }
+            } catch {}
           }
-        } catch {}
-      }
+        })
+        .catch(() => {
+          setSaveState('idle');
+        });
     }, 1000);
-  }, [entry, title, body, dreamSigns]);
+  }, []);
 
-  useEffect(() => () => saveTimer.current && clearTimeout(saveTimer.current), []);
+  useEffect(() => () => {
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    const base = entryRef.current;
+    if (
+      !base
+      || isPrefillActiveRef.current
+      || savedRevisionRef.current >= editRevisionRef.current
+    ) return;
+    const updated: JournalEntry = {
+      ...base,
+      ...latestDraftRef.current,
+      updatedAt: Date.now(),
+    };
+    saveChainRef.current = saveChainRef.current
+      .catch(() => {})
+      .then(() => saveEntry(updated));
+  }, []);
 
   useEffect(() => {
     if (saveState === 'idle') {
@@ -365,6 +408,7 @@ export default function JournalEntryScreen({ route, navigation }: Props) {
       if (exists) return prev.filter(s => s !== sign);
       return [...prev, sign];
     });
+    scheduleSave();
   }
 
   return (
@@ -458,8 +502,9 @@ export default function JournalEntryScreen({ route, navigation }: Props) {
             setTitle(suggestion);
             setSaveState('saving');
 
-            const updated: JournalEntry = { ...entry, title: suggestion, body, dreamSigns, chamberId, chamberTitle };
+            const updated: JournalEntry = { ...entry, title: suggestion, body, dreamSigns, dreamDetails, chamberId, chamberTitle, updatedAt: Date.now() };
             await saveEntry(updated);
+            entryRef.current = updated;
             setEntry(updated);
             setSaveState('saved');
             setTimeout(() => setSaveState('idle'), 1200);
@@ -469,6 +514,25 @@ export default function JournalEntryScreen({ route, navigation }: Props) {
           <Text style={[Typography.caption, { color: '#8E88D8' }]}>Suggest title</Text>
         </TouchableOpacity>
 
+        <VoiceCaptureButton
+          value={prefillActive ? '' : body}
+          onBeforeStart={() => {
+            if (!isPrefillActiveRef.current) return body;
+            isPrefillActiveRef.current = false;
+            setPrefillActive(false);
+            setBody('');
+            return '';
+          }}
+          onChangeText={(text) => {
+            setBody(text);
+            scheduleSave();
+          }}
+          onVoiceUsed={(mode) => {
+            setVoiceRecognitionMode(mode);
+            scheduleSave();
+          }}
+          maxLength={12_000}
+        />
         <TextInput
           ref={bodyInputRef}
           value={body}
@@ -553,6 +617,43 @@ export default function JournalEntryScreen({ route, navigation }: Props) {
             );
           })}
         </View>
+
+        {['dream', 'note'].includes(entry?.kind ?? routeKind ?? '') && (
+          <DreamDetailsEditor
+            value={dreamDetails}
+            onChange={(next) => {
+              setDreamDetails(next);
+              scheduleSave();
+            }}
+          />
+        )}
+
+        {practiceSections.length > 0 && (
+          <View style={styles.practiceContextCard}>
+            <Pressable
+              onPress={() => setPracticeContextExpanded(value => !value)}
+              accessibilityRole="button"
+              accessibilityState={{ expanded: practiceContextExpanded }}
+              accessibilityLabel="The night before this dream"
+              style={styles.practiceContextHeader}
+            >
+              <View style={styles.practiceContextHeaderCopy}>
+                <Text style={styles.practiceContextEyebrow}>THE NIGHT BEFORE THIS DREAM</Text>
+                <Text numberOfLines={1} style={styles.practiceContextPreview}>{practiceSections[0]?.[0]}</Text>
+              </View>
+              <Text style={styles.practiceContextToggle}>{practiceContextExpanded ? 'Hide' : 'View'}</Text>
+            </Pressable>
+            {practiceContextExpanded && practiceSections.map((section, sectionIndex) => (
+              <View key={`${section[0]}-${sectionIndex}`} style={sectionIndex > 0 ? styles.practiceContextSection : styles.practiceContextFirstSection}>
+                {section.map((line, lineIndex) => (
+                  <Text key={`${line}-${lineIndex}`} style={lineIndex === 0 ? styles.practiceContextTitle : styles.practiceContextLine}>
+                    {line}
+                  </Text>
+                ))}
+              </View>
+            ))}
+          </View>
+        )}
       </ScrollView>
 
       <SoftAccountPrompt
@@ -581,6 +682,42 @@ const styles = StyleSheet.create({
     ...Typography.body,
     minHeight: 320,
     color: '#EDEAF6',
+  },
+  practiceContextCard: {
+    marginTop: 18,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: 'rgba(255,255,255,0.11)',
+    paddingTop: 14,
+  },
+  practiceContextHeader: { minHeight: 42, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  practiceContextHeaderCopy: { flex: 1, paddingRight: 14 },
+  practiceContextEyebrow: {
+    color: '#A99BC8',
+    fontFamily: 'Inter-Medium',
+    fontSize: 8,
+    letterSpacing: 1.35,
+    marginBottom: 4,
+  },
+  practiceContextPreview: { color: '#AFA8BD', fontFamily: 'Inter-Light', fontSize: 11 },
+  practiceContextToggle: { color: '#BEB4D8', fontFamily: 'Inter-Medium', fontSize: 10, letterSpacing: 0.4 },
+  practiceContextFirstSection: { marginTop: 12, paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: 'rgba(255,255,255,0.09)' },
+  practiceContextTitle: {
+    color: '#EEEAF6',
+    fontFamily: 'CalSans-SemiBold',
+    fontSize: 14,
+    marginBottom: 4,
+  },
+  practiceContextLine: {
+    color: '#BDB5C9',
+    fontFamily: 'Inter-Light',
+    fontSize: 11,
+    lineHeight: 17,
+  },
+  practiceContextSection: {
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: 'rgba(255,255,255,0.09)',
   },
   chipsRow: {
     flexDirection: 'row',

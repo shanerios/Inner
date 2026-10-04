@@ -12,10 +12,12 @@ import {
   DREAM_ARCHIVE_RANGE_LABELS,
   DreamArchiveRange,
   filterDreamArchiveEntries,
+  filterDreamArchiveNightRecords,
   serializeDreamArchive,
 } from '../core/dreamArchive';
 import { JournalEntry, listEntries } from '../core/journalRepo';
 import { Typography } from '../core/typography';
+import { loadNightRecords, type NightRecord } from '../core/nightRecords';
 
 const RANGES: DreamArchiveRange[] = ['all', 'year', '30days'];
 
@@ -28,6 +30,7 @@ export default function DreamArchiveScreen() {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const [entries, setEntries] = useState<JournalEntry[]>([]);
+  const [nightRecords, setNightRecords] = useState<NightRecord[]>([]);
   const [range, setRange] = useState<DreamArchiveRange>('all');
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState<'pdf' | 'json' | null>(null);
@@ -41,8 +44,11 @@ export default function DreamArchiveScreen() {
   useFocusEffect(useCallback(() => {
     let active = true;
     setLoading(true);
-    void listEntries().then(next => {
-      if (active) setEntries(next);
+    void Promise.all([listEntries(), loadNightRecords()]).then(([nextEntries, nextNightRecords]) => {
+      if (active) {
+        setEntries(nextEntries);
+        setNightRecords(nextNightRecords);
+      }
     }).finally(() => {
       if (active) setLoading(false);
     });
@@ -52,6 +58,10 @@ export default function DreamArchiveScreen() {
   const selectedEntries = useMemo(
     () => filterDreamArchiveEntries(entries, range),
     [entries, range],
+  );
+  const selectedNightRecords = useMemo(
+    () => filterDreamArchiveNightRecords(nightRecords, range),
+    [nightRecords, range],
   );
 
   const sharePdf = useCallback(async () => {
@@ -63,7 +73,7 @@ export default function DreamArchiveScreen() {
       if (!await Sharing.isAvailableAsync()) throw new Error('Sharing is unavailable');
       if (!FileSystem.cacheDirectory) throw new Error('Local cache is unavailable');
       const generatedAt = Date.now();
-      const archive = buildDreamArchiveExport(selectedEntries, range, generatedAt);
+      const archive = buildDreamArchiveExport(selectedEntries, range, generatedAt, selectedNightRecords);
       const result = await Print.printToFileAsync({ html: buildDreamArchiveHtml(archive) });
       sourceUri = result.uri;
       archiveUri = `${FileSystem.cacheDirectory}${archiveFilename('pdf', generatedAt)}`;
@@ -80,17 +90,17 @@ export default function DreamArchiveScreen() {
       if (sourceUri) await FileSystem.deleteAsync(sourceUri, { idempotent: true }).catch(() => {});
       setExporting(null);
     }
-  }, [exporting, range, selectedEntries]);
+  }, [exporting, range, selectedEntries, selectedNightRecords]);
 
   const shareJson = useCallback(async () => {
-    if (exporting || selectedEntries.length === 0) return;
+    if (exporting || (selectedEntries.length === 0 && selectedNightRecords.length === 0)) return;
     setExporting('json');
     let uri: string | null = null;
     try {
       if (!await Sharing.isAvailableAsync()) throw new Error('Sharing is unavailable');
       if (!FileSystem.cacheDirectory) throw new Error('Local cache is unavailable');
       const generatedAt = Date.now();
-      const archive = buildDreamArchiveExport(selectedEntries, range, generatedAt);
+      const archive = buildDreamArchiveExport(selectedEntries, range, generatedAt, selectedNightRecords);
       uri = `${FileSystem.cacheDirectory}${archiveFilename('json', generatedAt)}`;
       await FileSystem.writeAsStringAsync(uri, serializeDreamArchive(archive), {
         encoding: FileSystem.EncodingType.UTF8,
@@ -106,11 +116,11 @@ export default function DreamArchiveScreen() {
       if (uri) void FileSystem.deleteAsync(uri, { idempotent: true }).catch(() => {});
       setExporting(null);
     }
-  }, [exporting, range, selectedEntries]);
+  }, [exporting, range, selectedEntries, selectedNightRecords]);
 
   const countLabel = loading
     ? 'Gathering your memories…'
-    : `${selectedEntries.length} ${selectedEntries.length === 1 ? 'entry' : 'entries'} ready to carry with you.`;
+    : `${selectedEntries.length} ${selectedEntries.length === 1 ? 'entry' : 'entries'} · ${selectedNightRecords.length} ${selectedNightRecords.length === 1 ? 'night outcome' : 'night outcomes'} ready.`;
 
   return (
     <View style={styles.root}>
@@ -163,12 +173,12 @@ export default function DreamArchiveScreen() {
 
         <View style={styles.formatCard}>
           <Text style={styles.formatTitle}>A portable copy</Text>
-          <Text style={styles.formatCopy}>JSON preserves the complete structured entries in a versioned file for backup, migration, or future tools.</Text>
+          <Text style={styles.formatCopy}>JSON preserves the complete structured entries and night outcomes in a versioned file for backup, migration, or future tools.</Text>
           <Pressable
             onPress={() => void shareJson()}
-            disabled={loading || selectedEntries.length === 0 || exporting !== null}
+            disabled={loading || (selectedEntries.length === 0 && selectedNightRecords.length === 0) || exporting !== null}
             accessibilityRole="button"
-            style={[styles.secondaryButton, (loading || selectedEntries.length === 0 || exporting !== null) && styles.buttonDisabled]}
+            style={[styles.secondaryButton, (loading || (selectedEntries.length === 0 && selectedNightRecords.length === 0) || exporting !== null) && styles.buttonDisabled]}
           >
             <Text style={styles.secondaryButtonText}>{exporting === 'json' ? 'CREATING JSON…' : 'CREATE JSON ARCHIVE'}</Text>
           </Pressable>
