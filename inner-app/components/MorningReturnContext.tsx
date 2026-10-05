@@ -5,6 +5,7 @@ export type MorningReturnContinuationValue = {
   modalVisible: boolean;
   open: () => void;
   dismiss: () => void;
+  setHomeEntryReady: (ready: boolean) => void;
 };
 
 const MorningReturnContext = createContext<MorningReturnContinuationValue>({
@@ -12,6 +13,7 @@ const MorningReturnContext = createContext<MorningReturnContinuationValue>({
   modalVisible: false,
   open: () => {},
   dismiss: () => {},
+  setHomeEntryReady: () => {},
 });
 
 export const MorningReturnProvider = MorningReturnContext.Provider;

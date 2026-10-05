@@ -2,7 +2,7 @@ import type { NightPlanConfiguration } from './nightPlans';
 import type { TonightRecommendation } from './tonightRecommendation';
 import type { NightRecord } from './nightRecords';
 
-export type AdaptiveNightRule = 'gentler_signal' | 'supported_environment';
+export type AdaptiveNightRule = 'gentler_signal' | 'clearer_signal' | 'supported_environment';
 
 export type AdaptiveNightProposal = {
   id: string;
@@ -25,7 +25,8 @@ export type AdaptiveRuleEvaluation = {
 };
 
 const TARGET_FIELDS: Record<AdaptiveNightRule, Array<keyof NightPlanConfiguration>> = {
-  gentler_signal: ['feel', 'cuePlan'],
+  gentler_signal: ['signalGainScale', 'feel', 'cuePlan'],
+  clearer_signal: ['signalGainScale'],
   supported_environment: ['environment'],
 };
 
@@ -42,11 +43,22 @@ export function adaptiveNightProposalFromRecommendation(
     return {
       id: `adaptive:${recommendation.id}`,
       rule: 'gentler_signal',
-      title: 'A gentler recognition night',
+      title: 'A quieter recognition signal',
+      reason: recommendation.reason,
+      proposedConfiguration: recommendation.signalGainScale === undefined
+        ? { feel: 'gentle', cuePlan: 'gentle' }
+        : { signalGainScale: recommendation.signalGainScale },
+    };
+  }
+
+  if (recommendation.kind === 'clearer_signal') {
+    return {
+      id: `adaptive:${recommendation.id}`,
+      rule: 'clearer_signal',
+      title: 'A slightly clearer recognition signal',
       reason: recommendation.reason,
       proposedConfiguration: {
-        feel: 'gentle',
-        cuePlan: 'gentle',
+        signalGainScale: recommendation.signalGainScale,
       },
     };
   }
@@ -84,14 +96,18 @@ export function deriveAdaptiveRuleEvaluations(records: NightRecord[]): AdaptiveR
     const recentOverrideCount = sorted.slice(0, 3)
       .filter(record => fields.some(field => record.practiceContext?.nightPlan?.userChanged.includes(field))).length;
     const title = sorted[0]?.practiceContext?.nightPlan?.adaptiveRule?.title
-      ?? (rule === 'gentler_signal' ? 'A gentler recognition night' : 'Supported environment');
+      ?? (rule === 'gentler_signal'
+        ? 'A quieter recognition signal'
+        : rule === 'clearer_signal'
+          ? 'A slightly clearer recognition signal'
+          : 'Supported environment');
 
     if (recentOverrideCount >= 2) {
       return {
         rule, title, attempts: sorted.length, acceptedAttempts: accepted.length, overrideCount: overridden.length,
         status: 'paused', label: 'RULE PAUSED',
         text: `Inner paused ${title.toLocaleLowerCase()} because you repeatedly chose different settings.`,
-        evidence: `You changed the proposed ${rule === 'gentler_signal' ? 'feel or cue plan' : 'environment'} on ${overridden.length} of ${sorted.length} reflected adaptive nights.`,
+        evidence: `You changed the proposed ${rule === 'supported_environment' ? 'environment' : 'signal level'} on ${overridden.length} of ${sorted.length} reflected adaptive nights.`,
       };
     }
 
@@ -112,6 +128,28 @@ export function deriveAdaptiveRuleEvaluations(records: NightRecord[]): AdaptiveR
           status: 'observed', label: 'OBSERVED',
           text: 'The gentler signal plan has not usually woken you in the reflected nights so far.',
           evidence: `You reported being woken on ${woke} of ${answered.length} accepted gentler-signal nights. Inner will keep observing.`,
+        };
+      }
+    }
+
+    if (rule === 'clearer_signal') {
+      const answered = accepted.filter(record => Boolean(record.outcome.sleepImpact));
+      const woke = answered.filter(record => record.outcome.sleepImpact === 'woke').length;
+      if (answered.length >= 2 && woke > 0) {
+        return {
+          rule, title, attempts: sorted.length, acceptedAttempts: accepted.length, overrideCount: overridden.length,
+          status: 'paused', label: 'RULE PAUSED',
+          text: 'The clearer signal was associated with waking, so Inner paused this adjustment.',
+          evidence: `You reported being woken on ${woke} of ${answered.length} accepted clearer-signal nights.`,
+        };
+      }
+      if (answered.length >= 2) {
+        const noticed = accepted.filter(record => record.outcome.signalNotice === 'yes').length;
+        return {
+          rule, title, attempts: sorted.length, acceptedAttempts: accepted.length, overrideCount: overridden.length,
+          status: 'observed', label: 'OBSERVED',
+          text: `The clearer signal was noticed on ${noticed} of ${answered.length} reflected nights without a reported waking response.`,
+          evidence: 'Inner will keep observing before making another signal-level change.',
         };
       }
     }

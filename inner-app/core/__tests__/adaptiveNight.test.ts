@@ -60,6 +60,20 @@ describe('adaptive night proposals', () => {
     }));
   });
 
+  it('carries a learned cue level into an editable night proposal', () => {
+    expect(adaptiveNightProposalFromRecommendation(recommendation({ signalGainScale: 0.85 }))).toEqual(expect.objectContaining({
+      rule: 'gentler_signal',
+      proposedConfiguration: { signalGainScale: 0.85 },
+    }));
+    expect(adaptiveNightProposalFromRecommendation(recommendation({
+      kind: 'clearer_signal',
+      signalGainScale: 1.1,
+    }))).toEqual(expect.objectContaining({
+      rule: 'clearer_signal',
+      proposedConfiguration: { signalGainScale: 1.1 },
+    }));
+  });
+
   it('carries a supported environment into the proposed night', () => {
     expect(adaptiveNightProposalFromRecommendation(recommendation({
       kind: 'repeat_environment',

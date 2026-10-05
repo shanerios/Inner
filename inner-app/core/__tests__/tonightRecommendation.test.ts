@@ -19,15 +19,83 @@ const record = (id: string, sleepImpact: 'none' | 'gentle' | 'woke'): NightRecor
   outcome: { recall: 'none', sleepImpact },
 });
 
+const deliveredRecord = (id: string, sleepImpact: 'none' | 'gentle' | 'woke', noticed: 'yes' | 'unsure' | 'no' = 'yes'): NightRecord => ({
+  ...record(id, sleepImpact),
+  source: 'overnight_journey',
+  outcome: { recall: 'none', sleepImpact, signalNotice: noticed },
+  practiceContext: {
+    linkedAt: 2,
+    links: [{
+      sessionId: id,
+      type: 'overnight_journey',
+      startedAt: 1,
+      linkReason: 'exact_overnight_session',
+      nightExecution: {
+        status: 'completed',
+        startedAt: 1,
+        endedAt: 2,
+        plannedCues: [{ cueId: 'cue-1' }],
+        deliveredCues: [{ cueId: 'cue-1', firedAt: 2 }],
+        missingCueIds: [],
+        audioRoute: 'private',
+        interruptionCount: 0,
+      },
+    }],
+    nightPlan: {
+      id: `plan-${id}`,
+      createdAt: 1,
+      source: 'manual',
+      configuration: {
+        durationMinutes: 420,
+        environment: 'ocean',
+        feel: 'gentle',
+        signalId: 'guardian',
+        cuePlan: 'gentle',
+        recognitionWindowCount: 1,
+        signalGainScale: 1,
+      },
+      userChanged: [],
+      recipe: {
+        schemaVersion: 2,
+        id: `recipe-${id}`,
+        createdAt: 1,
+        seed: 1,
+        goal: 'lucid_recognition',
+        durationMinutes: 420,
+        environment: 'ocean',
+        feel: 'gentle',
+        preparation: { practice: 'lucid_signal', durationMinutes: 7 },
+        recognition: {
+          signalId: 'guardian',
+          cuePlan: 'gentle',
+          windows: [{ id: 'cue-1', cueAtMinute: 300, signalGainScale: 1, presentations: 1, backgroundDuckGain: 0.55, recoverySeconds: 35 }],
+        },
+        environmentArc: 'protected_standard',
+      },
+    },
+  },
+});
+
 const dream = (id: string, sign: string): JournalEntry => ({
   schemaVersion: 2, id, createdAt: Number(id), updatedAt: Number(id), kind: 'dream', body: 'Remembered', dreamSigns: [sign],
 });
 
 describe('tonight recommendation', () => {
   it('prioritizes a gentler signal when repeated waking is observed', () => {
-    expect(deriveTonightRecommendation([], [record('1', 'woke'), record('2', 'woke'), record('3', 'gentle')], [])).toEqual(expect.objectContaining({
+    expect(deriveTonightRecommendation([], [deliveredRecord('1', 'woke'), deliveredRecord('2', 'woke'), deliveredRecord('3', 'gentle')], [])).toEqual(expect.objectContaining({
       kind: 'gentler_signal',
-      reason: 'The signal woke you during 2 of your last 3 answered signal nights.',
+      signalGainScale: 0.85,
+    }));
+  });
+
+  it('suggests a small increase only after repeated confirmed non-recognition without waking', () => {
+    expect(deriveTonightRecommendation([], [
+      deliveredRecord('1', 'none', 'no'),
+      deliveredRecord('2', 'none', 'no'),
+      deliveredRecord('3', 'gentle', 'no'),
+    ], [])).toEqual(expect.objectContaining({
+      kind: 'clearer_signal',
+      signalGainScale: 1.1,
     }));
   });
 
@@ -80,7 +148,7 @@ describe('tonight recommendation', () => {
 
   it('skips a paused rule and continues to the next supported recommendation', () => {
     const dreams = ['1', '2', '3'].map(id => dream(id, 'Water'));
-    const disruptive = [record('4', 'woke'), record('5', 'woke'), record('6', 'gentle')];
+    const disruptive = [deliveredRecord('4', 'woke'), deliveredRecord('5', 'woke'), deliveredRecord('6', 'gentle')];
     expect(deriveTonightRecommendation(dreams, disruptive, [], Date.now(), {
       excludedKinds: ['gentler_signal'],
     })).toEqual(expect.objectContaining({ kind: 'recurring_signal' }));

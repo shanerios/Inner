@@ -14,7 +14,7 @@ Dream entries can now capture lucid awareness, agency, attempted control, what c
 
 New on-device Practice Memory begins connecting journeys, signals, environments, and dream outcomes. Inner can surface recurring dream signs, explain possible personal patterns, suggest a relevant next practice, and support small multi-night comparisons without treating correlation as proof.
 
-Ocean, Forest, and Temple have gained more natural environmental detail, while Overnight Journeys now preserve an explicit Night Recipe, place recognition signals within the duration you choose, and include additional recovery and long-session reliability improvements.
+Ocean, Forest, and Temple have gained more natural environmental detail, while Overnight Journeys now preserve an explicit Night Recipe, place recognition signals within the duration you choose, and include additional recovery and long-session reliability improvements. Inner can also make small, explained signal-level suggestions after enough comparable nights confirm whether cues were noticed or caused waking.
 
 ### Detailed product log
 
@@ -28,6 +28,7 @@ Ocean, Forest, and Temple have gained more natural environmental detail, while O
 - Preserves dictated words in the editable text field before saving.
 - Improved Android speech startup by using the platform microphone permission state, accepting the audio-start event, adding a startup timeout, and allowing a pending start to be cancelled.
 - Coordinated global Morning Return visibility with Home prompts so competing modals do not flash, dismiss one another, or repeatedly reappear.
+- Makes Morning Return wait until Daily Arrival is completed or skipped, then presents the pending reflection instead of losing it behind the arrival screen.
 
 #### Dream Log as a measurement system
 
@@ -61,6 +62,13 @@ Ocean, Forest, and Temple have gained more natural environmental detail, while O
 - A seven-hour standard night now places signals near 4h 10m, 5h 35m, and 6h 25m instead of discarding a signal scheduled beyond the end of the night.
 - Shows the planned signal times in the Overnight Journey review card before the practitioner begins.
 - Defines cue times as the moment the signal actually plays, with protected quiet space before and after it.
+- Uses the saved recipe as the playback source for signal level, number of presentations, environmental ducking, recovery time, selected signal, and procedural seed.
+- Added a durable night execution receipt that separates planned recognition signals from signals the native audio renderer confirms were delivered.
+- Carries delivered cue IDs and timing, missing cues, completion state, interruptions, audio route when available, and playback errors into Morning Return and Dream Log practice context.
+- Added conservative personal signal-level adaptation: repeated confirmed waking can lower the next signal slightly, while repeated confirmed non-recognition without waking can raise it slightly.
+- Requires at least three comparable completed nights with full cue delivery, the same signal, cue plan, cue count, and audio route before proposing a signal-level change.
+- Excludes accelerated tests, interrupted nights, incomplete delivery, missing sleep answers, and overridden signal levels from cue-volume learning.
+- Shows the proposed signal percentage and reason before the night begins, with an option to return to the standard calibrated level.
 
 #### Practice Memory and personal patterns
 
@@ -84,6 +92,7 @@ Ocean, Forest, and Temple have gained more natural environmental detail, while O
 
 #### Overnight Journey reliability
 
+- Made accelerated-night controls available in standalone Inner Lab builds without requiring Metro or a cloud-build-only environment flag.
 - Added native journey checkpoints to improve recovery after interruption or process loss.
 - Added wall-clock reconciliation so long sessions can recover their correct position.
 - Added a render heartbeat for stronger full-night playback monitoring.
@@ -121,8 +130,10 @@ Ocean, Forest, and Temple have gained more natural environmental detail, while O
 ### Release verification completed so far
 
 - TypeScript type checking passes.
-- Full automated suite passes: 56 suites, 369 tests, and 6 snapshots.
+- Full automated suite passes: 58 suites, 396 tests, and 6 snapshots.
+- Android's native InnerAudio module compiles with recipe-driven gain and recovery fields; the matching iOS source passes Swift parsing.
 - Android standalone release builds successfully after a clean native build.
+- A standalone Inner Lab accelerated night completed on a physical Pixel 8 Pro and produced the expected Morning Return without Metro.
 - Android Morning Return voice capture was verified on a physical Pixel 8 Pro: permission, recording, automatic stop, transcription, text insertion, save, and Dream Log persistence.
 - Audio behavior has parity coverage across Android and iOS for the new procedural environment elements.
 - Accelerated long-journey runs were previously reported as passing for the generative environments.

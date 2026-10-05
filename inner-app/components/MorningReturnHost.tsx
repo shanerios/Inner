@@ -19,6 +19,7 @@ export default function MorningReturnHost({ currentRouteName, children }: Props)
   const [visible, setVisible] = useState(false);
   const [continuationAvailable, setContinuationAvailable] = useState(false);
   const [continuationHidden, setContinuationHidden] = useState(false);
+  const [homeEntryReady, setHomeEntryReady] = useState(false);
   const offeredThisForegroundRef = useRef<string | null>(null);
   const mountedRef = useRef(true);
 
@@ -51,15 +52,22 @@ export default function MorningReturnHost({ currentRouteName, children }: Props)
   }, [refresh]);
 
   useEffect(() => {
-    if (!pending || !canPresentMorningReturn(currentRouteName)) {
-      if (!canPresentMorningReturn(currentRouteName)) setVisible(false);
+    const canPresent = canPresentMorningReturn(currentRouteName, homeEntryReady);
+    if (!pending || !canPresent) {
+      if (!canPresent) {
+        // A higher-priority entry flow (such as Daily Arrival) may take over
+        // after Home first appears. Keep this return eligible so it can open
+        // once that flow has finished instead of losing it for the foreground.
+        offeredThisForegroundRef.current = null;
+        setVisible(false);
+      }
       return;
     }
     if (offeredThisForegroundRef.current === pending.id) return;
     offeredThisForegroundRef.current = pending.id;
     setContinuationAvailable(false);
     setVisible(true);
-  }, [currentRouteName, pending]);
+  }, [currentRouteName, homeEntryReady, pending]);
 
   const continuation = useMemo(() => ({
     visible: Boolean(
@@ -75,6 +83,7 @@ export default function MorningReturnHost({ currentRouteName, children }: Props)
       setVisible(true);
     },
     dismiss: () => setContinuationHidden(true),
+    setHomeEntryReady,
   }), [continuationAvailable, continuationHidden, currentRouteName, pending, visible]);
 
   return (

@@ -46,6 +46,8 @@ class SpatialEventRecord : Record {
   @Field var durationMs: Double = 1_200.0
   @Field var depth: Double = 0.8
   @Field var recognitionSpace: Boolean = false
+  @Field var signalGainScale: Double = 1.0
+  @Field var recoverySeconds: Double = 30.0
 }
 
 class TimelineStageRecord : Record {

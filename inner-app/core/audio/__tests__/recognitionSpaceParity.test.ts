@@ -24,4 +24,11 @@ describe('the quiet field around a recognition cue: both engines thin the noise 
     expect(kotlin).toContain('val gain = 1.0 - progress * 0.46');
     expect(swift).toMatch(/let gain = 1(\.0)? - progress \* 0\.46/);
   });
+
+  it('uses each recipe presentation level and recovery period on both platforms', () => {
+    expect(kotlin).toContain('activeCueGain = recognitionSignalGain * clamp(gainScale, 0.1, 2.0)');
+    expect(swift).toContain('activeCueGain = recognitionSignalGain * clamp(gainScale, 0.1, 2)');
+    expect(kotlin).toContain('val recoveryMs = event.recoverySeconds * 1_000.0');
+    expect(swift).toContain('let recoveryMs = event.recoverySeconds * 1_000');
+  });
 });

@@ -73,8 +73,12 @@ export const MORNING_RETURN_BLOCKED_ROUTES = new Set([
   'AccountCreate',
 ]);
 
-export function canPresentMorningReturn(routeName?: string): boolean {
-  return Boolean(routeName && !MORNING_RETURN_BLOCKED_ROUTES.has(routeName));
+export function canPresentMorningReturn(routeName?: string, homeEntryReady = true): boolean {
+  return Boolean(
+    routeName &&
+    !MORNING_RETURN_BLOCKED_ROUTES.has(routeName) &&
+    (routeName !== 'Home' || homeEntryReady)
+  );
 }
 
 export function canShowMorningReturnContinuation(routeName?: string): boolean {

@@ -29,6 +29,9 @@ export function overnightJourney(
   const overnightStages = protocol.phases
     .filter(phase => phase.kind !== 'preparation')
     .flatMap(phase => {
+      const backgroundDuckGain = phase.events
+        ?.flatMap(event => event.actions)
+        .find(action => action.kind === 'duckAudio')?.gain ?? 1;
       const chunkCount = Math.ceil(phase.durationMs / maxNativeStageMs);
       return Array.from({ length: chunkCount }, (_, index) => {
         const chunkStartMs = index * maxNativeStageMs;
@@ -39,19 +42,24 @@ export function overnightJourney(
           durationMs,
           transitionMs: Math.min(5_000, durationMs),
           target: phase.kind === 'recognitionWindow'
-            ? { ...phase.audioConfig, masterGain: phase.audioConfig.masterGain * 0.55 }
+            ? { ...phase.audioConfig, masterGain: phase.audioConfig.masterGain * backgroundDuckGain }
             : phase.audioConfig,
           spatialEvents: protocol.events
             .filter(event => event.phaseId === phase.id)
             .filter(event => event.actions.some(action => action.kind === 'playRecognitionSignal'))
             .map(event => ({ event, withinPhaseMs: event.atMs - phase.startsAtMs }))
             .filter(({ withinPhaseMs }) => withinPhaseMs >= chunkStartMs && withinPhaseMs <= chunkStartMs + durationMs)
-            .map(({ event, withinPhaseMs }) => ({
-              id: event.id,
-              type: 'cue' as const,
-              atMs: withinPhaseMs - chunkStartMs,
-              recognitionSpace: true,
-            })),
+            .map(({ event, withinPhaseMs }) => {
+              const presentation = event.actions.find(action => action.kind === 'playRecognitionSignal');
+              return {
+                id: event.id,
+                type: 'cue' as const,
+                atMs: withinPhaseMs - chunkStartMs,
+                recognitionSpace: true,
+                signalGainScale: presentation?.kind === 'playRecognitionSignal' ? presentation.gainScale : undefined,
+                recoverySeconds: presentation?.kind === 'playRecognitionSignal' ? presentation.recoverySeconds : undefined,
+              };
+            }),
         };
       });
     });
@@ -80,7 +88,7 @@ export function overnightJourney(
     title: 'Overnight Recognition',
     summary: `Recognition practice shaped around the ${environment} before later signals return during sleep.`,
     durationLabel: `${durationLabel(Math.round(protocol.totalDurationMs / 60_000))} · Overnight`,
-    overnight: { sleepOnsetDelayMs: scaledPreparationDurationMs },
+    overnight: { sleepOnsetDelayMs: scaledPreparationDurationMs, recognitionSignalId: protocol.signalId },
     timeline: {
       ...base.timeline,
       id: protocol.id,
@@ -112,4 +120,3 @@ export function overnightJourney(
     },
   };
 }
-

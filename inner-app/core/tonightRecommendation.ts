@@ -2,15 +2,17 @@ import type { JournalEntry } from './journalRepo';
 import type { JourneyMemorySession } from './journeyMemory';
 import type { NightRecord } from './nightRecords';
 import { deriveRecurringDreamSignal } from './recurringDreamSignals';
+import { deriveCueLevelAdjustment } from './nightLearning';
 
 export type TonightRecommendation = {
   id: string;
-  kind: 'gentler_signal' | 'recurring_signal' | 'repeat_environment' | 'recognition_refresh';
+  kind: 'gentler_signal' | 'clearer_signal' | 'recurring_signal' | 'repeat_environment' | 'recognition_refresh';
   title: string;
   reason: string;
   actionLabel: string;
   sign?: string;
   environment?: string;
+  signalGainScale?: number;
 };
 
 function titleCase(value: string): string {
@@ -83,19 +85,25 @@ export function deriveTonightRecommendation(
   const excludedKinds = new Set(options.excludedKinds ?? []);
   const eligibleEntries = entries.filter(entry => !entry.testSession);
   const eligibleRecords = records.filter(record => !record.testSession);
-  const signalNights = eligibleRecords
-    .filter(record => record.source === 'scheduled_signal'
-      || record.practiceContext?.links.some(link => Boolean(link.signalId)))
-    .filter(record => Boolean(record.outcome.sleepImpact))
-    .slice(0, 7);
-  const woke = signalNights.filter(record => record.outcome.sleepImpact === 'woke').length;
-  if (!excludedKinds.has('gentler_signal') && signalNights.length >= 3 && woke >= Math.ceil(signalNights.length / 2)) {
+  const cueLevelAdjustment = deriveCueLevelAdjustment(eligibleRecords);
+  if (cueLevelAdjustment?.direction === 'lower' && !excludedKinds.has('gentler_signal')) {
     return {
       id: 'signal:gentler',
       kind: 'gentler_signal',
-      title: 'Use a gentler signal night',
-      reason: `The signal woke you during ${woke} of your last ${signalNights.length} answered signal nights.`,
-      actionLabel: 'REVIEW A GENTLER NIGHT',
+      title: 'Lower the recognition signal',
+      reason: cueLevelAdjustment.reason,
+      actionLabel: 'REVIEW A QUIETER SIGNAL NIGHT',
+      signalGainScale: cueLevelAdjustment.proposedGainScale,
+    };
+  }
+  if (cueLevelAdjustment?.direction === 'raise' && !excludedKinds.has('clearer_signal')) {
+    return {
+      id: 'signal:clearer',
+      kind: 'clearer_signal',
+      title: 'Make the recognition signal slightly clearer',
+      reason: cueLevelAdjustment.reason,
+      actionLabel: 'REVIEW A CLEARER SIGNAL NIGHT',
+      signalGainScale: cueLevelAdjustment.proposedGainScale,
     };
   }
 

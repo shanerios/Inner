@@ -52,3 +52,25 @@ it('preserves preparation cues, chunking, recognition shaping, and Return', () =
   expect(timeline.stages.at(-1)?.config.masterGain).toBe(0);
   expect(timeline.stages.at(-1)?.transitionMs).toBe(5_000);
 });
+
+it('carries recipe gain, repetitions, ducking, and recovery into the native timeline', () => {
+  const protocol = compileOvernightProtocol(createRecognitionOvernightProtocol({
+    environment: 'forest', feel: 'deep', sleepDurationMinutes: 420, cuePlan: 'standard', signalId: 'guardian',
+    recognitionWindows: [{
+      id: 'custom-window', cueAtMinute: 250, signalGainScale: 0.65,
+      presentations: 2, backgroundDuckGain: 0.4, recoverySeconds: 50,
+    }],
+  }), DEFAULT_PROCEDURAL_AUDIO_CONFIG);
+  const timeline = compileAudioJourneyTimeline(
+    overnightJourney('forest', 'deep', protocol, false, 99).timeline,
+    DEFAULT_PROCEDURAL_AUDIO_CONFIG,
+  );
+  const window = timeline.stages.find(stage => stage.id === 'overnight-recognition-window-1-1')!;
+  expect(window.config.masterGain).toBeCloseTo(
+    protocol.phases.find(phase => phase.id === 'recognition-window-1')!.audioConfig.masterGain * 0.4,
+  );
+  expect(window.spatialEvents).toEqual([
+    expect.objectContaining({ id: 'signal-1-1', signalGainScale: 0.65, recoverySeconds: 50 }),
+    expect.objectContaining({ id: 'signal-1-2', signalGainScale: 0.65, recoverySeconds: 50 }),
+  ]);
+});

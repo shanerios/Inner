@@ -45,6 +45,8 @@ export type CreateNightRecipeInput = {
   feel: NightRecipeFeel;
   signalId: RecognitionSignalId;
   cuePlan: LucidSignalCuePlan;
+  /** Linear trim applied after the selected signal's calibrated base level. */
+  signalGainScale?: number;
   seed: number;
   createdAt?: number;
 };
@@ -53,6 +55,7 @@ export type CreateNightRecipeInput = {
 export function createNightRecipeV2(input: CreateNightRecipeInput): NightRecipeV2 {
   const createdAt = input.createdAt ?? Date.now();
   const cueMinutes = recognitionCueMinutesForDuration(input.durationMinutes, input.cuePlan);
+  const signalGainScale = Math.min(1.2, Math.max(0.65, input.signalGainScale ?? 1));
   return {
     schemaVersion: NIGHT_RECIPE_SCHEMA_VERSION,
     id: `night-recipe-${createdAt}-${input.seed}`,
@@ -69,7 +72,7 @@ export function createNightRecipeV2(input: CreateNightRecipeInput): NightRecipeV
       windows: cueMinutes.map((cueAtMinute, index) => ({
         id: `recognition-${index + 1}`,
         cueAtMinute,
-        signalGainScale: 1,
+        signalGainScale,
         presentations: 1,
         backgroundDuckGain: 0.55,
         recoverySeconds: 35,

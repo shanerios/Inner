@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Alert, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import * as Application from 'expo-application';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -41,7 +42,10 @@ const FEELS: Array<{ id: OvernightFeel; label: string }> = [
   { id: 'deep', label: 'Deep' },
   { id: 'immersive', label: 'Immersive' },
 ];
-const INNER_LAB_BUILD = __DEV__ || process.env.EXPO_PUBLIC_INNER_LAB === '1';
+const INNER_LAB_BUILD =
+  __DEV__ ||
+  process.env.EXPO_PUBLIC_INNER_LAB === '1' ||
+  Application.applicationId === 'com.getinner.app.proceduraldev';
 
 function durationLabel(minutes: number): string {
   const hours = Math.floor(minutes / 60);
@@ -105,6 +109,8 @@ export default function OvernightJourneyScreen() {
     adaptiveProposal?.proposedConfiguration.cuePlan
       ?? (route.params?.suggestedCuePlan === 'gentle' ? 'gentle' : 'standard'),
   );
+  const suggestedSignalGainScale = adaptiveProposal?.proposedConfiguration.signalGainScale;
+  const [signalGainScale, setSignalGainScale] = useState(suggestedSignalGainScale ?? 1);
   const [accelerated, setAccelerated] = useState(false);
   const [inspectorVisible, setInspectorVisible] = useState(false);
   const [latestMemory, setLatestMemory] = useState<JourneyMemorySession | null>(null);
@@ -152,9 +158,10 @@ export default function OvernightJourneyScreen() {
     feel,
     signalId,
     cuePlan,
+    signalGainScale,
     seed: 1,
     createdAt: 0,
-  }), [cuePlan, durationMinutes, environment, feel, signalId]);
+  }), [cuePlan, durationMinutes, environment, feel, signalGainScale, signalId]);
   const compiled = useMemo(() => {
     const realProtocol = createRecognitionOvernightProtocol({
       sleepDurationMinutes: durationMinutes,
@@ -162,7 +169,7 @@ export default function OvernightJourneyScreen() {
       signalId,
       cuePlan,
       feel,
-      cueOffsetsMinutes: previewRecipe.recognition.windows.map(window => window.cueAtMinute),
+      recognitionWindows: previewRecipe.recognition.windows,
     });
     return compileOvernightProtocol(
       accelerated && INNER_LAB_BUILD ? createAcceleratedOvernightProtocol(realProtocol) : realProtocol,
@@ -187,6 +194,7 @@ export default function OvernightJourneyScreen() {
         feel,
         signalId,
         cuePlan,
+        signalGainScale,
         seed,
         createdAt: plannedAt,
       });
@@ -196,7 +204,7 @@ export default function OvernightJourneyScreen() {
         signalId: recipe.recognition.signalId,
         cuePlan: recipe.recognition.cuePlan,
         feel: recipe.feel,
-        cueOffsetsMinutes: recipe.recognition.windows.map(window => window.cueAtMinute),
+        recognitionWindows: recipe.recognition.windows,
       });
       const compiledNight = compileOvernightProtocol(
         accelerated && INNER_LAB_BUILD ? createAcceleratedOvernightProtocol(protocol) : protocol,
@@ -234,6 +242,7 @@ export default function OvernightJourneyScreen() {
           signalId,
           cuePlan,
           recognitionWindowCount: recognitionWindows,
+          signalGainScale,
         },
         experiment,
         recommendation,
@@ -310,6 +319,17 @@ export default function OvernightJourneyScreen() {
         {choiceGroup('HOW LONG WILL YOU BE AWAY?', DURATIONS.map(id => ({ id, label: durationLabel(id) })), durationMinutes, setDurationMinutes)}
         {choiceGroup('HOW SHOULD IT FEEL?', FEELS, feel, setFeel)}
         {choiceGroup('YOUR SIGNAL', RECOGNITION_SIGNALS.map(signal => ({ id: signal.id, label: signal.name })), signalId, value => { void chooseSignal(value); })}
+        {suggestedSignalGainScale !== undefined && suggestedSignalGainScale !== 1
+          ? choiceGroup(
+              'SIGNAL LEVEL',
+              [
+                { id: suggestedSignalGainScale, label: `Inner's suggestion · ${Math.round(suggestedSignalGainScale * 100)}%` },
+                { id: 1, label: 'Standard · 100%' },
+              ],
+              signalGainScale,
+              setSignalGainScale,
+            )
+          : null}
 
         <View style={styles.readyCard}>
           <Text style={styles.readyEyebrow}>YOUR NIGHT</Text>
@@ -318,6 +338,7 @@ export default function OvernightJourneyScreen() {
           <Text style={styles.readyLine}>{durationLabel(durationMinutes)} · {recognitionWindows} later recognition windows</Text>
           <Text style={styles.readySchedule}>Signals near {nightRecipeCueSummary(previewRecipe)}</Text>
           <Text style={styles.readyLine}>{recognitionSignalById(signalId).name} · {feel}</Text>
+          {signalGainScale !== 1 && <Text style={styles.readyLine}>Signal level · {Math.round(signalGainScale * 100)}% of calibrated level</Text>}
           <Text style={styles.readyCopy}>Your journey begins with a seven-minute waking preparation, then continues quietly through descent, protected sleep, recognition windows, and return.</Text>
           {!!planExplanation.reason && <Text style={styles.readyReason}>{planExplanation.reason}</Text>}
           <Text style={styles.readyReview}>You can change any setting. Inner records the plan you begin.</Text>

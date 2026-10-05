@@ -87,6 +87,12 @@ describe('global Morning Return selection', () => {
     expect(canPresentMorningReturn(undefined)).toBe(false);
   });
 
+  it('waits for Home entry flows to finish before presenting', () => {
+    expect(canPresentMorningReturn('Home', false)).toBe(false);
+    expect(canPresentMorningReturn('Home', true)).toBe(true);
+    expect(canPresentMorningReturn('Journal', false)).toBe(true);
+  });
+
   it('keeps a deferred return available only from Home', () => {
     expect(canShowMorningReturnContinuation('Home')).toBe(true);
     expect(canShowMorningReturnContinuation('Journal')).toBe(false);

@@ -56,7 +56,7 @@ describe('the binaural layer breathes', () => {
       'binauralBreathDb: field.breath.depthDb.preparation,',
       'binauralBreathDb: field.breath.depthDb.descent,',
       'binauralBreathDb: index === 0 ? field.breath.depthDb.earlySleep : field.breath.depthDb.remSleep,',
-      'binauralBreathDb: cueOffsets.length ? field.breath.depthDb.remSleep : field.breath.depthDb.earlySleep,',
+      'binauralBreathDb: recognitionWindows.length ? field.breath.depthDb.remSleep : field.breath.depthDb.earlySleep,',
     ]) expect(protocol).toContain(line);
   });
 

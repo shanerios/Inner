@@ -50,6 +50,25 @@ describe('dream practice context', () => {
     }));
   });
 
+  it('carries the native planned-versus-delivered receipt into dream context', () => {
+    const withRecipeCues = {
+      ...session,
+      completionStatus: 'partial' as const,
+      outcome: 'user_stopped' as const,
+      plannedRecognitionCues: [
+        { cueId: 'cue-1', scheduledPositionMs: 29_000 },
+        { cueId: 'cue-2', scheduledPositionMs: 49_000 },
+      ],
+    };
+    const snapshot = snapshotPracticeContext(practiceLinkFromOvernightSession(withRecipeCues as any), 181_000)!;
+    expect(snapshot.links[0].nightExecution).toEqual(expect.objectContaining({
+      status: 'partial',
+      deliveredCues: [expect.objectContaining({ cueId: 'cue-1' })],
+      missingCueIds: ['cue-2'],
+    }));
+    expect(practiceContextSummary(snapshot)).toContain('Night delivery: 1 of 2 planned signals');
+  });
+
   it('freezes timing relative to capture and creates a readable summary', () => {
     const snapshot = snapshotPracticeContext(practiceLinkFromOvernightSession(session as any), 181_000)!;
     expect(snapshot.links[0].minutesBeforeCapture).toBe(2);

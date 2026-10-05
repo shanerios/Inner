@@ -230,7 +230,7 @@ export default function LucidJourneyPlayerScreen() {
         let selectedSignalId: RecognitionSignalId | null = null;
         await session.setRecognitionSignal(null, null);
         if (journey.overnight) {
-          const overnightSignalId = await getRecognitionSignalId();
+          const overnightSignalId = journey.overnight.recognitionSignalId ?? await getRecognitionSignalId();
           selectedSignalId = overnightSignalId;
           const overnightSignal = await recognitionSignalPlayback(overnightSignalId);
           await session.setRecognitionSignal(overnightSignal.signalId, overnightSignal.uri, overnightSignal.gain);
@@ -305,6 +305,17 @@ export default function LucidJourneyPlayerScreen() {
               startWatchdog = null;
               setPlaybackPaused(health.nativeState !== 'playing');
               traceStart('playing_confirmed', `latencyMs=${Date.now() - playRequestedAtMs}`);
+              void session.getDebugState().then(debug => {
+                const memorySessionId = memorySessionIdRef.current;
+                if (memorySessionId && typeof debug?.privateOutput === 'boolean') {
+                  return recordJourneyMemoryEvent(memorySessionId, {
+                    type: 'audio_route_changed',
+                    positionMs: currentPositionRef.current,
+                    route: debug.privateOutput ? 'private' : 'speaker',
+                    reason: 'initial_output',
+                  });
+                }
+              }).catch(() => {});
               if (startStalledRef.current) {
                 startStalledRef.current = false;
                 setStartStalled(false);

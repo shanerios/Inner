@@ -55,6 +55,8 @@ struct SpatialEventRecord: Record {
   @Field var durationMs = 1_200.0
   @Field var depth = 0.8
   @Field var recognitionSpace = false
+  @Field var signalGainScale = 1.0
+  @Field var recoverySeconds = 30.0
 }
 
 struct AudioTimelineRecord: Record {
@@ -152,6 +154,8 @@ private struct CueEvent {
   let id: String
   let atMs: Double
   let recognitionSpace: Bool
+  let signalGainScale: Double
+  let recoverySeconds: Double
 }
 
 private struct SpatialEvent {
@@ -529,7 +533,13 @@ final class ProceduralAudioEngine: NSObject {
         },
         cueEvents: stage.spatialEvents.prefix(16).compactMap { event in
           guard event.type == "cue", event.atMs >= 0 else { return nil }
-          return CueEvent(id: "\(stage.id)/\(event.id)", atMs: event.atMs, recognitionSpace: event.recognitionSpace)
+          return CueEvent(
+            id: "\(stage.id)/\(event.id)",
+            atMs: event.atMs,
+            recognitionSpace: event.recognitionSpace,
+            signalGainScale: clamp(event.signalGainScale, 0.1, 2),
+            recoverySeconds: clamp(event.recoverySeconds, 10, 120)
+          )
         }
       )
     }
@@ -1037,7 +1047,8 @@ final class ProceduralAudioEngine: NSObject {
       let event = activeTimeline.flatMap { timelineSpatialEvent($0, elapsedMs: timelineElapsedMs) }
       if let activeTimeline, let cueFireMs = timelineCueEventMs(activeTimeline, elapsedMs: timelineElapsedMs, afterMs: cueTimelineThresholdMs) {
         cueTimelineThresholdMs = cueFireMs
-        startCue()
+        let cueEvent = cueEventAt(activeTimeline, atMs: cueFireMs)
+        startCue(gainScale: cueEvent?.signalGainScale ?? 1)
         let cueId = cueIdAt(activeTimeline, atMs: cueFireMs)
         diagnosticLock.lock()
         if firedSignalIds.count < 240 { firedSignalIds.append(recognitionSignalId ?? "ascending") }
@@ -1453,13 +1464,17 @@ final class ProceduralAudioEngine: NSObject {
     }
   }
 
-  private func cueIdAt(_ timeline: AudioTimeline, atMs: Double) -> String {
+  private func cueEventAt(_ timeline: AudioTimeline, atMs: Double) -> CueEvent? {
     var cursor = 0.0
     for stage in timeline.stages {
-      for event in stage.cueEvents where cursor + event.atMs == atMs { return event.id }
+      for event in stage.cueEvents where cursor + event.atMs == atMs { return event }
       cursor += stage.durationMs
     }
-    return "unknown"
+    return nil
+  }
+
+  private func cueIdAt(_ timeline: AudioTimeline, atMs: Double) -> String {
+    cueEventAt(timeline, atMs: atMs)?.id ?? "unknown"
   }
 
   // Not loop-aware: a scheduled cue re-crossing the wrap boundary of a
@@ -1487,17 +1502,19 @@ final class ProceduralAudioEngine: NSObject {
     for stage in timeline.stages {
       for event in stage.cueEvents where event.recognitionSpace {
         let relativeMs = elapsedMs - (cursor + event.atMs)
+        let recoveryMs = event.recoverySeconds * 1_000
+        let steadyAfterMs = min(10_000, recoveryMs * 0.4)
         let progress: Double
-        if relativeMs < -20_000 || relativeMs > 30_000 {
+        if relativeMs < -20_000 || relativeMs > recoveryMs {
           continue
         } else if relativeMs < -10_000 {
           progress = smoothStep((relativeMs + 20_000) / 10_000) * 0.45
         } else if relativeMs < 0 {
           progress = 0.45 + smoothStep((relativeMs + 10_000) / 10_000) * 0.45
-        } else if relativeMs <= 10_000 {
+        } else if relativeMs <= steadyAfterMs {
           progress = 0.9
         } else {
-          progress = 0.9 * (1 - smoothStep((relativeMs - 10_000) / 20_000))
+          progress = 0.9 * (1 - smoothStep((relativeMs - steadyAfterMs) / max(1, recoveryMs - steadyAfterMs)))
         }
         let gain = 1 - progress * 0.46
         if gain < bestGain {
@@ -1516,12 +1533,12 @@ final class ProceduralAudioEngine: NSObject {
     return bounded * bounded * (3 - 2 * bounded)
   }
 
-  private func startCue() {
+  private func startCue(gainScale: Double = 1) {
     lock.lock()
     activeCueSamplesLeft = recognitionSignalSamplesLeft
     activeCueSamplesRight = recognitionSignalSamplesRight
     activeCueSampleRate = recognitionSignalSampleRate
-    activeCueGain = recognitionSignalGain
+    activeCueGain = recognitionSignalGain * clamp(gainScale, 0.1, 2)
     lock.unlock()
     cueActive = true
     cueElapsedFrames = 0

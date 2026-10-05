@@ -18,6 +18,8 @@ export type NightPlanConfiguration = {
   signalId: string;
   cuePlan: 'standard' | 'gentle';
   recognitionWindowCount: number;
+  /** Linear trim relative to the signal's calibrated base level. */
+  signalGainScale?: number;
 };
 
 export type NightPlan = {
@@ -35,7 +37,7 @@ export type NightPlan = {
   experiment?: ExperimentContextSnapshot;
   adaptiveRule?: {
     id: string;
-    rule: 'gentler_signal' | 'supported_environment';
+    rule: 'gentler_signal' | 'clearer_signal' | 'supported_environment';
     title: string;
   };
   recipe?: NightRecipeV2;

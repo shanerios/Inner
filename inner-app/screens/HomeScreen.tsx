@@ -1108,7 +1108,11 @@ const loop = Animated.loop(
           const evaluations = deriveAdaptiveRuleEvaluations(nightRecords);
           const excludedKinds = evaluations.flatMap(evaluation => evaluation.status !== 'paused'
             ? []
-            : [evaluation.rule === 'gentler_signal' ? 'gentler_signal' as const : 'repeat_environment' as const]);
+            : [evaluation.rule === 'gentler_signal'
+              ? 'gentler_signal' as const
+              : evaluation.rule === 'clearer_signal'
+                ? 'clearer_signal' as const
+                : 'repeat_environment' as const]);
           const recommendation = deriveTonightRecommendation(
             entries,
             nightRecords,
@@ -2082,6 +2086,7 @@ const ORB_TOP =
     useCallback(() => {
       let cancelled = false;
       setDailyChecked(false);
+      morningReturnContinuation.setHomeEntryReady(false);
 
       const checkDaily = async () => {
         try {
@@ -2090,10 +2095,14 @@ const ORB_TOP =
             navigation.navigate('DailyRitual');
           } else if (!cancelled) {
             setDailyChecked(true);
+            morningReturnContinuation.setHomeEntryReady(true);
           }
         } catch (e) {
           __DEV__ && console.log('[HOME] daily micro check error', e);
-          if (!cancelled) setDailyChecked(true);
+          if (!cancelled) {
+            setDailyChecked(true);
+            morningReturnContinuation.setHomeEntryReady(true);
+          }
         }
       };
 
@@ -2102,7 +2111,7 @@ const ORB_TOP =
       return () => {
         cancelled = true;
       };
-    }, [navigation])
+    }, [morningReturnContinuation.setHomeEntryReady, navigation])
   );
 
    useEffect(() => () => {

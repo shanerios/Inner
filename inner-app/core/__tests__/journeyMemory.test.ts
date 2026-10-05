@@ -12,6 +12,7 @@ import {
   recordJourneyMemoryEvent,
   reconcileInterruptedJourneyMemorySession,
 } from '../journeyMemory';
+import { nightExecutionForSession } from '../nightExecution';
 import { DEFAULT_PROCEDURAL_AUDIO_CONFIG } from '../audio';
 import { describe, expect, it, jest } from '@jest/globals';
 
@@ -94,6 +95,48 @@ describe('journey memory', () => {
     );
     await attachNightPlanToJourneyMemory(session.id, 'night-plan-1', storage as any);
     expect((await loadJourneyMemory(storage as any)).sessions[0].nightPlanId).toBe('night-plan-1');
+  });
+
+  it('separates the planned night recipe from signals proven to have fired', async () => {
+    const storage = memoryStorage();
+    const overnightTimeline = {
+      ...timeline,
+      id: 'overnight-recognition-forest-standard',
+      endPolicy: 'protocolControlled' as const,
+      stages: [{
+        ...timeline.stages[0],
+        spatialEvents: [
+          { id: 'signal-1', atMs: 10_000, type: 'cue' as const, recognitionSpace: true },
+          { id: 'signal-2', atMs: 40_000, type: 'cue' as const, recognitionSpace: true },
+        ],
+      }],
+    };
+    const session = await beginJourneyMemorySession(
+      overnightTimeline.id, overnightTimeline, DEFAULT_PROCEDURAL_AUDIO_CONFIG, storage as any, () => 100,
+    );
+    await recordJourneyMemoryEvent(session.id, {
+      type: 'cue_played', positionMs: 10_000, cueId: 'arrival/signal-1',
+    }, storage as any, () => 150);
+    await recordJourneyMemoryEvent(session.id, {
+      type: 'recognition_signal_fired', positionMs: 10_020, cueId: 'arrival/signal-1', signalId: 'guardian',
+      scheduledPositionMs: 10_000, actualPositionMs: 10_020, driftMs: 20,
+    }, storage as any, () => 160);
+    await recordJourneyMemoryEvent(session.id, {
+      type: 'interruption_began', positionMs: 20_000, route: 'private', reason: 'focus_loss',
+    }, storage as any, () => 170);
+    await finishJourneyMemorySession(session.id, 'user_stopped', 30_000, undefined, storage as any, () => 200);
+
+    const saved = (await loadJourneyMemory(storage as any)).sessions[0];
+    expect(nightExecutionForSession(saved)).toEqual(expect.objectContaining({
+      status: 'partial',
+      interruptionCount: 1,
+      plannedCues: [
+        { cueId: 'arrival/signal-1', scheduledPositionMs: 10_000 },
+        { cueId: 'arrival/signal-2', scheduledPositionMs: 40_000 },
+      ],
+      deliveredCues: [expect.objectContaining({ cueId: 'arrival/signal-1', signalId: 'guardian', driftMs: 20 })],
+      missingCueIds: ['arrival/signal-2'],
+    }));
   });
 
   it('derives explainable preferences only from completed listening', () => {

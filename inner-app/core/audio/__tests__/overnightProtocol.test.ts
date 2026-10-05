@@ -49,6 +49,27 @@ describe('overnight protocol', () => {
     expect(signals.map(event => event.atMs)).toEqual([257, 342, 392].map(minutes => minutes * 60_000));
   });
 
+  it('uses every authored recognition-window value as playback input', () => {
+    const result = compileOvernightProtocol(createRecognitionOvernightProtocol({
+      sleepDurationMinutes: 7 * 60,
+      environment: 'forest',
+      signalId: 'guardian',
+      cuePlan: 'standard',
+      recognitionWindows: [{
+        id: 'custom-window', cueAtMinute: 250, signalGainScale: 0.7,
+        presentations: 2, backgroundDuckGain: 0.4, recoverySeconds: 50,
+      }],
+    }), DEFAULT_PROCEDURAL_AUDIO_CONFIG);
+    const window = result.phases.find(phase => phase.kind === 'recognitionWindow')!;
+    const signals = result.events.filter(event => event.actions.some(action => action.kind === 'playRecognitionSignal'));
+    expect(window.durationMs).toBe(71_000);
+    expect(signals).toHaveLength(2);
+    expect(signals.map(event => event.atMs - window.startsAtMs)).toEqual([15_000, 21_000]);
+    expect(signals[0].actions).toContainEqual({ kind: 'playRecognitionSignal', gainScale: 0.7, recoverySeconds: 50 });
+    expect(result.events.find(event => event.id === 'duck-1')?.actions)
+      .toContainEqual({ kind: 'duckAudio', gain: 0.4, rampMs: 5_000 });
+  });
+
   describe('the bed under each world', () => {
     const expectNoise = (actual: Array<number | undefined>, expected: number[]) => {
       expect(actual).toHaveLength(expected.length);

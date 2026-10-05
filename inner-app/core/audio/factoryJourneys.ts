@@ -1,4 +1,5 @@
 import type { AudioJourneyTimeline, AudioJourneyStage, ProceduralEnvironment } from './types';
+import type { RecognitionSignalId } from '../recognitionSignals';
 import { toneGainForEnvironment } from './config';
 
 export type FactoryAudioJourney = {
@@ -10,7 +11,7 @@ export type FactoryAudioJourney = {
   summary: string;
   timeline: AudioJourneyTimeline;
   /** Marks the waking-conditioning boundary inside a longer overnight timeline. */
-  overnight?: { sleepOnsetDelayMs: number };
+  overnight?: { sleepOnsetDelayMs: number; recognitionSignalId?: RecognitionSignalId };
 };
 
 export type PersonalizedLucidJourneyAnswers = {

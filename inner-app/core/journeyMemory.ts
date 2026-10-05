@@ -143,6 +143,8 @@ export type JourneyMemorySession = {
     durationMs: number;
     config: ProceduralAudioConfig;
   }>;
+  /** Recognition presentations planned by the exact Night Recipe timeline. */
+  plannedRecognitionCues?: Array<{ cueId: string; scheduledPositionMs: number }>;
   outcome?: JourneyMemoryOutcome;
   endReason?: 'timeline_completed' | 'manual_stop' | 'playback_error' | 'recovered' | 'interrupted' | 'os_terminated' | 'unknown';
   completionStatus?: JourneyCompletionStatus;
@@ -273,6 +275,14 @@ export function beginJourneyMemorySession(
 ): Promise<JourneyMemorySession> {
   return enqueue(async () => {
     const startedAt = now();
+    let stageStartMs = 0;
+    const plannedRecognitionCues = timeline.stages.flatMap(stage => {
+      const cues = stage.spatialEvents.flatMap(event => event.type === 'cue' && event.recognitionSpace
+        ? [{ cueId: `${stage.id}/${event.id}`, scheduledPositionMs: stageStartMs + event.atMs }]
+        : []);
+      stageStartMs += stage.durationMs;
+      return cues;
+    });
     const session: JourneyMemorySession = {
       schemaVersion: JOURNEY_MEMORY_SCHEMA_VERSION,
       id: `journey-${startedAt}-${Math.random().toString(36).slice(2, 8)}`,
@@ -289,6 +299,7 @@ export function beginJourneyMemorySession(
         durationMs: stage.durationMs,
         config: stage.config,
       })),
+      ...(plannedRecognitionCues.length ? { plannedRecognitionCues } : {}),
       events: [{ type: 'started', at: startedAt, positionMs: 0 }],
     };
     const state = await loadJourneyMemory(storage);

@@ -42,4 +42,21 @@ describe('Night Recipe v2', () => {
     expect(recipe.recognition.windows.map(window => window.cueAtMinute)).toEqual([300, 380]);
     expect(nightRecipeCueSummary(recipe)).toBe('5h · 6h 20m');
   });
+
+  it('applies and bounds a learned signal-level trim to every window', () => {
+    const recipe = createNightRecipeV2({
+      durationMinutes: 420,
+      environment: 'forest',
+      feel: 'gentle',
+      signalId: 'guardian',
+      cuePlan: 'gentle',
+      signalGainScale: 0.85,
+      seed: 42,
+      createdAt: 100,
+    });
+    expect(recipe.recognition.windows.map(window => window.signalGainScale)).toEqual([0.85, 0.85]);
+    expect(createNightRecipeV2({
+      durationMinutes: 420, environment: 'forest', feel: 'gentle', signalId: 'guardian', cuePlan: 'gentle', signalGainScale: 4, seed: 1,
+    }).recognition.windows[0].signalGainScale).toBe(1.2);
+  });
 });

@@ -20,6 +20,10 @@ export type AudioCueEvent = {
   type: 'cue';
   /** Opens a quieter native sound field around overnight recognition signals. */
   recognitionSpace?: boolean;
+  /** Per-presentation multiplier applied on top of the selected signal's calibrated trim. */
+  signalGainScale?: number;
+  /** How long the protected sound field settles after this presentation. */
+  recoverySeconds?: number;
 };
 
 export type AudioSpatialEvent = AudioSwooshEvent | AudioCueEvent;

@@ -2,6 +2,7 @@ import { normalizeProceduralAudioConfig } from './config';
 import { identityPatch } from './identityArc';
 import { worldBed, worldBinaural } from './worldProfiles';
 import { recognitionCueMinutesForDuration, type LucidSignalCuePlan } from '../lucidSignalPlans';
+import type { NightRecipeRecognitionWindow } from '../nightRecipes';
 import type { RecognitionSignalId } from '../recognitionSignals';
 import type { ProceduralAudioConfig, ProceduralAudioPatch, ProceduralEnvironment } from './types';
 
@@ -26,7 +27,7 @@ export type OvernightAction =
   | { kind: 'applyAudio'; patch: ProceduralAudioPatch; rampMs?: number }
   | { kind: 'duckAudio'; gain: number; rampMs: number }
   | { kind: 'restoreAudio'; rampMs: number }
-  | { kind: 'playRecognitionSignal' }
+  | { kind: 'playRecognitionSignal'; gainScale?: number; recoverySeconds?: number }
   | { kind: 'markEvent'; name: string }
   | { kind: 'requestMorningReflection' };
 
@@ -152,6 +153,8 @@ export type RecognitionOvernightOptions = {
   cuePlan: LucidSignalCuePlan;
   /** Exact signal presentation times from the end of waking preparation. */
   cueOffsetsMinutes?: number[];
+  /** Complete authored recognition windows. When present, these are the playback source of truth. */
+  recognitionWindows?: NightRecipeRecognitionWindow[];
   feel?: 'gentle' | 'deep' | 'immersive';
 };
 
@@ -160,10 +163,27 @@ export function createRecognitionOvernightProtocol(options: RecognitionOvernight
   const preparationMs = 7 * 60_000;
   const descentMs = 30 * 60_000;
   const returnMs = 60_000;
-  const cueOffsets = (options.cueOffsetsMinutes
-    ?? recognitionCueMinutesForDuration(options.sleepDurationMinutes, options.cuePlan))
-    .map(minutes => minutes * 60_000)
-    .filter(offset => offset >= descentMs + 15_000 && offset + 45_000 < sleepDurationMs - returnMs);
+  const recognitionWindows = (options.recognitionWindows ?? (
+    options.cueOffsetsMinutes ?? recognitionCueMinutesForDuration(options.sleepDurationMinutes, options.cuePlan)
+  ).map((cueAtMinute, index) => ({
+    id: `recognition-${index + 1}`,
+    cueAtMinute,
+    signalGainScale: 1,
+    presentations: 1,
+    backgroundDuckGain: 0.55,
+    recoverySeconds: 35,
+  }))).map(window => ({
+    ...window,
+    cueAtMs: window.cueAtMinute * 60_000,
+    signalGainScale: Math.min(2, Math.max(0.1, window.signalGainScale)),
+    presentations: Math.min(3, Math.max(1, Math.round(window.presentations))),
+    backgroundDuckGain: Math.min(1, Math.max(0.25, window.backgroundDuckGain)),
+    recoverySeconds: Math.min(120, Math.max(10, window.recoverySeconds)),
+  })).filter(window => {
+    const lastPresentationMs = window.cueAtMs + (window.presentations - 1) * 6_000;
+    return window.cueAtMs >= descentMs + 15_000
+      && lastPresentationMs + window.recoverySeconds * 1_000 < sleepDurationMs - returnMs;
+  });
   const feel = options.feel ?? 'gentle';
   const environmentGain = options.feel === 'immersive' ? 0.2 : options.feel === 'deep' ? 0.16 : 0.12;
   const bed = worldBed(options.environment);
@@ -203,10 +223,13 @@ export function createRecognitionOvernightProtocol(options: RecognitionOvernight
   ];
 
   let sleepCursorMs = descentMs;
-  cueOffsets.forEach((cueOffsetMs, index) => {
+  recognitionWindows.forEach((window, index) => {
     // A recognition window begins fifteen seconds before the scheduled signal,
-    // then leaves forty-five seconds for the world to settle after it.
-    const recognitionWindowStartMs = cueOffsetMs - 15_000;
+    // then uses the recipe's presentation count and recovery period.
+    const recognitionWindowStartMs = window.cueAtMs - 15_000;
+    const recognitionWindowDurationMs = 15_000
+      + (window.presentations - 1) * 6_000
+      + window.recoverySeconds * 1_000;
     const protectionMs = Math.max(0, recognitionWindowStartMs - sleepCursorMs);
     if (protectionMs >= 1_000) {
       phases.push({
@@ -215,22 +238,30 @@ export function createRecognitionOvernightProtocol(options: RecognitionOvernight
       });
     }
     phases.push({
-      id: `recognition-window-${index + 1}`, label: 'Recognition Window', kind: 'recognitionWindow', durationMs: 60_000,
+      id: `recognition-window-${index + 1}`, label: 'Recognition Window', kind: 'recognitionWindow', durationMs: recognitionWindowDurationMs,
       audio: identityPatch(options.environment, 'recognitionWindow', feel),
       events: [
-        { id: `duck-${index + 1}`, trigger: { kind: 'phaseStart' }, actions: [{ kind: 'duckAudio', gain: 0.55, rampMs: 5_000 }] },
-        { id: `signal-${index + 1}`, trigger: { kind: 'elapsed', atMs: 15_000 }, actions: [{ kind: 'playRecognitionSignal' }] },
-        { id: `restore-${index + 1}`, trigger: { kind: 'elapsed', atMs: 25_000 }, actions: [{ kind: 'restoreAudio', rampMs: 5_000 }] },
+        { id: `duck-${index + 1}`, trigger: { kind: 'phaseStart' }, actions: [{ kind: 'duckAudio', gain: window.backgroundDuckGain, rampMs: 5_000 }] },
+        ...Array.from({ length: window.presentations }, (_, presentationIndex) => ({
+          id: window.presentations === 1 ? `signal-${index + 1}` : `signal-${index + 1}-${presentationIndex + 1}`,
+          trigger: { kind: 'elapsed' as const, atMs: 15_000 + presentationIndex * 6_000 },
+          actions: [{
+            kind: 'playRecognitionSignal' as const,
+            gainScale: window.signalGainScale,
+            recoverySeconds: window.recoverySeconds,
+          }],
+        })),
+        { id: `restore-${index + 1}`, trigger: { kind: 'phaseEnd', beforeMs: 0 }, actions: [{ kind: 'restoreAudio', rampMs: 5_000 }] },
       ],
     });
-    sleepCursorMs = recognitionWindowStartMs + 60_000;
+    sleepCursorMs = recognitionWindowStartMs + recognitionWindowDurationMs;
   });
 
   const remainingSleepMs = sleepDurationMs - sleepCursorMs - returnMs;
   if (remainingSleepMs >= 1_000) {
     phases.push({
       id: 'sleep-protection-final', label: 'Sleep Protection', kind: 'sleepProtection', durationMs: remainingSleepMs,
-      audio: { toneGain: 0, binauralDeltaHz: cueOffsets.length ? field.beatHz.remSleep : field.beatHz.earlySleep, binauralBreathDb: cueOffsets.length ? field.breath.depthDb.remSleep : field.breath.depthDb.earlySleep, binauralGain: 0.05 * binauralWorldScale, noiseGain: 0.08 * bed.noiseGainScale * (cueOffsets.length ? bed.remNoiseTaper : 1), environmentGain: environmentGain * 0.6, masterGain: 0.3, ...identityPatch(options.environment, cueOffsets.length ? 'remSleep' : 'earlySleep', feel) },
+      audio: { toneGain: 0, binauralDeltaHz: recognitionWindows.length ? field.beatHz.remSleep : field.beatHz.earlySleep, binauralBreathDb: recognitionWindows.length ? field.breath.depthDb.remSleep : field.breath.depthDb.earlySleep, binauralGain: 0.05 * binauralWorldScale, noiseGain: 0.08 * bed.noiseGainScale * (recognitionWindows.length ? bed.remNoiseTaper : 1), environmentGain: environmentGain * 0.6, masterGain: 0.3, ...identityPatch(options.environment, recognitionWindows.length ? 'remSleep' : 'earlySleep', feel) },
     });
   }
   phases.push({

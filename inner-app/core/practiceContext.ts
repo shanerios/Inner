@@ -1,4 +1,5 @@
 import type { JourneyMemorySession } from './journeyMemory';
+import { nightExecutionForSession, type NightExecutionRecord } from './nightExecution';
 import type { SelectedRecommendation } from './recommendationMemory';
 import type { ExperimentContextSnapshot } from './practiceExperiments';
 import type { NightPlanContextSnapshot } from './nightPlans';
@@ -20,6 +21,7 @@ export type PracticeLinkSnapshot = {
   stageIds?: string[];
   firedCueIds?: string[];
   nightPlanId?: string;
+  nightExecution?: NightExecutionRecord;
 };
 
 export type PracticeContextSnapshot = {
@@ -71,6 +73,7 @@ export function practiceLinkFromOvernightSession(session: JourneyMemorySession):
       ...(session.nativeCheckpoint?.firedCueIds ?? []),
     ]),
     nightPlanId: session.nightPlanId,
+    nightExecution: nightExecutionForSession(session),
   };
 }
 
@@ -98,6 +101,9 @@ export function practiceContextSections(context?: PracticeContextSnapshot): stri
     ? [[
         `Tonight's plan · ${context.nightPlan.configuration.environment.charAt(0).toUpperCase()}${context.nightPlan.configuration.environment.slice(1)}`,
         `${context.nightPlan.configuration.durationMinutes} min · ${context.nightPlan.configuration.feel} · ${context.nightPlan.configuration.recognitionWindowCount} recognition ${context.nightPlan.configuration.recognitionWindowCount === 1 ? 'window' : 'windows'}`,
+        ...(context.nightPlan.configuration.signalGainScale !== undefined && context.nightPlan.configuration.signalGainScale !== 1
+          ? [`Signal level: ${Math.round(context.nightPlan.configuration.signalGainScale * 100)}% of calibrated level`]
+          : []),
         `Source: ${context.nightPlan.source === 'experiment' ? 'Personal experiment' : context.nightPlan.source === 'recommendation' ? 'Inner recommendation' : context.nightPlan.source === 'adaptive_rule' ? 'Adaptive rule' : 'Shaped manually'}`,
         ...(context.nightPlan.reason ? [`Why: ${context.nightPlan.reason}`] : []),
       ]]
@@ -125,8 +131,13 @@ export function practiceContextSections(context?: PracticeContextSnapshot): stri
       };
       lines.push(`Recognition signal: ${signalLabels[link.signalId] ?? link.signalId}`);
     }
-    if (link.firedCueIds?.length) {
+    if (link.firedCueIds?.length && !link.nightExecution?.plannedCues.length) {
       lines.push(`${link.firedCueIds.length} ${link.firedCueIds.length === 1 ? 'cue' : 'cues'} presented`);
+    }
+    if (link.nightExecution?.plannedCues.length) {
+      const { plannedCues, deliveredCues, interruptionCount } = link.nightExecution;
+      lines.push(`Night delivery: ${deliveredCues.length} of ${plannedCues.length} planned ${plannedCues.length === 1 ? 'signal' : 'signals'}`);
+      if (interruptionCount) lines.push(`${interruptionCount} playback ${interruptionCount === 1 ? 'interruption' : 'interruptions'} recorded`);
     }
     if (link.audioRoute === 'private') lines.push('Audio route: Headphones or private output');
     if (link.audioRoute === 'speaker') lines.push('Audio route: Speaker');

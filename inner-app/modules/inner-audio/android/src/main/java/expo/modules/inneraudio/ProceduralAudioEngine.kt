@@ -117,6 +117,8 @@ private data class CueEventState(
   val id: String,
   val atMs: Double,
   val recognitionSpace: Boolean,
+  val signalGainScale: Double,
+  val recoverySeconds: Double,
 )
 
 private data class AudioTimelineState(
@@ -524,7 +526,13 @@ object ProceduralAudioEngine {
           },
           cueEvents = stage.spatialEvents.take(16).mapNotNull { event ->
             if (event.type != "cue" || event.atMs < 0) return@mapNotNull null
-            CueEventState(id = "${stage.id}/${event.id}", atMs = event.atMs, recognitionSpace = event.recognitionSpace)
+            CueEventState(
+              id = "${stage.id}/${event.id}",
+              atMs = event.atMs,
+              recognitionSpace = event.recognitionSpace,
+              signalGainScale = clamp(event.signalGainScale, 0.1, 2.0),
+              recoverySeconds = clamp(event.recoverySeconds, 10.0, 120.0),
+            )
           },
         )
       }
@@ -834,7 +842,8 @@ object ProceduralAudioEngine {
         val cueFireMs = timelineCueEventMs(activeTimeline, timelineElapsedMs, cueTimelineThresholdMs)
         if (cueFireMs != null) {
           cueTimelineThresholdMs = cueFireMs
-          startCue()
+          val cueEvent = cueEventAt(activeTimeline, cueFireMs)
+          startCue(cueEvent?.signalGainScale ?: 1.0)
           val firedSignalId = recognitionSignalId ?: "ascending"
           val cueId = cueIdAt(activeTimeline, cueFireMs)
           firedSignalLock.withLock {
@@ -1203,13 +1212,17 @@ object ProceduralAudioEngine {
     }
   }
 
-  private fun cueIdAt(timeline: AudioTimelineState, atMs: Double): String {
+  private fun cueEventAt(timeline: AudioTimelineState, atMs: Double): CueEventState? {
     var cursor = 0.0
     for (stage in timeline.stages) {
-      for (event in stage.cueEvents) if (cursor + event.atMs == atMs) return event.id
+      for (event in stage.cueEvents) if (cursor + event.atMs == atMs) return event
       cursor += stage.durationMs
     }
-    return "unknown"
+    return null
+  }
+
+  private fun cueIdAt(timeline: AudioTimelineState, atMs: Double): String {
+    return cueEventAt(timeline, atMs)?.id ?: "unknown"
   }
 
   // Not loop-aware: a scheduled cue re-crossing the wrap boundary of a
@@ -1245,12 +1258,14 @@ object ProceduralAudioEngine {
       for (event in stage.cueEvents) {
         if (!event.recognitionSpace) continue
         val relativeMs = elapsedMs - (cursor + event.atMs)
+        val recoveryMs = event.recoverySeconds * 1_000.0
+        val steadyAfterMs = min(10_000.0, recoveryMs * 0.4)
         val progress = when {
-          relativeMs < -20_000.0 || relativeMs > 30_000.0 -> continue
+          relativeMs < -20_000.0 || relativeMs > recoveryMs -> continue
           relativeMs < -10_000.0 -> smoothStep((relativeMs + 20_000.0) / 10_000.0) * 0.45
           relativeMs < 0.0 -> 0.45 + smoothStep((relativeMs + 10_000.0) / 10_000.0) * 0.45
-          relativeMs <= 10_000.0 -> 0.9
-          else -> 0.9 * (1.0 - smoothStep((relativeMs - 10_000.0) / 20_000.0))
+          relativeMs <= steadyAfterMs -> 0.9
+          else -> 0.9 * (1.0 - smoothStep((relativeMs - steadyAfterMs) / max(1.0, recoveryMs - steadyAfterMs)))
         }
         val gain = 1.0 - progress * 0.46
         if (gain < bestGain) {
@@ -1269,12 +1284,12 @@ object ProceduralAudioEngine {
     return bounded * bounded * (3.0 - 2.0 * bounded)
   }
 
-  private fun startCue() {
+  private fun startCue(gainScale: Double = 1.0) {
     lock.withLock {
       activeCueSamplesLeft = recognitionSignalSamplesLeft
       activeCueSamplesRight = recognitionSignalSamplesRight
       activeCueSampleRate = recognitionSignalSampleRate
-      activeCueGain = recognitionSignalGain
+      activeCueGain = recognitionSignalGain * clamp(gainScale, 0.1, 2.0)
     }
     cueActive = true
     cueElapsedFrames = 0.0
