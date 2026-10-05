@@ -366,12 +366,15 @@ object ProceduralAudioEngine {
   private var cueRightCombs: Array<CombFilter> = emptyArray()
   private var cueLeftAllpasses: Array<AllpassFilter> = emptyArray()
   private var cueRightAllpasses: Array<AllpassFilter> = emptyArray()
-  private var recognitionSignalSamples = FloatArray(0)
+  /** A mono signal duplicates its one channel into both; a stereo signal keeps its own left and right. */
+  private var recognitionSignalSamplesLeft = FloatArray(0)
+  private var recognitionSignalSamplesRight = FloatArray(0)
   private var recognitionSignalSampleRate = 0.0
   private var recognitionSignalId: String? = null
   /** Linear level trim for the selected signal, set from JS (see recognitionSignals.ts). */
   private var recognitionSignalGain = 1.0
-  private var activeCueSamples = FloatArray(0)
+  private var activeCueSamplesLeft = FloatArray(0)
+  private var activeCueSamplesRight = FloatArray(0)
   private var activeCueGain = 1.0
   private var activeCueSampleRate = 0.0
   private var orbitMix = 0.0
@@ -431,7 +434,8 @@ object ProceduralAudioEngine {
     val signalGain = if (gain.isFinite()) clamp(gain, 0.0, 2.0) else 1.0
     if (uri.isNullOrEmpty()) {
       lock.withLock {
-        recognitionSignalSamples = FloatArray(0)
+        recognitionSignalSamplesLeft = FloatArray(0)
+        recognitionSignalSamplesRight = FloatArray(0)
         recognitionSignalSampleRate = 0.0
         recognitionSignalId = signalId
         recognitionSignalGain = signalGain
@@ -466,13 +470,19 @@ object ProceduralAudioEngine {
       }
       offset = body + chunkSize + (chunkSize and 1)
     }
-    require(format == 1 && channels == 1 && bits == 16 && sourceRate > 0 && dataOffset >= 0) {
-      "Recognition signal must be 16-bit mono PCM WAV"
+    require(format == 1 && (channels == 1 || channels == 2) && bits == 16 && sourceRate > 0 && dataOffset >= 0) {
+      "Recognition signal must be 16-bit mono or stereo PCM WAV"
     }
-    val sampleCount = dataSize / 2
-    val samples = FloatArray(sampleCount) { index -> buffer.getShort(dataOffset + index * 2) / 32768f }
+    val frameCount = dataSize / 2 / channels
+    val left = FloatArray(frameCount) { index -> buffer.getShort(dataOffset + index * channels * 2) / 32768f }
+    val right = if (channels == 2) {
+      FloatArray(frameCount) { index -> buffer.getShort(dataOffset + (index * channels + 1) * 2) / 32768f }
+    } else {
+      left
+    }
     lock.withLock {
-      recognitionSignalSamples = samples
+      recognitionSignalSamplesLeft = left
+      recognitionSignalSamplesRight = right
       recognitionSignalSampleRate = sourceRate.toDouble()
       recognitionSignalId = signalId
       recognitionSignalGain = signalGain
@@ -1261,14 +1271,16 @@ object ProceduralAudioEngine {
 
   private fun startCue() {
     lock.withLock {
-      activeCueSamples = recognitionSignalSamples
+      activeCueSamplesLeft = recognitionSignalSamplesLeft
+      activeCueSamplesRight = recognitionSignalSamplesRight
       activeCueSampleRate = recognitionSignalSampleRate
       activeCueGain = recognitionSignalGain
     }
     cueActive = true
     cueElapsedFrames = 0.0
-    cueTotalFrames = if (activeCueSamples.isEmpty()) sampleRate * CUE_TOTAL_SECONDS
-      else activeCueSamples.size / activeCueSampleRate * sampleRate
+    // Left and right are always the same length (mono duplicates into both), so either can stand for frame count.
+    cueTotalFrames = if (activeCueSamplesLeft.isEmpty()) sampleRate * CUE_TOTAL_SECONDS
+      else activeCueSamplesLeft.size / activeCueSampleRate * sampleRate
     cueLeftCombs = CUE_LEFT_COMB_MS.map { ms ->
       val delaySamples = max(1, (ms / 1_000.0 * sampleRate).toInt())
       CombFilter(delaySamples, combFeedbackForRt60(delaySamples, CUE_REVERB_RT60, sampleRate))
@@ -1453,15 +1465,16 @@ object ProceduralAudioEngine {
 
   private fun nextCue(): StereoSample {
     if (!cueActive) return silentStereo
-    if (activeCueSamples.isNotEmpty() && activeCueSampleRate > 0) {
+    if (activeCueSamplesLeft.isNotEmpty() && activeCueSampleRate > 0) {
       val sourcePosition = cueElapsedFrames * activeCueSampleRate / sampleRate
-      val lower = min(activeCueSamples.lastIndex, sourcePosition.toInt())
-      val upper = min(activeCueSamples.lastIndex, lower + 1)
+      val lower = min(activeCueSamplesLeft.lastIndex, sourcePosition.toInt())
+      val upper = min(activeCueSamplesLeft.lastIndex, lower + 1)
       val fraction = sourcePosition - lower
-      val sample = activeCueSamples[lower] * (1 - fraction) + activeCueSamples[upper] * fraction
+      val left = activeCueSamplesLeft[lower] * (1 - fraction) + activeCueSamplesLeft[upper] * fraction
+      val right = activeCueSamplesRight[lower] * (1 - fraction) + activeCueSamplesRight[upper] * fraction
       cueElapsedFrames += 1
       if (cueElapsedFrames >= cueTotalFrames) cueActive = false
-      return cueSample.set(sample * 1.45 * activeCueGain, sample * 1.45 * activeCueGain)
+      return cueSample.set(left * 1.45 * activeCueGain, right * 1.45 * activeCueGain)
     }
     val t = cueElapsedFrames / sampleRate
     var dry = 0.0

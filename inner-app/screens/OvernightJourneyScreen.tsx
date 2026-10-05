@@ -25,6 +25,7 @@ import {
 import { Typography } from '../core/typography';
 import { createMorningReturnTestSession, loadJourneyMemory, type JourneyMemorySession } from '../core/journeyMemory';
 import { createNightPlan, type NightPlanSource } from '../core/nightPlans';
+import { createNightRecipeV2, nightRecipeCueSummary } from '../core/nightRecipes';
 import { experimentContextForPractice, loadCurrentPracticeExperiment } from '../core/practiceExperiments';
 import { loadSelectedRecommendation, recommendationForPracticeContext } from '../core/recommendationMemory';
 import type { AdaptiveNightProposal } from '../core/adaptiveNight';
@@ -145,6 +146,15 @@ export default function OvernightJourneyScreen() {
     return () => { active = false; };
   }, [adaptiveProposal, route.params?.experimentId, route.params?.recommendationId]);
 
+  const previewRecipe = useMemo(() => createNightRecipeV2({
+    durationMinutes,
+    environment,
+    feel,
+    signalId,
+    cuePlan,
+    seed: 1,
+    createdAt: 0,
+  }), [cuePlan, durationMinutes, environment, feel, signalId]);
   const compiled = useMemo(() => {
     const realProtocol = createRecognitionOvernightProtocol({
       sleepDurationMinutes: durationMinutes,
@@ -152,13 +162,14 @@ export default function OvernightJourneyScreen() {
       signalId,
       cuePlan,
       feel,
+      cueOffsetsMinutes: previewRecipe.recognition.windows.map(window => window.cueAtMinute),
     });
     return compileOvernightProtocol(
       accelerated && INNER_LAB_BUILD ? createAcceleratedOvernightProtocol(realProtocol) : realProtocol,
       DEFAULT_PROCEDURAL_AUDIO_CONFIG,
     );
-  }, [accelerated, cuePlan, durationMinutes, environment, feel, signalId]);
-  const recognitionWindows = compiled.phases.filter(phase => phase.kind === 'recognitionWindow').length;
+  }, [accelerated, cuePlan, durationMinutes, environment, feel, previewRecipe, signalId]);
+  const recognitionWindows = previewRecipe.recognition.windows.length;
 
   const chooseSignal = async (nextSignalId: RecognitionSignalId) => {
     setSignalId(nextSignalId);
@@ -169,6 +180,28 @@ export default function OvernightJourneyScreen() {
     try {
       await setRecognitionSignalId(signalId);
       const plannedAt = Date.now();
+      const seed = createNightSeed();
+      const recipe = createNightRecipeV2({
+        durationMinutes,
+        environment,
+        feel,
+        signalId,
+        cuePlan,
+        seed,
+        createdAt: plannedAt,
+      });
+      const protocol = createRecognitionOvernightProtocol({
+        sleepDurationMinutes: recipe.durationMinutes,
+        environment: recipe.environment,
+        signalId: recipe.recognition.signalId,
+        cuePlan: recipe.recognition.cuePlan,
+        feel: recipe.feel,
+        cueOffsetsMinutes: recipe.recognition.windows.map(window => window.cueAtMinute),
+      });
+      const compiledNight = compileOvernightProtocol(
+        accelerated && INNER_LAB_BUILD ? createAcceleratedOvernightProtocol(protocol) : protocol,
+        DEFAULT_PROCEDURAL_AUDIO_CONFIG,
+      );
       const experiment = route.params?.experimentId
         ? await experimentContextForPractice(environment, plannedAt)
         : undefined;
@@ -209,9 +242,10 @@ export default function OvernightJourneyScreen() {
           rule: adaptiveProposal.rule,
           title: adaptiveProposal.title,
         } : undefined,
+        recipe,
       });
       navigation.navigate('LucidJourneyPlayer', {
-        journey: overnightJourney(environment, feel, compiled, accelerated && INNER_LAB_BUILD, createNightSeed()),
+        journey: overnightJourney(environment, feel, compiledNight, accelerated && INNER_LAB_BUILD, seed),
         nightPlanId: plan.id,
       });
     } catch {
@@ -282,6 +316,7 @@ export default function OvernightJourneyScreen() {
           <Text style={styles.readySource}>{planExplanation.source}</Text>
           <Text style={[Typography.display, styles.readyTitle]}>Recognition · {environment.charAt(0).toUpperCase() + environment.slice(1)}</Text>
           <Text style={styles.readyLine}>{durationLabel(durationMinutes)} · {recognitionWindows} later recognition windows</Text>
+          <Text style={styles.readySchedule}>Signals near {nightRecipeCueSummary(previewRecipe)}</Text>
           <Text style={styles.readyLine}>{recognitionSignalById(signalId).name} · {feel}</Text>
           <Text style={styles.readyCopy}>Your journey begins with a seven-minute waking preparation, then continues quietly through descent, protected sleep, recognition windows, and return.</Text>
           {!!planExplanation.reason && <Text style={styles.readyReason}>{planExplanation.reason}</Text>}
@@ -404,6 +439,7 @@ const styles = StyleSheet.create({
   readySource: { color: '#8F84B7', fontFamily: 'Inter-Medium', fontSize: 7, letterSpacing: 1.25, marginTop: 7 },
   readyTitle: { color: '#F0ECF7', fontSize: 17, marginTop: 7, textAlign: 'center' },
   readyLine: { color: '#C4BCCF', fontFamily: 'Inter-ExtraLight', fontSize: 9, marginTop: 7, textTransform: 'capitalize' },
+  readySchedule: { color: '#9F96AE', fontFamily: 'Inter-ExtraLight', fontSize: 8, marginTop: 5, textAlign: 'center' },
   readyCopy: { color: '#9991A4', fontFamily: 'Inter-ExtraLight', fontSize: 10, lineHeight: 15, textAlign: 'center', marginTop: 12 },
   readyReason: { color: '#B8B0C5', fontFamily: 'Inter-Light', fontSize: 9, lineHeight: 14, textAlign: 'center', marginTop: 10 },
   readyReview: { color: '#81798D', fontFamily: 'Inter-ExtraLight', fontSize: 8, lineHeight: 13, textAlign: 'center', marginTop: 9 },

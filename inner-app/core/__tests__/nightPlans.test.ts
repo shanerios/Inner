@@ -5,6 +5,7 @@ import {
   loadNightPlan,
   nightPlanContextSnapshot,
 } from '../nightPlans';
+import { createNightRecipeV2 } from '../nightRecipes';
 
 jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock'),
@@ -30,6 +31,15 @@ const configuration = {
 describe('Night Plans', () => {
   it('freezes the reviewed configuration, provenance, and user changes', async () => {
     const storage = memoryStorage();
+    const recipe = createNightRecipeV2({
+      durationMinutes: 450,
+      environment: 'ocean',
+      feel: 'gentle',
+      signalId: 'droplets',
+      cuePlan: 'standard',
+      seed: 12,
+      createdAt: 90,
+    });
     const plan = await createNightPlan({
       source: 'adaptive_rule',
       reason: 'Ocean accompanied stronger recall in recent reports.',
@@ -47,6 +57,7 @@ describe('Night Plans', () => {
         rule: 'supported_environment',
         title: 'Return to Temple',
       },
+      recipe,
     }, storage as any, () => 100);
 
     expect(plan.status).toBe('planned');
@@ -55,6 +66,7 @@ describe('Night Plans', () => {
       id: plan.id,
       source: 'adaptive_rule',
       configuration,
+      recipe,
       adaptiveRule: expect.objectContaining({ rule: 'supported_environment' }),
     }));
   });

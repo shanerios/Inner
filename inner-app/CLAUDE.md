@@ -186,3 +186,4 @@ Paste the following prompt into Claude Code at the start of each audit session:
 - Never make changes to subscription, paywall, or entitlement logic without explicit instruction
 - Dream journal content is the most sensitive user data in the app — treat accordingly
 - The app's brand voice is atmospheric and minimal — code comments should be clear and functional, not verbose
+- After completing a user-visible improvement, add a concise, factual entry to `docs/WHATS_NEW.md` under **Unreleased**. Do not add internal-only refactors, speculative features, or claims that have not been verified.

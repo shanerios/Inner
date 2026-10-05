@@ -1,7 +1,7 @@
 import { normalizeProceduralAudioConfig } from './config';
 import { identityPatch } from './identityArc';
 import { worldBed, worldBinaural } from './worldProfiles';
-import { LUCID_SIGNAL_CUE_OFFSETS_HOURS, type LucidSignalCuePlan } from '../lucidSignalPlans';
+import { recognitionCueMinutesForDuration, type LucidSignalCuePlan } from '../lucidSignalPlans';
 import type { RecognitionSignalId } from '../recognitionSignals';
 import type { ProceduralAudioConfig, ProceduralAudioPatch, ProceduralEnvironment } from './types';
 
@@ -150,6 +150,8 @@ export type RecognitionOvernightOptions = {
   environment: Exclude<ProceduralEnvironment, 'none' | 'wind'>;
   signalId: RecognitionSignalId;
   cuePlan: LucidSignalCuePlan;
+  /** Exact signal presentation times from the end of waking preparation. */
+  cueOffsetsMinutes?: number[];
   feel?: 'gentle' | 'deep' | 'immersive';
 };
 
@@ -158,9 +160,10 @@ export function createRecognitionOvernightProtocol(options: RecognitionOvernight
   const preparationMs = 7 * 60_000;
   const descentMs = 30 * 60_000;
   const returnMs = 60_000;
-  const cueOffsets = LUCID_SIGNAL_CUE_OFFSETS_HOURS[options.cuePlan]
-    .map(hours => hours * 60 * 60_000)
-    .filter(offset => offset < sleepDurationMs - returnMs);
+  const cueOffsets = (options.cueOffsetsMinutes
+    ?? recognitionCueMinutesForDuration(options.sleepDurationMinutes, options.cuePlan))
+    .map(minutes => minutes * 60_000)
+    .filter(offset => offset >= descentMs + 15_000 && offset + 45_000 < sleepDurationMs - returnMs);
   const feel = options.feel ?? 'gentle';
   const environmentGain = options.feel === 'immersive' ? 0.2 : options.feel === 'deep' ? 0.16 : 0.12;
   const bed = worldBed(options.environment);
@@ -201,7 +204,10 @@ export function createRecognitionOvernightProtocol(options: RecognitionOvernight
 
   let sleepCursorMs = descentMs;
   cueOffsets.forEach((cueOffsetMs, index) => {
-    const protectionMs = Math.max(0, cueOffsetMs - sleepCursorMs - 60_000);
+    // A recognition window begins fifteen seconds before the scheduled signal,
+    // then leaves forty-five seconds for the world to settle after it.
+    const recognitionWindowStartMs = cueOffsetMs - 15_000;
+    const protectionMs = Math.max(0, recognitionWindowStartMs - sleepCursorMs);
     if (protectionMs >= 1_000) {
       phases.push({
         id: `sleep-protection-${index + 1}`, label: 'Sleep Protection', kind: 'sleepProtection', durationMs: protectionMs,
@@ -217,7 +223,7 @@ export function createRecognitionOvernightProtocol(options: RecognitionOvernight
         { id: `restore-${index + 1}`, trigger: { kind: 'elapsed', atMs: 25_000 }, actions: [{ kind: 'restoreAudio', rampMs: 5_000 }] },
       ],
     });
-    sleepCursorMs = cueOffsetMs;
+    sleepCursorMs = recognitionWindowStartMs + 60_000;
   });
 
   const remainingSleepMs = sleepDurationMs - sleepCursorMs - returnMs;

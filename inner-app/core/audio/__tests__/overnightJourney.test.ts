@@ -4,17 +4,20 @@ import { overnightJourney } from '../overnightJourney';
 import { compileOvernightProtocol, createAcceleratedOvernightProtocol, createRecognitionOvernightProtocol } from '../overnightProtocol';
 import { compileAudioJourneyTimeline } from '../timeline';
 import { DEFAULT_PROCEDURAL_AUDIO_CONFIG } from '../config';
+import { recognitionCueMinutesForDuration } from '../../lucidSignalPlans';
+import type { RecognitionSignalId } from '../../recognitionSignals';
 
 const environments = ['ocean', 'abyssal', 'forest', 'temple', 'cosmic', 'fire'] as const;
+const signalIds: RecognitionSignalId[] = ['ascending', 'bell', 'chimes', 'droplets', 'guardian'];
 
-// Golden digests captured against the original screen-local builder. Include
-// complete authored and compiled output, not just stage counts or durations.
+// Golden digests lock the complete authored and compiled production output,
+// including duration-aware cue placement, not just stage counts or durations.
 it.each(environments)('preserves the production %s journey matrix', environment => {
   const hash = createHash('sha256');
   for (const feel of ['gentle', 'deep', 'immersive'] as const)
     for (const sleepDurationMinutes of [360, 420, 450, 480, 540, 600])
       for (const cuePlan of ['gentle', 'standard'] as const)
-        for (const signalId of ['ascending', 'bell', 'chimes', 'droplets'] as const)
+        for (const signalId of signalIds)
           for (const accelerated of [false, true]) {
             const source = createRecognitionOvernightProtocol({ environment, feel, sleepDurationMinutes, cuePlan, signalId });
             const protocol = compileOvernightProtocol(accelerated ? createAcceleratedOvernightProtocol(source) : source, DEFAULT_PROCEDURAL_AUDIO_CONFIG);
@@ -42,7 +45,8 @@ it('preserves preparation cues, chunking, recognition shaping, and Return', () =
     for (const cue of stage.spatialEvents) if (cue.type === 'cue' && cue.recognitionSpace) nightCues.push(cursor + cue.atMs);
     cursor += stage.durationMs;
   }
-  expect(nightCues).toEqual([4.5, 6, 7.5].map(hours => 7 * 60_000 + hours * 3_600_000 - 45_000));
+  expect(nightCues).toEqual(recognitionCueMinutesForDuration(480, 'standard')
+    .map(minutes => (7 + minutes) * 60_000));
   const window = timeline.stages.find(s => s.id === 'overnight-recognition-window-1-1')!;
   expect(window.config.masterGain).toBeCloseTo(protocol.phases.find(p => p.id === 'recognition-window-1')!.audioConfig.masterGain * 0.55);
   expect(timeline.stages.at(-1)?.config.masterGain).toBe(0);

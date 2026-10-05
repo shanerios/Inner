@@ -4,7 +4,7 @@ import { Asset } from 'expo-asset';
 
 export const RECOGNITION_SIGNAL_KEY = 'inner.recognition-signal.v1';
 
-export type RecognitionSignalId = 'ascending' | 'bell' | 'chimes' | 'droplets';
+export type RecognitionSignalId = 'ascending' | 'bell' | 'chimes' | 'droplets' | 'guardian';
 
 export type RecognitionSignal = {
   id: RecognitionSignalId;
@@ -19,6 +19,7 @@ export const RECOGNITION_SIGNALS: RecognitionSignal[] = [
   { id: 'bell', name: 'Bell', description: 'Warm · distinct', notificationSound: 'signal_bell.wav', durationMs: 4_741 },
   { id: 'chimes', name: 'Chimes', description: 'Light · crystalline', notificationSound: 'signal_chimes.wav', durationMs: 6_727 },
   { id: 'droplets', name: 'Droplets', description: 'Organic · fluid', notificationSound: 'signal_droplets.wav', durationMs: 4_759 },
+  { id: 'guardian', name: 'Guardian', description: 'Warm · present', notificationSound: 'signal_guardian.wav', durationMs: 5_000 },
 ];
 
 const SIGNAL_ASSETS: Record<RecognitionSignalId, AVPlaybackSource> = {
@@ -26,6 +27,7 @@ const SIGNAL_ASSETS: Record<RecognitionSignalId, AVPlaybackSource> = {
   bell: require('../assets/sounds/signal_bell.wav'),
   chimes: require('../assets/sounds/signal_chimes.wav'),
   droplets: require('../assets/sounds/signal_droplets.wav'),
+  guardian: require('../assets/sounds/signal_guardian.wav'),
 };
 
 type Storage = Pick<typeof AsyncStorage, 'getItem' | 'setItem'>;
@@ -43,15 +45,23 @@ type Storage = Pick<typeof AsyncStorage, 'getItem' | 'setItem'>;
  *
  * Levels measured by rendering each signal through the real Kotlin engine
  * (dB LU, before trim): ascending -4.9, bell -18.4, chimes -25.2, droplets
- * -24.0. core/audio/__tests__/recognitionSignalLevels.test.ts re-measures the
- * WAV signals from the shipped assets and fails if a trim stops landing a
- * signal in the target window.
+ * -24.0, guardian -27.1. core/audio/__tests__/recognitionSignalLevels.test.ts
+ * re-measures the WAV signals from the shipped assets and fails if a trim
+ * stops landing a signal in the target window.
+ *
+ * Guardian is a true stereo signal, isolated from the "Cultivation" track
+ * (Guardian 1, free). Its level is the average of its left and right channels
+ * measured independently -- the engine plays each ear its own channel, never
+ * sums them, so a single mono-summed measurement would both misstate the
+ * level and introduce a phase-cancellation artifact that never happens in
+ * real playback.
  */
 export const RECOGNITION_SIGNAL_TRIM_DB: Record<RecognitionSignalId, number> = {
   ascending: -16.6,
   bell: -3.1,
   chimes: 3.7,
   droplets: 2.5,
+  guardian: 5.6,
 };
 
 /** Linear gain the native engine applies to a signal. */

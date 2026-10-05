@@ -417,7 +417,7 @@ export default function LucidJourneysScreen() {
         pointerEvents="none"
         style={[
           styles.fixedIntro,
-          { top: insets.top + 102 },
+          { top: insets.top + 126 },
           Platform.OS === 'android' && styles.androidTitleOffset,
         ]}
       >

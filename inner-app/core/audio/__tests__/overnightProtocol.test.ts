@@ -36,6 +36,19 @@ describe('overnight protocol', () => {
     expect(result.events.filter(event => event.id.startsWith('signal-'))).toHaveLength(2);
   });
 
+  it('moves every standard signal inside a seven-hour night instead of dropping the late window', () => {
+    const result = compileOvernightProtocol(createRecognitionOvernightProtocol({
+      sleepDurationMinutes: 7 * 60,
+      environment: 'forest',
+      signalId: 'guardian',
+      cuePlan: 'standard',
+    }), DEFAULT_PROCEDURAL_AUDIO_CONFIG);
+    const signals = result.events.filter(event => event.id.startsWith('signal-'));
+    expect(signals).toHaveLength(3);
+    // Preparation is seven minutes; recipe cue times are measured after it.
+    expect(signals.map(event => event.atMs)).toEqual([257, 342, 392].map(minutes => minutes * 60_000));
+  });
+
   describe('the bed under each world', () => {
     const expectNoise = (actual: Array<number | undefined>, expected: number[]) => {
       expect(actual).toHaveLength(expected.length);

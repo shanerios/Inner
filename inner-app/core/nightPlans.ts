@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { ExperimentContextSnapshot } from './practiceExperiments';
 import type { SelectedRecommendation } from './recommendationMemory';
+import type { NightRecipeV2 } from './nightRecipes';
 
 export const NIGHT_PLANS_KEY = 'inner.nightPlans.v1';
 const SCHEMA_VERSION = 1 as const;
@@ -37,13 +38,14 @@ export type NightPlan = {
     rule: 'gentler_signal' | 'supported_environment';
     title: string;
   };
+  recipe?: NightRecipeV2;
   journeySessionId?: string;
   journeyStartedAt?: number;
 };
 
 export type NightPlanContextSnapshot = Pick<
   NightPlan,
-  'id' | 'createdAt' | 'source' | 'reason' | 'configuration' | 'userChanged' | 'adaptiveRule'
+  'id' | 'createdAt' | 'source' | 'reason' | 'configuration' | 'userChanged' | 'adaptiveRule' | 'recipe'
 >;
 
 type NightPlanStore = {
@@ -101,6 +103,7 @@ export async function createNightPlan(
     recommendation?: SelectedRecommendation;
     experiment?: ExperimentContextSnapshot;
     adaptiveRule?: NightPlan['adaptiveRule'];
+    recipe?: NightRecipeV2;
   },
   storage: Storage = AsyncStorage,
   now: () => number = Date.now,
@@ -120,6 +123,7 @@ export async function createNightPlan(
     recommendation: input.recommendation,
     experiment: input.experiment,
     adaptiveRule: input.adaptiveRule,
+    recipe: input.recipe,
   };
   const store = await loadStore(storage);
   await saveStore({ schemaVersion: SCHEMA_VERSION, plans: [plan, ...store.plans] }, storage);
@@ -164,5 +168,6 @@ export function nightPlanContextSnapshot(plan: NightPlan): NightPlanContextSnaps
     configuration: plan.configuration,
     userChanged: plan.userChanged,
     adaptiveRule: plan.adaptiveRule,
+    recipe: plan.recipe,
   };
 }

@@ -576,7 +576,7 @@ export default function LucidJourneyPlayerScreen() {
       />
       <View pointerEvents="none" style={styles.veil} />
 
-      <Text style={[Typography.display, styles.title, { top: insets.top + 102 + (Platform.OS === 'android' ? 30 : 0) }]}>
+      <Text style={[Typography.display, styles.title, { top: insets.top + 126 + (Platform.OS === 'android' ? 30 : 0) }]}>
         {journey?.title ?? 'Lucid Journey'}
       </Text>
 
@@ -586,7 +586,7 @@ export default function LucidJourneyPlayerScreen() {
         accessibilityRole="adjustable"
         accessibilityLabel="Scrub journey playback position"
         accessibilityHint="Drag left or right to seek"
-        style={[styles.scrubArea, { top: insets.top + 134 + (Platform.OS === 'android' ? 30 : 0) }]}
+        style={[styles.scrubArea, { top: insets.top + 158 + (Platform.OS === 'android' ? 30 : 0) }]}
       >
         <Text style={styles.elapsed}>
           {mmss(positionMs)} / −{mmss(Math.max(0, durationMs - positionMs))}

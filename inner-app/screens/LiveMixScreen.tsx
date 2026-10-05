@@ -117,7 +117,7 @@ export default function LiveMixScreen() {
     <View style={styles.root}>
       <VideoView player={background} contentFit="cover" style={StyleSheet.absoluteFill} nativeControls={false} allowsFullscreen={false} allowsPictureInPicture={false} />
       <View style={styles.veil} pointerEvents="none" />
-      <View style={[styles.header, { paddingTop: insets.top + 102 + (Platform.OS === 'android' ? 30 : 0) }]}>
+      <View style={[styles.header, { paddingTop: insets.top + 126 + (Platform.OS === 'android' ? 30 : 0) }]}>
         <Text style={[Typography.display, styles.title]}>Live Mix</Text>
         <Text style={[Typography.body, styles.subtitle]}>Shape sound in real time.</Text>
         <Pressable onPress={() => void togglePlayback()} accessibilityRole="button" accessibilityLabel={isPlaying ? 'Pause live mix' : 'Play live mix'} style={styles.playButton}>
@@ -132,7 +132,7 @@ export default function LiveMixScreen() {
           isPlaying={isPlaying}
           onClose={() => {}}
           standalone
-          contentTopInset={insets.top + 190 + (Platform.OS === 'android' ? 30 : 0)}
+          contentTopInset={insets.top + 214 + (Platform.OS === 'android' ? 30 : 0)}
         />
       </View>
       <Pressable onPress={() => void returnToJourneys()} accessibilityRole="button" accessibilityLabel="Return to Lucid Journeys" style={[styles.returnButton, { bottom: insets.bottom + 16 }]}>

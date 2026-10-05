@@ -73,7 +73,7 @@ export default function CreateLucidJourneyScreen() {
       <View style={styles.veil} pointerEvents="none" />
       <View
         pointerEvents="none"
-        style={[styles.fixedHeader, { top: insets.top + 72 }, Platform.OS === 'android' && styles.androidFixedHeader]}
+        style={[styles.fixedHeader, { top: insets.top + 96 }, Platform.OS === 'android' && styles.androidFixedHeader]}
       >
         <Text style={[Typography.display, styles.title]}>Create a Journey</Text>
         <Text style={[Typography.body, styles.subtitle]}>Shape a practice around the way you want to enter the night.</Text>

@@ -1,0 +1,137 @@
+# Inner — What's New
+
+This is the working release-notes ledger for Inner. Add user-visible improvements to the **Unreleased** section as they land. At release time, replace `Unreleased` with the shipped version, build numbers, and date; preserve the detailed notes; then create a fresh Unreleased section.
+
+## Unreleased — next release after 3.1
+
+Current production baseline: Inner 3.1 · iOS build 2076 · Android version code 63
+
+### Store-ready draft
+
+Inner now connects nighttime practice with what you remember in the morning. Morning Return offers a quick reflection after an eligible Overnight Journey, including one-tap voice entry, and can carry the result directly into the Dream Log.
+
+Dream entries can now capture lucid awareness, agency, attempted control, what changed, and whether an Inner cue appeared. These details remain optional so it is still fast to record a dream.
+
+New on-device Practice Memory begins connecting journeys, signals, environments, and dream outcomes. Inner can surface recurring dream signs, explain possible personal patterns, suggest a relevant next practice, and support small multi-night comparisons without treating correlation as proof.
+
+Ocean, Forest, and Temple have gained more natural environmental detail, while Overnight Journeys now preserve an explicit Night Recipe, place recognition signals within the duration you choose, and include additional recovery and long-session reliability improvements.
+
+### Detailed product log
+
+#### Morning Return and voice journaling
+
+- Added Morning Return after eligible Overnight Journeys and valid early completions.
+- Presents Morning Return when the app next opens or returns to the foreground, rather than interrupting overnight playback.
+- Keeps the initial reflection short: dream recall, lucidity, signal recognition, and clarity can be recorded before opening the full journal.
+- Added a direct path from Morning Return into the Dream Log.
+- Added one-tap speech-to-text for the morning reflection and journal entry flow.
+- Preserves dictated words in the editable text field before saving.
+- Improved Android speech startup by using the platform microphone permission state, accepting the audio-start event, adding a startup timeout, and allowing a pending start to be cancelled.
+- Coordinated global Morning Return visibility with Home prompts so competing modals do not flash, dismiss one another, or repeatedly reappear.
+
+#### Dream Log as a measurement system
+
+- Expanded lucid-dream classification beyond a single yes/no field.
+- Added optional awareness values: No, Maybe, and Yes.
+- Added optional agency values: No, A little, and Yes.
+- Added control-attempt tracking.
+- Added control domains for body, emotion, movement, characters or people, place or environment, story or narrative, physics or impossible actions, and other attempts.
+- Added control results: Did not work, Partly worked, and Worked.
+- Added Inner cue recognition for sound, symbol, phrase, Guardian, place or environment, feeling, no recognition, and uncertainty.
+- Kept all structured details skippable so freeform journaling remains the primary action.
+- Reduced Dream Journal clutter by placing structured Dream Details behind a compact progressive-disclosure section.
+- Added readable structured summaries to saved dream entries.
+- Preserved compatibility with existing dream entries that do not contain the new metadata.
+- Extended Dream Archive data handling so the new structured details can remain part of the user's record.
+
+#### Night-to-dream connection
+
+- Added automatic practice context that can associate a dream with relevant recent Inner activity.
+- Added night records and practice links for Overnight Journeys, journey configuration, recognition signals, environments, timing, and available playback context.
+- Added the foundation for showing the night that preceded a dream.
+- Connected supported Chamber, Soundscape, Guardian, Tuning, and lucid-practice activity to the broader practice history where data is available.
+
+#### Night Recipes and duration-aware signals
+
+- Added Night Recipe v2 as a versioned snapshot of the night the practitioner reviewed and began.
+- Records the selected goal, duration, environment, feel, preparation, signal, cue plan, exact recognition windows, procedural arc, and random seed.
+- Preserves the recipe with the Night Plan so later outcomes can be compared with what was actually intended.
+- Replaced fixed clock offsets with recognition windows that scale to the selected night length.
+- Standard nights now retain three recognition opportunities and gentle signal plans retain two across the supported durations.
+- A seven-hour standard night now places signals near 4h 10m, 5h 35m, and 6h 25m instead of discarding a signal scheduled beyond the end of the night.
+- Shows the planned signal times in the Overnight Journey review card before the practitioner begins.
+- Defines cue times as the moment the signal actually plays, with protected quiet space before and after it.
+
+#### Practice Memory and personal patterns
+
+- Added an on-device Practice Memory that organizes nights, practices, dream outcomes, and recognition results into a coherent history.
+- Added a dedicated Practice Memory view.
+- Added recurring dream-signal detection so repeated signs can become material for later recognition practice.
+- Added transparent recommendation logic that explains the observations behind a suggestion.
+- Uses careful confidence language to distinguish recorded observations, possible personal patterns, and cases where there is not enough information.
+- Added local adaptive-night planning foundations that can select a relevant next practice from the user's history.
+- Added personal practice experiments for comparing conditions over multiple nights.
+- Added Home cards for the current experiment, tonight's recommendation, and the next meaningful continuation.
+- Removed the older general suggestion system after the more specific recommendation and continuation systems replaced it.
+- Kept personalization local and rule-based; the system does not require AI or population research participation.
+
+#### Home continuity
+
+- Made Home prioritize what the practitioner should do next based on unfinished or recently completed practice.
+- Allows the Morning Return continuation to replace the standard “Tonight, a door is open” area when a return is available.
+- Restyled the Home continuation card with a clear, lightweight surface consistent with the Dream Log add button.
+- Improved eligibility handling so morning prompts appear only for relevant nights and do not compete with onboarding, navigation, or other global prompts.
+
+#### Overnight Journey reliability
+
+- Added native journey checkpoints to improve recovery after interruption or process loss.
+- Added wall-clock reconciliation so long sessions can recover their correct position.
+- Added a render heartbeat for stronger full-night playback monitoring.
+- Preserved the established behavior of alarms and external audio routing during overnight playback.
+
+#### Generative environments
+
+- Added a continuous procedural cricket layer to Forest, integrated into its environmental bed.
+- Added rare procedural seagull passes to Ocean.
+- Added sparse, distant procedural footsteps to Temple.
+- Tuned Temple footstep groupings so roughly 20% contain no footstep, 60% contain one, and 20% contain two.
+- Increased the perceived distance of Temple footsteps so they sit within the environment instead of sounding close to the listener.
+- Added Android/iOS parity coverage for crickets, gulls, and footsteps.
+
+#### Recognition signals
+
+- Added Guardian as a selectable recognition signal, drawn from Guardian 1's Cultivation track.
+- Added stereo playback for recognition signals, so a signal's natural left/right character is preserved instead of being played identically to both ears.
+- Level-matched Guardian to the same -21 to -22 LU window as every other recognition signal.
+
+#### Interface polish
+
+- Moved the orb-backed titles down by 24 pixels on Lucid Journeys, Lucid Return, Lucid Threshold, Lucid Signal, Create a Journey, and Live Mix.
+- Kept Overnight Journey unchanged because that screen has no orb above its title.
+- Moved dependent playback and mixer controls with their headings to preserve spacing.
+- Fixed descriptor-chip clipping caused by wider bold text.
+
+### Privacy and analytics notes
+
+- Practice Memory and personalized recommendations are designed to work locally on the device.
+- Structured dream outcomes can support aggregate event counts without sending freeform dream text.
+- Freeform journal content should remain outside analytics unless a future, explicit policy and consent flow says otherwise.
+- Population research remains separate from personal adaptation and requires an explicit opt-in before collection.
+
+### Release verification completed so far
+
+- TypeScript type checking passes.
+- Full automated suite passes: 56 suites, 369 tests, and 6 snapshots.
+- Android standalone release builds successfully after a clean native build.
+- Android Morning Return voice capture was verified on a physical Pixel 8 Pro: permission, recording, automatic stop, transcription, text insertion, save, and Dream Log persistence.
+- Audio behavior has parity coverage across Android and iOS for the new procedural environment elements.
+- Accelerated long-journey runs were previously reported as passing for the generative environments.
+
+### Before publishing
+
+- Confirm the final marketing version and iOS/Android build numbers.
+- Recheck the store-ready draft against the exact contents of the release branch.
+- Complete physical-device smoke tests on both iOS and Android for Morning Return, voice capture, Dream Log save/edit/export, and Overnight Journey recovery.
+- Recheck the six adjusted Lucid screen headers on representative small and large devices.
+- Confirm microphone permission copy and store privacy disclosures include speech-to-text behavior.
+- Replace this section heading with the shipped version and release date, then create a new Unreleased section above it.

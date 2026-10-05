@@ -40,7 +40,9 @@ describe('night seed', () => {
 
   it('is drawn fresh each time an Overnight journey begins', () => {
     const screen = fs.readFileSync(path.resolve(__dirname, '../../../screens/OvernightJourneyScreen.tsx'), 'utf8');
-    expect(screen).toContain('accelerated && INNER_LAB_BUILD, createNightSeed())');
+    expect(screen).toContain('const seed = createNightSeed();');
+    expect(screen).toMatch(/createNightRecipeV2\(\{[\s\S]{0,500}\bseed,/);
+    expect(screen).toContain('accelerated && INNER_LAB_BUILD, seed)');
     const builder = fs.readFileSync(path.resolve(__dirname, '../overnightJourney.ts'), 'utf8');
     expect(builder).toMatch(/protocolVersion: protocol\.schemaVersion,[\s\S]{0,160}\bseed,/);
   });

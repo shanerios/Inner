@@ -36,11 +36,18 @@ const WAV_FILES: Partial<Record<RecognitionSignalId, string>> = {
   chimes: 'signal_chimes.wav',
   droplets: 'signal_droplets.wav',
 };
+/** Guardian is a true stereo signal (see the rationale on RECOGNITION_SIGNAL_TRIM_DB); it is measured separately. */
+const STEREO_WAV_FILES: Partial<Record<RecognitionSignalId, string>> = {
+  guardian: 'signal_guardian.wav',
+};
 
-function readMonoWav(file: string): { samples: Float64Array; rate: number } {
+/** Reads a 16-bit PCM WAV's channels, de-interleaved, as the native parsers do (Kotlin manually; Swift via
+ * AVAudioPCMBuffer, which hands back the same shape). */
+function readWavChannels(file: string): { channels: Float64Array[]; rate: number } {
   const buffer = fs.readFileSync(file);
   let offset = 12;
   let rate = 0;
+  let channelCount = 0;
   let dataStart = -1;
   let dataSize = 0;
   while (offset + 8 <= buffer.length) {
@@ -49,7 +56,8 @@ function readMonoWav(file: string): { samples: Float64Array; rate: number } {
     const body = offset + 8;
     if (id === 'fmt ') {
       expect(buffer.readUInt16LE(body)).toBe(1); // PCM
-      expect(buffer.readUInt16LE(body + 2)).toBe(1); // mono
+      channelCount = buffer.readUInt16LE(body + 2);
+      expect([1, 2]).toContain(channelCount);
       expect(buffer.readUInt16LE(body + 14)).toBe(16); // 16-bit
       rate = buffer.readUInt32LE(body + 4);
     } else if (id === 'data') {
@@ -58,10 +66,21 @@ function readMonoWav(file: string): { samples: Float64Array; rate: number } {
     }
     offset = body + size + (size & 1);
   }
-  const count = dataSize / 2;
-  const samples = new Float64Array(count);
-  for (let i = 0; i < count; i += 1) samples[i] = buffer.readInt16LE(dataStart + i * 2) / 32768;
-  return { samples, rate };
+  const frameCount = dataSize / 2 / channelCount;
+  const channels = Array.from({ length: channelCount }, () => new Float64Array(frameCount));
+  for (let i = 0; i < frameCount; i += 1) {
+    for (let c = 0; c < channelCount; c += 1) {
+      channels[c][i] = buffer.readInt16LE(dataStart + (i * channelCount + c) * 2) / 32768;
+    }
+  }
+  return { channels, rate };
+}
+
+/** The three mono signals, as before: a single channel, asserted mono. */
+function readMonoWav(file: string): { samples: Float64Array; rate: number } {
+  const { channels, rate } = readWavChannels(file);
+  expect(channels.length).toBe(1);
+  return { samples: channels[0], rate };
 }
 
 /** Linear resample to the engine rate, as the native cue path does. */
@@ -116,8 +135,20 @@ function wavLevelAtMix(id: RecognitionSignalId): number {
   return kWeightedLoudness(scaled);
 }
 
+/** A true stereo signal's representative level: each ear's own channel, K-weighted independently and averaged --
+ * never summed to mono first, since the engine never sums them either (each ear hears only its own channel), and
+ * summing decorrelated channels before measuring would both misstate the level and introduce a cancellation
+ * artifact that has no counterpart in real playback. */
+function stereoWavLevelAtMix(id: RecognitionSignalId): number {
+  const { channels, rate } = readWavChannels(path.join(SOUNDS, STEREO_WAV_FILES[id]!));
+  expect(channels.length).toBe(2);
+  const levels = channels.map(channel => kWeightedLoudness(toEngineRate(channel, rate).map(value => value * WAV_PLAYBACK_FACTOR)));
+  return (levels[0] + levels[1]) / 2;
+}
+
 function levelAtMix(id: RecognitionSignalId): number {
-  return id === 'ascending' ? ASCENDING_SYNTH_LU : wavLevelAtMix(id);
+  if (id === 'ascending') return ASCENDING_SYNTH_LU;
+  return STEREO_WAV_FILES[id] ? stereoWavLevelAtMix(id) : wavLevelAtMix(id);
 }
 
 describe('recognition signal loudness', () => {
@@ -126,6 +157,10 @@ describe('recognition signal loudness', () => {
     expect(wavLevelAtMix('bell')).toBeCloseTo(-18.4, 0);
     expect(wavLevelAtMix('chimes')).toBeCloseTo(-25.2, 0);
     expect(wavLevelAtMix('droplets')).toBeCloseTo(-24.0, 0);
+  });
+
+  it('measures the stereo Guardian signal as the average of its two channels', () => {
+    expect(stereoWavLevelAtMix('guardian')).toBeCloseTo(-27.1, 0);
   });
 
   it('defines a trim for every signal, within what the native engines allow', () => {
@@ -142,6 +177,7 @@ describe('recognition signal loudness', () => {
     expect(recognitionSignalGain('bell')).toBeCloseTo(0.6998, 3);
     expect(recognitionSignalGain('chimes')).toBeCloseTo(1.531, 3);
     expect(recognitionSignalGain('droplets')).toBeCloseTo(1.3335, 3);
+    expect(recognitionSignalGain('guardian')).toBeCloseTo(1.9055, 3);
   });
 
   it('brings Ascending Tone far below its untrimmed level, which read as an alarm', () => {
@@ -173,9 +209,16 @@ describe('native cue constants', () => {
     expect(kotlinGain).toBe(0.2925);
   });
 
-  it('apply the same playback factor to WAV signals on both platforms', () => {
-    expect(kotlin).toMatch(/sample \* 1\.45 \* activeCueGain/);
-    expect(swift).toMatch(/sample \* 1\.45 \* activeCueGain/);
+  it('apply the same playback factor to WAV signals on both platforms, to each channel independently', () => {
+    expect(kotlin).toMatch(/left \* 1\.45 \* activeCueGain, right \* 1\.45 \* activeCueGain/);
+    expect(swift).toMatch(/left \* 1\.45 \* activeCueGain, right \* 1\.45 \* activeCueGain/);
+  });
+
+  it('accept mono or stereo WAV signals on both platforms, and duplicate a mono channel into both ears', () => {
+    expect(kotlin).toMatch(/channels == 1 \|\| channels == 2/);
+    expect(swift).toMatch(/channelCount == 1 \|\| channelCount == 2/);
+    expect(kotlin).toContain('} else {\n      left\n    }'); // the mono branch: right falls back to the same array as left
+    expect(swift).toContain('channelCount == 2 ? Array(UnsafeBufferPointer(start: channels[1], count: Int(buffer.frameLength))) : left');
   });
 
   it('apply the per-signal gain to the synthesized cue on both platforms', () => {
