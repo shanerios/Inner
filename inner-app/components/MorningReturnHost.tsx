@@ -69,6 +69,7 @@ export default function MorningReturnHost({ currentRouteName, children }: Props)
       !visible &&
       canShowMorningReturnContinuation(currentRouteName)
     ),
+    modalVisible: Boolean(pending && visible),
     open: () => {
       setContinuationAvailable(false);
       setVisible(true);

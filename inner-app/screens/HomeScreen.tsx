@@ -934,15 +934,52 @@ const loop = Animated.loop(
 
   // Review prompt
   const [showReviewPrompt, setShowReviewPrompt] = React.useState(false);
+  const reviewPromptCheckedRef = React.useRef(false);
   const { checkAndPrompt } = useReviewScore();
+
+  // Review requests are intentionally lower priority than Home's entry flows.
+  // Waiting until those flows have settled prevents two native modals from
+  // replacing one another on Android and leaving this prompt visibly stale.
   useEffect(() => {
+    if (
+      reviewPromptCheckedRef.current ||
+      !isFocused ||
+      !dailyChecked ||
+      homeWalkthroughLoading ||
+      shouldShowHomeHelper ||
+      tourRunning ||
+      morningReturnContinuation.modalVisible ||
+      morningReturnContinuation.visible
+    ) {
+      return;
+    }
+
+    let cancelled = false;
     const t = setTimeout(async () => {
+      reviewPromptCheckedRef.current = true;
       const should = await checkAndPrompt();
-      if (should) setShowReviewPrompt(true);
+      if (should && !cancelled) setShowReviewPrompt(true);
     }, 3000);
-    return () => clearTimeout(t);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [
+    checkAndPrompt,
+    dailyChecked,
+    homeWalkthroughLoading,
+    isFocused,
+    morningReturnContinuation.modalVisible,
+    morningReturnContinuation.visible,
+    shouldShowHomeHelper,
+    tourRunning,
+  ]);
+
+  // A native Modal can be removed by navigation while its React state remains
+  // true. Clear that state on blur so it cannot flash again when Home returns.
+  useEffect(() => {
+    if (!isFocused) setShowReviewPrompt(false);
+  }, [isFocused]);
   // Simple open — SettingsModal handles its own init via useEffect(visible)
   const openSettings = useCallback(() => {
     setShowSettings(true);

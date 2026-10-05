@@ -2,12 +2,14 @@ import React, { createContext, useContext } from 'react';
 
 export type MorningReturnContinuationValue = {
   visible: boolean;
+  modalVisible: boolean;
   open: () => void;
   dismiss: () => void;
 };
 
 const MorningReturnContext = createContext<MorningReturnContinuationValue>({
   visible: false,
+  modalVisible: false,
   open: () => {},
   dismiss: () => {},
 });
