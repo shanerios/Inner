@@ -295,6 +295,7 @@ final class ProceduralAudioEngine: NSObject {
   private var rainMix = 0.0
   private var oceanEnvelope = 0.0
   private let oceanModel = OceanModel()
+  private let oceanGulls = OceanGulls()
   private var abyssalEnvelope = 0.0
   private let abyssalModel = AbyssalModel()
   private var windEnvelope = 0.0
@@ -346,6 +347,7 @@ final class ProceduralAudioEngine: NSObject {
   private var templeSpaceDropEchoIndex = 0
   private var templeSpaceDelay = [Double](repeating: 0, count: 48_000)
   private let templeAccents = TempleAccents()
+  private let templeFootsteps = TempleFootsteps()
   private var templeSpaceDelayIndex = 0
   private var templeEnvelope = 0.0
   private var templeRandom: UInt64 = 0x9e3779b97f4a7c15 ^ 0x9c2f5a31
@@ -703,6 +705,7 @@ final class ProceduralAudioEngine: NSObject {
     rainMix = 0
     oceanEnvelope = 0
     oceanModel.reset(seed: 0x9e3779b97f4a7c15, sampleRate: sampleRate)
+    oceanGulls.reset(seed: 0x9e3779b97f4a7c15, sampleRate: sampleRate)
     abyssalEnvelope = 0
     abyssalModel.reset(seed: 0x9e3779b97f4a7c15, sampleRate: sampleRate)
     windEnvelope = 0
@@ -747,6 +750,7 @@ final class ProceduralAudioEngine: NSObject {
     templeSpaceDropEcho = [Double](repeating: 0, count: 48_000)
     templeSpaceDropEchoIndex = 0
     templeAccents.reset(seed: 0x9e3779b97f4a7c15, sampleRate: sampleRate)
+    templeFootsteps.reset(seed: 0x9e3779b97f4a7c15, sampleRate: sampleRate)
     templeSpaceDelay = [Double](repeating: 0, count: 48_000)
     templeSpaceDelayIndex = 0
     templeEnvelope = 0
@@ -956,6 +960,7 @@ final class ProceduralAudioEngine: NSObject {
     if let activeTimeline, renderedTimelineGeneration != generation {
       random = activeTimeline.seed
       oceanModel.reset(seed: activeTimeline.seed, sampleRate: sampleRate)
+      oceanGulls.reset(seed: activeTimeline.seed, sampleRate: sampleRate)
       abyssalModel.reset(seed: activeTimeline.seed, sampleRate: sampleRate)
       windRandom = activeTimeline.seed ^ 0x7f4a7c15
       fireModel.reset(seed: activeTimeline.seed, sampleRate: sampleRate)
@@ -991,6 +996,7 @@ final class ProceduralAudioEngine: NSObject {
       templeSpaceDropEcho = [Double](repeating: 0, count: 48_000)
       templeSpaceDropEchoIndex = 0
       templeAccents.reset(seed: activeTimeline.seed, sampleRate: sampleRate)
+      templeFootsteps.reset(seed: activeTimeline.seed, sampleRate: sampleRate)
       templeSpaceDelay = [Double](repeating: 0, count: 48_000)
       templeSpaceDelayIndex = 0
       // Anything at-or-before the timeline's current position counts as
@@ -1592,7 +1598,8 @@ final class ProceduralAudioEngine: NSObject {
 
   private func nextOcean(elapsedSeconds: Double, intensity: Double, presence: Double, density: Double, variety: Double) -> (left: Double, right: Double) {
     oceanModel.render(sampleRate: sampleRate, intensity: intensity, salience: worldSalience, identityPresence: presence, identityDensity: density, identityVariety: variety)
-    return (oceanModel.left, oceanModel.right)
+    oceanGulls.render(sampleRate: sampleRate, intensity: intensity, density: density, salience: worldSalience)
+    return (oceanModel.left + oceanGulls.left, oceanModel.right + oceanGulls.right)
   }
 
   private func nextAbyssal(elapsedSeconds: Double, intensity: Double, presence: Double, density: Double, variety: Double) -> (left: Double, right: Double) {
@@ -1639,6 +1646,8 @@ final class ProceduralAudioEngine: NSObject {
   private static let noiseCutSmoothSeconds = 3.0
   /// How much of the world's quieting the noise bed follows around a recognition cue: about 6 dB at the center of the quiet field.
   private static let recognitionNoiseThinning = 1.2
+  /// How much of the Temple footsteps reach the shared room, versus everything else in the space at full strength.
+  private static let templeFootstepsRoomSend = 0.55
 
   // The lucidity cue: a fixed, non-seeded ascending three-note motif (the
   // same 400/600/800 Hz contour used in published targeted-lucidity-
@@ -1845,8 +1854,14 @@ final class ProceduralAudioEngine: NSObject {
     let dropEchoLeft = dropEchoLeftA * 0.48 + dropEchoTail * 0.18
     let dropEchoRight = dropEchoRightA * 0.44 + dropEchoTail * 0.20
     templeAccents.render(sampleRate: sampleRate, intensity: intensity, elapsedSeconds: elapsedSeconds, salience: worldSalience)
-    let dryLeft = body + templeSpaceAirLeft * (0.22 + intensity * 0.12) + breathLeft * 0.7 + aumChant.voiceLeft + aumChant.echoLeft + drop.left + dropEchoLeft + templeAccents.left
-    let dryRight = body + templeSpaceAirRight * (0.22 + intensity * 0.12) + breathRight * 0.7 + aumChant.voiceRight + aumChant.echoRight + drop.right + dropEchoRight + templeAccents.right
+    templeFootsteps.render(sampleRate: sampleRate, elapsedSeconds: elapsedSeconds, salience: worldSalience)
+    // The room reflects everything in the space at full strength except the footsteps, which send in at
+    // templeFootstepsRoomSend: enough reflection to place the distant walker in the stone space without
+    // giving the short scuffs the chant's full, lingering tail.
+    let otherLeft = body + templeSpaceAirLeft * (0.22 + intensity * 0.12) + breathLeft * 0.7 + aumChant.voiceLeft + aumChant.echoLeft + drop.left + dropEchoLeft + templeAccents.left
+    let otherRight = body + templeSpaceAirRight * (0.22 + intensity * 0.12) + breathRight * 0.7 + aumChant.voiceRight + aumChant.echoRight + drop.right + dropEchoRight + templeAccents.right
+    let dryLeft = otherLeft + templeFootsteps.left
+    let dryRight = otherRight + templeFootsteps.right
     let size = templeSpaceDelay.count
     let tap71 = templeSpaceDelay[(templeSpaceDelayIndex - min(size - 1, max(1, Int(sampleRate * 0.071))) + size) % size]
     let tap89 = templeSpaceDelay[(templeSpaceDelayIndex - min(size - 1, max(1, Int(sampleRate * 0.089))) + size) % size]
@@ -1854,7 +1869,8 @@ final class ProceduralAudioEngine: NSObject {
     let tap137 = templeSpaceDelay[(templeSpaceDelayIndex - min(size - 1, max(1, Int(sampleRate * 0.137))) + size) % size]
     let wetLeft = tap71 * 0.58 + tap137 * 0.34
     let wetRight = tap89 * 0.56 + tap113 * 0.36
-    templeSpaceDelay[templeSpaceDelayIndex] = (dryLeft + dryRight) * 0.5 + (wetLeft + wetRight) * 0.45 + aumChant.farWet
+    let footstepsRoomFeed = (templeFootsteps.left + templeFootsteps.right) * Self.templeFootstepsRoomSend
+    templeSpaceDelay[templeSpaceDelayIndex] = (otherLeft + otherRight) * 0.5 + footstepsRoomFeed * 0.5 + (wetLeft + wetRight) * 0.45 + aumChant.farWet
     templeSpaceDelayIndex = (templeSpaceDelayIndex + 1) % size
     return (dryLeft * 0.42 + wetLeft * 0.62, dryRight * 0.42 + wetRight * 0.62)
   }
@@ -2393,6 +2409,190 @@ final class TempleAccents {
       left += value * (1 - pans[slot]) * 0.7
       right += value * (1 + pans[slot]) * 0.7
       ages[slot] += 1
+    }
+  }
+}
+
+/// Someone passing by, far off, on the stone of the Temple: a short walking sequence of five to nine steps, each a
+/// grainy drag/scuff -- sandpaper, not a knock -- receding step by step as the sequence goes, so it reads as walking
+/// away rather than holding one fixed distance. Twenty percent of nights stay empty, sixty percent hear one passage,
+/// and twenty percent hear two. Appearances are limited to the opening `eligibleUntilSeconds` of the journey --
+/// once deeper sleep has settled in,
+/// nobody else is still moving around. Feeds the Temple's own shared room (templeSpaceDelay in the engine), so it
+/// carries the same reflections as the bowl and the chant rather than its own separate reverb. The Kotlin engine
+/// mirrors this file.
+final class TempleFootsteps {
+  private(set) var left = 0.0
+  private(set) var right = 0.0
+
+  static let eligibleUntilSeconds = 2400.0
+  static let minSteps = 5
+  static let stepRange = 4
+  static let stepTempoSeconds = 0.56
+  static let tempoJitter = 0.12
+  static let stepSwellSeconds = 0.07
+  static let stepTotalSeconds = 0.105
+  static let grainRatePerSecond = 460.0
+  static let grainDecaySeconds = 0.0025
+  static let highpassHz = 2500.0
+  static let lowpassHz = 8000.0
+  static let thudLowpassHz = 260.0
+  static let thudDecaySeconds = 0.016
+  static let thudLevel = 0.22
+  static let nearDistance = 0.72
+  static let farDistance = 0.98
+  static let distanceCutoffNearHz = 6500.0
+  static let distanceCutoffRangeHz = 3600.0
+  /// Level-checked by ear through the real engine, then trimmed 4.5 dB and a further 4 dB after the echo and
+  /// the level together read strong against the Temple bed.
+  static let levelGain = 1.0918
+
+  private var rate = 48_000.0
+  private var seed: UInt64 = 1
+  private var random: UInt64 = 1
+
+  private var appearanceAtSeconds = [Double](repeating: 0, count: 2)
+  private var appearancesTotal = 0
+  private var appearancesUsed = 0
+
+  private var sequenceActive = false
+  private var stepsRemainingInSequence = 0
+  private var totalStepsInSequence = 0
+  private var stepIndexInSequence = 0
+  private var stepCountdownSamples = 0.0
+  private var sequenceStartPan = 0.0
+  private var sequenceEndPan = 0.0
+
+  private var stepActive = false
+  private var stepAgeSamples = 0.0
+  private var stepPan = 0.0
+  private var stepDistance = 0.0
+  private var stepCutoffPole = 0.0
+
+  private var hp = 0.0
+  private var lp = 0.0
+  private var grainLevel = 0.0
+  private var thudAmplitude = 0.0
+  private var thudLp = 0.0
+  private var lowpassOne = 0.0
+  private var lowpassTwo = 0.0
+
+  private var kHp = 0.0
+  private var kLp = 0.0
+  private var kThudLp = 0.0
+  private var grainDecay = 0.0
+  private var thudDecay = 0.0
+
+  func reset(seed: UInt64, sampleRate: Double) {
+    self.seed = seed
+    rate = sampleRate
+    random = seed ^ 0x466f6f7473746570
+    if random == 0 { random = 1 }
+    let appearanceRoll = unit()
+    appearancesTotal = appearanceRoll < 0.2 ? 0 : (appearanceRoll < 0.8 ? 1 : 2)
+    appearancesUsed = 0
+    appearanceAtSeconds[0] = 60.0 + unit() * (TempleFootsteps.eligibleUntilSeconds * 0.5 - 120.0)
+    appearanceAtSeconds[1] = TempleFootsteps.eligibleUntilSeconds * 0.5 + unit() * (TempleFootsteps.eligibleUntilSeconds * 0.5 - 60.0)
+    sequenceActive = false
+    stepsRemainingInSequence = 0; totalStepsInSequence = 0; stepIndexInSequence = 0
+    stepCountdownSamples = 0; sequenceStartPan = 0; sequenceEndPan = 0
+    stepActive = false; stepAgeSamples = 0; stepPan = 0; stepDistance = 0; stepCutoffPole = 0
+    hp = 0; lp = 0; grainLevel = 0; thudAmplitude = 0; thudLp = 0; lowpassOne = 0; lowpassTwo = 0
+    kHp = pole(TempleFootsteps.highpassHz); kLp = pole(TempleFootsteps.lowpassHz); kThudLp = pole(TempleFootsteps.thudLowpassHz)
+    grainDecay = exp(-1.0 / (TempleFootsteps.grainDecaySeconds * rate))
+    thudDecay = exp(-1.0 / (TempleFootsteps.thudDecaySeconds * rate))
+    left = 0; right = 0
+  }
+
+  private func pole(_ hz: Double) -> Double { 1.0 - exp(-2.0 * Double.pi * hz / rate) }
+
+  private func unit() -> Double {
+    random ^= random << 13; random ^= random >> 7; random ^= random << 17
+    return Double(random >> 11) / 9_007_199_254_740_992.0
+  }
+
+  private func gauss() -> Double {
+    let u1 = max(1e-12, unit())
+    let u2 = unit()
+    return sqrt(-2.0 * log(u1)) * cos(2.0 * Double.pi * u2)
+  }
+
+  private func beginSequence() {
+    sequenceActive = true
+    totalStepsInSequence = TempleFootsteps.minSteps + Int(unit() * Double(TempleFootsteps.stepRange + 1))
+    stepsRemainingInSequence = totalStepsInSequence
+    stepIndexInSequence = 0
+    let side = unit() < 0.5 ? -1.0 : 1.0
+    sequenceStartPan = side * (0.25 + unit() * 0.4)
+    sequenceEndPan = -sequenceStartPan * (0.55 + unit() * 0.3)
+    stepCountdownSamples = 0
+  }
+
+  private func beginStep() {
+    let fraction = totalStepsInSequence <= 1 ? 0.0 : Double(stepIndexInSequence) / Double(totalStepsInSequence - 1)
+    stepPan = sequenceStartPan + (sequenceEndPan - sequenceStartPan) * fraction
+    stepDistance = TempleFootsteps.nearDistance + (TempleFootsteps.farDistance - TempleFootsteps.nearDistance) * fraction
+    stepCutoffPole = pole(TempleFootsteps.distanceCutoffNearHz - stepDistance * TempleFootsteps.distanceCutoffRangeHz)
+    stepActive = true
+    stepAgeSamples = 0
+    thudAmplitude = 1.0
+    stepIndexInSequence += 1
+    stepsRemainingInSequence -= 1
+    stepCountdownSamples = (TempleFootsteps.stepTempoSeconds * rate) * (1.0 + TempleFootsteps.tempoJitter * (unit() * 2.0 - 1.0))
+  }
+
+  func render(sampleRate: Double, elapsedSeconds: Double, salience: WorldSalienceScheduler) {
+    if rate != sampleRate { reset(seed: seed, sampleRate: sampleRate) }
+
+    if !sequenceActive && appearancesUsed < appearancesTotal {
+      if elapsedSeconds > TempleFootsteps.eligibleUntilSeconds {
+        appearancesUsed = appearancesTotal
+      } else if elapsedSeconds >= appearanceAtSeconds[appearancesUsed] {
+        if salience.reserve(salience: 0.3, durationSeconds: 7.0, recoverySeconds: 3.0) {
+          beginSequence()
+          appearancesUsed += 1
+        } else {
+          appearanceAtSeconds[appearancesUsed] += 4.0
+        }
+      }
+    }
+
+    if sequenceActive {
+      stepCountdownSamples -= 1.0
+      if !stepActive && stepCountdownSamples <= 0.0 {
+        if stepsRemainingInSequence > 0 { beginStep() } else { sequenceActive = false }
+      }
+    }
+
+    if stepActive {
+      let white = unit() * 2.0 - 1.0
+      hp += kHp * (white - hp)
+      lp += kLp * ((white - hp) - lp)
+      let grainRate = TempleFootsteps.grainRatePerSecond / rate
+      if unit() < grainRate { grainLevel += exp(0.6 * gauss()) }
+      grainLevel *= grainDecay
+      let ageSeconds = stepAgeSamples / rate
+      let shape = pow(sin(Double.pi * min(1.0, ageSeconds / TempleFootsteps.stepSwellSeconds)), 0.8)
+      let drag = lp * min(grainLevel, 3.0) * shape
+
+      let thudWhite = unit() * 2.0 - 1.0
+      thudLp += kThudLp * (thudWhite - thudLp)
+      let thud = thudLp * thudAmplitude * TempleFootsteps.thudLevel
+      thudAmplitude *= thudDecay
+
+      lowpassOne += stepCutoffPole * ((drag + thud) - lowpassOne)
+      lowpassTwo += stepCutoffPole * (lowpassOne - lowpassTwo)
+
+      let level = (0.35 + 0.65 * (1.0 - stepDistance)) * TempleFootsteps.levelGain
+      let angle = (stepPan + 1.0) * Double.pi / 4.0
+      left = lowpassTwo * cos(angle) * sqrt(2.0) * level
+      right = lowpassTwo * sin(angle) * sqrt(2.0) * level
+
+      stepAgeSamples += 1.0
+      if stepAgeSamples >= TempleFootsteps.stepTotalSeconds * rate { stepActive = false }
+    } else {
+      left = 0
+      right = 0
     }
   }
 }
@@ -4180,6 +4380,226 @@ final class OceanModel {
     left = undertow * (1 - renderedPan * 0.12) + brightLeft * (0.72 + renderedWidth * 0.35) * (1 - renderedPan * 0.3) + bubbleLeft + beaconLeft
     right = undertow * (1 + renderedPan * 0.12) + brightRight * (0.72 + renderedWidth * 0.35) * (1 + renderedPan * 0.3) + bubbleRight + beaconRight
     phaseAge += 1
+  }
+}
+
+/// A gull, calling far off over the water: a short run of three to six rasping pulses, sometimes finishing in one
+/// longer, lower, downward-sweeping cry -- the two shapes a real gull makes. Deliberately low-pitched and harsh
+/// (amplitude tremolo and a soft-clipped harmonic stack, not a clean tone) -- a clean tone at songbird pitch read as
+/// a tweet, not a caw. Calls on its own schedule, continuous through the night but sparse, pacing with how alive the
+/// world is the way the Forest's birds do. Far off and not alarming: heavily low-passed, quiet, no close detail, no
+/// room send (open air, not a chamber). The Kotlin engine mirrors this file.
+final class OceanGulls {
+  private(set) var left = 0.0
+  private(set) var right = 0.0
+
+  static let pulsesMin = 3
+  static let pulsesRange = 3
+  static let pulseLowHz = 650.0
+  static let pulseHighHz = 1050.0
+  static let pulseStepDown = 0.03
+  static let pulseLengthLowSeconds = 0.07
+  static let pulseLengthRangeSeconds = 0.04
+  static let pulseBendLow = -0.15
+  static let pulseBendRange = 0.13
+  static let pulseGapLowSeconds = 0.015
+  static let pulseGapRangeSeconds = 0.025
+  static let pulseTremoloRateLow = 24.0
+  static let pulseTremoloRateRange = 10.0
+  static let pulseTremoloDepthLow = 0.45
+  static let pulseTremoloDepthRange = 0.25
+  static let pulseBreathLow = 0.15
+  static let pulseBreathRange = 0.15
+  static let cryChance = 0.6
+  static let cryPitchLow = 1.1
+  static let cryPitchRange = 0.2
+  static let cryLengthLowSeconds = 0.32
+  static let cryLengthRangeSeconds = 0.23
+  static let cryBendLow = -0.55
+  static let cryBendRange = 0.25
+  static let cryTremoloRateLow = 14.0
+  static let cryTremoloRateRange = 6.0
+  static let cryTremoloDepthLow = 0.2
+  static let cryTremoloDepthRange = 0.15
+  static let cryBreathLow = 0.2
+  static let cryBreathRange = 0.15
+  static let attackSeconds = 0.008
+  static let decayFraction = 0.4
+  static let breathLowRatio = 1.0
+  static let breathHighRatio = 3.2
+  static let nearCutoffHz = 5_600.0
+  static let distanceCutoffRangeHz = 2_400.0
+  static let nearDistance = 0.45
+  static let farDistance = 0.9
+  static let baseGapLowSeconds = 45.0
+  static let baseGapRangeSeconds = 55.0
+  /// Level-checked by ear through the real engine, on the Ocean bed it was approved over.
+  static let levelGain = 0.17522
+
+  private var rate = 48_000.0
+  private var seed: UInt64 = 1
+  private var random: UInt64 = 1
+
+  private var callCountdownSamples = 0.0
+  private var callActive = false
+  private var pulsesRemaining = 0
+  private var hasCry = false
+  private var inCry = false
+  private var callPan = 0.0
+  private var callDistance = 0.0
+  private var callCutoffPole = 0.0
+  private var callBase = 0.0
+  private var pulseIndex = 0
+
+  private var syllableCountdownSamples = 0.0
+  private var syllableActive = false
+  private var syllableAgeSamples = 0.0
+  private var syllablePitch0 = 0.0
+  private var syllableBend = 0.0
+  private var syllableLengthSeconds = 0.0
+  private var syllableTremoloRate = 0.0
+  private var syllableTremoloDepth = 0.0
+  private var syllableBreathiness = 0.0
+  private var syllablePhase = 0.0
+
+  private var breathHp = 0.0
+  private var breathLp = 0.0
+  private var kBreathHp = 0.0
+  private var kBreathLp = 0.0
+  private var lowpassOne = 0.0
+  private var lowpassTwo = 0.0
+
+  func reset(seed: UInt64, sampleRate: Double) {
+    self.seed = seed
+    rate = sampleRate
+    random = seed ^ 0x477566656c6c73
+    if random == 0 { random = 1 }
+    callCountdownSamples = unit() * rate * 20.0
+    callActive = false
+    pulsesRemaining = 0; hasCry = false; inCry = false
+    callPan = 0; callDistance = 0; callCutoffPole = 0; callBase = 0; pulseIndex = 0
+    syllableCountdownSamples = 0; syllableActive = false; syllableAgeSamples = 0
+    syllablePitch0 = 0; syllableBend = 0; syllableLengthSeconds = 0
+    syllableTremoloRate = 0; syllableTremoloDepth = 0; syllableBreathiness = 0; syllablePhase = 0
+    breathHp = 0; breathLp = 0; kBreathHp = 0; kBreathLp = 0; lowpassOne = 0; lowpassTwo = 0
+    left = 0; right = 0
+  }
+
+  private func pole(_ hz: Double) -> Double { 1.0 - exp(-2.0 * Double.pi * hz / rate) }
+
+  private func unit() -> Double {
+    random ^= random << 13; random ^= random >> 7; random ^= random << 17
+    return Double(random >> 11) / 9_007_199_254_740_992.0
+  }
+
+  private func gauss() -> Double {
+    let u1 = max(1e-12, unit())
+    let u2 = unit()
+    return sqrt(-2.0 * log(u1)) * cos(2.0 * Double.pi * u2)
+  }
+
+  private func beginCall() {
+    callActive = true
+    pulsesRemaining = OceanGulls.pulsesMin + Int(unit() * Double(OceanGulls.pulsesRange + 1))
+    hasCry = unit() < OceanGulls.cryChance
+    inCry = false
+    pulseIndex = 0
+    callBase = OceanGulls.pulseLowHz + unit() * (OceanGulls.pulseHighHz - OceanGulls.pulseLowHz)
+    callPan = unit() * 2.0 - 1.0
+    callDistance = OceanGulls.nearDistance + unit() * (OceanGulls.farDistance - OceanGulls.nearDistance)
+    callCutoffPole = pole(OceanGulls.nearCutoffHz - callDistance * OceanGulls.distanceCutoffRangeHz)
+    syllableCountdownSamples = 0
+  }
+
+  private func beginSyllable(cry: Bool) {
+    if cry {
+      syllablePitch0 = callBase * (OceanGulls.cryPitchLow + unit() * OceanGulls.cryPitchRange)
+      syllableLengthSeconds = OceanGulls.cryLengthLowSeconds + unit() * OceanGulls.cryLengthRangeSeconds
+      syllableBend = OceanGulls.cryBendLow + unit() * OceanGulls.cryBendRange
+      syllableTremoloRate = OceanGulls.cryTremoloRateLow + unit() * OceanGulls.cryTremoloRateRange
+      syllableTremoloDepth = OceanGulls.cryTremoloDepthLow + unit() * OceanGulls.cryTremoloDepthRange
+      syllableBreathiness = OceanGulls.cryBreathLow + unit() * OceanGulls.cryBreathRange
+    } else {
+      syllablePitch0 = callBase * (1.0 - OceanGulls.pulseStepDown * Double(pulseIndex)) * (1.0 + 0.05 * gauss())
+      syllableLengthSeconds = OceanGulls.pulseLengthLowSeconds + unit() * OceanGulls.pulseLengthRangeSeconds
+      syllableBend = OceanGulls.pulseBendLow + unit() * OceanGulls.pulseBendRange
+      syllableTremoloRate = OceanGulls.pulseTremoloRateLow + unit() * OceanGulls.pulseTremoloRateRange
+      syllableTremoloDepth = OceanGulls.pulseTremoloDepthLow + unit() * OceanGulls.pulseTremoloDepthRange
+      syllableBreathiness = OceanGulls.pulseBreathLow + unit() * OceanGulls.pulseBreathRange
+      pulseIndex += 1
+      pulsesRemaining -= 1
+    }
+    kBreathHp = pole(syllablePitch0 * OceanGulls.breathLowRatio)
+    kBreathLp = pole(syllablePitch0 * OceanGulls.breathHighRatio)
+    syllableActive = true
+    syllableAgeSamples = 0
+    syllablePhase = 0
+    inCry = cry
+  }
+
+  func render(sampleRate: Double, intensity: Double, density: Double, salience: WorldSalienceScheduler) {
+    if rate != sampleRate { reset(seed: seed, sampleRate: sampleRate) }
+
+    if !callActive {
+      callCountdownSamples -= 1.0
+      if callCountdownSamples <= 0.0 {
+        if salience.reserve(salience: 0.3, durationSeconds: 3.0, recoverySeconds: 2.0) {
+          beginCall()
+        } else {
+          callCountdownSamples = rate * 4.0
+        }
+      }
+    }
+
+    if callActive && !syllableActive {
+      syllableCountdownSamples -= 1.0
+      if syllableCountdownSamples <= 0.0 {
+        if pulsesRemaining > 0 {
+          beginSyllable(cry: false)
+          syllableCountdownSamples = (OceanGulls.pulseGapLowSeconds + unit() * OceanGulls.pulseGapRangeSeconds) * rate
+        } else if hasCry && !inCry {
+          beginSyllable(cry: true)
+        } else {
+          callActive = false
+          let gap = (OceanGulls.baseGapLowSeconds + unit() * OceanGulls.baseGapRangeSeconds) *
+            (1.4 - 0.5 * min(1, max(0, intensity))) / min(1, max(0.2, density))
+          callCountdownSamples = gap * rate
+        }
+      }
+    }
+
+    if syllableActive {
+      let t = syllableAgeSamples / rate
+      if t >= syllableLengthSeconds {
+        syllableActive = false
+        // Ending the call (and computing its gap to the next one) happens only in the scheduling block above, on
+        // the next render pass: with no pulses left and inCry already true, "hasCry && !inCry" is false there too,
+        // so it falls to the same branch whether this was the last pulse or the cry. Setting callActive here
+        // instead would skip that gap entirely and leave the next call paced only by the salience recovery.
+      } else {
+        let contour = syllablePitch0 * (1.0 + syllableBend * (t / syllableLengthSeconds))
+        syllablePhase = (syllablePhase + 2.0 * Double.pi * contour / rate).truncatingRemainder(dividingBy: 2.0 * Double.pi)
+        var tone = sin(syllablePhase) + 0.65 * sin(2.0 * syllablePhase) + 0.5 * sin(3.0 * syllablePhase) +
+          0.35 * sin(4.0 * syllablePhase) + 0.22 * sin(5.0 * syllablePhase)
+        tone = tanh(tone * 1.5) / tanh(1.5)
+        let tremolo = 1.0 - syllableTremoloDepth * (0.5 - 0.5 * cos(2.0 * Double.pi * syllableTremoloRate * t))
+        let breathWhite = unit() * 2.0 - 1.0
+        breathHp += kBreathHp * (breathWhite - breathHp)
+        breathLp += kBreathLp * ((breathWhite - breathHp) - breathLp)
+        let envelope = min(1.0, t / OceanGulls.attackSeconds) * exp(-max(0.0, t - OceanGulls.attackSeconds) / (syllableLengthSeconds * OceanGulls.decayFraction))
+        let voice = (tone * tremolo * (1.0 - syllableBreathiness * 0.35) + breathLp * syllableBreathiness) * envelope
+        lowpassOne += callCutoffPole * (voice - lowpassOne)
+        lowpassTwo += callCutoffPole * (lowpassOne - lowpassTwo)
+        let level = (0.3 + 0.5 * (1.0 - callDistance)) * OceanGulls.levelGain
+        let angle = (callPan + 1.0) * Double.pi / 4.0
+        left = lowpassTwo * cos(angle) * sqrt(2.0) * level
+        right = lowpassTwo * sin(angle) * sqrt(2.0) * level
+        syllableAgeSamples += 1.0
+      }
+    } else {
+      left = 0
+      right = 0
+    }
   }
 }
 

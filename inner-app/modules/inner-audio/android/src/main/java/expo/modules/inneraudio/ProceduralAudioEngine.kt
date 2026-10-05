@@ -184,6 +184,8 @@ private const val NOISE_CUT_SMOOTH_SECONDS = 3.0
 private const val NOISE_CROSSFADE_SECONDS = 4.5
 /** How much of the world's quieting the noise bed follows around a recognition cue: about 6 dB at the center of the quiet field. */
 private const val RECOGNITION_NOISE_THINNING = 1.2
+/** How much of the Temple footsteps reach the shared room, versus everything else in the space at full strength. */
+private const val TEMPLE_FOOTSTEPS_ROOM_SEND = 0.55
 
 // The lucidity cue: a fixed, non-seeded ascending three-note motif (the same
 // 400/600/800 Hz contour used in published targeted-lucidity-reactivation
@@ -297,6 +299,7 @@ object ProceduralAudioEngine {
   private var rainMix = 0.0
   private var oceanEnvelope = 0.0
   private val oceanModel = OceanModel()
+  private val oceanGulls = OceanGulls()
   private var abyssalEnvelope = 0.0
   private val abyssalModel = AbyssalModel()
   private var windEnvelope = 0.0
@@ -347,6 +350,7 @@ object ProceduralAudioEngine {
   private var templeSpaceDropEchoIndex = 0
   private val templeSpaceDelay = DoubleArray(48_000)
   private val templeAccents = TempleAccents()
+  private val templeFootsteps = TempleFootsteps()
   private var templeSpaceDelayIndex = 0
   private var templeEnvelope = 0.0
   private var templeRandom = XORSHIFT_SEED xor 0x9c2f5a31L
@@ -635,6 +639,7 @@ object ProceduralAudioEngine {
     rainMix = 0.0
     oceanEnvelope = 0.0
     oceanModel.reset(XORSHIFT_SEED, sampleRate)
+    oceanGulls.reset(XORSHIFT_SEED, sampleRate)
     abyssalEnvelope = 0.0
     abyssalModel.reset(XORSHIFT_SEED, sampleRate)
     windEnvelope = 0.0
@@ -682,6 +687,7 @@ object ProceduralAudioEngine {
     templeSpaceDropEcho.fill(0.0)
     templeSpaceDropEchoIndex = 0
     templeAccents.reset(XORSHIFT_SEED, sampleRate)
+    templeFootsteps.reset(XORSHIFT_SEED, sampleRate)
     templeSpaceDelay.fill(0.0)
     templeSpaceDelayIndex = 0
     templeEnvelope = 0.0
@@ -750,6 +756,7 @@ object ProceduralAudioEngine {
     if (activeTimeline != null && renderedTimelineGeneration != generation) {
       random = activeTimeline.seed
       oceanModel.reset(activeTimeline.seed, sampleRate)
+      oceanGulls.reset(activeTimeline.seed, sampleRate)
       abyssalModel.reset(activeTimeline.seed, sampleRate)
       windRandom = activeTimeline.seed xor 0x7f4a7c15L
       fireModel.reset(activeTimeline.seed, sampleRate)
@@ -785,6 +792,7 @@ object ProceduralAudioEngine {
       templeSpaceDropEcho.fill(0.0)
       templeSpaceDropEchoIndex = 0
       templeAccents.reset(activeTimeline.seed, sampleRate)
+      templeFootsteps.reset(activeTimeline.seed, sampleRate)
       templeSpaceDelay.fill(0.0)
       templeSpaceDelayIndex = 0
       // Anything at-or-before the timeline's current position counts as
@@ -1349,7 +1357,8 @@ object ProceduralAudioEngine {
 
   private fun nextOcean(elapsedSeconds: Double, intensity: Double, presence: Double, density: Double, variety: Double): StereoSample {
     oceanModel.render(sampleRate, intensity, worldSalience, presence, density, variety)
-    return oceanSample.set(oceanModel.left, oceanModel.right)
+    oceanGulls.render(sampleRate, intensity, density, worldSalience)
+    return oceanSample.set(oceanModel.left + oceanGulls.left, oceanModel.right + oceanGulls.right)
   }
 
   private fun nextAbyssal(elapsedSeconds: Double, intensity: Double, presence: Double, density: Double, variety: Double): StereoSample {
@@ -1566,8 +1575,14 @@ object ProceduralAudioEngine {
     val dropEchoLeft = dropEchoLeftA * 0.48 + dropEchoTail * 0.18
     val dropEchoRight = dropEchoRightA * 0.44 + dropEchoTail * 0.20
     templeAccents.render(sampleRate, intensity, elapsedSeconds, worldSalience)
-    val dryLeft = body + templeSpaceAirLeft * (0.22 + intensity * 0.12) + breathLeft * 0.7 + aumChant.voiceLeft + aumChant.echoLeft + drop.first + dropEchoLeft + templeAccents.left
-    val dryRight = body + templeSpaceAirRight * (0.22 + intensity * 0.12) + breathRight * 0.7 + aumChant.voiceRight + aumChant.echoRight + drop.second + dropEchoRight + templeAccents.right
+    templeFootsteps.render(sampleRate, elapsedSeconds, worldSalience)
+    // The room reflects everything in the space at full strength except the footsteps, which send in at
+    // TEMPLE_FOOTSTEPS_ROOM_SEND: enough reflection to place the distant walker in the stone space without
+    // giving the short scuffs the chant's full, lingering tail.
+    val otherLeft = body + templeSpaceAirLeft * (0.22 + intensity * 0.12) + breathLeft * 0.7 + aumChant.voiceLeft + aumChant.echoLeft + drop.first + dropEchoLeft + templeAccents.left
+    val otherRight = body + templeSpaceAirRight * (0.22 + intensity * 0.12) + breathRight * 0.7 + aumChant.voiceRight + aumChant.echoRight + drop.second + dropEchoRight + templeAccents.right
+    val dryLeft = otherLeft + templeFootsteps.left
+    val dryRight = otherRight + templeFootsteps.right
     val size = templeSpaceDelay.size
     val tap71 = templeSpaceDelay[(templeSpaceDelayIndex - (sampleRate * 0.071).toInt().coerceIn(1, size - 1) + size) % size]
     val tap89 = templeSpaceDelay[(templeSpaceDelayIndex - (sampleRate * 0.089).toInt().coerceIn(1, size - 1) + size) % size]
@@ -1575,7 +1590,8 @@ object ProceduralAudioEngine {
     val tap137 = templeSpaceDelay[(templeSpaceDelayIndex - (sampleRate * 0.137).toInt().coerceIn(1, size - 1) + size) % size]
     val wetLeft = tap71 * 0.58 + tap137 * 0.34
     val wetRight = tap89 * 0.56 + tap113 * 0.36
-    templeSpaceDelay[templeSpaceDelayIndex] = (dryLeft + dryRight) * 0.5 + (wetLeft + wetRight) * 0.45 + aumChant.farWet
+    val footstepsRoomFeed = (templeFootsteps.left + templeFootsteps.right) * TEMPLE_FOOTSTEPS_ROOM_SEND
+    templeSpaceDelay[templeSpaceDelayIndex] = (otherLeft + otherRight) * 0.5 + footstepsRoomFeed * 0.5 + (wetLeft + wetRight) * 0.45 + aumChant.farWet
     templeSpaceDelayIndex = (templeSpaceDelayIndex + 1) % size
     return templeSpaceSample.set(dryLeft * 0.42 + wetLeft * 0.62, dryRight * 0.42 + wetRight * 0.62)
   }
