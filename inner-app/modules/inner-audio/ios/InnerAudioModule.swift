@@ -360,6 +360,16 @@ final class ProceduralAudioEngine: NSObject {
   private var templeFreqs = [Double](repeating: 0, count: 4)
   private var cuePending = false
   private var cueTimelineThresholdMs = -1.0
+  // After a resume from any pause, a due recognition cue waits for this window to end
+  // (the sleeper may just have been woken); never longer than the cap past its schedule.
+  // Mirrors the Kotlin engine's CUE_SETTLE_MS / CUE_MAX_HOLD_MS. `cueDisturbed` and
+  // `cueSettlePending` are written under `lock`; the hold itself is render-thread only.
+  private static let cueSettleMs = 90_000.0
+  private static let cueMaxHoldMs = 300_000.0
+  private var cueDisturbed = false
+  private var cueSettlePending = false
+  private var cueHoldUntilMs = -1.0
+  private var heldCueId: String?
   private var cueActive = false
   private var cueElapsedFrames = 0.0
   private var cueTotalFrames = 0.0
@@ -791,6 +801,10 @@ final class ProceduralAudioEngine: NSObject {
     templeFreqs = [Double](repeating: 0, count: 4)
     cuePending = false
     cueTimelineThresholdMs = -1
+    cueDisturbed = false
+    cueSettlePending = false
+    cueHoldUntilMs = -1
+    heldCueId = nil
     cueActive = false
     cueElapsedFrames = 0
     cueTotalFrames = 0
@@ -874,6 +888,7 @@ final class ProceduralAudioEngine: NSObject {
 
   private func pauseSleepTimer() {
     lock.lock()
+    cueDisturbed = true
     if let endAtMs = parameters.sleepEndMs {
       pausedSleepRemainingMs = max(0, endAtMs - InnerAudioWallClock.nowMs())
       parameters.sleepEndMs = nil
@@ -883,6 +898,10 @@ final class ProceduralAudioEngine: NSObject {
 
   private func resumeSleepTimer() {
     lock.lock()
+    if cueDisturbed {
+      cueDisturbed = false
+      cueSettlePending = true
+    }
     if let remainingMs = pausedSleepRemainingMs {
       parameters.sleepEndMs = InnerAudioWallClock.nowMs() + remainingMs
       pausedSleepRemainingMs = nil
@@ -991,6 +1010,8 @@ final class ProceduralAudioEngine: NSObject {
     let renderStartFrame = renderElapsedFrames
     let generation = timelineGeneration
     let routeTarget = privateOutputTarget
+    let settleCues = cueSettlePending
+    cueSettlePending = false
     lock.unlock()
     if let activeTimeline, renderedTimelineGeneration != generation {
       random = activeTimeline.seed
@@ -1037,8 +1058,11 @@ final class ProceduralAudioEngine: NSObject {
       // Anything at-or-before the timeline's current position counts as
       // already fired, so a fresh timeline or a seek doesn't replay past cues.
       cueTimelineThresholdMs = timelineStartFrame * 1_000 / sampleRate
+      cueHoldUntilMs = -1
+      heldCueId = nil
       renderedTimelineGeneration = generation
     }
+    if settleCues { cueHoldUntilMs = timelineStartFrame * 1_000 / sampleRate + Self.cueSettleMs }
     if cuePending {
       cuePending = false
       startCue()
@@ -1063,7 +1087,9 @@ final class ProceduralAudioEngine: NSObject {
       let threshold = activeTimeline.map { timelineThresholdState($0, target: target) }
       let recognitionSpace = activeTimeline.flatMap { timelineRecognitionSpace($0, elapsedMs: timelineElapsedMs) }
       let event = activeTimeline.flatMap { timelineSpatialEvent($0, elapsedMs: timelineElapsedMs) }
-      if let activeTimeline, let cueFireMs = timelineCueEventMs(activeTimeline, elapsedMs: timelineElapsedMs, afterMs: cueTimelineThresholdMs) {
+      if let activeTimeline,
+         let cueFireMs = timelineCueEventMs(activeTimeline, elapsedMs: timelineElapsedMs, afterMs: cueTimelineThresholdMs),
+         !holdCue(activeTimeline, cueFireMs: cueFireMs, elapsedMs: timelineElapsedMs) {
         cueTimelineThresholdMs = cueFireMs
         let cueEvent = cueEventAt(activeTimeline, atMs: cueFireMs)
         startCue(gainScale: cueEvent?.signalGainScale ?? 1)
@@ -1489,6 +1515,23 @@ final class ProceduralAudioEngine: NSObject {
       cursor += stage.durationMs
     }
     return nil
+  }
+
+  /// True while a due cue should wait for playback to settle after a resume. The cue stays
+  /// pending (the fire threshold is not advanced), so it plays on the first frame after the
+  /// window and the receipt shows the delay as drift. Recorded once per cue.
+  private func holdCue(_ timeline: AudioTimeline, cueFireMs: Double, elapsedMs: Double) -> Bool {
+    if elapsedMs >= cueHoldUntilMs || elapsedMs - cueFireMs >= Self.cueMaxHoldMs { return false }
+    let cueId = cueIdAt(timeline, atMs: cueFireMs)
+    if heldCueId != cueId {
+      heldCueId = cueId
+      recordDiagnostic("recognition_signal_held", extras: [
+        "cueId": cueId,
+        "scheduledPositionMs": cueFireMs,
+        "holdUntilPositionMs": cueHoldUntilMs,
+      ])
+    }
+    return true
   }
 
   private func cueIdAt(_ timeline: AudioTimeline, atMs: Double) -> String {

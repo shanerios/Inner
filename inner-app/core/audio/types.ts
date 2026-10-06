@@ -150,7 +150,7 @@ export type AudioEngineListener = (snapshot: AudioEngineSnapshot) => void;
 export type NativePlaybackState = 'playing' | 'paused' | 'stopped';
 
 export type NativeAudioDiagnosticEvent = {
-  type: 'playback_resumed' | 'playback_paused' | 'playback_stopped' | 'foreground_service_started' | 'foreground_service_stopped' | 'audio_route_changed' | 'interruption_began' | 'interruption_ended' | 'recognition_signal_fired' | 'sleep_timer_fired' | 'audio_underrun' | 'error';
+  type: 'playback_resumed' | 'playback_paused' | 'playback_stopped' | 'foreground_service_started' | 'foreground_service_stopped' | 'audio_route_changed' | 'interruption_began' | 'interruption_ended' | 'recognition_signal_fired' | 'recognition_signal_held' | 'sleep_timer_fired' | 'audio_underrun' | 'error';
   atMs: number;
   reason?: string;
   /** Short machine-readable context. Never user content. */

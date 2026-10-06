@@ -71,6 +71,7 @@ function eventLabel(event: JourneyMemorySession['events'][number]): string {
     const drift = event.driftMs === undefined ? '' : ` · drift ${Math.round(event.driftMs)}ms`;
     return `Native signal fired · ${event.signalId ?? 'unknown'}${drift}`;
   }
+  if (event.type === 'recognition_signal_held') return `Native signal held until playback settled · ${event.cueId ?? 'cue'}`;
   if (event.type === 'seeked') return `Scrubbed from ${clockLabel(event.fromPositionMs ?? 0)}`;
   if (event.type === 'app_state_changed') return `App state · ${event.appState ?? event.reason ?? 'changed'}`;
   if (event.type === 'playback_paused') return `Playback paused${event.reason ? ` · ${event.reason}` : ''}`;

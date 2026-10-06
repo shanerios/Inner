@@ -52,6 +52,7 @@ function describeEvent(event: JourneyMemoryEvent): string {
       const drift = event.driftMs == null ? '' : ` · drift ${Math.round(event.driftMs)} ms`;
       return `Signal fired${event.signalId ? ` · ${event.signalId}` : ''}${drift}`;
     }
+    case 'recognition_signal_held': return `Signal held until playback settled${event.cueId ? ` · ${event.cueId}` : ''}`;
     case 'seeked': return `Seeked from ${formatTime(event.fromPositionMs ?? 0)}`;
     case 'app_state_changed': return `App state · ${event.appState ?? 'unknown'}`;
     case 'playback_paused': return `Playback paused${event.reason ? ` · ${event.reason}` : ''}`;

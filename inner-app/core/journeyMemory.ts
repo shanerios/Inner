@@ -42,6 +42,7 @@ export type JourneyMemoryEventType =
   | 'cue_played'
   | 'recognition_signal_selected'
   | 'recognition_signal_fired'
+  | 'recognition_signal_held'
   | 'seeked'
   | 'app_state_changed'
   | 'playback_paused'

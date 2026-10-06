@@ -197,6 +197,13 @@ private const val TEMPLE_FOOTSTEPS_ROOM_SEND = 0.55
 // exact same sound again later, so it must render identically every time.
 private val CUE_NOTE_HZ = doubleArrayOf(400.0, 600.0, 800.0)
 private val CUE_NOTE_STARTS = doubleArrayOf(0.0, 0.93, 1.86)
+/**
+ * After playback resumes from any pause (interruption, route loss, user), a recognition
+ * cue that comes due inside this window waits until it ends: the sleeper may just have
+ * been woken. A cue is never held longer than the cap past its scheduled time.
+ */
+private const val CUE_SETTLE_MS = 90_000.0
+private const val CUE_MAX_HOLD_MS = 300_000.0
 private const val CUE_NOTE_SECONDS = 0.75
 private const val CUE_ATTACK_SECONDS = 0.24
 private const val CUE_RELEASE_SECONDS = 0.32
@@ -362,6 +369,11 @@ object ProceduralAudioEngine {
   @Volatile private var cuePending = false
   private var cueActive = false
   private var cueTimelineThresholdMs = -1.0
+  // Written under [lock] by the pause/resume hooks; the hold itself is render-thread only.
+  private var cueDisturbed = false
+  private var cueSettlePending = false
+  private var cueHoldUntilMs = -1.0
+  private var heldCueId: String? = null
   private var cueElapsedFrames = 0.0
   private var cueTotalFrames = 0.0
   private var cueLeftCombs: Array<CombFilter> = emptyArray()
@@ -573,6 +585,7 @@ object ProceduralAudioEngine {
 
   fun pauseSleepTimer() {
     lock.withLock {
+      cueDisturbed = true
       parameters.sleepEndMs?.let { endAtMs ->
         pausedSleepRemainingMs = max(0.0, endAtMs - wallClockMs())
         parameters.sleepEndMs = null
@@ -582,6 +595,10 @@ object ProceduralAudioEngine {
 
   fun resumeSleepTimer() {
     lock.withLock {
+      if (cueDisturbed) {
+        cueDisturbed = false
+        cueSettlePending = true
+      }
       pausedSleepRemainingMs?.let { remainingMs ->
         parameters.sleepEndMs = wallClockMs() + remainingMs
         pausedSleepRemainingMs = null
@@ -674,6 +691,10 @@ object ProceduralAudioEngine {
     cosmicModel.reset(XORSHIFT_SEED, sampleRate)
     worldSalience.reset(sampleRate)
     cueTimelineThresholdMs = -1.0
+    cueDisturbed = false
+    cueSettlePending = false
+    cueHoldUntilMs = -1.0
+    heldCueId = null
     checkpointSessionId = null
     firedSignalLock.withLock { firedSignalIds.clear(); firedCueIds.clear() }
     forestEnvelope = 0.0
@@ -765,11 +786,14 @@ object ProceduralAudioEngine {
     val timelineStartFrame: Double
     val renderStartFrame = renderElapsedFrames
     val generation: Long
+    val settleCues: Boolean
     lock.withLock {
       baseTarget.setFrom(parameters)
       activeTimeline = timeline
       timelineStartFrame = timelineElapsedFrames
       generation = timelineGeneration
+      settleCues = cueSettlePending
+      cueSettlePending = false
     }
     if (activeTimeline != null && renderedTimelineGeneration != generation) {
       random = activeTimeline.seed
@@ -816,8 +840,11 @@ object ProceduralAudioEngine {
       // Anything at-or-before the timeline's current position counts as
       // already fired, so a fresh timeline or a seek doesn't replay past cues.
       cueTimelineThresholdMs = timelineStartFrame * 1_000.0 / sampleRate
+      cueHoldUntilMs = -1.0
+      heldCueId = null
       renderedTimelineGeneration = generation
     }
+    if (settleCues) cueHoldUntilMs = timelineStartFrame * 1_000.0 / sampleRate + CUE_SETTLE_MS
     if (cuePending) {
       cuePending = false
       startCue()
@@ -840,6 +867,7 @@ object ProceduralAudioEngine {
       val event = activeTimeline?.let { timelineSpatialEvent(it, timelineElapsedMs) }
       if (activeTimeline != null) {
         val cueFireMs = timelineCueEventMs(activeTimeline, timelineElapsedMs, cueTimelineThresholdMs)
+          ?.takeUnless { holdCue(activeTimeline, it, timelineElapsedMs) }
         if (cueFireMs != null) {
           cueTimelineThresholdMs = cueFireMs
           val cueEvent = cueEventAt(activeTimeline, cueFireMs)
@@ -1219,6 +1247,25 @@ object ProceduralAudioEngine {
       cursor += stage.durationMs
     }
     return null
+  }
+
+  /**
+   * True while a due cue should wait for playback to settle after a resume. The cue stays
+   * pending (the fire threshold is not advanced), so it plays on the first frame after the
+   * window and the receipt shows the delay as drift. Recorded once per cue.
+   */
+  private fun holdCue(timeline: AudioTimelineState, cueFireMs: Double, elapsedMs: Double): Boolean {
+    if (elapsedMs >= cueHoldUntilMs || elapsedMs - cueFireMs >= CUE_MAX_HOLD_MS) return false
+    val cueId = cueIdAt(timeline, cueFireMs)
+    if (heldCueId != cueId) {
+      heldCueId = cueId
+      recordDiagnostic("recognition_signal_held", extras = mapOf(
+        "cueId" to cueId,
+        "scheduledPositionMs" to cueFireMs,
+        "holdUntilPositionMs" to cueHoldUntilMs,
+      ))
+    }
+    return true
   }
 
   private fun cueIdAt(timeline: AudioTimelineState, atMs: Double): String {
