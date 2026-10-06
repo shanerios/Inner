@@ -41,13 +41,18 @@ export type NightPlan = {
     title: string;
   };
   recipe?: NightRecipeV2;
+  /**
+   * The night was played deliberately quiet (for example beside a sleeping partner).
+   * Its cue levels do not represent a normal listening level, so cue-level learning skips it.
+   */
+  quietNight?: boolean;
   journeySessionId?: string;
   journeyStartedAt?: number;
 };
 
 export type NightPlanContextSnapshot = Pick<
   NightPlan,
-  'id' | 'createdAt' | 'source' | 'reason' | 'configuration' | 'userChanged' | 'adaptiveRule' | 'recipe'
+  'id' | 'createdAt' | 'source' | 'reason' | 'configuration' | 'userChanged' | 'adaptiveRule' | 'recipe' | 'quietNight'
 >;
 
 type NightPlanStore = {
@@ -106,6 +111,7 @@ export async function createNightPlan(
     experiment?: ExperimentContextSnapshot;
     adaptiveRule?: NightPlan['adaptiveRule'];
     recipe?: NightRecipeV2;
+    quietNight?: boolean;
   },
   storage: Storage = AsyncStorage,
   now: () => number = Date.now,
@@ -126,6 +132,7 @@ export async function createNightPlan(
     experiment: input.experiment,
     adaptiveRule: input.adaptiveRule,
     recipe: input.recipe,
+    ...(input.quietNight ? { quietNight: true } : {}),
   };
   const store = await loadStore(storage);
   await saveStore({ schemaVersion: SCHEMA_VERSION, plans: [plan, ...store.plans] }, storage);
@@ -171,5 +178,6 @@ export function nightPlanContextSnapshot(plan: NightPlan): NightPlanContextSnaps
     userChanged: plan.userChanged,
     adaptiveRule: plan.adaptiveRule,
     recipe: plan.recipe,
+    ...(plan.quietNight ? { quietNight: true } : {}),
   };
 }

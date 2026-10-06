@@ -104,6 +104,7 @@ export function practiceContextSections(context?: PracticeContextSnapshot): stri
         ...(context.nightPlan.configuration.signalGainScale !== undefined && context.nightPlan.configuration.signalGainScale !== 1
           ? [`Signal level: ${Math.round(context.nightPlan.configuration.signalGainScale * 100)}% of calibrated level`]
           : []),
+        ...(context.nightPlan.quietNight ? ['Quiet night: kept out of signal-level learning'] : []),
         `Source: ${context.nightPlan.source === 'experiment' ? 'Personal experiment' : context.nightPlan.source === 'recommendation' ? 'Inner recommendation' : context.nightPlan.source === 'adaptive_rule' ? 'Adaptive rule' : 'Shaped manually'}`,
         ...(context.nightPlan.reason ? [`Why: ${context.nightPlan.reason}`] : []),
       ]]

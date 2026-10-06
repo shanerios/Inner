@@ -68,6 +68,7 @@ Ocean, Forest, and Temple have gained more natural environmental detail, while O
 - Added conservative personal signal-level adaptation: repeated confirmed waking can lower the next signal slightly, while repeated confirmed non-recognition without waking can raise it slightly.
 - Requires at least three comparable completed nights with full cue delivery, the same signal, cue plan, cue count, and audio route before proposing a signal-level change.
 - Excludes accelerated tests, interrupted nights, incomplete delivery, missing sleep answers, and overridden signal levels from cue-volume learning.
+- Added a Quiet Night switch to the Overnight Journey review. Nights played deliberately low, such as beside someone sleeping, are kept out of signal-level learning so a signal that was too quiet to hear is not mistaken for one that needs to be louder.
 - Shows the proposed signal percentage and reason before the night begins, with an option to return to the standard calibrated level.
 
 #### Practice Memory and personal patterns

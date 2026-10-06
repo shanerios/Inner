@@ -14,6 +14,7 @@ function record(
     status?: 'completed' | 'completed_early' | 'partial' | 'abandoned' | 'failed';
     testSession?: boolean;
     route?: 'private' | 'speaker' | 'unknown';
+    quietNight?: boolean;
   } = {},
 ): NightRecord {
   const gain = options.gain ?? 1;
@@ -71,6 +72,7 @@ function record(
           signalGainScale: gain,
         },
         userChanged: [],
+        ...(options.quietNight ? { quietNight: true } : {}),
         recipe: {
           schemaVersion: 2,
           id: `recipe-${id}`,
@@ -114,6 +116,30 @@ describe('night learning', () => {
       eligibleForCueLevel: false,
       exclusion: 'test_session',
     }));
+  });
+
+  it('excludes quiet nights from cue-level learning', () => {
+    expect(nightLearningSample(record('1', { quietNight: true, sleepImpact: 'none', noticed: 'no' }))).toEqual(expect.objectContaining({
+      eligibleForCueLevel: false,
+      exclusion: 'quiet_night',
+    }));
+    expect(nightLearningSample(record('2', { sleepImpact: 'none', noticed: 'no' })).eligibleForCueLevel).toBe(true);
+  });
+
+  it('does not raise the signal from quiet nights that went unnoticed', () => {
+    expect(deriveCueLevelAdjustment([
+      record('1', { quietNight: true, sleepImpact: 'none', noticed: 'no' }),
+      record('2', { quietNight: true, sleepImpact: 'none', noticed: 'no' }),
+      record('3', { quietNight: true, sleepImpact: 'none', noticed: 'no' }),
+    ])).toBeNull();
+  });
+
+  it('ignores quiet nights when counting comparable nights', () => {
+    expect(deriveCueLevelAdjustment([
+      record('1', { sleepImpact: 'none', noticed: 'no' }),
+      record('2', { sleepImpact: 'none', noticed: 'no' }),
+      record('3', { quietNight: true, sleepImpact: 'none', noticed: 'no' }),
+    ])).toBeNull();
   });
 
   it('lowers the signal one conservative step after repeated confirmed waking', () => {

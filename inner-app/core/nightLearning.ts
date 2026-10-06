@@ -6,6 +6,7 @@ import type { NightRecord } from './nightRecords';
 export type NightLearningExclusion =
   | 'test_session'
   | 'not_overnight'
+  | 'quiet_night'
   | 'missing_recipe'
   | 'missing_execution'
   | 'incomplete_execution'
@@ -104,22 +105,24 @@ export function nightLearningSample(record: NightRecord): NightLearningSample {
     ? 'test_session'
     : record.source !== 'overnight_journey'
       ? 'not_overnight'
-      : gain === undefined || !plan?.recipe
-        ? 'missing_recipe'
-        : !execution
-          ? 'missing_execution'
-          : execution.status !== 'completed' && execution.status !== 'completed_early'
-            ? 'incomplete_execution'
-            : !execution.plannedCues.length || execution.missingCueIds.length > 0
-              || execution.deliveredCues.length !== execution.plannedCues.length
-              ? 'missing_cues'
-              : execution.interruptionCount > 0
-                ? 'interrupted'
-                : !record.outcome.sleepImpact
-                  ? 'missing_sleep_answer'
-                  : plan.userChanged.includes('signalGainScale')
-                    ? 'signal_level_overridden'
-                    : undefined;
+      : plan?.quietNight
+        ? 'quiet_night'
+        : gain === undefined || !plan?.recipe
+          ? 'missing_recipe'
+          : !execution
+            ? 'missing_execution'
+            : execution.status !== 'completed' && execution.status !== 'completed_early'
+              ? 'incomplete_execution'
+              : !execution.plannedCues.length || execution.missingCueIds.length > 0
+                || execution.deliveredCues.length !== execution.plannedCues.length
+                ? 'missing_cues'
+                : execution.interruptionCount > 0
+                  ? 'interrupted'
+                  : !record.outcome.sleepImpact
+                    ? 'missing_sleep_answer'
+                    : plan.userChanged.includes('signalGainScale')
+                      ? 'signal_level_overridden'
+                      : undefined;
 
   return exclusion
     ? { ...summary, exclusion }

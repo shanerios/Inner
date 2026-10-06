@@ -71,6 +71,15 @@ describe('Night Plans', () => {
     }));
   });
 
+  it('carries the quiet-night flag into the practice snapshot only when set', async () => {
+    const storage = memoryStorage();
+    const quiet = await createNightPlan({ source: 'manual', configuration, quietNight: true }, storage as any, () => 100);
+    const normal = await createNightPlan({ source: 'manual', configuration }, storage as any, () => 101);
+    expect(nightPlanContextSnapshot(quiet).quietNight).toBe(true);
+    expect(nightPlanContextSnapshot(normal)).not.toHaveProperty('quietNight');
+    await expect(loadNightPlan(quiet.id, storage as any)).resolves.toEqual(expect.objectContaining({ quietNight: true }));
+  });
+
   it('binds one plan to the exact Journey Memory session', async () => {
     const storage = memoryStorage();
     const plan = await createNightPlan({ source: 'manual', configuration }, storage as any, () => 100);

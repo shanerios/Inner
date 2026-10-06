@@ -112,6 +112,7 @@ export default function OvernightJourneyScreen() {
   const suggestedSignalGainScale = adaptiveProposal?.proposedConfiguration.signalGainScale;
   const [signalGainScale, setSignalGainScale] = useState(suggestedSignalGainScale ?? 1);
   const [accelerated, setAccelerated] = useState(false);
+  const [quietNight, setQuietNight] = useState(false);
   const [inspectorVisible, setInspectorVisible] = useState(false);
   const [latestMemory, setLatestMemory] = useState<JourneyMemorySession | null>(null);
   const [planExplanation, setPlanExplanation] = useState<{ source: string; reason?: string }>({ source: 'SHAPED BY YOU' });
@@ -252,6 +253,7 @@ export default function OvernightJourneyScreen() {
           title: adaptiveProposal.title,
         } : undefined,
         recipe,
+        quietNight,
       });
       navigation.navigate('LucidJourneyPlayer', {
         journey: overnightJourney(environment, feel, compiledNight, accelerated && INNER_LAB_BUILD, seed),
@@ -331,6 +333,20 @@ export default function OvernightJourneyScreen() {
             )
           : null}
 
+        <Pressable
+          onPress={() => setQuietNight(value => !value)}
+          style={[styles.testMode, quietNight && styles.testModeSelected]}
+          accessibilityRole="switch"
+          accessibilityState={{ checked: quietNight }}
+        >
+          <Text style={styles.testModeTitle}>QUIET NIGHT</Text>
+          <Text style={styles.testModeCopy}>
+            {quietNight
+              ? 'ON · Playing low, so Inner will not learn signal levels from tonight'
+              : 'OFF · Turn on if you are playing this quietly, such as beside someone sleeping'}
+          </Text>
+        </Pressable>
+
         <View style={styles.readyCard}>
           <Text style={styles.readyEyebrow}>YOUR NIGHT</Text>
           <Text style={styles.readySource}>{planExplanation.source}</Text>
@@ -338,6 +354,7 @@ export default function OvernightJourneyScreen() {
           <Text style={styles.readyLine}>{durationLabel(durationMinutes)} · {recognitionWindows} later recognition windows</Text>
           <Text style={styles.readySchedule}>Signals near {nightRecipeCueSummary(previewRecipe)}</Text>
           <Text style={styles.readyLine}>{recognitionSignalById(signalId).name} · {feel}</Text>
+          {quietNight && <Text style={styles.readyLine}>Quiet night · not used for signal-level learning</Text>}
           {signalGainScale !== 1 && <Text style={styles.readyLine}>Signal level · {Math.round(signalGainScale * 100)}% of calibrated level</Text>}
           <Text style={styles.readyCopy}>Your journey begins with a seven-minute waking preparation, then continues quietly through descent, protected sleep, recognition windows, and return.</Text>
           {!!planExplanation.reason && <Text style={styles.readyReason}>{planExplanation.reason}</Text>}
