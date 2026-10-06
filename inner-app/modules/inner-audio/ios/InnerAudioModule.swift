@@ -403,6 +403,9 @@ final class ProceduralAudioEngine: NSObject {
   private static let processInstanceId = UUID().uuidString
   private static let checkpointStore = JourneyCheckpointStore(url: FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("inner-journey-checkpoints.json"))
   private var checkpointSessionId: String?
+  private var volumeSessionId: String?
+  private var outputVolumeMin: Float = 1
+  private var outputVolumeMax: Float = 0
   private var checkpointTimer: DispatchSourceTimer?
   // These bounded ledgers share diagnosticLock, not the render/configuration lock.
   private var firedSignalIds: [String] = []
@@ -490,6 +493,21 @@ final class ProceduralAudioEngine: NSObject {
     record["engineRunning"] = engine.isRunning
     record["audioRoute"] = isPrivateOutput(AVAudioSession.sharedInstance().currentRoute) ? "private" : "speaker"
     record["audioFocus"] = "unknown"
+    // System media volume (0..1) with this session's lowest and highest samples. Evidence only.
+    let currentVolume = AVAudioSession.sharedInstance().outputVolume
+    diagnosticLock.lock()
+    if volumeSessionId != sessionId {
+      volumeSessionId = sessionId
+      outputVolumeMin = currentVolume
+      outputVolumeMax = currentVolume
+    } else {
+      outputVolumeMin = min(outputVolumeMin, currentVolume)
+      outputVolumeMax = max(outputVolumeMax, currentVolume)
+    }
+    record["outputVolume"] = Double(currentVolume)
+    record["outputVolumeMin"] = Double(outputVolumeMin)
+    record["outputVolumeMax"] = Double(outputVolumeMax)
+    diagnosticLock.unlock()
     record["desiredPlaying"] = desiredPlaying
     if let pauseReason { record["pauseReason"] = pauseReason == .user ? "user" : pauseReason == .routeLoss ? "route_loss" : "interruption" }
     if let lastStopReason { record["lastStopReason"] = lastStopReason }

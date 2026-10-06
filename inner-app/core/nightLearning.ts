@@ -7,6 +7,8 @@ export type NightLearningExclusion =
   | 'test_session'
   | 'not_overnight'
   | 'quiet_night'
+  | 'volume_low'
+  | 'volume_changed'
   | 'missing_recipe'
   | 'missing_execution'
   | 'incomplete_execution'
@@ -24,6 +26,8 @@ export type NightLearningSample = {
   cuePlan?: 'standard' | 'gentle';
   audioRoute: 'private' | 'speaker' | 'unknown';
   signalGainScale?: number;
+  /** Midpoint of the sampled system volume, when the build recorded it. */
+  outputVolume?: number;
   execution?: Pick<NightExecutionRecord, 'status' | 'interruptionCount'> & {
     plannedCueCount: number;
     deliveredCueCount: number;
@@ -49,6 +53,13 @@ export type CueLevelAdjustment = {
 
 const MIN_GAIN_SCALE = 0.65;
 const MAX_GAIN_SCALE = 1.2;
+/**
+ * Starting values, not yet tuned against real nights: below the floor the system
+ * volume is close to muted, and a swing larger than the allowed spread means the
+ * night was not heard at one level. Unrecorded volume stays eligible.
+ */
+const MIN_OUTPUT_VOLUME = 0.15;
+const MAX_VOLUME_SPREAD = 0.15;
 const MIN_COMPARABLE_NIGHTS = 3;
 const MAX_COMPARABLE_NIGHTS = 5;
 
@@ -64,6 +75,28 @@ function recipeGain(record: NightRecord): number | undefined {
 
 function executionFor(record: NightRecord): NightExecutionRecord | undefined {
   return record.practiceContext?.links.find(link => link.type === 'overnight_journey')?.nightExecution;
+}
+
+function learningExclusion(
+  record: NightRecord,
+  execution: NightExecutionRecord | undefined,
+  gain: number | undefined,
+): NightLearningExclusion | undefined {
+  const plan = record.practiceContext?.nightPlan;
+  if (record.testSession) return 'test_session';
+  if (record.source !== 'overnight_journey') return 'not_overnight';
+  if (plan?.quietNight) return 'quiet_night';
+  if (gain === undefined || !plan?.recipe) return 'missing_recipe';
+  if (!execution) return 'missing_execution';
+  if (execution.status !== 'completed' && execution.status !== 'completed_early') return 'incomplete_execution';
+  if (execution.outputVolume && execution.outputVolume.min < MIN_OUTPUT_VOLUME) return 'volume_low';
+  if (execution.outputVolume && execution.outputVolume.max - execution.outputVolume.min > MAX_VOLUME_SPREAD) return 'volume_changed';
+  if (!execution.plannedCues.length || execution.missingCueIds.length > 0
+    || execution.deliveredCues.length !== execution.plannedCues.length) return 'missing_cues';
+  if (execution.interruptionCount > 0) return 'interrupted';
+  if (!record.outcome.sleepImpact) return 'missing_sleep_answer';
+  if (plan.userChanged.includes('signalGainScale')) return 'signal_level_overridden';
+  return undefined;
 }
 
 /**
@@ -86,6 +119,9 @@ export function nightLearningSample(record: NightRecord): NightLearningSample {
     cuePlan,
     audioRoute,
     signalGainScale: gain,
+    outputVolume: execution?.outputVolume
+      ? roundedGain((execution.outputVolume.min + execution.outputVolume.max) / 2)
+      : undefined,
     execution: execution ? {
       status: execution.status,
       interruptionCount: execution.interruptionCount,
@@ -101,28 +137,7 @@ export function nightLearningSample(record: NightRecord): NightLearningSample {
     },
   };
 
-  const exclusion: NightLearningExclusion | undefined = record.testSession
-    ? 'test_session'
-    : record.source !== 'overnight_journey'
-      ? 'not_overnight'
-      : plan?.quietNight
-        ? 'quiet_night'
-        : gain === undefined || !plan?.recipe
-          ? 'missing_recipe'
-          : !execution
-            ? 'missing_execution'
-            : execution.status !== 'completed' && execution.status !== 'completed_early'
-              ? 'incomplete_execution'
-              : !execution.plannedCues.length || execution.missingCueIds.length > 0
-                || execution.deliveredCues.length !== execution.plannedCues.length
-                ? 'missing_cues'
-                : execution.interruptionCount > 0
-                  ? 'interrupted'
-                  : !record.outcome.sleepImpact
-                    ? 'missing_sleep_answer'
-                    : plan.userChanged.includes('signalGainScale')
-                      ? 'signal_level_overridden'
-                      : undefined;
+  const exclusion = learningExclusion(record, execution, gain);
 
   return exclusion
     ? { ...summary, exclusion }
@@ -131,6 +146,11 @@ export function nightLearningSample(record: NightRecord): NightLearningSample {
 
 export function deriveNightLearningSamples(records: NightRecord[]): NightLearningSample[] {
   return records.map(nightLearningSample).sort((left, right) => right.reflectedAt - left.reflectedAt);
+}
+
+function sameVolumeBand(left?: number, right?: number): boolean {
+  if (left === undefined || right === undefined) return left === right;
+  return Math.abs(left - right) <= MAX_VOLUME_SPREAD;
 }
 
 /**
@@ -146,6 +166,7 @@ export function deriveCueLevelAdjustment(records: NightRecord[]): CueLevelAdjust
     .filter(sample => sample.signalId === latest.signalId
       && sample.cuePlan === latest.cuePlan
       && sample.audioRoute === latest.audioRoute
+      && sameVolumeBand(sample.outputVolume, latest.outputVolume)
       && sample.execution?.plannedCueCount === latest.execution?.plannedCueCount
       && sample.signalGainScale === latest.signalGainScale)
     .slice(0, MAX_COMPARABLE_NIGHTS);

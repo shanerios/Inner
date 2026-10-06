@@ -209,6 +209,10 @@ export type NativeCheckpoint = {
   engineRunning?: boolean;
   audioRoute?: 'private' | 'speaker' | 'unknown';
   audioFocus?: 'held' | 'not_held' | 'unknown';
+  /** System media volume 0..1 at the last checkpoint, with the lowest and highest values sampled this session. */
+  outputVolume?: number;
+  outputVolumeMin?: number;
+  outputVolumeMax?: number;
   desiredPlaying?: boolean;
   pauseReason?: 'user' | 'route_loss' | 'interruption';
   lastStopReason?: string;

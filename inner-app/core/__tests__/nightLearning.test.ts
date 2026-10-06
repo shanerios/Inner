@@ -15,6 +15,7 @@ function record(
     testSession?: boolean;
     route?: 'private' | 'speaker' | 'unknown';
     quietNight?: boolean;
+    volume?: { min: number; max: number };
   } = {},
 ): NightRecord {
   const gain = options.gain ?? 1;
@@ -55,6 +56,7 @@ function record(
           deliveredCues,
           missingCueIds: plannedCues.slice(delivered).map(cue => cue.cueId),
           audioRoute: options.route ?? 'private',
+          ...(options.volume ? { outputVolume: options.volume } : {}),
           interruptionCount: options.interruptions ?? 0,
         },
       }],
@@ -140,6 +142,35 @@ describe('night learning', () => {
       record('2', { sleepImpact: 'none', noticed: 'no' }),
       record('3', { quietNight: true, sleepImpact: 'none', noticed: 'no' }),
     ])).toBeNull();
+  });
+
+  it('excludes nights played near mute or at a changing volume', () => {
+    expect(nightLearningSample(record('1', { volume: { min: 0.1, max: 0.1 }, sleepImpact: 'none' }))).toEqual(expect.objectContaining({
+      eligibleForCueLevel: false,
+      exclusion: 'volume_low',
+    }));
+    expect(nightLearningSample(record('2', { volume: { min: 0.4, max: 0.7 }, sleepImpact: 'none' }))).toEqual(expect.objectContaining({
+      eligibleForCueLevel: false,
+      exclusion: 'volume_changed',
+    }));
+    expect(nightLearningSample(record('3', { volume: { min: 0.5, max: 0.55 }, sleepImpact: 'none' })).eligibleForCueLevel).toBe(true);
+  });
+
+  it('keeps nights without a recorded volume eligible', () => {
+    expect(nightLearningSample(record('1', { sleepImpact: 'none' })).eligibleForCueLevel).toBe(true);
+  });
+
+  it('only compares nights heard at a similar volume', () => {
+    expect(deriveCueLevelAdjustment([
+      record('1', { volume: { min: 0.5, max: 0.5 }, sleepImpact: 'none', noticed: 'no' }),
+      record('2', { volume: { min: 0.2, max: 0.2 }, sleepImpact: 'none', noticed: 'no' }),
+      record('3', { volume: { min: 0.5, max: 0.5 }, sleepImpact: 'none', noticed: 'no' }),
+    ])).toBeNull();
+    expect(deriveCueLevelAdjustment([
+      record('1', { volume: { min: 0.5, max: 0.5 }, sleepImpact: 'none', noticed: 'no' }),
+      record('2', { volume: { min: 0.55, max: 0.55 }, sleepImpact: 'none', noticed: 'no' }),
+      record('3', { volume: { min: 0.5, max: 0.5 }, sleepImpact: 'none', noticed: 'no' }),
+    ])).toEqual(expect.objectContaining({ direction: 'raise' }));
   });
 
   it('lowers the signal one conservative step after repeated confirmed waking', () => {

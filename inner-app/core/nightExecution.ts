@@ -17,6 +17,8 @@ export type NightExecutionRecord = {
   }>;
   missingCueIds: string[];
   audioRoute?: 'private' | 'speaker' | 'unknown';
+  /** System media volume (0..1) sampled across the night; absent when the build did not record it. */
+  outputVolume?: { min: number; max: number };
   interruptionCount: number;
   outcome?: JourneyMemoryOutcome;
   error?: string;
@@ -68,6 +70,10 @@ export function nightExecutionForSession(session: JourneyMemorySession): NightEx
   )).length;
   const routeEvent = [...session.events].reverse().find(event => event.type === 'audio_route_changed' && event.route);
   const route = session.nativeCheckpoint?.audioRoute ?? routeEvent?.route;
+  const checkpoint = session.nativeCheckpoint;
+  const outputVolume = typeof checkpoint?.outputVolumeMin === 'number' && typeof checkpoint.outputVolumeMax === 'number'
+    ? { min: checkpoint.outputVolumeMin, max: checkpoint.outputVolumeMax }
+    : undefined;
   const errorEvent = [...session.events].reverse().find(event => event.type === 'error');
   const error = errorEvent?.message ?? errorEvent?.reason;
   const status: NightExecutionStatus = !session.endedAt
@@ -86,6 +92,7 @@ export function nightExecutionForSession(session: JourneyMemorySession): NightEx
     deliveredCues,
     missingCueIds: plannedCues.map(cue => cue.cueId).filter(cueId => !delivered.has(cueId)),
     audioRoute: route === 'private' || route === 'speaker' || route === 'unknown' ? route : undefined,
+    ...(outputVolume ? { outputVolume } : {}),
     interruptionCount,
     outcome: session.outcome,
     error,

@@ -164,6 +164,9 @@ class InnerAudioPlaybackService : Service() {
   private var deviceCallbackRegistered = false
   private var noisyReceiverRegistered = false
   private var activePrivateDeviceId: Int? = null
+  private var volumeSessionId: String? = null
+  private var outputVolumeMin = 1.0
+  private var outputVolumeMax = 0.0
   private var lastMediaSessionPauseAtElapsedMs = Long.MIN_VALUE
   private var explicitAppPause = false
   private var hasAudioFocus = false
@@ -401,6 +404,28 @@ class InnerAudioPlaybackService : Service() {
   }
 
   /**
+   * System media volume (0..1) sampled at each checkpoint, with the lowest and
+   * highest values seen this session. Learning uses it to tell a quiet night from
+   * a signal that was simply too soft; it is evidence only and nothing reacts to it.
+   */
+  @Synchronized
+  private fun sampleOutputVolume(sessionId: String): Double? {
+    val manager = audioManager ?: return null
+    val max = manager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+    if (max <= 0) return null
+    val current = manager.getStreamVolume(AudioManager.STREAM_MUSIC).toDouble() / max
+    if (volumeSessionId != sessionId) {
+      volumeSessionId = sessionId
+      outputVolumeMin = current
+      outputVolumeMax = current
+    } else {
+      outputVolumeMin = minOf(outputVolumeMin, current)
+      outputVolumeMax = maxOf(outputVolumeMax, current)
+    }
+    return current
+  }
+
+  /**
    * Writes a small checkpoint to disk so a process kill (Doze, App Standby,
    * force-stop, low-memory) leaves behind something to reconcile from on the
    * next cold launch. There is no reliable "about to die" callback for a hard
@@ -437,6 +462,11 @@ class InnerAudioPlaybackService : Service() {
         put("engineRunning", isRunning)
         put("audioRoute", if (activePrivateDeviceId != null) "private" else "speaker")
         put("audioFocus", if (hasAudioFocus) "held" else "not_held")
+        sampleOutputVolume(snapshot["sessionId"] as? String ?: return)?.let { current ->
+          put("outputVolume", current)
+          put("outputVolumeMin", outputVolumeMin)
+          put("outputVolumeMax", outputVolumeMax)
+        }
         put("desiredPlaying", desiredPlaying)
         pauseReason?.let { put("pauseReason", it.name.lowercase()) }
         lastStopReason?.let { put("lastStopReason", it) }

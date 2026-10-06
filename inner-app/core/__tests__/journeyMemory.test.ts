@@ -139,6 +139,18 @@ describe('journey memory', () => {
     }));
   });
 
+  it('carries the sampled system volume into the night execution receipt', () => {
+    const base = {
+      schemaVersion: 2 as const, id: 's', journeyId: 'overnight-recognition-forest-standard', title: 't',
+      startedAt: 100, endedAt: 200, plannedDurationMs: 1, events: [], outcome: 'completed' as const,
+    };
+    const checkpoint = { sessionId: 's', positionMs: 1, lastUpdatedAt: 1, firedSignalIds: [] };
+    expect(nightExecutionForSession({
+      ...base, nativeCheckpoint: { ...checkpoint, outputVolume: 0.5, outputVolumeMin: 0.4, outputVolumeMax: 0.6 },
+    } as any)?.outputVolume).toEqual({ min: 0.4, max: 0.6 });
+    expect(nightExecutionForSession({ ...base, nativeCheckpoint: checkpoint } as any)).not.toHaveProperty('outputVolume');
+  });
+
   it('derives explainable preferences only from completed listening', () => {
     const completedSession = (id: string, journeyId: string, durationMs: number) => ({
       schemaVersion: 2 as const,
