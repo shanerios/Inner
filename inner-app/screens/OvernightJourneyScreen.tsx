@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Alert, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import * as Application from 'expo-application';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -24,6 +23,8 @@ import {
   setRecognitionSignalId,
 } from '../core/recognitionSignals';
 import { Typography } from '../core/typography';
+import { INNER_LAB_BUILD } from '../core/innerLab';
+import { loadBedsideMotion, summarizeBedsideMotion } from '../core/bedsideMotion';
 import { createMorningReturnTestSession, loadJourneyMemory, type JourneyMemorySession } from '../core/journeyMemory';
 import { createNightPlan, type NightPlanSource } from '../core/nightPlans';
 import { createNightRecipeV2, nightRecipeCueSummary } from '../core/nightRecipes';
@@ -42,10 +43,6 @@ const FEELS: Array<{ id: OvernightFeel; label: string }> = [
   { id: 'deep', label: 'Deep' },
   { id: 'immersive', label: 'Immersive' },
 ];
-const INNER_LAB_BUILD =
-  __DEV__ ||
-  process.env.EXPO_PUBLIC_INNER_LAB === '1' ||
-  Application.applicationId === 'com.getinner.app.proceduraldev';
 
 function durationLabel(minutes: number): string {
   const hours = Math.floor(minutes / 60);
@@ -116,6 +113,7 @@ export default function OvernightJourneyScreen() {
   const [quietNight, setQuietNight] = useState(false);
   const [inspectorVisible, setInspectorVisible] = useState(false);
   const [latestMemory, setLatestMemory] = useState<JourneyMemorySession | null>(null);
+  const [latestMotion, setLatestMotion] = useState<string | null>(null);
   const [planExplanation, setPlanExplanation] = useState<{ source: string; reason?: string }>({ source: 'SHAPED BY YOU' });
   const background = useVideoPlayer(require('../assets/videos/lucidscreen.mp4'), player => {
     player.loop = true; player.muted = true; player.audioMixingMode = 'mixWithOthers'; player.play();
@@ -267,7 +265,15 @@ export default function OvernightJourneyScreen() {
 
   const openMemoryInspector = async () => {
     const memory = await loadJourneyMemory();
-    setLatestMemory(memory.sessions[0] ?? null);
+    const latest = memory.sessions[0] ?? null;
+    setLatestMemory(latest);
+    const motion = latest ? (await loadBedsideMotion()).find(record => record.sessionId === latest.id) : undefined;
+    if (!motion) {
+      setLatestMotion('No bedside motion recorded for this journey');
+    } else {
+      const summary = summarizeBedsideMotion(motion);
+      setLatestMotion(`${summary.minutesWithReadings} of ${summary.minutesRecorded} minutes had readings · average ${summary.meanOfMeans} mg · peak ${summary.peak} mg`);
+    }
     setInspectorVisible(true);
   };
 
@@ -428,6 +434,7 @@ export default function OvernightJourneyScreen() {
                       <Text style={styles.inspectorMetricValue}>{clockLabel(latestMemory.elapsedWallTimeMs ?? (Date.now() - latestMemory.startedAt))}</Text>
                     </View>
                   </View>
+                  {latestMotion ? <Text style={styles.inspectorPolicy}>BEDSIDE MOTION · {latestMotion}</Text> : null}
                   <Text style={styles.inspectorPolicy}>END · {latestMemory.endReason ?? latestMemory.endPolicy}</Text>
                   <Text style={styles.inspectorEligibility}>
                     {latestMemory.journeyId.startsWith('dev-test-')

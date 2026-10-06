@@ -73,6 +73,13 @@ Ocean, Forest, and Temple have gained more natural environmental detail, while O
 - After playback resumes from an interruption, such as an alarm or a call, a recognition signal that comes due within the next 90 seconds now waits until that window ends instead of sounding right as you may have just been woken. A signal is never held more than five minutes past its scheduled time, and the delay is recorded with the night.
 - Shows the proposed signal percentage and reason before the night begins, with an option to return to the standard calibrated level.
 
+#### Inner Lab experiments (not in production builds)
+
+- Added record-only bedside motion for Overnight Journeys in Inner Lab and development builds. It summarises the phone's accelerometer into one-minute readings (average, largest change, and how many readings arrived), stored on the device for the most recent 14 nights.
+- Nothing in playback, signal timing, or learning reads this data yet. The aim is to learn whether a phone on a nightstand picks up anything useful, and what the recording costs in battery.
+- Production installs do not record motion. The Journey Memory inspector in Inner Lab builds shows the latest night's summary.
+- Needs a new native build, and has not yet been run on a physical device.
+
 #### Practice Memory and personal patterns
 
 - Added an on-device Practice Memory that organizes nights, practices, dream outcomes, and recognition results into a coherent history.

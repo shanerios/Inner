@@ -31,6 +31,8 @@ import {
   recordJourneyMemoryEvent,
 } from '../core/journeyMemory';
 import { bindNightPlanToJourney } from '../core/nightPlans';
+import { INNER_LAB_BUILD } from '../core/innerLab';
+import { startBedsideMotionRecording } from '../core/bedsideMotionSensor';
 
 const LUCIDITY_CUE_TRAINING_JOURNEY_ID = 'lucid-signal';
 /** How long a requested start may take before it is treated as stalled. */
@@ -63,6 +65,7 @@ export default function LucidJourneyPlayerScreen() {
   const cueTrainingCompletedRef = useRef(false);
   const memorySessionIdRef = useRef<string | null>(null);
   const memoryFinishedRef = useRef(false);
+  const stopMotionRef = useRef<(() => Promise<void>) | null>(null);
   const lastMemoryStageIdRef = useRef<string | null>(null);
   const lastMemoryCuePositionRef = useRef(0);
   const lastNativeCompletionCheckRef = useRef(0);
@@ -143,6 +146,8 @@ export default function LucidJourneyPlayerScreen() {
       const memorySessionId = memorySessionIdRef.current;
       if (!memorySessionId || memoryFinishedRef.current) return;
       memoryFinishedRef.current = true;
+      void stopMotionRef.current?.();
+      stopMotionRef.current = null;
       void finishJourneyMemorySession(
         memorySessionId,
         outcome,
@@ -260,6 +265,14 @@ export default function LucidJourneyPlayerScreen() {
         startHangTimer = null;
         const playRequestedAtMs = Date.now();
         traceStart('engine_started');
+        // Record-only bedside motion for the Inner Lab experiment; nothing reads it during playback.
+        if (INNER_LAB_BUILD && journey.overnight && !stopMotionRef.current) {
+          try {
+            stopMotionRef.current = startBedsideMotionRecording(memorySession.id, memorySession.startedAt);
+          } catch {
+            // The sensor is optional; playback carries on without it.
+          }
+        }
         // The native timer keeps the ending dependable while the screen is
         // locked or JavaScript is suspended, and applies a short final fade.
         await session.setSleepTimer(Date.now() + timeline.totalDurationMs);
@@ -441,6 +454,8 @@ export default function LucidJourneyPlayerScreen() {
     void start();
     return () => {
       mounted = false;
+      void stopMotionRef.current?.();
+      stopMotionRef.current = null;
       appStateSubscription.remove();
       removeBeforeRemove();
       if (timer) clearInterval(timer);
