@@ -16,6 +16,7 @@ function record(
     route?: 'private' | 'speaker' | 'unknown';
     quietNight?: boolean;
     volume?: { min: number; max: number };
+    routeChanges?: number;
   } = {},
 ): NightRecord {
   const gain = options.gain ?? 1;
@@ -57,6 +58,7 @@ function record(
           missingCueIds: plannedCues.slice(delivered).map(cue => cue.cueId),
           audioRoute: options.route ?? 'private',
           ...(options.volume ? { outputVolume: options.volume } : {}),
+          ...(options.routeChanges !== undefined ? { audioRouteChanges: options.routeChanges } : {}),
           interruptionCount: options.interruptions ?? 0,
         },
       }],
@@ -154,6 +156,15 @@ describe('night learning', () => {
       exclusion: 'volume_changed',
     }));
     expect(nightLearningSample(record('3', { volume: { min: 0.5, max: 0.55 }, sleepImpact: 'none' })).eligibleForCueLevel).toBe(true);
+  });
+
+  it('excludes nights whose audio route changed, and keeps unrecorded or steady ones', () => {
+    expect(nightLearningSample(record('1', { routeChanges: 1, sleepImpact: 'none' }))).toEqual(expect.objectContaining({
+      eligibleForCueLevel: false,
+      exclusion: 'route_changed',
+    }));
+    expect(nightLearningSample(record('2', { routeChanges: 0, sleepImpact: 'none' })).eligibleForCueLevel).toBe(true);
+    expect(nightLearningSample(record('3', { sleepImpact: 'none' })).eligibleForCueLevel).toBe(true);
   });
 
   it('keeps nights without a recorded volume eligible', () => {

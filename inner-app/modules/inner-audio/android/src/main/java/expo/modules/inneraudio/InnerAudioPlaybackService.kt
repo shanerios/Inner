@@ -165,6 +165,10 @@ class InnerAudioPlaybackService : Service() {
   private var noisyReceiverRegistered = false
   private var activePrivateDeviceId: Int? = null
   private var volumeSessionId: String? = null
+  private var routeSessionId: String? = null
+  private var routeAtStart = "unknown"
+  private var lastSampledRoute = "unknown"
+  private var routeChanges = 0
   private var outputVolumeMin = 1.0
   private var outputVolumeMax = 0.0
   private var lastMediaSessionPauseAtElapsedMs = Long.MIN_VALUE
@@ -404,6 +408,22 @@ class InnerAudioPlaybackService : Service() {
   }
 
   /**
+   * Tracks the private/speaker class across checkpoint writes, which also happen on every
+   * device add or removal. Learning uses the count to disqualify a night whose route changed.
+   */
+  @Synchronized
+  private fun sampleAudioRoute(sessionId: String, route: String) {
+    if (routeSessionId != sessionId) {
+      routeSessionId = sessionId
+      routeAtStart = route
+      routeChanges = 0
+    } else if (route != lastSampledRoute) {
+      routeChanges += 1
+    }
+    lastSampledRoute = route
+  }
+
+  /**
    * System media volume (0..1) sampled at each checkpoint, with the lowest and
    * highest values seen this session. Learning uses it to tell a quiet night from
    * a signal that was simply too soft; it is evidence only and nothing reacts to it.
@@ -462,6 +482,9 @@ class InnerAudioPlaybackService : Service() {
         put("engineRunning", isRunning)
         put("audioRoute", if (activePrivateDeviceId != null) "private" else "speaker")
         put("audioFocus", if (hasAudioFocus) "held" else "not_held")
+        sampleAudioRoute(snapshot["sessionId"] as? String ?: return, if (activePrivateDeviceId != null) "private" else "speaker")
+        put("audioRouteAtStart", routeAtStart)
+        put("audioRouteChanges", routeChanges)
         sampleOutputVolume(snapshot["sessionId"] as? String ?: return)?.let { current ->
           put("outputVolume", current)
           put("outputVolumeMin", outputVolumeMin)

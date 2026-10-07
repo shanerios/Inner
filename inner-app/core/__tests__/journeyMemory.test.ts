@@ -149,6 +149,8 @@ describe('journey memory', () => {
       ...base, nativeCheckpoint: { ...checkpoint, outputVolume: 0.5, outputVolumeMin: 0.4, outputVolumeMax: 0.6 },
     } as any)?.outputVolume).toEqual({ min: 0.4, max: 0.6 });
     expect(nightExecutionForSession({ ...base, nativeCheckpoint: checkpoint } as any)).not.toHaveProperty('outputVolume');
+    expect(nightExecutionForSession({ ...base, nativeCheckpoint: { ...checkpoint, audioRouteChanges: 2 } } as any)?.audioRouteChanges).toBe(2);
+    expect(nightExecutionForSession({ ...base, nativeCheckpoint: checkpoint } as any)).not.toHaveProperty('audioRouteChanges');
   });
 
   it('derives explainable preferences only from completed listening', () => {

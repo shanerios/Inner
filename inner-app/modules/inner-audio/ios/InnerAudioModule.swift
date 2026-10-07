@@ -414,6 +414,10 @@ final class ProceduralAudioEngine: NSObject {
   private static let checkpointStore = JourneyCheckpointStore(url: FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("inner-journey-checkpoints.json"))
   private var checkpointSessionId: String?
   private var volumeSessionId: String?
+  private var routeSessionId: String?
+  private var routeAtStart = "unknown"
+  private var lastSampledRoute = "unknown"
+  private var routeChanges = 0
   private var outputVolumeMin: Float = 1
   private var outputVolumeMax: Float = 0
   private var checkpointTimer: DispatchSourceTimer?
@@ -472,6 +476,22 @@ final class ProceduralAudioEngine: NSObject {
     checkpointTimer = timer
   }
 
+  /// Tracks the private/speaker class across checkpoint writes and route-change
+  /// notifications, so learning can disqualify a night whose route changed.
+  private func noteAudioRoute(sessionId: String) {
+    let route = isPrivateOutput(AVAudioSession.sharedInstance().currentRoute) ? "private" : "speaker"
+    diagnosticLock.lock()
+    defer { diagnosticLock.unlock() }
+    if routeSessionId != sessionId {
+      routeSessionId = sessionId
+      routeAtStart = route
+      routeChanges = 0
+    } else if route != lastSampledRoute {
+      routeChanges += 1
+    }
+    lastSampledRoute = route
+  }
+
   private func persistCheckpoint(terminalOutcome: String? = nil) {
     lock.lock()
     guard let sessionId = checkpointSessionId, let timeline else { lock.unlock(); return }
@@ -503,6 +523,11 @@ final class ProceduralAudioEngine: NSObject {
     record["engineRunning"] = engine.isRunning
     record["audioRoute"] = isPrivateOutput(AVAudioSession.sharedInstance().currentRoute) ? "private" : "speaker"
     record["audioFocus"] = "unknown"
+    noteAudioRoute(sessionId: sessionId)
+    diagnosticLock.lock()
+    record["audioRouteAtStart"] = routeAtStart
+    record["audioRouteChanges"] = routeChanges
+    diagnosticLock.unlock()
     // System media volume (0..1) with this session's lowest and highest samples. Evidence only.
     let currentVolume = AVAudioSession.sharedInstance().outputVolume
     diagnosticLock.lock()
@@ -2363,6 +2388,10 @@ final class ProceduralAudioEngine: NSObject {
       && previousRoute.map(isPrivateOutput) == true
       && !isPrivateOutput(session.currentRoute)
     updatePrivateOutput(for: session.currentRoute)
+    lock.lock()
+    let routeSessionId = checkpointSessionId
+    lock.unlock()
+    if let routeSessionId { noteAudioRoute(sessionId: routeSessionId) }
     if lostPrivateOutput && desiredPlaying {
       desiredPlaying = false
       pause(reason: .routeLoss)

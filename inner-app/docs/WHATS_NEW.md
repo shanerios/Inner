@@ -75,6 +75,7 @@ Ocean, Forest, and Temple have gained more natural environmental detail, while O
 - Excludes accelerated tests, interrupted nights, incomplete delivery, missing sleep answers, and overridden signal levels from cue-volume learning.
 - Added a Quiet Night switch to the Overnight Journey review. Nights played deliberately low, such as beside someone sleeping, are kept out of signal-level learning so a signal that was too quiet to hear is not mistaken for one that needs to be louder.
 - Overnight Journeys now record the device's media volume, and cue-level learning skips nights played near mute or at a changing volume, and only compares nights heard at a similar volume. Nights from earlier builds have no volume record and are treated as before.
+- Overnight Journeys now also record whether the audio output switched between headphones and speaker during the night, and cue-level learning skips any night where it did. Nights from earlier builds have no route record and are treated as before.
 - After playback resumes from an interruption, such as an alarm or a call, a recognition signal that comes due within the next 90 seconds now waits until that window ends instead of sounding right as you may have just been woken. A signal is never held more than five minutes past its scheduled time, and the delay is recorded with the night.
 - Shows an explained adaptive signal-level suggestion in the same control before the night begins while leaving the final starting level with the practitioner.
 

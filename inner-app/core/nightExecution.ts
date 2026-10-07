@@ -17,6 +17,8 @@ export type NightExecutionRecord = {
   }>;
   missingCueIds: string[];
   audioRoute?: 'private' | 'speaker' | 'unknown';
+  /** Times the private/speaker output changed during the night; absent when the build did not record it. */
+  audioRouteChanges?: number;
   /** System media volume (0..1) sampled across the night; absent when the build did not record it. */
   outputVolume?: { min: number; max: number };
   interruptionCount: number;
@@ -92,6 +94,7 @@ export function nightExecutionForSession(session: JourneyMemorySession): NightEx
     deliveredCues,
     missingCueIds: plannedCues.map(cue => cue.cueId).filter(cueId => !delivered.has(cueId)),
     audioRoute: route === 'private' || route === 'speaker' || route === 'unknown' ? route : undefined,
+    ...(typeof checkpoint?.audioRouteChanges === 'number' ? { audioRouteChanges: checkpoint.audioRouteChanges } : {}),
     ...(outputVolume ? { outputVolume } : {}),
     interruptionCount,
     outcome: session.outcome,

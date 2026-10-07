@@ -209,6 +209,9 @@ export type NativeCheckpoint = {
   engineRunning?: boolean;
   audioRoute?: 'private' | 'speaker' | 'unknown';
   audioFocus?: 'held' | 'not_held' | 'unknown';
+  /** Private/speaker class when the session's first checkpoint was written, and how many times it changed since. */
+  audioRouteAtStart?: 'private' | 'speaker' | 'unknown';
+  audioRouteChanges?: number;
   /** System media volume 0..1 at the last checkpoint, with the lowest and highest values sampled this session. */
   outputVolume?: number;
   outputVolumeMin?: number;

@@ -7,6 +7,7 @@ export type NightLearningExclusion =
   | 'test_session'
   | 'not_overnight'
   | 'quiet_night'
+  | 'route_changed'
   | 'volume_low'
   | 'volume_changed'
   | 'missing_recipe'
@@ -89,6 +90,7 @@ function learningExclusion(
   if (gain === undefined || !plan?.recipe) return 'missing_recipe';
   if (!execution) return 'missing_execution';
   if (execution.status !== 'completed' && execution.status !== 'completed_early') return 'incomplete_execution';
+  if (execution.audioRouteChanges) return 'route_changed';
   if (execution.outputVolume && execution.outputVolume.min < MIN_OUTPUT_VOLUME) return 'volume_low';
   if (execution.outputVolume && execution.outputVolume.max - execution.outputVolume.min > MAX_VOLUME_SPREAD) return 'volume_changed';
   if (!execution.plannedCues.length || execution.missingCueIds.length > 0
