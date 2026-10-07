@@ -21,6 +21,7 @@ import { buildPracticeContext } from '../core/practiceLinking';
 import { saveNightRecord } from '../core/nightRecords';
 import { clearSelectedRecommendation } from '../core/recommendationMemory';
 import { recordPracticeExperimentOutcome } from '../core/practiceExperiments';
+import { suggestDreamSigns, type DreamSign } from '../core/dreamSigns';
 
 type Props = {
   pending: PendingMorningReturn | null;
@@ -41,6 +42,8 @@ export default function MorningReturnModal({ pending, visible, onRequestClose, o
   const [savingCapture, setSavingCapture] = useState(false);
   const [savingReflection, setSavingReflection] = useState(false);
   const [voiceRecognitionMode, setVoiceRecognitionMode] = useState<VoiceRecognitionMode | null>(null);
+  const [confirmedDreamSigns, setConfirmedDreamSigns] = useState<DreamSign[]>([]);
+  const suggestedDreamSigns = voiceRecognitionMode ? suggestDreamSigns(capture) : [];
 
   useEffect(() => {
     setNoticed(null);
@@ -53,7 +56,12 @@ export default function MorningReturnModal({ pending, visible, onRequestClose, o
     setSavingCapture(false);
     setSavingReflection(false);
     setVoiceRecognitionMode(null);
+    setConfirmedDreamSigns([]);
   }, [pending?.id, pending?.morningCaptureEntryId]);
+
+  useEffect(() => {
+    setConfirmedDreamSigns(current => current.filter(sign => suggestedDreamSigns.includes(sign)));
+  }, [capture, voiceRecognitionMode]);
 
   const captureMorningDream = useCallback(async () => {
     if (!pending || !capture.trim() || savingCapture) return;
@@ -75,6 +83,7 @@ export default function MorningReturnModal({ pending, visible, onRequestClose, o
           nightPlanId: pending.nightPlanId,
           captureSource: 'morning_return',
           testSession: pending.testSession,
+          dreamSigns: confirmedDreamSigns,
           practiceContext,
           captureInput: {
             method: voiceRecognitionMode ? 'voice_transcription' : 'morning_quick_capture',
@@ -102,7 +111,7 @@ export default function MorningReturnModal({ pending, visible, onRequestClose, o
     } finally {
       setSavingCapture(false);
     }
-  }, [capture, captureEntryId, pending, savingCapture, voiceRecognitionMode]);
+  }, [capture, captureEntryId, confirmedDreamSigns, pending, savingCapture, voiceRecognitionMode]);
 
   const continueWithoutRecall = useCallback(() => {
     setDreamRecall('none');
@@ -230,6 +239,38 @@ export default function MorningReturnModal({ pending, visible, onRequestClose, o
                   accessibilityLabel="Morning dream capture"
                   style={styles.captureInput}
                 />
+                {suggestedDreamSigns.length > 0 && (
+                  <View style={styles.signSuggestions}>
+                    <Text style={styles.signSuggestionsEyebrow}>INNER NOTICED</Text>
+                    <Text style={styles.signSuggestionsCopy}>Do any of these belong to the dream? Tap to confirm.</Text>
+                    <View style={styles.signSuggestionChoices}>
+                      {suggestedDreamSigns.map(sign => {
+                        const selected = confirmedDreamSigns.includes(sign);
+                        return (
+                          <Pressable
+                            key={sign}
+                            onPress={() => setConfirmedDreamSigns(current => (
+                              current.includes(sign)
+                                ? current.filter(item => item !== sign)
+                                : [...current, sign]
+                            ))}
+                            accessibilityRole="button"
+                            accessibilityLabel={`${sign} dream sign`}
+                            accessibilityState={{ selected }}
+                            style={[styles.signSuggestion, selected && styles.signSuggestionSelected]}
+                          >
+                            <Ionicons
+                              name={selected ? 'checkmark' : 'add'}
+                              size={12}
+                              color={selected ? '#F2ECFF' : '#B8A7EE'}
+                            />
+                            <Text style={[styles.signSuggestionText, selected && styles.signSuggestionTextSelected]}>{sign}</Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  </View>
+                )}
                 <Pressable
                   onPress={() => { void captureMorningDream(); }}
                   disabled={!capture.trim() || savingCapture}
@@ -343,6 +384,14 @@ const styles = StyleSheet.create({
   returnTitle: { alignSelf: 'stretch', color: '#F1EDF8', fontSize: 21, lineHeight: 28, textAlign: 'center', marginTop: 8, paddingHorizontal: 4 },
   returnCopy: { maxWidth: 260, color: '#B9B1C4', fontFamily: 'Inter-ExtraLight', fontSize: 11, lineHeight: 17, textAlign: 'center', marginTop: 7 },
   captureInput: { width: '100%', minHeight: 150, maxHeight: 260, marginTop: 15, paddingHorizontal: 14, paddingVertical: 13, borderRadius: 17, borderWidth: 1, borderColor: 'rgba(205,194,255,0.24)', backgroundColor: 'rgba(12,13,28,0.78)', color: '#EEEAF5', fontFamily: 'Inter-Light', fontSize: 13, lineHeight: 20, textAlignVertical: 'top' },
+  signSuggestions: { alignSelf: 'stretch', marginTop: 11, paddingHorizontal: 12, paddingVertical: 11, borderRadius: 15, borderWidth: 1, borderColor: 'rgba(185,167,255,0.2)', backgroundColor: 'rgba(86,68,132,0.1)' },
+  signSuggestionsEyebrow: { color: '#B8A7EE', fontFamily: 'Inter-Medium', fontSize: 7, letterSpacing: 1.3, textAlign: 'center' },
+  signSuggestionsCopy: { color: '#AFA7BB', fontFamily: 'Inter-ExtraLight', fontSize: 9, lineHeight: 14, textAlign: 'center', marginTop: 3 },
+  signSuggestionChoices: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 6, marginTop: 8 },
+  signSuggestion: { minHeight: 30, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, borderRadius: 15, borderWidth: 1, borderColor: 'rgba(205,194,255,0.22)', backgroundColor: 'rgba(15,16,31,0.46)' },
+  signSuggestionSelected: { borderColor: 'rgba(205,194,255,0.65)', backgroundColor: 'rgba(105,83,171,0.38)' },
+  signSuggestionText: { color: '#BDB4C9', fontFamily: 'Inter-Medium', fontSize: 8, marginLeft: 4 },
+  signSuggestionTextSelected: { color: '#F2ECFF' },
   noRecallButton: { minHeight: 34, justifyContent: 'center', marginTop: 8, paddingHorizontal: 14 },
   noRecallText: { color: '#91899D', fontFamily: 'Inter-Medium', fontSize: 7, letterSpacing: 1.15 },
   question: { alignItems: 'center', marginTop: 12 },

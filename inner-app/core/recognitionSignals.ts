@@ -3,6 +3,11 @@ import type { AVPlaybackSource } from 'expo-av';
 import { Asset } from 'expo-asset';
 
 export const RECOGNITION_SIGNAL_KEY = 'inner.recognition-signal.v1';
+export const RECOGNITION_SIGNAL_LEVELS_KEY = 'inner.recognition-signal-levels.v1';
+
+export const MIN_RECOGNITION_SIGNAL_GAIN_SCALE = 0.65;
+export const MAX_RECOGNITION_SIGNAL_GAIN_SCALE = 1.2;
+export const DEFAULT_RECOGNITION_SIGNAL_GAIN_SCALE = 1;
 
 export type RecognitionSignalId = 'ascending' | 'bell' | 'chimes' | 'droplets' | 'guardian';
 
@@ -84,6 +89,46 @@ export async function getRecognitionSignalId(storage: Storage = AsyncStorage): P
 
 export async function setRecognitionSignalId(id: RecognitionSignalId, storage: Storage = AsyncStorage): Promise<void> {
   await storage.setItem(RECOGNITION_SIGNAL_KEY, recognitionSignalById(id).id);
+}
+
+function normalizedSignalGainScale(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return DEFAULT_RECOGNITION_SIGNAL_GAIN_SCALE;
+  const bounded = Math.min(MAX_RECOGNITION_SIGNAL_GAIN_SCALE, Math.max(MIN_RECOGNITION_SIGNAL_GAIN_SCALE, value));
+  return Math.round(bounded * 20) / 20;
+}
+
+/** The practitioner's last reviewed starting level for each recognition signal. */
+export async function getRecognitionSignalGainScale(
+  id: RecognitionSignalId,
+  storage: Storage = AsyncStorage,
+): Promise<number> {
+  try {
+    const raw = await storage.getItem(RECOGNITION_SIGNAL_LEVELS_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    const levels = parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? parsed as Partial<Record<RecognitionSignalId, unknown>>
+      : {};
+    return normalizedSignalGainScale(levels[id]);
+  } catch {
+    return DEFAULT_RECOGNITION_SIGNAL_GAIN_SCALE;
+  }
+}
+
+export async function setRecognitionSignalGainScale(
+  id: RecognitionSignalId,
+  value: number,
+  storage: Storage = AsyncStorage,
+): Promise<void> {
+  let levels: Partial<Record<RecognitionSignalId, number>> = {};
+  try {
+    const raw = await storage.getItem(RECOGNITION_SIGNAL_LEVELS_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      levels = parsed as Partial<Record<RecognitionSignalId, number>>;
+    }
+  } catch {}
+  levels[id] = normalizedSignalGainScale(value);
+  await storage.setItem(RECOGNITION_SIGNAL_LEVELS_KEY, JSON.stringify(levels));
 }
 
 export async function createRecognitionSignalSound(id: RecognitionSignalId): Promise<import('expo-av').Audio.Sound> {

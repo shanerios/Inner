@@ -21,6 +21,7 @@ import { isAerisLimitReached } from '../src/core/aeris/aerisUsage';
 import { Typography, Body as _Body } from '../core/typography';
 import VoiceCaptureButton, { type VoiceRecognitionMode } from '../components/VoiceCaptureButton';
 import { practiceContextSections } from '../core/practiceContext';
+import { DREAM_SIGNS } from '../core/dreamSigns';
 const Body = _Body ?? ({ regular: { ...Typography.body }, subtle: { ...Typography.caption } } as const);
 
 type Props = { navigation: any; route: any };
@@ -33,19 +34,6 @@ function fmtDate(ts: number) {
 }
 
 
-
-const DREAM_SIGNS = [
-  'Flying',
-  'Falling',
-  'Water',
-  'Chased',
-  'Lost',
-  'Mirror',
-  'Teeth',
-  'Familiar Person',
-  'Unknown Place',
-  'Shadow Presence',
-];
 
 function formatCaptureLabel(minutesFromWake?: number | null) {
   if (typeof minutesFromWake !== 'number') return null;

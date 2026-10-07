@@ -7,7 +7,7 @@ import {
 } from 'expo-speech-recognition';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { PermissionsAndroid, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
-import { appendVoiceTranscript } from '../core/voiceCapture';
+import { appendFinalVoiceSegment, composeVoiceTranscript } from '../core/voiceCapture';
 
 export type VoiceRecognitionMode = 'on_device' | 'platform_service';
 
@@ -45,6 +45,7 @@ export default function VoiceCaptureButton({
   const [error, setError] = useState<string | null>(null);
   const activeRef = useRef(false);
   const baseTextRef = useRef('');
+  const finalSegmentsRef = useRef<string[]>([]);
   const modeRef = useRef<VoiceRecognitionMode>('platform_service');
   const voiceReportedRef = useRef(false);
   const startupTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -80,7 +81,22 @@ export default function VoiceCaptureButton({
     if (!activeRef.current) return;
     const transcript = event.results[0]?.transcript?.trim();
     if (!transcript) return;
-    onChangeRef.current(appendVoiceTranscript(baseTextRef.current, transcript, maxLength));
+    if (event.isFinal) {
+      finalSegmentsRef.current = appendFinalVoiceSegment(finalSegmentsRef.current, transcript);
+      onChangeRef.current(composeVoiceTranscript(
+        baseTextRef.current,
+        finalSegmentsRef.current,
+        '',
+        maxLength,
+      ));
+    } else {
+      onChangeRef.current(composeVoiceTranscript(
+        baseTextRef.current,
+        finalSegmentsRef.current,
+        transcript,
+        maxLength,
+      ));
+    }
     if (!voiceReportedRef.current) {
       voiceReportedRef.current = true;
       onVoiceUsedRef.current?.(modeRef.current);
@@ -172,6 +188,7 @@ export default function VoiceCaptureButton({
       }
 
       baseTextRef.current = onBeforeStart ? onBeforeStart() : value;
+      finalSegmentsRef.current = [];
       modeRef.current = onDevice ? 'on_device' : 'platform_service';
       voiceReportedRef.current = false;
       activeRef.current = true;
@@ -187,7 +204,9 @@ export default function VoiceCaptureButton({
       ExpoSpeechRecognitionModule.start({
         lang: locale,
         interimResults: true,
-        continuous: false,
+        // Dreams often return in fragments. Keep listening when the recognizer
+        // finalizes one phrase during a natural pause; the user taps to finish.
+        continuous: true,
         addsPunctuation: true,
         requiresOnDeviceRecognition: onDevice,
         iosTaskHint: TaskHintIOS.dictation,

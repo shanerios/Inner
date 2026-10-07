@@ -221,6 +221,13 @@ export class ProceduralPlaybackSession {
     });
   }
 
+  async triggerCue() {
+    await this.exclusive(async () => {
+      this.assertOwner();
+      await this.engine.triggerCue();
+    });
+  }
+
   getPositionMs() {
     return this.accumulatedMs + (this.playing && this.startedAtMs !== null
       ? Math.max(0, this.now() - this.startedAtMs)

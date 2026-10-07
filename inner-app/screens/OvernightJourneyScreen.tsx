@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import Slider from '@react-native-community/slider';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -11,16 +12,23 @@ import {
   createNightSeed,
   createRecognitionOvernightProtocol,
   DEFAULT_PROCEDURAL_AUDIO_CONFIG,
+  proceduralAudioEngine,
+  ProceduralPlaybackSession,
   ProceduralEnvironment,
   OVERNIGHT_WORLD_PROFILES,
 } from '../core/audio';
 import { getLucidSignalCuePlan, LucidSignalCuePlan } from '../core/lucidSignalLearning';
 import {
   getRecognitionSignalId,
+  getRecognitionSignalGainScale,
+  MAX_RECOGNITION_SIGNAL_GAIN_SCALE,
+  MIN_RECOGNITION_SIGNAL_GAIN_SCALE,
+  recognitionSignalPlayback,
   recognitionSignalById,
   RECOGNITION_SIGNALS,
   RecognitionSignalId,
   setRecognitionSignalId,
+  setRecognitionSignalGainScale,
 } from '../core/recognitionSignals';
 import { Typography } from '../core/typography';
 import { INNER_LAB_BUILD } from '../core/innerLab';
@@ -58,6 +66,18 @@ function clockLabel(milliseconds: number): string {
   return hours
     ? `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
     : `${minutes}:${String(seconds).padStart(2, '0')}`;
+}
+
+function signalLevelLabel(value: number): string {
+  if (value <= 0.7) return 'Gentle';
+  if (value <= 0.85) return 'Soft';
+  if (value <= 1) return 'Balanced';
+  if (value <= 1.1) return 'Clear';
+  return 'Present';
+}
+
+function roundedSignalLevel(value: number): number {
+  return Math.round(value * 20) / 20;
 }
 
 function eventLabel(event: JourneyMemorySession['events'][number]): string {
@@ -109,22 +129,33 @@ export default function OvernightJourneyScreen() {
   );
   const suggestedSignalGainScale = adaptiveProposal?.proposedConfiguration.signalGainScale;
   const [signalGainScale, setSignalGainScale] = useState(suggestedSignalGainScale ?? 1);
+  const [previewingSignal, setPreviewingSignal] = useState(false);
   const [accelerated, setAccelerated] = useState(false);
   const [quietNight, setQuietNight] = useState(false);
   const [inspectorVisible, setInspectorVisible] = useState(false);
   const [latestMemory, setLatestMemory] = useState<JourneyMemorySession | null>(null);
   const [latestMotion, setLatestMotion] = useState<string | null>(null);
   const [planExplanation, setPlanExplanation] = useState<{ source: string; reason?: string }>({ source: 'SHAPED BY YOU' });
+  const previewSessionRef = useRef(new ProceduralPlaybackSession(proceduralAudioEngine));
+  const previewStopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const previewRequestRef = useRef(0);
   const background = useVideoPlayer(require('../assets/videos/lucidscreen.mp4'), player => {
     player.loop = true; player.muted = true; player.audioMixingMode = 'mixWithOthers'; player.play();
   });
 
   useEffect(() => {
-    void Promise.all([getRecognitionSignalId(), getLucidSignalCuePlan()]).then(([storedSignal, storedPlan]) => {
-      setSignalId((adaptiveProposal?.proposedConfiguration.signalId as RecognitionSignalId | undefined) ?? storedSignal);
+    let active = true;
+    void (async () => {
+      const [storedSignal, storedPlan] = await Promise.all([getRecognitionSignalId(), getLucidSignalCuePlan()]);
+      const initialSignal = (adaptiveProposal?.proposedConfiguration.signalId as RecognitionSignalId | undefined) ?? storedSignal;
+      const storedLevel = await getRecognitionSignalGainScale(initialSignal);
+      if (!active) return;
+      setSignalId(initialSignal);
+      setSignalGainScale(suggestedSignalGainScale ?? storedLevel);
       if (!adaptiveProposal?.proposedConfiguration.cuePlan && !route.params?.suggestedCuePlan) setCuePlan(storedPlan);
-    });
-  }, [adaptiveProposal, route.params?.suggestedCuePlan]);
+    })();
+    return () => { active = false; };
+  }, [adaptiveProposal, route.params?.suggestedCuePlan, suggestedSignalGainScale]);
 
   useEffect(() => {
     let active = true;
@@ -178,14 +209,78 @@ export default function OvernightJourneyScreen() {
   }, [accelerated, cuePlan, durationMinutes, environment, feel, previewRecipe, signalId]);
   const recognitionWindows = previewRecipe.recognition.windows.length;
 
+  const stopSignalPreview = useCallback(async () => {
+    previewRequestRef.current += 1;
+    if (previewStopTimerRef.current) clearTimeout(previewStopTimerRef.current);
+    previewStopTimerRef.current = null;
+    await previewSessionRef.current.stop().catch(() => {});
+    setPreviewingSignal(false);
+  }, []);
+
+  const previewSignal = useCallback(async (previewSignalId = signalId, previewGainScale = signalGainScale) => {
+    const request = previewRequestRef.current + 1;
+    previewRequestRef.current = request;
+    if (previewStopTimerRef.current) clearTimeout(previewStopTimerRef.current);
+    previewStopTimerRef.current = null;
+    try {
+      const playback = await recognitionSignalPlayback(previewSignalId);
+      if (request !== previewRequestRef.current) return;
+      await previewSessionRef.current.stop().catch(() => {});
+      await previewSessionRef.current.start({
+        ...DEFAULT_PROCEDURAL_AUDIO_CONFIG,
+        toneGain: 0,
+        binauralGain: 0,
+        noiseColor: null,
+        noiseGain: 0,
+        environment: 'none',
+        environmentGain: 0,
+        templeGain: 0,
+        masterGain: 0.35,
+      }, 'Signal Preview');
+      if (request !== previewRequestRef.current) return;
+      await previewSessionRef.current.setRecognitionSignal(
+        playback.signalId,
+        playback.uri,
+        playback.gain * previewGainScale,
+      );
+      await previewSessionRef.current.triggerCue();
+      setPreviewingSignal(true);
+      previewStopTimerRef.current = setTimeout(() => {
+        if (request === previewRequestRef.current) void stopSignalPreview();
+      }, recognitionSignalById(previewSignalId).durationMs + 800);
+    } catch {
+      if (request !== previewRequestRef.current) return;
+      setPreviewingSignal(false);
+      Alert.alert('Preview unavailable', 'The signal preview did not begin. Try again in a moment.');
+    }
+  }, [signalGainScale, signalId, stopSignalPreview]);
+
+  useEffect(() => () => {
+    previewRequestRef.current += 1;
+    if (previewStopTimerRef.current) clearTimeout(previewStopTimerRef.current);
+    void previewSessionRef.current.stop().catch(() => {});
+  }, []);
+
   const chooseSignal = async (nextSignalId: RecognitionSignalId) => {
+    const savedLevel = await getRecognitionSignalGainScale(nextSignalId);
     setSignalId(nextSignalId);
+    setSignalGainScale(savedLevel);
     await setRecognitionSignalId(nextSignalId);
+    void previewSignal(nextSignalId, savedLevel);
+  };
+
+  const finishSignalLevelChange = async (value: number) => {
+    const nextLevel = roundedSignalLevel(value);
+    setSignalGainScale(nextLevel);
+    await setRecognitionSignalGainScale(signalId, nextLevel);
+    void previewSignal(signalId, nextLevel);
   };
 
   const begin = async () => {
     try {
+      await stopSignalPreview();
       await setRecognitionSignalId(signalId);
+      await setRecognitionSignalGainScale(signalId, signalGainScale);
       const plannedAt = Date.now();
       const seed = createNightSeed();
       const recipe = createNightRecipeV2({
@@ -328,17 +423,43 @@ export default function OvernightJourneyScreen() {
         {choiceGroup('HOW LONG WILL YOU BE AWAY?', DURATIONS.map(id => ({ id, label: durationLabel(id) })), durationMinutes, setDurationMinutes)}
         {choiceGroup('HOW SHOULD IT FEEL?', FEELS, feel, setFeel)}
         {choiceGroup('YOUR SIGNAL', RECOGNITION_SIGNALS.map(signal => ({ id: signal.id, label: signal.name })), signalId, value => { void chooseSignal(value); })}
-        {suggestedSignalGainScale !== undefined && suggestedSignalGainScale !== 1
-          ? choiceGroup(
-              'SIGNAL LEVEL',
-              [
-                { id: suggestedSignalGainScale, label: `Inner's suggestion · ${Math.round(suggestedSignalGainScale * 100)}%` },
-                { id: 1, label: 'Standard · 100%' },
-              ],
-              signalGainScale,
-              setSignalGainScale,
-            )
-          : null}
+        <View style={styles.signalLevelCard}>
+          <View style={styles.signalLevelHeading}>
+            <Text style={styles.label}>SIGNAL VOLUME</Text>
+            <Text style={styles.signalLevelValue}>{signalLevelLabel(signalGainScale).toUpperCase()}</Text>
+          </View>
+          <Slider
+            style={styles.signalLevelSlider}
+            minimumValue={MIN_RECOGNITION_SIGNAL_GAIN_SCALE}
+            maximumValue={MAX_RECOGNITION_SIGNAL_GAIN_SCALE}
+            step={0.05}
+            value={signalGainScale}
+            onValueChange={value => setSignalGainScale(roundedSignalLevel(value))}
+            onSlidingComplete={value => { void finishSignalLevelChange(value); }}
+            minimumTrackTintColor="rgba(205,194,255,0.76)"
+            maximumTrackTintColor="rgba(205,194,255,0.18)"
+            thumbTintColor="#D8CDF8"
+            accessibilityLabel="Signal volume"
+          />
+          <View style={styles.signalLevelRange}>
+            <Text style={styles.signalLevelRangeText}>GENTLE</Text>
+            <Text style={styles.signalLevelRangeText}>BALANCED</Text>
+            <Text style={styles.signalLevelRangeText}>PRESENT</Text>
+          </View>
+          <Pressable
+            onPress={() => { void previewSignal(); }}
+            disabled={previewingSignal}
+            accessibilityRole="button"
+            accessibilityLabel="Preview recognition signal at selected volume"
+            style={({ pressed }) => [styles.previewSignalButton, pressed && styles.previewSignalButtonPressed]}
+          >
+            <Text style={styles.previewSignalText}>{previewingSignal ? 'PLAYING SIGNAL…' : 'PREVIEW SIGNAL'}</Text>
+          </Pressable>
+          <Text style={styles.signalLevelNote}>Slide and release to hear this level. Your device media volume also affects what you hear.</Text>
+          {suggestedSignalGainScale !== undefined && (
+            <Text style={styles.signalLevelSuggestion}>Inner suggested {signalLevelLabel(suggestedSignalGainScale).toLowerCase()} from your comparable nights.</Text>
+          )}
+        </View>
 
         <Pressable
           onPress={() => setQuietNight(value => !value)}
@@ -362,7 +483,7 @@ export default function OvernightJourneyScreen() {
           <Text style={styles.readySchedule}>Signals near {nightRecipeCueSummary(previewRecipe)}</Text>
           <Text style={styles.readyLine}>{recognitionSignalById(signalId).name} · {feel}</Text>
           {quietNight && <Text style={styles.readyLine}>Quiet night · not used for signal-level learning</Text>}
-          {signalGainScale !== 1 && <Text style={styles.readyLine}>Signal level · {Math.round(signalGainScale * 100)}% of calibrated level</Text>}
+          <Text style={styles.readyLine}>Signal volume · {signalLevelLabel(signalGainScale)}</Text>
           <Text style={styles.readyCopy}>Your journey begins with a seven-minute waking preparation, then continues quietly through descent, protected sleep, recognition windows, and return.</Text>
           {!!planExplanation.reason && <Text style={styles.readyReason}>{planExplanation.reason}</Text>}
           <Text style={styles.readyReview}>You can change any setting. Inner records the plan you begin.</Text>
@@ -480,7 +601,18 @@ const styles = StyleSheet.create({
   choiceSelected: { borderColor: 'rgba(205,194,255,0.62)', backgroundColor: 'rgba(105,83,171,0.36)' },
   choiceText: { color: '#AAA2B5', fontFamily: 'Inter-Medium', fontSize: 9 },
   choiceTextSelected: { color: '#F0EAFB' },
-  readyCard: { maxWidth: 300, width: '100%', alignSelf: 'center', alignItems: 'center', marginTop: 30, paddingHorizontal: 18, paddingVertical: 18, borderRadius: 21, borderWidth: 1, borderColor: 'rgba(190,174,238,0.28)', backgroundColor: 'rgba(7,8,19,0.72)' },
+  signalLevelCard: { width: '100%', maxWidth: 330, alignSelf: 'center', alignItems: 'center', marginTop: 22, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 15, borderRadius: 18, borderWidth: 1, borderColor: 'rgba(190,174,238,0.22)', backgroundColor: 'rgba(7,8,19,0.6)' },
+  signalLevelHeading: { width: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  signalLevelValue: { color: '#D8CDF8', fontFamily: 'Inter-Medium', fontSize: 8, letterSpacing: 1.15 },
+  signalLevelSlider: { width: '100%', height: 34, marginTop: 6 },
+  signalLevelRange: { width: '100%', flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 3 },
+  signalLevelRangeText: { color: '#786F88', fontFamily: 'Inter-Medium', fontSize: 6, letterSpacing: 0.8 },
+  previewSignalButton: { minHeight: 34, minWidth: 150, alignItems: 'center', justifyContent: 'center', marginTop: 13, paddingHorizontal: 16, borderRadius: 17, borderWidth: 1, borderColor: 'rgba(205,194,255,0.4)', backgroundColor: 'rgba(105,83,171,0.24)' },
+  previewSignalButtonPressed: { backgroundColor: 'rgba(126,98,190,0.4)' },
+  previewSignalText: { color: '#E6DEFA', fontFamily: 'Inter-Medium', fontSize: 8, letterSpacing: 1.3 },
+  signalLevelNote: { maxWidth: 275, color: '#92899F', fontFamily: 'Inter-ExtraLight', fontSize: 8, lineHeight: 13, textAlign: 'center', marginTop: 9 },
+  signalLevelSuggestion: { maxWidth: 275, color: '#B8ACDE', fontFamily: 'Inter-Light', fontSize: 8, lineHeight: 13, textAlign: 'center', marginTop: 7 },
+  readyCard: { maxWidth: 330, width: '100%', alignSelf: 'center', alignItems: 'center', marginTop: 30, paddingHorizontal: 18, paddingVertical: 18, borderRadius: 21, borderWidth: 1, borderColor: 'rgba(190,174,238,0.28)', backgroundColor: 'rgba(7,8,19,0.72)' },
   readyEyebrow: { color: '#AFA4D5', fontFamily: 'Inter-Medium', fontSize: 7, letterSpacing: 1.5 },
   readySource: { color: '#8F84B7', fontFamily: 'Inter-Medium', fontSize: 7, letterSpacing: 1.25, marginTop: 7 },
   readyTitle: { color: '#F0ECF7', fontSize: 17, marginTop: 7, textAlign: 'center' },
@@ -492,7 +624,7 @@ const styles = StyleSheet.create({
   begin: { width: 214, minHeight: 47, alignSelf: 'center', alignItems: 'center', justifyContent: 'center', marginTop: 22, borderRadius: 24, borderWidth: 1, borderColor: 'rgba(218,207,255,0.65)', backgroundColor: 'rgba(95,73,157,0.44)' },
   beginText: { color: '#F3EEFF', fontFamily: 'Inter-Medium', fontSize: 10, letterSpacing: 1.65 },
   developmentTools: { width: 240, alignSelf: 'center', marginTop: 18 },
-  testMode: { width: '100%', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(190,174,238,0.22)', backgroundColor: 'rgba(7,8,19,0.6)' },
+  testMode: { width: '100%', maxWidth: 330, alignSelf: 'center', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(190,174,238,0.22)', backgroundColor: 'rgba(7,8,19,0.6)' },
   testModeSelected: { borderColor: 'rgba(205,194,255,0.7)', backgroundColor: 'rgba(105,83,171,0.35)' },
   testModeTitle: { color: '#C8BDF1', fontFamily: 'Inter-Medium', fontSize: 8, letterSpacing: 1.35 },
   testModeCopy: { color: '#AAA2B5', fontFamily: 'Inter-ExtraLight', fontSize: 9, marginTop: 5 },

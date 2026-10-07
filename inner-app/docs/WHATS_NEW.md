@@ -26,6 +26,8 @@ Ocean, Forest, and Temple have gained more natural environmental detail, while O
 - Added a direct path from Morning Return into the Dream Log.
 - Added one-tap speech-to-text for the morning reflection and journal entry flow.
 - Preserves dictated words in the editable text field before saving.
+- Keeps listening across natural pauses and preserves each spoken fragment until the practitioner taps stop.
+- Suggests likely dream signs from a dictated Morning Return on-device and saves only the signs the practitioner confirms.
 - Improved Android speech startup by using the platform microphone permission state, accepting the audio-start event, adding a startup timeout, and allowing a pending start to be cancelled.
 - Coordinated global Morning Return visibility with Home prompts so competing modals do not flash, dismiss one another, or repeatedly reappear.
 - Makes Morning Return wait until Daily Arrival is completed or skipped, then presents the pending reflection instead of losing it behind the arrival screen.
@@ -66,12 +68,15 @@ Ocean, Forest, and Temple have gained more natural environmental detail, while O
 - Added a durable night execution receipt that separates planned recognition signals from signals the native audio renderer confirms were delivered.
 - Carries delivered cue IDs and timing, missing cues, completion state, interruptions, audio route when available, and playback errors into Morning Return and Dream Log practice context.
 - Added conservative personal signal-level adaptation: repeated confirmed waking can lower the next signal slightly, while repeated confirmed non-recognition without waking can raise it slightly.
+- Added a stepped signal-volume control beside the Overnight Journey signal picker. Selecting a signal or releasing the slider previews the exact cue at that level before the journey begins, and Inner remembers a separate starting level for each signal.
+- Keeps calibration inside Night setup, records the reviewed level in the Night Recipe, and reminds practitioners that their device media volume also affects what they hear.
+- Aligned the Signal Volume, Quiet Night, and Your Night cards into one consistent setup column.
 - Requires at least three comparable completed nights with full cue delivery, the same signal, cue plan, cue count, and audio route before proposing a signal-level change.
 - Excludes accelerated tests, interrupted nights, incomplete delivery, missing sleep answers, and overridden signal levels from cue-volume learning.
 - Added a Quiet Night switch to the Overnight Journey review. Nights played deliberately low, such as beside someone sleeping, are kept out of signal-level learning so a signal that was too quiet to hear is not mistaken for one that needs to be louder.
 - Overnight Journeys now record the device's media volume, and cue-level learning skips nights played near mute or at a changing volume, and only compares nights heard at a similar volume. Nights from earlier builds have no volume record and are treated as before.
 - After playback resumes from an interruption, such as an alarm or a call, a recognition signal that comes due within the next 90 seconds now waits until that window ends instead of sounding right as you may have just been woken. A signal is never held more than five minutes past its scheduled time, and the delay is recorded with the night.
-- Shows the proposed signal percentage and reason before the night begins, with an option to return to the standard calibrated level.
+- Shows an explained adaptive signal-level suggestion in the same control before the night begins while leaving the final starting level with the practitioner.
 
 #### Inner Lab experiments (not in production builds)
 
