@@ -26,6 +26,12 @@ import {
 } from '../core/recurringDreamSignals';
 import { FACTORY_AUDIO_JOURNEYS } from '../core/audio';
 import { deriveAdaptiveRuleEvaluations } from '../core/adaptiveNight';
+import {
+  deriveRecognitionFocusObservations,
+  MIN_RECOGNITION_FOCUS_NIGHTS,
+  recognitionFocusEvidenceText,
+  recognitionFocusObservationText,
+} from '../core/recognitionFocusLearning';
 
 type Props = { navigation: any };
 
@@ -89,6 +95,7 @@ export default function PracticeMemoryScreen({ navigation }: Props) {
   const signal = deriveRecurringDreamSignal(entries);
   const experimentView = experiment ? practiceExperimentView(experiment) : null;
   const adaptiveEvaluations = deriveAdaptiveRuleEvaluations(nights);
+  const focusObservations = deriveRecognitionFocusObservations(nights).slice(0, 3);
   const remembered = entries.filter(entry => !entry.testSession).length;
 
   return (
@@ -150,6 +157,21 @@ export default function PracticeMemoryScreen({ navigation }: Props) {
             <View style={styles.signRow}>
               {signs.map(([sign, count]) => <View key={sign} style={styles.signChip}><Text style={styles.signText}>{sign} · {count}</Text></View>)}
             </View>
+          </View>
+        )}
+
+        {!!focusObservations.length && (
+          <View style={styles.section}>
+            <Text style={styles.eyebrow}>RECOGNITION FOCUS OUTCOMES</Text>
+            {focusObservations.map((observation, index) => (
+              <View key={observation.sign.toLocaleLowerCase()} style={index ? styles.itemLater : undefined}>
+                <Text style={styles.label}>
+                  {observation.answeredNights >= MIN_RECOGNITION_FOCUS_NIGHTS ? 'OBSERVED' : 'NOT ENOUGH INFORMATION'}
+                </Text>
+                <Text style={styles.body}>{recognitionFocusObservationText(observation)}</Text>
+                <Text style={styles.evidence}>{recognitionFocusEvidenceText(observation)}</Text>
+              </View>
+            ))}
           </View>
         )}
 

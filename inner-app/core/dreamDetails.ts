@@ -4,6 +4,7 @@ export type DreamAgency = 'no' | 'a_little' | 'yes';
 export type DreamControlAttempt = 'no' | 'yes';
 export type DreamControlResult = 'did_not_work' | 'partly_worked' | 'worked';
 export type DreamSleepImpact = 'none' | 'gentle' | 'woke';
+export type DreamSignResponse = 'no' | 'unsure' | 'yes';
 
 export type DreamControlDomain =
   | 'body'
@@ -37,6 +38,11 @@ export type DreamDetails = {
     status?: 'none' | 'unsure' | 'recognized';
     types?: InnerCueType[];
   };
+  recognitionFocus?: {
+    sign: string;
+    appeared?: DreamSignResponse;
+    recognized?: DreamSignResponse;
+  };
   sleepImpact?: DreamSleepImpact;
 };
 
@@ -66,6 +72,7 @@ const agencyValues: DreamAgency[] = ['no', 'a_little', 'yes'];
 const attemptValues: DreamControlAttempt[] = ['no', 'yes'];
 const resultValues: DreamControlResult[] = ['did_not_work', 'partly_worked', 'worked'];
 const sleepImpactValues: DreamSleepImpact[] = ['none', 'gentle', 'woke'];
+const dreamSignResponseValues: DreamSignResponse[] = ['no', 'unsure', 'yes'];
 const domainValues = CONTROL_DOMAIN_OPTIONS.map(option => option.value);
 const cueValues = INNER_CUE_OPTIONS.map(option => option.value);
 
@@ -121,6 +128,18 @@ export function normalizeDreamDetails(value: unknown): DreamDetails | undefined 
     }
   }
 
+  if (raw.recognitionFocus && typeof raw.recognitionFocus === 'object' && !Array.isArray(raw.recognitionFocus)) {
+    const focus = raw.recognitionFocus as Record<string, unknown>;
+    const sign = typeof focus.sign === 'string' ? focus.sign.trim() : '';
+    const appeared = enumValue(focus.appeared, dreamSignResponseValues);
+    if (sign && appeared) {
+      normalized.recognitionFocus = { sign, appeared };
+      if (appeared === 'yes') {
+        normalized.recognitionFocus.recognized = enumValue(focus.recognized, dreamSignResponseValues);
+      }
+    }
+  }
+
   return hasDreamDetails(normalized) ? normalized : undefined;
 }
 
@@ -131,6 +150,7 @@ export function hasDreamDetails(details?: DreamDetails): boolean {
     || details.agency
     || details.control?.attempted
     || details.innerCue?.status
+    || details.recognitionFocus?.appeared
     || details.sleepImpact
   ));
 }
@@ -174,6 +194,21 @@ export function dreamDetailsSummary(details?: DreamDetails): string[] {
   if (details.innerCue?.status === 'recognized') {
     const cues = joinedLabels(details.innerCue.types, INNER_CUE_OPTIONS);
     lines.push(`Inner cue: ${cues || 'Recognized'}`);
+  }
+  if (details.recognitionFocus?.appeared === 'no') {
+    lines.push(`Recognition focus · ${details.recognitionFocus.sign}: Did not appear`);
+  } else if (details.recognitionFocus?.appeared === 'unsure') {
+    lines.push(`Recognition focus · ${details.recognitionFocus.sign}: Not sure if it appeared`);
+  } else if (details.recognitionFocus?.appeared === 'yes') {
+    const recognized = details.recognitionFocus.recognized;
+    const outcome = recognized === 'yes'
+      ? 'Appeared and recognized'
+      : recognized === 'no'
+        ? 'Appeared, not recognized'
+        : recognized === 'unsure'
+          ? 'Appeared, recognition uncertain'
+          : 'Appeared';
+    lines.push(`Recognition focus · ${details.recognitionFocus.sign}: ${outcome}`);
   }
   return lines;
 }

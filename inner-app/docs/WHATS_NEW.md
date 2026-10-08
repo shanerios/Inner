@@ -59,6 +59,7 @@ Ocean, Forest, and Temple have gained more natural environmental detail, while O
 - Added Night Recipe v2 as a versioned snapshot of the night the practitioner reviewed and began.
 - Records the selected goal, duration, environment, feel, preparation, signal, cue plan, exact recognition windows, procedural arc, and random seed.
 - Preserves the recipe with the Night Plan so later outcomes can be compared with what was actually intended.
+- Carries an accepted recurring dream sign into Overnight setup as an optional recognition focus and freezes that intention into the Night Recipe.
 - Replaced fixed clock offsets with recognition windows that scale to the selected night length.
 - Standard nights now retain three recognition opportunities and gentle signal plans retain two across the supported durations.
 - A seven-hour standard night now places signals near 4h 10m, 5h 35m, and 6h 25m instead of discarding a signal scheduled beyond the end of the night.
@@ -91,9 +92,13 @@ Ocean, Forest, and Temple have gained more natural environmental detail, while O
 - Added an on-device Practice Memory that organizes nights, practices, dream outcomes, and recognition results into a coherent history.
 - Added a dedicated Practice Memory view.
 - Added recurring dream-signal detection so repeated signs can become material for later recognition practice.
+- Morning Return now asks separately whether the chosen dream sign appeared and whether it was recognized, then preserves that outcome with the dream and night record.
+- Practice Memory summarizes recognition-focus outcomes with explicit observation and insufficient-evidence language; after three answered focus nights, those outcomes can refine and explain the next recognition-practice recommendation.
 - Added transparent recommendation logic that explains the observations behind a suggestion.
 - Uses careful confidence language to distinguish recorded observations, possible personal patterns, and cases where there is not enough information.
 - Added local adaptive-night planning foundations that can select a relevant next practice from the user's history.
+- Adaptive Night plans now propose one editable recipe change at a time. Environment suggestions compare only otherwise-matched completed nights with full cue delivery, stable playback, and no interruptions.
+- Interrupted, incomplete, quiet, test, route-changing, and otherwise incomparable nights no longer count as evidence for an environment adjustment or its later evaluation.
 - Added personal practice experiments for comparing conditions over multiple nights.
 - Added Home cards for the current experiment, tonight's recommendation, and the next meaningful continuation.
 - Removed the older general suggestion system after the more specific recommendation and continuation systems replaced it.
@@ -146,7 +151,7 @@ Ocean, Forest, and Temple have gained more natural environmental detail, while O
 ### Release verification completed so far
 
 - TypeScript type checking passes.
-- Full automated suite passes: 58 suites, 396 tests, and 6 snapshots.
+- Full automated suite passes: 63 suites, 443 tests, and 6 snapshots.
 - Android's native InnerAudio module compiles with recipe-driven gain and recovery fields; the matching iOS source passes Swift parsing.
 - Android standalone release builds successfully after a clean native build.
 - A standalone Inner Lab accelerated night completed on a physical Pixel 8 Pro and produced the expected Morning Return without Metro.

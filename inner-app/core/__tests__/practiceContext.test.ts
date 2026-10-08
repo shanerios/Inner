@@ -117,10 +117,34 @@ describe('dream practice context', () => {
         recognitionWindowCount: 2,
       },
       userChanged: [],
+      recipe: {
+        schemaVersion: 2,
+        id: 'recipe-1',
+        createdAt: 900,
+        seed: 1,
+        goal: 'lucid_recognition',
+        durationMinutes: 450,
+        environment: 'ocean',
+        feel: 'gentle',
+        preparation: { practice: 'lucid_signal', durationMinutes: 7 },
+        recognition: {
+          signalId: 'droplets',
+          cuePlan: 'standard',
+          windows: [],
+          intention: {
+            type: 'recurring_dream_sign',
+            sign: 'Water',
+            selectedAt: 800,
+            evidence: { appearances: 4, rememberedDreams: 7 },
+          },
+        },
+        environmentArc: 'protected_standard',
+      },
     };
-    expect(practiceContextSummary(snapshot).slice(0, 3)).toEqual([
+    expect(practiceContextSummary(snapshot).slice(0, 4)).toEqual([
       "Tonight's plan · Ocean",
       '450 min · gentle · 2 recognition windows',
+      'Recognition focus: Water',
       'Source: Personal experiment',
     ]);
   });

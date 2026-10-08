@@ -80,6 +80,16 @@ const dream = (id: string, sign: string): JournalEntry => ({
   schemaVersion: 2, id, createdAt: Number(id), updatedAt: Number(id), kind: 'dream', body: 'Remembered', dreamSigns: [sign],
 });
 
+const focusedRecord = (id: string, sign: string, recognized: 'yes' | 'no'): NightRecord => ({
+  ...record(id, 'none'),
+  outcome: {
+    recall: 'dream',
+    dreamDetails: {
+      recognitionFocus: { sign, appeared: 'yes', recognized },
+    },
+  },
+});
+
 describe('tonight recommendation', () => {
   it('prioritizes a gentler signal when repeated waking is observed', () => {
     expect(deriveTonightRecommendation([], [deliveredRecord('1', 'woke'), deliveredRecord('2', 'woke'), deliveredRecord('3', 'gentle')], [])).toEqual(expect.objectContaining({
@@ -106,14 +116,52 @@ describe('tonight recommendation', () => {
     }));
   });
 
+  it('uses repeated focus outcomes to explain and refine the next recognition practice', () => {
+    const recommendation = deriveTonightRecommendation(
+      [dream('1', 'Water'), dream('2', 'Water'), dream('3', 'Water')],
+      [focusedRecord('4', 'Water', 'no'), focusedRecord('5', 'Water', 'no'), focusedRecord('6', 'Water', 'no')],
+      [],
+    );
+    expect(recommendation).toEqual(expect.objectContaining({
+      kind: 'recurring_signal',
+      title: 'Strengthen Water recognition',
+      actionLabel: 'REHEARSE WATER',
+    }));
+    expect(recommendation?.reason).toContain('In focused nights, it appeared in 3 of 3 answered focus nights and was recognized in 0 of 3 reported appearances.');
+  });
+
+  it('does not use focus outcomes in a recommendation before three answered nights', () => {
+    const recommendation = deriveTonightRecommendation(
+      [dream('1', 'Water'), dream('2', 'Water'), dream('3', 'Water')],
+      [focusedRecord('4', 'Water', 'no'), focusedRecord('5', 'Water', 'no')],
+      [],
+    );
+    expect(recommendation).toEqual(expect.objectContaining({
+      title: 'Recognize Water',
+      actionLabel: 'PRACTICE WITH WATER',
+      reason: 'Water appeared in 3 of your last 3 remembered dreams.',
+    }));
+  });
+
   it('recommends an environment only after a comparison supports it', () => {
     const environmentRecord = (id: string, environment: string, recall: 'dream' | 'none'): NightRecord => ({
-      ...record(id, 'none'),
-      source: 'overnight_journey',
+      ...deliveredRecord(id, 'none'),
       outcome: { recall, sleepImpact: 'none' },
       practiceContext: {
+        ...deliveredRecord(id, 'none').practiceContext!,
         linkedAt: Number(id),
-        links: [{ sessionId: id, type: 'overnight_journey', contentTitle: `${environment} night`, startedAt: 1, linkReason: 'exact_overnight_session', environment }],
+        links: deliveredRecord(id, 'none').practiceContext!.links.map(link => ({ ...link, environment })),
+        nightPlan: {
+          ...deliveredRecord(id, 'none').practiceContext!.nightPlan!,
+          configuration: {
+            ...deliveredRecord(id, 'none').practiceContext!.nightPlan!.configuration,
+            environment,
+          },
+          recipe: {
+            ...deliveredRecord(id, 'none').practiceContext!.nightPlan!.recipe!,
+            environment: environment as 'ocean' | 'forest',
+          },
+        },
       },
     });
     const records = [
@@ -124,7 +172,21 @@ describe('tonight recommendation', () => {
     expect(deriveTonightRecommendation([], records, [])).toEqual(expect.objectContaining({
       kind: 'repeat_environment',
       title: 'Return to Ocean',
+      reason: 'You recalled dreams after 4 of 5 comparable Ocean nights, compared with 0 of 3 otherwise-matched nights.',
     }));
+  });
+
+  it('does not recommend an environment from interrupted nights', () => {
+    const records = [
+      ...['1', '2', '3', '4', '5'].map(id => {
+        const item = deliveredRecord(id, 'none');
+        item.outcome.recall = 'dream';
+        item.practiceContext!.links[0].nightExecution!.interruptionCount = 1;
+        return item;
+      }),
+      ...['6', '7', '8'].map(id => deliveredRecord(id, 'none')),
+    ];
+    expect(deriveTonightRecommendation([], records, [])).toBeNull();
   });
 
   it('suggests a recognition refresh only when several outcomes exist', () => {

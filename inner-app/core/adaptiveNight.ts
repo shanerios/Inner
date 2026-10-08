@@ -1,6 +1,8 @@
 import type { NightPlanConfiguration } from './nightPlans';
 import type { TonightRecommendation } from './tonightRecommendation';
 import type { NightRecord } from './nightRecords';
+import { adaptiveRecipeSample } from './adaptiveRecipeLearning';
+import { nightLearningSample } from './nightLearning';
 
 export type AdaptiveNightRule = 'gentler_signal' | 'clearer_signal' | 'supported_environment';
 
@@ -40,14 +42,13 @@ export function adaptiveNightProposalFromRecommendation(
   if (!recommendation) return null;
 
   if (recommendation.kind === 'gentler_signal') {
+    if (recommendation.signalGainScale === undefined) return null;
     return {
       id: `adaptive:${recommendation.id}`,
       rule: 'gentler_signal',
       title: 'A quieter recognition signal',
       reason: recommendation.reason,
-      proposedConfiguration: recommendation.signalGainScale === undefined
-        ? { feel: 'gentle', cuePlan: 'gentle' }
-        : { signalGainScale: recommendation.signalGainScale },
+      proposedConfiguration: { signalGainScale: recommendation.signalGainScale },
     };
   }
 
@@ -92,7 +93,12 @@ export function deriveAdaptiveRuleEvaluations(records: NightRecord[]): AdaptiveR
     const sorted = [...ruleRecords].sort((a, b) => b.reflectedAt - a.reflectedAt);
     const fields = TARGET_FIELDS[rule];
     const overridden = sorted.filter(record => fields.some(field => record.practiceContext?.nightPlan?.userChanged.includes(field)));
-    const accepted = sorted.filter(record => !fields.some(field => record.practiceContext?.nightPlan?.userChanged.includes(field)));
+    const acceptedByUser = sorted.filter(record => !fields.some(field => record.practiceContext?.nightPlan?.userChanged.includes(field)));
+    const accepted = acceptedByUser.filter(record => (
+      rule === 'supported_environment'
+        ? adaptiveRecipeSample(record).eligibleForEnvironment
+        : nightLearningSample(record).eligibleForCueLevel
+    ));
     const recentOverrideCount = sorted.slice(0, 3)
       .filter(record => fields.some(field => record.practiceContext?.nightPlan?.userChanged.includes(field))).length;
     const title = sorted[0]?.practiceContext?.nightPlan?.adaptiveRule?.title
@@ -179,7 +185,9 @@ export function deriveAdaptiveRuleEvaluations(records: NightRecord[]): AdaptiveR
       rule, title, attempts: sorted.length, acceptedAttempts: accepted.length, overrideCount: overridden.length,
       status: 'collecting', label: 'LEARNING',
       text: `Inner is observing what happens after ${title.toLocaleLowerCase()}.`,
-      evidence: `${sorted.length} reflected adaptive ${sorted.length === 1 ? 'night' : 'nights'} so far. More outcomes are needed.`,
+      evidence: accepted.length === sorted.length
+        ? `${accepted.length} comparable accepted ${accepted.length === 1 ? 'night' : 'nights'} so far. More outcomes are needed.`
+        : `${accepted.length} of ${sorted.length} attempted adaptive nights are comparable and accepted so far. More outcomes are needed.`,
     };
   });
 }

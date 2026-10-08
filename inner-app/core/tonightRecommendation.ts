@@ -3,6 +3,11 @@ import type { JourneyMemorySession } from './journeyMemory';
 import type { NightRecord } from './nightRecords';
 import { deriveRecurringDreamSignal } from './recurringDreamSignals';
 import { deriveCueLevelAdjustment } from './nightLearning';
+import { deriveSupportedEnvironmentAdjustment } from './adaptiveRecipeLearning';
+import {
+  MIN_RECOGNITION_FOCUS_NIGHTS,
+  recognitionFocusObservationForSign,
+} from './recognitionFocusLearning';
 
 export type TonightRecommendation = {
   id: string;
@@ -15,64 +20,18 @@ export type TonightRecommendation = {
   signalGainScale?: number;
 };
 
-function titleCase(value: string): string {
-  return value.charAt(0).toUpperCase() + value.slice(1);
-}
-
-function environmentFromSession(session: JourneyMemorySession): string | null {
-  const durations = new Map<string, number>();
-  for (const stage of session.stages) {
-    const environment = stage.config.environment;
-    if (!environment || environment === 'none' || stage.config.environmentGain <= 0) continue;
-    durations.set(environment, (durations.get(environment) ?? 0) + stage.durationMs);
-  }
-  return [...durations.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
-}
-
-function environmentRecommendation(
-  records: NightRecord[],
-  sessions: JourneyMemorySession[],
-): TonightRecommendation | null {
-  const recordedIds = new Set(records.map(record => record.sourceSessionId));
-  const outcomes = [
-    ...records.flatMap(record => {
-      const link = record.practiceContext?.links.find(item => item.type === 'overnight_journey');
-      return link?.environment
-        ? [{ environment: link.environment, recalled: record.outcome.recall !== 'none', at: record.reflectedAt }]
-        : [];
-    }),
-    ...sessions.flatMap(session => {
-      if (session.testSession || recordedIds.has(session.id) || !session.morningReflection) return [];
-      const environment = environmentFromSession(session);
-      const recall = session.morningReflection.answers.recall ?? session.morningReflection.answers.dreamDetails?.recall;
-      return environment && recall
-        ? [{ environment, recalled: recall !== 'none', at: session.morningReflection.savedAt }]
-        : [];
-    }),
-  ].sort((a, b) => b.at - a.at).slice(0, 12);
-  const groups = new Map<string, { total: number; recalled: number }>();
-  for (const outcome of outcomes) {
-    const group = groups.get(outcome.environment) ?? { total: 0, recalled: 0 };
-    group.total += 1;
-    if (outcome.recalled) group.recalled += 1;
-    groups.set(outcome.environment, group);
-  }
-  for (const [environment, group] of [...groups.entries()].sort((a, b) => b[1].total - a[1].total)) {
-    const others = outcomes.filter(outcome => outcome.environment !== environment);
-    const otherRecall = others.filter(outcome => outcome.recalled).length;
-    if (group.total < 5 || group.recalled < 3 || others.length < 3) continue;
-    if (group.recalled / group.total - otherRecall / others.length < 0.25) continue;
-    const label = titleCase(environment);
-    return {
-      id: `environment:${environment}`,
-      kind: 'repeat_environment',
-      title: `Return to ${label}`,
-      reason: `You recalled dreams after ${group.recalled} of ${group.total} ${label} nights, compared with ${otherRecall} of ${others.length} other nights.`,
-      actionLabel: `SHAPE ANOTHER ${label.toLocaleUpperCase()} NIGHT`,
-      environment,
-    };
-  }
-  return null;
+function environmentRecommendation(records: NightRecord[]): TonightRecommendation | null {
+  const adjustment = deriveSupportedEnvironmentAdjustment(records);
+  if (!adjustment) return null;
+  const label = adjustment.environment.charAt(0).toUpperCase() + adjustment.environment.slice(1);
+  return {
+    id: `environment:${adjustment.environment}`,
+    kind: 'repeat_environment',
+    title: `Return to ${label}`,
+    reason: adjustment.reason,
+    actionLabel: `SHAPE ANOTHER ${label.toLocaleUpperCase()} NIGHT`,
+    environment: adjustment.environment,
+  };
 }
 
 export function deriveTonightRecommendation(
@@ -109,18 +68,36 @@ export function deriveTonightRecommendation(
 
   const recurring = deriveRecurringDreamSignal(eligibleEntries);
   if (!excludedKinds.has('recurring_signal') && recurring) {
+    const focusOutcome = recognitionFocusObservationForSign(eligibleRecords, recurring.sign);
+    const outcomeSupported = Boolean(
+      focusOutcome && focusOutcome.answeredNights >= MIN_RECOGNITION_FOCUS_NIGHTS,
+    );
+    const needsRecognitionRehearsal = Boolean(
+      outcomeSupported
+      && focusOutcome
+      && focusOutcome.appearedNights >= 2
+      && focusOutcome.recognitionAnsweredNights >= 2
+      && focusOutcome.recognizedNights === 0,
+    );
+    const outcomeReason = outcomeSupported && focusOutcome
+      ? ` In focused nights, it appeared in ${focusOutcome.appearedNights} of ${focusOutcome.answeredNights} answered focus nights${focusOutcome.recognitionAnsweredNights
+        ? ` and was recognized in ${focusOutcome.recognizedNights} of ${focusOutcome.recognitionAnsweredNights} reported appearances`
+        : ''}.`
+      : '';
     return {
       id: `dream-sign:${recurring.sign.toLocaleLowerCase()}`,
       kind: 'recurring_signal',
-      title: `Recognize ${recurring.sign}`,
-      reason: `${recurring.sign} appeared in ${recurring.count} of your last ${recurring.rememberedDreams} remembered dreams.`,
-      actionLabel: `PRACTICE WITH ${recurring.sign.toLocaleUpperCase()}`,
+      title: needsRecognitionRehearsal ? `Strengthen ${recurring.sign} recognition` : `Recognize ${recurring.sign}`,
+      reason: `${recurring.sign} appeared in ${recurring.count} of your last ${recurring.rememberedDreams} remembered dreams.${outcomeReason}`,
+      actionLabel: outcomeSupported
+        ? `${needsRecognitionRehearsal ? 'REHEARSE' : 'CONTINUE WITH'} ${recurring.sign.toLocaleUpperCase()}`
+        : `PRACTICE WITH ${recurring.sign.toLocaleUpperCase()}`,
       sign: recurring.sign,
     };
   }
 
   if (!excludedKinds.has('repeat_environment')) {
-    const environment = environmentRecommendation(eligibleRecords, sessions);
+    const environment = environmentRecommendation(eligibleRecords);
     if (environment) return environment;
   }
 

@@ -69,6 +69,20 @@ describe('Dream Details', () => {
     ]);
   });
 
+  it('keeps recognition-focus appearance and recognition as separate outcomes', () => {
+    const details = normalizeDreamDetails({
+      recognitionFocus: { sign: ' Water ', appeared: 'yes', recognized: 'no' },
+    });
+    expect(details?.recognitionFocus).toEqual({ sign: 'Water', appeared: 'yes', recognized: 'no' });
+    expect(dreamDetailsSummary(details)).toContain('Recognition focus · Water: Appeared, not recognized');
+  });
+
+  it('drops recognition when the intended dream sign did not appear', () => {
+    expect(normalizeDreamDetails({
+      recognitionFocus: { sign: 'Water', appeared: 'no', recognized: 'yes' },
+    })?.recognitionFocus).toEqual({ sign: 'Water', appeared: 'no' });
+  });
+
   it('opens legacy journal entries with versioned, optional metadata', () => {
     const legacy = normalizeJournalEntry({
       id: 'legacy-dream',

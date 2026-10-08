@@ -33,12 +33,19 @@ import {
 import { Typography } from '../core/typography';
 import { INNER_LAB_BUILD } from '../core/innerLab';
 import { loadBedsideMotion, summarizeBedsideMotion } from '../core/bedsideMotion';
-import { createMorningReturnTestSession, loadJourneyMemory, type JourneyMemorySession } from '../core/journeyMemory';
+import { attachNightPlanToJourneyMemory, createMorningReturnTestSession, loadJourneyMemory, type JourneyMemorySession } from '../core/journeyMemory';
 import { createNightPlan, type NightPlanSource } from '../core/nightPlans';
 import { createNightRecipeV2, nightRecipeCueSummary } from '../core/nightRecipes';
 import { experimentContextForPractice, loadCurrentPracticeExperiment } from '../core/practiceExperiments';
 import { loadSelectedRecommendation, recommendationForPracticeContext } from '../core/recommendationMemory';
 import type { AdaptiveNightProposal } from '../core/adaptiveNight';
+import {
+  activeRecurringSignalFocus,
+  loadRecurringSignalFocus,
+  recurringSignalObservation,
+  recurringSignalPrompt,
+  type RecurringSignalFocus,
+} from '../core/recurringDreamSignals';
 
 type OvernightEnvironment = Exclude<ProceduralEnvironment, 'none' | 'wind'>;
 type OvernightFeel = 'gentle' | 'deep' | 'immersive';
@@ -132,6 +139,7 @@ export default function OvernightJourneyScreen() {
   const [previewingSignal, setPreviewingSignal] = useState(false);
   const [accelerated, setAccelerated] = useState(false);
   const [quietNight, setQuietNight] = useState(false);
+  const [recognitionFocus, setRecognitionFocus] = useState<RecurringSignalFocus | null>(null);
   const [inspectorVisible, setInspectorVisible] = useState(false);
   const [latestMemory, setLatestMemory] = useState<JourneyMemorySession | null>(null);
   const [latestMotion, setLatestMotion] = useState<string | null>(null);
@@ -156,6 +164,14 @@ export default function OvernightJourneyScreen() {
     })();
     return () => { active = false; };
   }, [adaptiveProposal, route.params?.suggestedCuePlan, suggestedSignalGainScale]);
+
+  useEffect(() => {
+    let active = true;
+    void loadRecurringSignalFocus().then(focus => {
+      if (active) setRecognitionFocus(activeRecurringSignalFocus(focus));
+    });
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -190,9 +206,18 @@ export default function OvernightJourneyScreen() {
     signalId,
     cuePlan,
     signalGainScale,
+    recognitionIntention: recognitionFocus ? {
+      type: 'recurring_dream_sign',
+      sign: recognitionFocus.sign,
+      selectedAt: recognitionFocus.setAt,
+      evidence: {
+        appearances: recognitionFocus.count,
+        rememberedDreams: recognitionFocus.rememberedDreams,
+      },
+    } : undefined,
     seed: 1,
     createdAt: 0,
-  }), [cuePlan, durationMinutes, environment, feel, signalGainScale, signalId]);
+  }), [cuePlan, durationMinutes, environment, feel, recognitionFocus, signalGainScale, signalId]);
   const compiled = useMemo(() => {
     const realProtocol = createRecognitionOvernightProtocol({
       sleepDurationMinutes: durationMinutes,
@@ -290,6 +315,15 @@ export default function OvernightJourneyScreen() {
         signalId,
         cuePlan,
         signalGainScale,
+        recognitionIntention: recognitionFocus ? {
+          type: 'recurring_dream_sign',
+          sign: recognitionFocus.sign,
+          selectedAt: recognitionFocus.setAt,
+          evidence: {
+            appearances: recognitionFocus.count,
+            rememberedDreams: recognitionFocus.rememberedDreams,
+          },
+        } : undefined,
         seed,
         createdAt: plannedAt,
       });
@@ -373,11 +407,52 @@ export default function OvernightJourneyScreen() {
   };
 
   const openMorningReturnTest = async () => {
-    await createMorningReturnTestSession({
+    const createdAt = Date.now();
+    const seed = createNightSeed();
+    const recognitionIntention = recognitionFocus ? {
+      type: 'recurring_dream_sign' as const,
+      sign: recognitionFocus.sign,
+      selectedAt: recognitionFocus.setAt,
+      evidence: {
+        appearances: recognitionFocus.count,
+        rememberedDreams: recognitionFocus.rememberedDreams,
+      },
+    } : {
+      type: 'recurring_dream_sign' as const,
+      sign: 'Water',
+      selectedAt: createdAt,
+      evidence: { appearances: 3, rememberedDreams: 5 },
+    };
+    const recipe = createNightRecipeV2({
+      durationMinutes,
+      environment,
+      feel,
+      signalId,
+      cuePlan,
+      signalGainScale,
+      recognitionIntention,
+      seed,
+      createdAt,
+    });
+    const plan = await createNightPlan({
+      source: 'manual',
+      configuration: {
+        durationMinutes,
+        environment,
+        feel,
+        signalId,
+        cuePlan,
+        recognitionWindowCount: recipe.recognition.windows.length,
+        signalGainScale,
+      },
+      recipe,
+    });
+    const session = await createMorningReturnTestSession({
       ...DEFAULT_PROCEDURAL_AUDIO_CONFIG,
       environment: 'forest',
       environmentGain: 0.12,
     });
+    await attachNightPlanToJourneyMemory(session.id, plan.id);
     navigation.goBack();
   };
 
@@ -418,6 +493,23 @@ export default function OvernightJourneyScreen() {
           <Text style={styles.label}>WHAT ARE YOU SEEKING TONIGHT?</Text>
           <Text style={[Typography.display, styles.intentionValue]}>Become Lucid</Text>
         </View>
+
+        {recognitionFocus && (
+          <View style={styles.recognitionFocusCard}>
+            <Text style={styles.label}>TONIGHT'S RECOGNITION FOCUS</Text>
+            <Text style={[Typography.display, styles.recognitionFocusTitle]}>{recognitionFocus.sign}</Text>
+            <Text style={styles.recognitionFocusObservation}>{recurringSignalObservation(recognitionFocus)}</Text>
+            <Text style={styles.recognitionFocusPrompt}>{recurringSignalPrompt(recognitionFocus.sign)}</Text>
+            <Pressable
+              onPress={() => setRecognitionFocus(null)}
+              accessibilityRole="button"
+              accessibilityLabel={`Do not use ${recognitionFocus.sign} as tonight's recognition focus`}
+              style={styles.recognitionFocusRemove}
+            >
+              <Text style={styles.recognitionFocusRemoveText}>NOT TONIGHT</Text>
+            </Pressable>
+          </View>
+        )}
 
         {choiceGroup('WHERE WOULD YOU LIKE TO GO?', ENVIRONMENTS, environment, setEnvironment)}
         {choiceGroup('HOW LONG WILL YOU BE AWAY?', DURATIONS.map(id => ({ id, label: durationLabel(id) })), durationMinutes, setDurationMinutes)}
@@ -482,6 +574,7 @@ export default function OvernightJourneyScreen() {
           <Text style={styles.readyLine}>{durationLabel(durationMinutes)} · {recognitionWindows} later recognition windows</Text>
           <Text style={styles.readySchedule}>Signals near {nightRecipeCueSummary(previewRecipe)}</Text>
           <Text style={styles.readyLine}>{recognitionSignalById(signalId).name} · {feel}</Text>
+          {recognitionFocus && <Text style={styles.readyLine}>Recognition focus · {recognitionFocus.sign}</Text>}
           {quietNight && <Text style={styles.readyLine}>Quiet night · not used for signal-level learning</Text>}
           <Text style={styles.readyLine}>Signal volume · {signalLevelLabel(signalGainScale)}</Text>
           <Text style={styles.readyCopy}>Your journey begins with a seven-minute waking preparation, then continues quietly through descent, protected sleep, recognition windows, and return.</Text>
@@ -612,6 +705,12 @@ const styles = StyleSheet.create({
   previewSignalText: { color: '#E6DEFA', fontFamily: 'Inter-Medium', fontSize: 8, letterSpacing: 1.3 },
   signalLevelNote: { maxWidth: 275, color: '#92899F', fontFamily: 'Inter-ExtraLight', fontSize: 8, lineHeight: 13, textAlign: 'center', marginTop: 9 },
   signalLevelSuggestion: { maxWidth: 275, color: '#B8ACDE', fontFamily: 'Inter-Light', fontSize: 8, lineHeight: 13, textAlign: 'center', marginTop: 7 },
+  recognitionFocusCard: { width: '100%', maxWidth: 330, alignSelf: 'center', alignItems: 'center', marginTop: 20, paddingHorizontal: 17, paddingVertical: 15, borderRadius: 18, borderWidth: 1, borderColor: 'rgba(190,174,238,0.28)', backgroundColor: 'rgba(7,8,19,0.64)' },
+  recognitionFocusTitle: { color: '#F0ECF7', fontSize: 18, marginTop: 7, textAlign: 'center' },
+  recognitionFocusObservation: { color: '#C4BCCF', fontFamily: 'Inter-Light', fontSize: 9, lineHeight: 14, textAlign: 'center', marginTop: 7 },
+  recognitionFocusPrompt: { color: '#9F96AE', fontFamily: 'Inter-ExtraLight', fontSize: 9, lineHeight: 14, textAlign: 'center', marginTop: 5 },
+  recognitionFocusRemove: { minHeight: 30, justifyContent: 'center', marginTop: 8, paddingHorizontal: 12 },
+  recognitionFocusRemoveText: { color: '#8F84A0', fontFamily: 'Inter-Medium', fontSize: 7, letterSpacing: 1.1 },
   readyCard: { maxWidth: 330, width: '100%', alignSelf: 'center', alignItems: 'center', marginTop: 30, paddingHorizontal: 18, paddingVertical: 18, borderRadius: 21, borderWidth: 1, borderColor: 'rgba(190,174,238,0.28)', backgroundColor: 'rgba(7,8,19,0.72)' },
   readyEyebrow: { color: '#AFA4D5', fontFamily: 'Inter-Medium', fontSize: 7, letterSpacing: 1.5 },
   readySource: { color: '#8F84B7', fontFamily: 'Inter-Medium', fontSize: 7, letterSpacing: 1.25, marginTop: 7 },

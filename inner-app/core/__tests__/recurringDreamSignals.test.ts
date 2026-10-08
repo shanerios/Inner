@@ -1,6 +1,11 @@
 import { describe, expect, it, jest } from '@jest/globals';
 import type { JournalEntry } from '../journalRepo';
-import { createRecurringSignalJourney, deriveRecurringDreamSignal, recurringSignalObservation } from '../recurringDreamSignals';
+import {
+  activeRecurringSignalFocus,
+  createRecurringSignalJourney,
+  deriveRecurringDreamSignal,
+  recurringSignalObservation,
+} from '../recurringDreamSignals';
 
 jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock'),
@@ -25,6 +30,12 @@ describe('recurring dream signals', () => {
   it('does not treat empty or no-recall entries as evidence', () => {
     const noRecall = { ...dream('1', 2, ['Water'], ''), dreamDetails: { recall: 'none' as const } };
     expect(deriveRecurringDreamSignal([noRecall, dream('2', 1, ['Water'])])).toBeNull();
+  });
+
+  it('keeps an accepted recognition focus available for the next three days', () => {
+    const focus = { sign: 'Water', count: 4, rememberedDreams: 7, setAt: 1_000 };
+    expect(activeRecurringSignalFocus(focus, 1_000 + 72 * 60 * 60 * 1000)).toEqual(focus);
+    expect(activeRecurringSignalFocus(focus, 1_001 + 72 * 60 * 60 * 1000)).toBeNull();
   });
 
   it('adapts Lucid Signal guidance while preserving its scheduling identity', () => {

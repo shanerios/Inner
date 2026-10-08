@@ -59,4 +59,28 @@ describe('Night Recipe v2', () => {
       durationMinutes: 420, environment: 'forest', feel: 'gentle', signalId: 'guardian', cuePlan: 'gentle', signalGainScale: 4, seed: 1,
     }).recognition.windows[0].signalGainScale).toBe(1.2);
   });
+
+  it('freezes an accepted recurring dream sign into the night recipe', () => {
+    const recipe = createNightRecipeV2({
+      durationMinutes: 450,
+      environment: 'ocean',
+      feel: 'gentle',
+      signalId: 'droplets',
+      cuePlan: 'standard',
+      recognitionIntention: {
+        type: 'recurring_dream_sign',
+        sign: ' Water ',
+        selectedAt: 80,
+        evidence: { appearances: 4, rememberedDreams: 7 },
+      },
+      seed: 42,
+      createdAt: 100,
+    });
+    expect(recipe.recognition.intention).toEqual({
+      type: 'recurring_dream_sign',
+      sign: 'Water',
+      selectedAt: 80,
+      evidence: { appearances: 4, rememberedDreams: 7 },
+    });
+  });
 });

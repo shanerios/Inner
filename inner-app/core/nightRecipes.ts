@@ -18,6 +18,16 @@ export type NightRecipeRecognitionWindow = {
   recoverySeconds: number;
 };
 
+export type NightRecipeRecognitionIntention = {
+  type: 'recurring_dream_sign';
+  sign: string;
+  selectedAt: number;
+  evidence: {
+    appearances: number;
+    rememberedDreams: number;
+  };
+};
+
 export type NightRecipeV2 = {
   schemaVersion: typeof NIGHT_RECIPE_SCHEMA_VERSION;
   id: string;
@@ -35,6 +45,7 @@ export type NightRecipeV2 = {
     signalId: RecognitionSignalId;
     cuePlan: LucidSignalCuePlan;
     windows: NightRecipeRecognitionWindow[];
+    intention?: NightRecipeRecognitionIntention;
   };
   environmentArc: 'protected_standard';
 };
@@ -47,6 +58,7 @@ export type CreateNightRecipeInput = {
   cuePlan: LucidSignalCuePlan;
   /** Linear trim applied after the selected signal's calibrated base level. */
   signalGainScale?: number;
+  recognitionIntention?: NightRecipeRecognitionIntention;
   seed: number;
   createdAt?: number;
 };
@@ -77,6 +89,9 @@ export function createNightRecipeV2(input: CreateNightRecipeInput): NightRecipeV
         backgroundDuckGain: 0.55,
         recoverySeconds: 35,
       })),
+      ...(input.recognitionIntention?.sign.trim()
+        ? { intention: { ...input.recognitionIntention, sign: input.recognitionIntention.sign.trim() } }
+        : {}),
     },
     environmentArc: 'protected_standard',
   };

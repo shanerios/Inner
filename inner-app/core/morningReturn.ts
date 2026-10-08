@@ -1,6 +1,8 @@
 import { getPendingLucidSignalReflection, type LucidSignalNight } from './lucidSignalLearning';
 import { loadJourneyMemory, pendingOvernightReflection, type JourneyMemoryState } from './journeyMemory';
 import { practiceLinkFromOvernightSession, type PracticeLinkSnapshot } from './practiceContext';
+import { loadNightPlan } from './nightPlans';
+import type { NightRecipeRecognitionIntention } from './nightRecipes';
 
 export type PendingMorningReturn = LucidSignalNight & {
   journeySessionId?: string;
@@ -8,6 +10,7 @@ export type PendingMorningReturn = LucidSignalNight & {
   preview?: boolean;
   testSession?: boolean;
   practiceLink?: PracticeLinkSnapshot;
+  recognitionIntention?: NightRecipeRecognitionIntention;
 };
 
 export function selectPendingMorningReturn(
@@ -51,7 +54,11 @@ export async function loadPendingMorningReturn(now = Date.now()): Promise<Pendin
     loadJourneyMemory(),
     getPendingLucidSignalReflection(undefined, () => now),
   ]);
-  return selectPendingMorningReturn(journeyMemory, scheduledSignalReflection, now);
+  const pending = selectPendingMorningReturn(journeyMemory, scheduledSignalReflection, now);
+  if (!pending?.nightPlanId) return pending;
+  const plan = await loadNightPlan(pending.nightPlanId);
+  const recognitionIntention = plan?.recipe?.recognition.intention;
+  return recognitionIntention ? { ...pending, recognitionIntention } : pending;
 }
 
 export const MORNING_RETURN_BLOCKED_ROUTES = new Set([

@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Typography } from '../core/typography';
 import DreamDetailsEditor from './DreamDetailsEditor';
-import type { DreamDetails } from '../core/dreamDetails';
+import type { DreamDetails, DreamSignResponse } from '../core/dreamDetails';
 import { normalizeDreamDetails } from '../core/dreamDetails';
 import {
   saveLucidSignalMorningCapture,
@@ -43,6 +43,8 @@ export default function MorningReturnModal({ pending, visible, onRequestClose, o
   const [savingReflection, setSavingReflection] = useState(false);
   const [voiceRecognitionMode, setVoiceRecognitionMode] = useState<VoiceRecognitionMode | null>(null);
   const [confirmedDreamSigns, setConfirmedDreamSigns] = useState<DreamSign[]>([]);
+  const [focusAppeared, setFocusAppeared] = useState<DreamSignResponse | null>(null);
+  const [focusRecognized, setFocusRecognized] = useState<DreamSignResponse | null>(null);
   const suggestedDreamSigns = voiceRecognitionMode ? suggestDreamSigns(capture) : [];
 
   useEffect(() => {
@@ -57,6 +59,8 @@ export default function MorningReturnModal({ pending, visible, onRequestClose, o
     setSavingReflection(false);
     setVoiceRecognitionMode(null);
     setConfirmedDreamSigns([]);
+    setFocusAppeared(null);
+    setFocusRecognized(null);
   }, [pending?.id, pending?.morningCaptureEntryId]);
 
   useEffect(() => {
@@ -123,6 +127,13 @@ export default function MorningReturnModal({ pending, visible, onRequestClose, o
     if (!pending || !dreamRecall || savingReflection) return;
     const details = normalizeDreamDetails({
       ...(dreamRecall === 'none' ? {} : dreamDetails),
+      ...(dreamRecall !== 'none' && pending.recognitionIntention && focusAppeared ? {
+        recognitionFocus: {
+          sign: pending.recognitionIntention.sign,
+          appeared: focusAppeared,
+          ...(focusAppeared === 'yes' && focusRecognized ? { recognized: focusRecognized } : {}),
+        },
+      } : {}),
       recall: dreamRecall,
       sleepImpact: sleepImpact ?? undefined,
     });
@@ -145,6 +156,9 @@ export default function MorningReturnModal({ pending, visible, onRequestClose, o
           await saveEntry({
             ...linkedEntry,
             dreamDetails: details,
+            dreamSigns: details?.recognitionFocus?.appeared === 'yes'
+              ? [...new Set([...(linkedEntry.dreamSigns ?? []), details.recognitionFocus.sign])]
+              : linkedEntry.dreamSigns,
             practiceContext: linkedEntry.practiceContext ?? practiceContext,
           });
         }
@@ -187,7 +201,7 @@ export default function MorningReturnModal({ pending, visible, onRequestClose, o
     }
     setSavingReflection(false);
     onResolved();
-  }, [captureEntryId, dreamDetails, dreamRecall, noticed, onResolved, pending, savingReflection, sleepImpact]);
+  }, [captureEntryId, dreamDetails, dreamRecall, focusAppeared, focusRecognized, noticed, onResolved, pending, savingReflection, sleepImpact]);
 
   return (
     <Modal visible={Boolean(pending) && visible} transparent animationType="fade" onRequestClose={onRequestClose}>
@@ -311,6 +325,37 @@ export default function MorningReturnModal({ pending, visible, onRequestClose, o
                   value={noticed}
                   onChange={value => setNoticed(value as SignalNotice)}
                 />
+                {dreamRecall !== 'none' && pending?.recognitionIntention && (
+                  <View style={styles.focusReflection}>
+                    <Text style={styles.focusReflectionEyebrow}>TONIGHT'S RECOGNITION FOCUS</Text>
+                    <ReflectionQuestion
+                      prompt={`Did ${pending.recognitionIntention.sign.toLocaleLowerCase()} appear in the dream?`}
+                      options={[
+                        { label: 'YES', value: 'yes' },
+                        { label: 'UNSURE', value: 'unsure' },
+                        { label: 'NO', value: 'no' },
+                      ]}
+                      value={focusAppeared}
+                      onChange={value => {
+                        const appeared = value as DreamSignResponse;
+                        setFocusAppeared(appeared);
+                        if (appeared !== 'yes') setFocusRecognized(null);
+                      }}
+                    />
+                    {focusAppeared === 'yes' && (
+                      <ReflectionQuestion
+                        prompt={`Did you recognize ${pending.recognitionIntention.sign.toLocaleLowerCase()} as a dream sign?`}
+                        options={[
+                          { label: 'YES', value: 'yes' },
+                          { label: 'UNSURE', value: 'unsure' },
+                          { label: 'NO', value: 'no' },
+                        ]}
+                        value={focusRecognized}
+                        onChange={value => setFocusRecognized(value as DreamSignResponse)}
+                      />
+                    )}
+                  </View>
+                )}
                 {dreamRecall !== 'none' && (
                   <View style={styles.dreamDetails}>
                     <DreamDetailsEditor value={dreamDetails} onChange={setDreamDetails} initiallyExpanded />
@@ -402,6 +447,8 @@ const styles = StyleSheet.create({
   optionText: { color: '#AFA7BB', fontFamily: 'Inter-Medium', fontSize: 7, letterSpacing: 0.9 },
   optionTextSelected: { color: '#F0EAFB' },
   dreamDetails: { alignSelf: 'stretch', marginTop: 16 },
+  focusReflection: { alignSelf: 'stretch', alignItems: 'center', marginTop: 13, paddingHorizontal: 10, paddingBottom: 12, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(185,167,255,0.2)', backgroundColor: 'rgba(86,68,132,0.1)' },
+  focusReflectionEyebrow: { color: '#AFA4D5', fontFamily: 'Inter-Medium', fontSize: 7, letterSpacing: 1.3, textAlign: 'center', marginTop: 11 },
   save: { minHeight: 36, justifyContent: 'center', marginTop: 16, paddingHorizontal: 17, borderRadius: 18, borderWidth: 1, borderColor: 'rgba(205,194,255,0.38)' },
   disabled: { opacity: 0.35 },
   saveText: { color: '#E2D9F7', fontFamily: 'Inter-Medium', fontSize: 8, letterSpacing: 1.35 },

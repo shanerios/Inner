@@ -5,6 +5,7 @@ import type { JournalEntry } from './journalRepo';
 export const RECURRING_SIGNAL_FOCUS_KEY = 'inner.recurringSignalFocus.v1';
 const RECENT_DREAM_LIMIT = 12;
 const MIN_REPETITIONS = 3;
+export const RECURRING_SIGNAL_FOCUS_WINDOW_MS = 72 * 60 * 60 * 1000;
 
 type Storage = Pick<typeof AsyncStorage, 'getItem' | 'setItem' | 'removeItem'>;
 
@@ -17,6 +18,14 @@ export type RecurringDreamSignal = {
 export type RecurringSignalFocus = RecurringDreamSignal & {
   setAt: number;
 };
+
+export function activeRecurringSignalFocus(
+  focus: RecurringSignalFocus | null,
+  now = Date.now(),
+): RecurringSignalFocus | null {
+  if (!focus || focus.setAt > now) return null;
+  return now - focus.setAt <= RECURRING_SIGNAL_FOCUS_WINDOW_MS ? focus : null;
+}
 
 function isRememberedDream(entry: JournalEntry): boolean {
   if (entry.testSession) return false;

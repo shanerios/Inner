@@ -1,4 +1,5 @@
-import { describe, expect, it, jest } from '@jest/globals';
+import { beforeEach, describe, expect, it, jest } from '@jest/globals';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock'),
@@ -7,8 +8,12 @@ jest.mock('@react-native-async-storage/async-storage', () =>
 import {
   canPresentMorningReturn,
   canShowMorningReturnContinuation,
+  loadPendingMorningReturn,
   selectPendingMorningReturn,
 } from '../morningReturn';
+import { createNightPlan } from '../nightPlans';
+import { createNightRecipeV2 } from '../nightRecipes';
+import { JOURNEY_MEMORY_KEY } from '../journeyMemory';
 
 const scheduled = {
   id: 'scheduled-signal',
@@ -38,6 +43,10 @@ function overnightSession(overrides: Record<string, unknown> = {}) {
 }
 
 describe('global Morning Return selection', () => {
+  beforeEach(async () => {
+    await AsyncStorage.clear();
+  });
+
   it('prioritizes the exact eligible Overnight Journey', () => {
     const pending = selectPendingMorningReturn({
       schemaVersion: 2,
@@ -76,6 +85,45 @@ describe('global Morning Return selection', () => {
       sessions: [overnightSession({ testSession: true })],
     } as any, null, 1_100);
     expect(pending?.testSession).toBe(true);
+  });
+
+  it('carries the exact Night Recipe recognition intention into Morning Return', async () => {
+    const recipe = createNightRecipeV2({
+      durationMinutes: 420,
+      environment: 'forest',
+      feel: 'gentle',
+      signalId: 'guardian',
+      cuePlan: 'gentle',
+      recognitionIntention: {
+        type: 'recurring_dream_sign',
+        sign: 'Water',
+        selectedAt: 50,
+        evidence: { appearances: 4, rememberedDreams: 7 },
+      },
+      seed: 4,
+      createdAt: 80,
+    });
+    const plan = await createNightPlan({
+      source: 'manual',
+      configuration: {
+        durationMinutes: 420,
+        environment: 'forest',
+        feel: 'gentle',
+        signalId: 'guardian',
+        cuePlan: 'gentle',
+        recognitionWindowCount: 2,
+      },
+      recipe,
+    }, undefined, () => 90);
+    await AsyncStorage.setItem(JOURNEY_MEMORY_KEY, JSON.stringify({
+      schemaVersion: 2,
+      sessions: [overnightSession({ nightPlanId: plan.id })],
+    }));
+
+    await expect(loadPendingMorningReturn(1_100)).resolves.toEqual(expect.objectContaining({
+      nightPlanId: plan.id,
+      recognitionIntention: expect.objectContaining({ sign: 'Water' }),
+    }));
   });
 
   it('does not interrupt startup, blocking flows, or active playback', () => {
