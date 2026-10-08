@@ -5,6 +5,8 @@ import {
   createRecurringSignalJourney,
   deriveRecurringDreamSignal,
   recurringSignalObservation,
+  markRecurringSignalPracticeCompleted,
+  saveRecurringSignalFocus,
 } from '../recurringDreamSignals';
 
 jest.mock('@react-native-async-storage/async-storage', () =>
@@ -53,5 +55,24 @@ describe('recurring dream signals', () => {
     expect(journey.id).toBe('lucid-signal');
     expect(journey.title).toBe('Lucid Signal — Water');
     expect(journey.timeline.guidance?.[0].prompt).toContain('could this be a dream?');
+    expect(journey.recognitionPractice).toEqual({
+      type: 'recurring_dream_sign', sign: 'Water', protocolVersion: 1,
+    });
+  });
+
+  it('attaches a completed recognition practice to the matching focus', async () => {
+    let value: string | null = null;
+    const storage = {
+      getItem: async () => value,
+      setItem: async (_key: string, next: string) => { value = next; },
+      removeItem: async () => { value = null; },
+    };
+    await saveRecurringSignalFocus({ sign: 'Water', count: 4, rememberedDreams: 7 }, storage as any, () => 100);
+    const completed = await markRecurringSignalPracticeCompleted('water', {
+      sessionId: 'practice-1', completedAt: 200, signalId: 'guardian', presentationCount: 7, protocolVersion: 1,
+    }, storage as any);
+    expect(completed?.completedPractice).toEqual(expect.objectContaining({
+      sessionId: 'practice-1', signalId: 'guardian', presentationCount: 7,
+    }));
   });
 });

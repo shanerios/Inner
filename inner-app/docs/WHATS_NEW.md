@@ -93,7 +93,15 @@ Ocean, Forest, and Temple have gained more natural environmental detail, while O
 - Added a dedicated Practice Memory view.
 - Added recurring dream-signal detection so repeated signs can become material for later recognition practice.
 - Morning Return now asks separately whether the chosen dream sign appeared and whether it was recognized, then preserves that outcome with the dream and night record.
+- Morning Return now distinguishes a recognition signal experienced in the dream, heard while waking, experienced in both states, or not noticed.
+- When no dream was recalled, Morning Return limits signal-location answers to waking, uncertainty, or no recognition so contradictory outcomes are not recorded.
 - Practice Memory summarizes recognition-focus outcomes with explicit observation and insufficient-evidence language; after three answered focus nights, those outcomes can refine and explain the next recognition-practice recommendation.
+- Completing a personalized Recognition practice now links that exact session, dream sign, signal, and number of rehearsals to the next Night Recipe.
+- Overnight setup shows whether tonight's signal matches the one used to rehearse the dream sign while leaving the final choice with the practitioner.
+- Added Practice State v1, which keeps recall, sleep disruption, signal experience, and dream-sign recognition separate and identifies one transparent learning objective for the next night.
+- Home can now recommend repeating the last verified Night Recipe when another comparable night is more useful than changing a setting; one tap restores the reviewed duration, environment, feel, signal, cue plan, and signal level.
+- Every new Night Recipe freezes the Practice State objective and rules version that shaped it, so later reflections retain why the night was constructed.
+- Practice Memory now includes a compact recent-night evidence ledger showing planned-versus-delivered signals, reported outcomes, whether a night was comparable, and why interrupted or incomplete nights were excluded from adaptation.
 - Added transparent recommendation logic that explains the observations behind a suggestion.
 - Uses careful confidence language to distinguish recorded observations, possible personal patterns, and cases where there is not enough information.
 - Added local adaptive-night planning foundations that can select a relevant next practice from the user's history.
@@ -151,7 +159,7 @@ Ocean, Forest, and Temple have gained more natural environmental detail, while O
 ### Release verification completed so far
 
 - TypeScript type checking passes.
-- Full automated suite passes: 63 suites, 443 tests, and 6 snapshots.
+- Full automated suite passes: 64 suites, 452 tests, and 6 snapshots.
 - Android's native InnerAudio module compiles with recipe-driven gain and recovery fields; the matching iOS source passes Swift parsing.
 - Android standalone release builds successfully after a clean native build.
 - A standalone Inner Lab accelerated night completed on a physical Pixel 8 Pro and produced the expected Morning Return without Metro.

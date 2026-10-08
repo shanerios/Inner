@@ -4,6 +4,8 @@ import type { NightRecord } from './nightRecords';
 import { deriveRecurringDreamSignal } from './recurringDreamSignals';
 import { deriveCueLevelAdjustment } from './nightLearning';
 import { deriveSupportedEnvironmentAdjustment } from './adaptiveRecipeLearning';
+import { adaptiveRecipeSample } from './adaptiveRecipeLearning';
+import type { NightPlanConfiguration } from './nightPlans';
 import {
   MIN_RECOGNITION_FOCUS_NIGHTS,
   recognitionFocusObservationForSign,
@@ -11,13 +13,14 @@ import {
 
 export type TonightRecommendation = {
   id: string;
-  kind: 'gentler_signal' | 'clearer_signal' | 'recurring_signal' | 'repeat_environment' | 'recognition_refresh';
+  kind: 'gentler_signal' | 'clearer_signal' | 'recurring_signal' | 'repeat_environment' | 'recognition_refresh' | 'repeat_recipe';
   title: string;
   reason: string;
   actionLabel: string;
   sign?: string;
   environment?: string;
   signalGainScale?: number;
+  recipeConfiguration?: NightPlanConfiguration;
 };
 
 function environmentRecommendation(records: NightRecord[]): TonightRecommendation | null {
@@ -32,6 +35,24 @@ function environmentRecommendation(records: NightRecord[]): TonightRecommendatio
     actionLabel: `SHAPE ANOTHER ${label.toLocaleUpperCase()} NIGHT`,
     environment: adjustment.environment,
   };
+}
+
+function recipeComparisonKey(record: NightRecord): string | null {
+  const recipe = record.practiceContext?.nightPlan?.recipe;
+  if (!recipe) return null;
+  return JSON.stringify({
+    durationMinutes: recipe.durationMinutes,
+    environment: recipe.environment,
+    feel: recipe.feel,
+    signalId: recipe.recognition.signalId,
+    cuePlan: recipe.recognition.cuePlan,
+    windows: recipe.recognition.windows.map(window => ({
+      cueAtMinute: window.cueAtMinute,
+      signalGainScale: window.signalGainScale,
+      presentations: window.presentations,
+    })),
+    focus: recipe.recognition.intention?.sign.toLocaleLowerCase(),
+  });
 }
 
 export function deriveTonightRecommendation(
@@ -113,6 +134,41 @@ export function deriveTonightRecommendation(
       reason: 'Recognition practice has not appeared in your last seven days of recorded practice.',
       actionLabel: 'OPEN LUCID SIGNAL',
     };
+  }
+
+  if (!excludedKinds.has('repeat_recipe')) {
+    const latestComparable = [...eligibleRecords]
+      .sort((left, right) => right.reflectedAt - left.reflectedAt)
+      .find(record => adaptiveRecipeSample(record).eligibleForEnvironment);
+    const recipe = latestComparable?.practiceContext?.nightPlan?.recipe;
+    if (recipe && latestComparable && latestComparable.reflectedAt >= outcomeCutoff) {
+      const latestKey = recipeComparisonKey(latestComparable);
+      const comparableCount = eligibleRecords.filter(record => (
+        adaptiveRecipeSample(record).eligibleForEnvironment
+        && recipeComparisonKey(record) === latestKey
+      )).length;
+      const label = recipe.environment.charAt(0).toUpperCase() + recipe.environment.slice(1);
+      return {
+        id: `recipe:repeat:${recipe.id}`,
+        kind: 'repeat_recipe',
+        title: `Repeat the ${label} recipe`,
+        reason: comparableCount < 3
+          ? `${comparableCount} comparable ${comparableCount === 1 ? 'night is' : 'nights are'} recorded. Repeating the same setup will help Inner establish a baseline.`
+          : 'No single outcome currently justifies changing the recipe. Repeating a stable setup will make the next observation more useful.',
+        actionLabel: 'REVIEW THE SAME NIGHT',
+        recipeConfiguration: {
+          durationMinutes: recipe.durationMinutes,
+          environment: recipe.environment,
+          feel: recipe.feel,
+          signalId: recipe.recognition.signalId,
+          cuePlan: recipe.recognition.cuePlan,
+          recognitionWindowCount: recipe.recognition.windows.length,
+          signalGainScale: recipe.recognition.windows.length
+            ? recipe.recognition.windows.reduce((sum, window) => sum + window.signalGainScale, 0) / recipe.recognition.windows.length
+            : undefined,
+        },
+      };
+    }
   }
   return null;
 }

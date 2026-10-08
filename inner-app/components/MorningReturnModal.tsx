@@ -9,8 +9,9 @@ import { normalizeDreamDetails } from '../core/dreamDetails';
 import {
   saveLucidSignalMorningCapture,
   saveLucidSignalReflection,
+  signalNoticeFromExperience,
   type DreamRecall,
-  type SignalNotice,
+  type SignalExperience,
   type SleepImpact,
 } from '../core/lucidSignalLearning';
 import { saveOvernightMorningCapture, saveOvernightReflection } from '../core/journeyMemory';
@@ -32,7 +33,7 @@ type Props = {
 
 export default function MorningReturnModal({ pending, visible, onRequestClose, onResolved }: Props) {
   const insets = useSafeAreaInsets();
-  const [noticed, setNoticed] = useState<SignalNotice | null>(null);
+  const [signalExperience, setSignalExperience] = useState<SignalExperience | null>(null);
   const [dreamDetails, setDreamDetails] = useState<DreamDetails | undefined>(undefined);
   const [sleepImpact, setSleepImpact] = useState<SleepImpact | null>(null);
   const [dreamRecall, setDreamRecall] = useState<DreamRecall | null>(null);
@@ -48,7 +49,7 @@ export default function MorningReturnModal({ pending, visible, onRequestClose, o
   const suggestedDreamSigns = voiceRecognitionMode ? suggestDreamSigns(capture) : [];
 
   useEffect(() => {
-    setNoticed(null);
+    setSignalExperience(null);
     setDreamDetails(undefined);
     setSleepImpact(null);
     setDreamRecall(pending?.morningCaptureEntryId ? 'dream' : null);
@@ -139,7 +140,8 @@ export default function MorningReturnModal({ pending, visible, onRequestClose, o
     });
     const reflection = {
       recall: dreamRecall,
-      noticed: noticed ?? undefined,
+      noticed: signalNoticeFromExperience(signalExperience ?? undefined),
+      signalExperience: signalExperience ?? undefined,
       dreamDetails: details,
       sleepImpact: sleepImpact ?? undefined,
     };
@@ -180,7 +182,8 @@ export default function MorningReturnModal({ pending, visible, onRequestClose, o
           outcome: {
             recall: dreamRecall,
             dreamDetails: details,
-            signalNotice: noticed ?? undefined,
+            signalNotice: signalNoticeFromExperience(signalExperience ?? undefined),
+            signalExperience: signalExperience ?? undefined,
             sleepImpact: sleepImpact ?? undefined,
           },
         });
@@ -201,7 +204,7 @@ export default function MorningReturnModal({ pending, visible, onRequestClose, o
     }
     setSavingReflection(false);
     onResolved();
-  }, [captureEntryId, dreamDetails, dreamRecall, focusAppeared, focusRecognized, noticed, onResolved, pending, savingReflection, sleepImpact]);
+  }, [captureEntryId, dreamDetails, dreamRecall, focusAppeared, focusRecognized, onResolved, pending, savingReflection, signalExperience, sleepImpact]);
 
   return (
     <Modal visible={Boolean(pending) && visible} transparent animationType="fade" onRequestClose={onRequestClose}>
@@ -312,18 +315,31 @@ export default function MorningReturnModal({ pending, visible, onRequestClose, o
                   onChange={value => {
                     const recall = value as DreamRecall;
                     setDreamRecall(recall);
-                    if (recall === 'none') setDreamDetails(undefined);
+                    if (recall === 'none') {
+                      setDreamDetails(undefined);
+                      setSignalExperience(current => current === 'both'
+                        ? 'while_waking'
+                        : current === 'in_dream' ? null : current);
+                    }
                   }}
                 />
                 <ReflectionQuestion
-                  prompt="Did you notice the signal?"
-                  options={[
-                    { label: 'YES', value: 'yes' },
-                    { label: 'UNSURE', value: 'unsure' },
-                    { label: 'NO', value: 'no' },
-                  ]}
-                  value={noticed}
-                  onChange={value => setNoticed(value as SignalNotice)}
+                  prompt="Where did you notice Inner’s signal?"
+                  options={dreamRecall === 'none'
+                    ? [
+                        { label: 'WHILE WAKING', value: 'while_waking' },
+                        { label: 'NOT SURE', value: 'unsure' },
+                        { label: 'DIDN’T NOTICE', value: 'not_noticed' },
+                      ]
+                    : [
+                        { label: 'IN THE DREAM', value: 'in_dream' },
+                        { label: 'WHILE WAKING', value: 'while_waking' },
+                        { label: 'BOTH', value: 'both' },
+                        { label: 'NOT SURE', value: 'unsure' },
+                        { label: 'DIDN’T NOTICE', value: 'not_noticed' },
+                      ]}
+                  value={signalExperience}
+                  onChange={value => setSignalExperience(value as SignalExperience)}
                 />
                 {dreamRecall !== 'none' && pending?.recognitionIntention && (
                   <View style={styles.focusReflection}>

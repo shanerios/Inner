@@ -38,13 +38,17 @@ export async function buildPracticeContext(
     && recurringFocus.setAt <= recentBeforeAt
     && recurringFocus.setAt >= lowerBound
     ? [{
-        sessionId: `dream-sign:${recurringFocus.sign.toLocaleLowerCase()}:${recurringFocus.setAt}`,
+        sessionId: recurringFocus.completedPractice?.sessionId
+          ?? `dream-sign:${recurringFocus.sign.toLocaleLowerCase()}:${recurringFocus.setAt}`,
         type: 'recognition_signal' as const,
         contentId: `dream-sign:${recurringFocus.sign.toLocaleLowerCase()}`,
-        contentTitle: `Recognition focus · ${recurringFocus.sign}`,
-        startedAt: recurringFocus.setAt,
-        endedAt: recurringFocus.setAt,
-        linkReason: 'recent_practice' as const,
+        contentTitle: `${recurringFocus.completedPractice ? 'Recognition practice' : 'Recognition focus'} · ${recurringFocus.sign}`,
+        startedAt: recurringFocus.completedPractice?.completedAt ?? recurringFocus.setAt,
+        endedAt: recurringFocus.completedPractice?.completedAt ?? recurringFocus.setAt,
+        linkReason: recurringFocus.completedPractice
+          ? 'completed_recognition_practice' as const
+          : 'recent_practice' as const,
+        signalId: recurringFocus.completedPractice?.signalId,
       }]
     : [];
   const links = primaryLink

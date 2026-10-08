@@ -14,6 +14,7 @@ import {
   saveLucidSignalReflection,
   saveLucidSignalMorningCapture,
   LUCID_SIGNAL_LEARNING_SCHEMA_VERSION,
+  normalizeLucidSignalReflection,
 } from '../lucidSignalLearning';
 
 function memoryStorage() {
@@ -39,6 +40,18 @@ describe('Lucid Signal learning', () => {
     await saveLucidSignalReflection(night.id, { noticed: 'yes', lucid: true, sleepImpact: 'none' }, storage as any, () => 9_000);
     await expect(getPendingLucidSignalReflection(storage as any, () => night.reviewAt + 1)).resolves.toBeNull();
     expect((await loadLucidSignalLearning(storage as any)).nights[0].reflection?.lucid).toBe(true);
+  });
+
+  it('keeps dream and waking signal experiences distinct while preserving legacy notice learning', () => {
+    expect(normalizeLucidSignalReflection({ signalExperience: 'in_dream' })).toEqual({
+      signalExperience: 'in_dream', noticed: 'yes',
+    });
+    expect(normalizeLucidSignalReflection({ signalExperience: 'while_waking' })).toEqual({
+      signalExperience: 'while_waking', noticed: 'yes',
+    });
+    expect(normalizeLucidSignalReflection({ signalExperience: 'not_noticed' })).toEqual({
+      signalExperience: 'not_noticed', noticed: 'no',
+    });
   });
 
   it('stores multidimensional awareness without creating a new binary lucid answer', async () => {

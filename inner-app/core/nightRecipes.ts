@@ -2,6 +2,7 @@ import type { LucidSignalCuePlan } from './lucidSignalPlans';
 import { recognitionCueMinutesForDuration } from './lucidSignalPlans';
 import type { RecognitionSignalId } from './recognitionSignals';
 import type { ProceduralEnvironment } from './audio/types';
+import type { PracticeObjective } from './practiceState';
 
 export const NIGHT_RECIPE_SCHEMA_VERSION = 2 as const;
 
@@ -26,6 +27,13 @@ export type NightRecipeRecognitionIntention = {
     appearances: number;
     rememberedDreams: number;
   };
+  completedPractice?: {
+    sessionId: string;
+    completedAt: number;
+    signalId: RecognitionSignalId;
+    presentationCount: number;
+    protocolVersion: 1;
+  };
 };
 
 export type NightRecipeV2 = {
@@ -34,6 +42,12 @@ export type NightRecipeV2 = {
   createdAt: number;
   seed: number;
   goal: 'lucid_recognition';
+  learningObjective?: {
+    id: PracticeObjective;
+    title: string;
+    rulesVersion: number;
+    derivedAt: number;
+  };
   durationMinutes: number;
   environment: NightRecipeEnvironment;
   feel: NightRecipeFeel;
@@ -59,6 +73,7 @@ export type CreateNightRecipeInput = {
   /** Linear trim applied after the selected signal's calibrated base level. */
   signalGainScale?: number;
   recognitionIntention?: NightRecipeRecognitionIntention;
+  learningObjective?: NightRecipeV2['learningObjective'];
   seed: number;
   createdAt?: number;
 };
@@ -74,6 +89,7 @@ export function createNightRecipeV2(input: CreateNightRecipeInput): NightRecipeV
     createdAt,
     seed: input.seed,
     goal: 'lucid_recognition',
+    ...(input.learningObjective ? { learningObjective: input.learningObjective } : {}),
     durationMinutes: input.durationMinutes,
     environment: input.environment,
     feel: input.feel,

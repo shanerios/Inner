@@ -14,7 +14,7 @@ export type PracticeLinkSnapshot = {
   startedAt: number;
   endedAt?: number;
   minutesBeforeCapture?: number;
-  linkReason: 'exact_overnight_session' | 'exact_signal_night' | 'recent_practice';
+  linkReason: 'exact_overnight_session' | 'exact_signal_night' | 'completed_recognition_practice' | 'recent_practice';
   audioRoute?: 'private' | 'speaker' | 'unknown';
   environment?: string;
   signalId?: string;
@@ -108,6 +108,12 @@ export function practiceContextSections(context?: PracticeContextSnapshot): stri
         ...(context.nightPlan.recipe?.recognition.intention
           ? [`Recognition focus: ${context.nightPlan.recipe.recognition.intention.sign}`]
           : []),
+        ...(context.nightPlan.recipe?.recognition.intention?.completedPractice
+          ? [`Recognition preparation: completed with ${context.nightPlan.recipe.recognition.intention.completedPractice.signalId}`]
+          : []),
+        ...(context.nightPlan.recipe?.learningObjective
+          ? [`Learning objective: ${context.nightPlan.recipe.learningObjective.title}`]
+          : []),
         `Source: ${context.nightPlan.source === 'experiment' ? 'Personal experiment' : context.nightPlan.source === 'recommendation' ? 'Inner recommendation' : context.nightPlan.source === 'adaptive_rule' ? 'Adaptive rule' : 'Shaped manually'}`,
         ...(context.nightPlan.reason ? [`Why: ${context.nightPlan.reason}`] : []),
       ]]
@@ -132,6 +138,7 @@ export function practiceContextSections(context?: PracticeContextSnapshot): stri
         bell: 'Bell',
         chimes: 'Chimes',
         droplets: 'Droplets',
+        guardian: 'Guardian',
       };
       lines.push(`Recognition signal: ${signalLabels[link.signalId] ?? link.signalId}`);
     }

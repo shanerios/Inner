@@ -14,17 +14,27 @@ const MAX_NIGHTS = 30;
 type Storage = Pick<typeof AsyncStorage, 'getItem' | 'setItem'>;
 
 export type SignalNotice = 'yes' | 'unsure' | 'no';
+export type SignalExperience = 'in_dream' | 'while_waking' | 'both' | 'unsure' | 'not_noticed';
 export type SleepImpact = DreamSleepImpact;
 export type { DreamRecall };
 
 export type LucidSignalReflection = {
   recall?: DreamRecall;
   noticed?: SignalNotice;
+  /** Separates dream incorporation from hearing the cue while waking or awake. */
+  signalExperience?: SignalExperience;
   /** Legacy answer retained for older nights. New reflections use dreamDetails.awareness. */
   lucid?: boolean;
   dreamDetails?: DreamDetails;
   sleepImpact?: SleepImpact;
 };
+
+export function signalNoticeFromExperience(experience?: SignalExperience): SignalNotice | undefined {
+  if (!experience) return undefined;
+  if (experience === 'unsure') return 'unsure';
+  if (experience === 'not_noticed') return 'no';
+  return 'yes';
+}
 
 export type LucidSignalNight = {
   id: string;
@@ -128,9 +138,11 @@ export async function saveLucidSignalReflection(
 export function normalizeLucidSignalReflection(reflection: LucidSignalReflection): LucidSignalReflection {
   const { dreamDetails, ...legacyAndNightAnswers } = reflection;
   const normalizedDetails = normalizeDreamDetails(dreamDetails);
+  const noticed = reflection.noticed ?? signalNoticeFromExperience(reflection.signalExperience);
+  const normalizedAnswers = noticed ? { ...legacyAndNightAnswers, noticed } : legacyAndNightAnswers;
   return normalizedDetails
-    ? { ...legacyAndNightAnswers, dreamDetails: normalizedDetails }
-    : legacyAndNightAnswers;
+    ? { ...normalizedAnswers, dreamDetails: normalizedDetails }
+    : normalizedAnswers;
 }
 
 export function lucidSignalReflectionAwareness(reflection?: LucidSignalReflection): DreamAwareness | null {

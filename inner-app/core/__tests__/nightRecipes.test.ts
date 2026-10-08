@@ -72,6 +72,9 @@ describe('Night Recipe v2', () => {
         sign: ' Water ',
         selectedAt: 80,
         evidence: { appearances: 4, rememberedDreams: 7 },
+        completedPractice: {
+          sessionId: 'practice-1', completedAt: 90, signalId: 'droplets', presentationCount: 7, protocolVersion: 1,
+        },
       },
       seed: 42,
       createdAt: 100,
@@ -81,6 +84,27 @@ describe('Night Recipe v2', () => {
       sign: 'Water',
       selectedAt: 80,
       evidence: { appearances: 4, rememberedDreams: 7 },
+      completedPractice: {
+        sessionId: 'practice-1', completedAt: 90, signalId: 'droplets', presentationCount: 7, protocolVersion: 1,
+      },
+    });
+  });
+
+  it('freezes the learning objective that shaped the night', () => {
+    const recipe = createNightRecipeV2({
+      durationMinutes: 420,
+      environment: 'forest',
+      feel: 'gentle',
+      signalId: 'guardian',
+      cuePlan: 'gentle',
+      learningObjective: {
+        id: 'establish_baseline', title: 'Establish your baseline', rulesVersion: 1, derivedAt: 90,
+      },
+      seed: 42,
+      createdAt: 100,
+    });
+    expect(recipe.learningObjective).toEqual({
+      id: 'establish_baseline', title: 'Establish your baseline', rulesVersion: 1, derivedAt: 90,
     });
   });
 });

@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { normalizeDreamDetails, type DreamDetails, type DreamRecall, type DreamSleepImpact } from './dreamDetails';
-import type { SignalNotice } from './lucidSignalLearning';
+import type { SignalExperience, SignalNotice } from './lucidSignalLearning';
 import type { PracticeContextSnapshot } from './practiceContext';
 
 export const NIGHT_RECORDS_KEY = 'inner.nightRecords.v1';
@@ -27,6 +27,7 @@ export type NightRecord = {
     recall: DreamRecall;
     dreamDetails?: DreamDetails;
     signalNotice?: SignalNotice;
+    signalExperience?: SignalExperience;
     sleepImpact?: DreamSleepImpact;
   };
 };

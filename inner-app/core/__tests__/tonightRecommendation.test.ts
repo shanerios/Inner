@@ -199,6 +199,22 @@ describe('tonight recommendation', () => {
     }));
   });
 
+  it('repeats the last complete recipe when another comparable night is the useful next step', () => {
+    const recent = deliveredRecord('1', 'none', 'yes');
+    recent.reflectedAt = 10_000;
+    expect(deriveTonightRecommendation([], [recent], [], 20_000)).toEqual(expect.objectContaining({
+      kind: 'repeat_recipe',
+      title: 'Repeat the Ocean recipe',
+      actionLabel: 'REVIEW THE SAME NIGHT',
+      recipeConfiguration: expect.objectContaining({
+        durationMinutes: 420,
+        environment: 'ocean',
+        signalId: 'guardian',
+        cuePlan: 'gentle',
+      }),
+    }));
+  });
+
   it('returns no recommendation when evidence is insufficient', () => {
     expect(deriveTonightRecommendation([dream('1', 'Water')], [], [])).toBeNull();
   });

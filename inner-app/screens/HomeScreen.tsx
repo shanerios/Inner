@@ -1144,6 +1144,11 @@ const loop = Animated.loop(
           recommendationId: tonightRecommendation.id,
           adaptiveProposal: adaptiveNightProposal,
         });
+      } else if (tonightRecommendation.kind === 'repeat_recipe' && tonightRecommendation.recipeConfiguration) {
+        navigation.navigate('OvernightJourney', {
+          recommendationId: tonightRecommendation.id,
+          suggestedConfiguration: tonightRecommendation.recipeConfiguration,
+        });
       } else if (tonightRecommendation.kind === 'recurring_signal' && tonightRecommendation.sign) {
         const signal = deriveRecurringDreamSignal(await listEntries());
         const baseJourney = FACTORY_AUDIO_JOURNEYS.find(journey => journey.id === 'lucid-signal');

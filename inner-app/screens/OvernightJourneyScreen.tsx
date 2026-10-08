@@ -34,8 +34,9 @@ import { Typography } from '../core/typography';
 import { INNER_LAB_BUILD } from '../core/innerLab';
 import { loadBedsideMotion, summarizeBedsideMotion } from '../core/bedsideMotion';
 import { attachNightPlanToJourneyMemory, createMorningReturnTestSession, loadJourneyMemory, type JourneyMemorySession } from '../core/journeyMemory';
-import { createNightPlan, type NightPlanSource } from '../core/nightPlans';
+import { createNightPlan, type NightPlanConfiguration, type NightPlanSource } from '../core/nightPlans';
 import { createNightRecipeV2, nightRecipeCueSummary } from '../core/nightRecipes';
+import type { NightRecipeRecognitionIntention } from '../core/nightRecipes';
 import { experimentContextForPractice, loadCurrentPracticeExperiment } from '../core/practiceExperiments';
 import { loadSelectedRecommendation, recommendationForPracticeContext } from '../core/recommendationMemory';
 import type { AdaptiveNightProposal } from '../core/adaptiveNight';
@@ -46,6 +47,8 @@ import {
   recurringSignalPrompt,
   type RecurringSignalFocus,
 } from '../core/recurringDreamSignals';
+import { loadNightRecords } from '../core/nightRecords';
+import { derivePracticeState, type PracticeStateV1 } from '../core/practiceState';
 
 type OvernightEnvironment = Exclude<ProceduralEnvironment, 'none' | 'wind'>;
 type OvernightFeel = 'gentle' | 'deep' | 'immersive';
@@ -87,6 +90,22 @@ function roundedSignalLevel(value: number): number {
   return Math.round(value * 20) / 20;
 }
 
+function recognitionIntentionForFocus(
+  focus: RecurringSignalFocus | null,
+): NightRecipeRecognitionIntention | undefined {
+  if (!focus) return undefined;
+  return {
+    type: 'recurring_dream_sign',
+    sign: focus.sign,
+    selectedAt: focus.setAt,
+    evidence: {
+      appearances: focus.count,
+      rememberedDreams: focus.rememberedDreams,
+    },
+    ...(focus.completedPractice ? { completedPractice: focus.completedPractice } : {}),
+  };
+}
+
 function eventLabel(event: JourneyMemorySession['events'][number]): string {
   if (event.type === 'stage_changed') return `Entered ${event.stageId ?? 'stage'}`;
   if (event.type === 'cue_played') return `Signal · ${event.cueId ?? 'cue'}`;
@@ -121,25 +140,34 @@ export default function OvernightJourneyScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const insets = useSafeAreaInsets();
-  const [durationMinutes, setDurationMinutes] = useState<(typeof DURATIONS)[number]>(450);
   const adaptiveProposal = route.params?.adaptiveProposal as AdaptiveNightProposal | undefined;
-  const suggestedEnvironment = adaptiveProposal?.proposedConfiguration.environment ?? route.params?.suggestedEnvironment;
+  const suggestedConfiguration = route.params?.suggestedConfiguration as NightPlanConfiguration | undefined;
+  const suggestedDuration = suggestedConfiguration?.durationMinutes as (typeof DURATIONS)[number] | undefined;
+  const [durationMinutes, setDurationMinutes] = useState<(typeof DURATIONS)[number]>(
+    suggestedDuration && DURATIONS.includes(suggestedDuration) ? suggestedDuration : 450,
+  );
+  const suggestedEnvironment = adaptiveProposal?.proposedConfiguration.environment
+    ?? suggestedConfiguration?.environment
+    ?? route.params?.suggestedEnvironment;
   const initialEnvironment = ENVIRONMENTS.some(item => item.id === suggestedEnvironment)
     ? suggestedEnvironment as OvernightEnvironment
     : 'ocean';
   const [environment, setEnvironment] = useState<OvernightEnvironment>(initialEnvironment);
-  const [feel, setFeel] = useState<OvernightFeel>(adaptiveProposal?.proposedConfiguration.feel ?? 'gentle');
+  const [feel, setFeel] = useState<OvernightFeel>(adaptiveProposal?.proposedConfiguration.feel ?? suggestedConfiguration?.feel ?? 'gentle');
   const [signalId, setSignalId] = useState<RecognitionSignalId>('ascending');
   const [cuePlan, setCuePlan] = useState<LucidSignalCuePlan>(
     adaptiveProposal?.proposedConfiguration.cuePlan
+      ?? suggestedConfiguration?.cuePlan
       ?? (route.params?.suggestedCuePlan === 'gentle' ? 'gentle' : 'standard'),
   );
-  const suggestedSignalGainScale = adaptiveProposal?.proposedConfiguration.signalGainScale;
+  const suggestedSignalGainScale = adaptiveProposal?.proposedConfiguration.signalGainScale
+    ?? suggestedConfiguration?.signalGainScale;
   const [signalGainScale, setSignalGainScale] = useState(suggestedSignalGainScale ?? 1);
   const [previewingSignal, setPreviewingSignal] = useState(false);
   const [accelerated, setAccelerated] = useState(false);
   const [quietNight, setQuietNight] = useState(false);
   const [recognitionFocus, setRecognitionFocus] = useState<RecurringSignalFocus | null>(null);
+  const [practiceState, setPracticeState] = useState<PracticeStateV1 | null>(null);
   const [inspectorVisible, setInspectorVisible] = useState(false);
   const [latestMemory, setLatestMemory] = useState<JourneyMemorySession | null>(null);
   const [latestMotion, setLatestMotion] = useState<string | null>(null);
@@ -155,20 +183,24 @@ export default function OvernightJourneyScreen() {
     let active = true;
     void (async () => {
       const [storedSignal, storedPlan] = await Promise.all([getRecognitionSignalId(), getLucidSignalCuePlan()]);
-      const initialSignal = (adaptiveProposal?.proposedConfiguration.signalId as RecognitionSignalId | undefined) ?? storedSignal;
+      const initialSignal = (adaptiveProposal?.proposedConfiguration.signalId as RecognitionSignalId | undefined)
+        ?? (suggestedConfiguration?.signalId as RecognitionSignalId | undefined)
+        ?? storedSignal;
       const storedLevel = await getRecognitionSignalGainScale(initialSignal);
       if (!active) return;
       setSignalId(initialSignal);
       setSignalGainScale(suggestedSignalGainScale ?? storedLevel);
-      if (!adaptiveProposal?.proposedConfiguration.cuePlan && !route.params?.suggestedCuePlan) setCuePlan(storedPlan);
+      if (!adaptiveProposal?.proposedConfiguration.cuePlan && !suggestedConfiguration?.cuePlan && !route.params?.suggestedCuePlan) setCuePlan(storedPlan);
     })();
     return () => { active = false; };
-  }, [adaptiveProposal, route.params?.suggestedCuePlan, suggestedSignalGainScale]);
+  }, [adaptiveProposal, route.params?.suggestedCuePlan, suggestedConfiguration, suggestedSignalGainScale]);
 
   useEffect(() => {
     let active = true;
-    void loadRecurringSignalFocus().then(focus => {
-      if (active) setRecognitionFocus(activeRecurringSignalFocus(focus));
+    void Promise.all([loadRecurringSignalFocus(), loadNightRecords(), loadJourneyMemory()]).then(([focus, records, memory]) => {
+      if (!active) return;
+      setRecognitionFocus(activeRecurringSignalFocus(focus));
+      setPracticeState(derivePracticeState(records, Date.now(), memory.sessions));
     });
     return () => { active = false; };
   }, []);
@@ -206,18 +238,16 @@ export default function OvernightJourneyScreen() {
     signalId,
     cuePlan,
     signalGainScale,
-    recognitionIntention: recognitionFocus ? {
-      type: 'recurring_dream_sign',
-      sign: recognitionFocus.sign,
-      selectedAt: recognitionFocus.setAt,
-      evidence: {
-        appearances: recognitionFocus.count,
-        rememberedDreams: recognitionFocus.rememberedDreams,
-      },
+    recognitionIntention: recognitionIntentionForFocus(recognitionFocus),
+    learningObjective: practiceState ? {
+      id: practiceState.objective.id,
+      title: practiceState.objective.title,
+      rulesVersion: practiceState.rulesVersion,
+      derivedAt: practiceState.derivedAt,
     } : undefined,
     seed: 1,
     createdAt: 0,
-  }), [cuePlan, durationMinutes, environment, feel, recognitionFocus, signalGainScale, signalId]);
+  }), [cuePlan, durationMinutes, environment, feel, practiceState, recognitionFocus, signalGainScale, signalId]);
   const compiled = useMemo(() => {
     const realProtocol = createRecognitionOvernightProtocol({
       sleepDurationMinutes: durationMinutes,
@@ -315,14 +345,12 @@ export default function OvernightJourneyScreen() {
         signalId,
         cuePlan,
         signalGainScale,
-        recognitionIntention: recognitionFocus ? {
-          type: 'recurring_dream_sign',
-          sign: recognitionFocus.sign,
-          selectedAt: recognitionFocus.setAt,
-          evidence: {
-            appearances: recognitionFocus.count,
-            rememberedDreams: recognitionFocus.rememberedDreams,
-          },
+        recognitionIntention: recognitionIntentionForFocus(recognitionFocus),
+        learningObjective: practiceState ? {
+          id: practiceState.objective.id,
+          title: practiceState.objective.title,
+          rulesVersion: practiceState.rulesVersion,
+          derivedAt: practiceState.derivedAt,
         } : undefined,
         seed,
         createdAt: plannedAt,
@@ -357,6 +385,7 @@ export default function OvernightJourneyScreen() {
           : 'manual';
       const proposedConfiguration = {
         ...(adaptiveProposal?.proposedConfiguration ?? {}),
+        ...(suggestedConfiguration ?? {}),
         ...(route.params?.suggestedEnvironment ? { environment: route.params.suggestedEnvironment as string } : {}),
         ...(route.params?.suggestedCuePlan ? { cuePlan: route.params.suggestedCuePlan as LucidSignalCuePlan } : {}),
       };
@@ -409,15 +438,7 @@ export default function OvernightJourneyScreen() {
   const openMorningReturnTest = async () => {
     const createdAt = Date.now();
     const seed = createNightSeed();
-    const recognitionIntention = recognitionFocus ? {
-      type: 'recurring_dream_sign' as const,
-      sign: recognitionFocus.sign,
-      selectedAt: recognitionFocus.setAt,
-      evidence: {
-        appearances: recognitionFocus.count,
-        rememberedDreams: recognitionFocus.rememberedDreams,
-      },
-    } : {
+    const recognitionIntention = recognitionIntentionForFocus(recognitionFocus) ?? {
       type: 'recurring_dream_sign' as const,
       sign: 'Water',
       selectedAt: createdAt,
@@ -500,6 +521,13 @@ export default function OvernightJourneyScreen() {
             <Text style={[Typography.display, styles.recognitionFocusTitle]}>{recognitionFocus.sign}</Text>
             <Text style={styles.recognitionFocusObservation}>{recurringSignalObservation(recognitionFocus)}</Text>
             <Text style={styles.recognitionFocusPrompt}>{recurringSignalPrompt(recognitionFocus.sign)}</Text>
+            {recognitionFocus.completedPractice && (
+              <Text style={styles.recognitionFocusPractice}>
+                {recognitionFocus.completedPractice.signalId === signalId
+                  ? `Practice completed with ${recognitionSignalById(signalId).name}`
+                  : `Practiced with ${recognitionSignalById(recognitionFocus.completedPractice.signalId).name} · tonight uses ${recognitionSignalById(signalId).name}`}
+              </Text>
+            )}
             <Pressable
               onPress={() => setRecognitionFocus(null)}
               accessibilityRole="button"
@@ -575,6 +603,7 @@ export default function OvernightJourneyScreen() {
           <Text style={styles.readySchedule}>Signals near {nightRecipeCueSummary(previewRecipe)}</Text>
           <Text style={styles.readyLine}>{recognitionSignalById(signalId).name} · {feel}</Text>
           {recognitionFocus && <Text style={styles.readyLine}>Recognition focus · {recognitionFocus.sign}</Text>}
+          {practiceState && <Text style={styles.readyLine}>Learning objective · {practiceState.objective.title}</Text>}
           {quietNight && <Text style={styles.readyLine}>Quiet night · not used for signal-level learning</Text>}
           <Text style={styles.readyLine}>Signal volume · {signalLevelLabel(signalGainScale)}</Text>
           <Text style={styles.readyCopy}>Your journey begins with a seven-minute waking preparation, then continues quietly through descent, protected sleep, recognition windows, and return.</Text>
@@ -709,6 +738,7 @@ const styles = StyleSheet.create({
   recognitionFocusTitle: { color: '#F0ECF7', fontSize: 18, marginTop: 7, textAlign: 'center' },
   recognitionFocusObservation: { color: '#C4BCCF', fontFamily: 'Inter-Light', fontSize: 9, lineHeight: 14, textAlign: 'center', marginTop: 7 },
   recognitionFocusPrompt: { color: '#9F96AE', fontFamily: 'Inter-ExtraLight', fontSize: 9, lineHeight: 14, textAlign: 'center', marginTop: 5 },
+  recognitionFocusPractice: { color: '#B8ACDE', fontFamily: 'Inter-Medium', fontSize: 8, lineHeight: 13, textAlign: 'center', marginTop: 8 },
   recognitionFocusRemove: { minHeight: 30, justifyContent: 'center', marginTop: 8, paddingHorizontal: 12 },
   recognitionFocusRemoveText: { color: '#8F84A0', fontFamily: 'Inter-Medium', fontSize: 7, letterSpacing: 1.1 },
   readyCard: { maxWidth: 330, width: '100%', alignSelf: 'center', alignItems: 'center', marginTop: 30, paddingHorizontal: 18, paddingVertical: 18, borderRadius: 21, borderWidth: 1, borderColor: 'rgba(190,174,238,0.28)', backgroundColor: 'rgba(7,8,19,0.72)' },

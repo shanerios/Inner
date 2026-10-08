@@ -146,6 +146,7 @@ type RootStackParamList = {
     recommendationId?: string;
     experimentId?: string;
     adaptiveProposal?: import('./core/adaptiveNight').AdaptiveNightProposal;
+    suggestedConfiguration?: import('./core/nightPlans').NightPlanConfiguration;
   } | undefined;
   PlaybackDiagnostics: undefined;
   LucidJourneyPlayer: { journeyId?: string; journey?: import('./core/audio').FactoryAudioJourney };

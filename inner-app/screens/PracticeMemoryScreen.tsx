@@ -32,6 +32,9 @@ import {
   recognitionFocusEvidenceText,
   recognitionFocusObservationText,
 } from '../core/recognitionFocusLearning';
+import { derivePracticeState } from '../core/practiceState';
+import { nightLearningSample } from '../core/nightLearning';
+import { adaptiveRecipeSample } from '../core/adaptiveRecipeLearning';
 
 type Props = { navigation: any };
 
@@ -41,6 +44,36 @@ function recurringSigns(entries: JournalEntry[]) {
     ((entry as any).dreamSigns || []).forEach((sign: string) => counts.set(sign, (counts.get(sign) || 0) + 1));
   });
   return Array.from(counts.entries()).filter(([, count]) => count >= 2).sort((a, b) => b[1] - a[1]).slice(0, 5);
+}
+
+const EVIDENCE_EXCLUSION_LABELS: Record<string, string> = {
+  test_session: 'test session',
+  not_overnight: 'not an Overnight Journey',
+  quiet_night: 'marked as a quiet night',
+  route_changed: 'audio route changed',
+  volume_low: 'device volume was near mute',
+  volume_changed: 'device volume changed',
+  missing_recipe: 'recipe unavailable',
+  missing_execution: 'playback receipt unavailable',
+  incomplete_execution: 'journey did not complete',
+  missing_cues: 'one or more signals were not delivered',
+  interrupted: 'playback was interrupted',
+  missing_sleep_answer: 'sleep effect was unanswered',
+  signal_level_overridden: 'signal level differed from the proposal',
+  missing_recall_answer: 'dream recall was unanswered',
+};
+
+function signalExperienceLabel(record: NightRecord): string {
+  const experience = record.outcome.signalExperience;
+  if (experience === 'in_dream') return 'signal in dream';
+  if (experience === 'while_waking') return 'signal while waking';
+  if (experience === 'both') return 'signal in dream and while waking';
+  if (experience === 'not_noticed') return 'signal not noticed';
+  if (experience === 'unsure') return 'signal uncertain';
+  if (record.outcome.signalNotice === 'yes') return 'signal noticed';
+  if (record.outcome.signalNotice === 'no') return 'signal not noticed';
+  if (record.outcome.signalNotice === 'unsure') return 'signal uncertain';
+  return 'signal unanswered';
 }
 
 export default function PracticeMemoryScreen({ navigation }: Props) {
@@ -96,7 +129,12 @@ export default function PracticeMemoryScreen({ navigation }: Props) {
   const experimentView = experiment ? practiceExperimentView(experiment) : null;
   const adaptiveEvaluations = deriveAdaptiveRuleEvaluations(nights);
   const focusObservations = deriveRecognitionFocusObservations(nights).slice(0, 3);
+  const practiceState = derivePracticeState(nights, Date.now(), sessions);
   const remembered = entries.filter(entry => !entry.testSession).length;
+  const recentNightEvidence = nights
+    .filter(record => !record.testSession && record.source === 'overnight_journey')
+    .sort((left, right) => right.reflectedAt - left.reflectedAt)
+    .slice(0, 5);
 
   return (
     <View style={styles.container}>
@@ -116,6 +154,57 @@ export default function PracticeMemoryScreen({ navigation }: Props) {
             <Text style={styles.empty}>Inner needs a few reflected nights before it can surface an observation.</Text>
           )}
           {!!remembered && <Text style={styles.count}>{remembered} {remembered === 1 ? 'dream' : 'dreams'} remembered</Text>}
+        </View>
+
+        {!!recentNightEvidence.length && (
+          <View style={styles.section}>
+            <Text style={styles.eyebrow}>RECENT NIGHT EVIDENCE</Text>
+            {recentNightEvidence.map((record, index) => {
+              const signalSample = nightLearningSample(record);
+              const recipeSample = adaptiveRecipeSample(record);
+              const execution = record.practiceContext?.links.find(link => link.type === 'overnight_journey')?.nightExecution;
+              const recipe = record.practiceContext?.nightPlan?.recipe;
+              const exclusions = [...new Set([signalSample.exclusion, recipeSample.exclusion].filter(Boolean))]
+                .map(exclusion => EVIDENCE_EXCLUSION_LABELS[exclusion!] ?? exclusion);
+              const fullyComparable = signalSample.eligibleForCueLevel && recipeSample.eligibleForEnvironment;
+              const partlyComparable = signalSample.eligibleForCueLevel || recipeSample.eligibleForEnvironment;
+              return (
+                <View key={record.id} style={index ? styles.itemLater : undefined}>
+                  <Text style={styles.label}>
+                    {fullyComparable ? 'COMPARABLE NIGHT' : partlyComparable ? 'PARTIAL EVIDENCE' : 'NOT USED FOR ADAPTATION'}
+                  </Text>
+                  <Text style={styles.body}>
+                    {new Date(record.reflectedAt).toLocaleDateString()} · {recipe?.environment ?? 'Unknown environment'} · {recipe?.recognition.signalId ?? 'Unknown signal'}
+                  </Text>
+                  <Text style={styles.evidence}>
+                    Recall: {record.outcome.recall} · {signalExperienceLabel(record)} · Sleep: {record.outcome.sleepImpact ?? 'unanswered'}
+                  </Text>
+                  {!!execution?.plannedCues.length && (
+                    <Text style={styles.evidence}>Delivered {execution.deliveredCues.length} of {execution.plannedCues.length} planned signals.</Text>
+                  )}
+                  {!!exclusions.length && <Text style={styles.exclusion}>Excluded from some learning: {exclusions.join(' · ')}.</Text>}
+                </View>
+              );
+            })}
+          </View>
+        )}
+
+        <View style={styles.section}>
+          <Text style={styles.eyebrow}>CURRENT PRACTICE STATE · {practiceState.confidence.toLocaleUpperCase()}</Text>
+          <Text style={styles.body}>{practiceState.objective.title}</Text>
+          <Text style={styles.evidence}>{practiceState.objective.reason}</Text>
+          {!!practiceState.nightsObserved && (
+            <Text style={styles.stateEvidence}>
+              Recall {practiceState.recall.rememberedNights}/{practiceState.recall.answeredNights}
+              {' · '}Signal in dream {practiceState.signalExperience.inDreamNights + practiceState.signalExperience.bothNights}/{practiceState.signalExperience.answeredNights}
+              {' · '}Comparable sleep reports {practiceState.sleepSafety.comparableNights}
+            </Text>
+          )}
+          {!!practiceState.recognition.focus && (
+            <Text style={styles.stateEvidence}>
+              {practiceState.recognition.focus} preparation matched the overnight signal on {practiceState.recognition.matchedPreparationNights} focused {practiceState.recognition.matchedPreparationNights === 1 ? 'night' : 'nights'}.
+            </Text>
+          )}
         </View>
 
         {!!adaptiveEvaluations.length && (
@@ -210,6 +299,8 @@ const styles = StyleSheet.create({
   label: { color: '#9F96C5', fontFamily: 'Inter-Medium', fontSize: 9, letterSpacing: 1.1, marginBottom: 3 },
   body: { color: '#E3DEEF', fontFamily: 'Inter-Light', fontSize: 12, lineHeight: 18 },
   evidence: { color: '#B9B2C7', fontFamily: 'Inter-Light', fontSize: 10, lineHeight: 15, marginTop: 4 },
+  stateEvidence: { color: '#8F87A0', fontFamily: 'Inter-ExtraLight', fontSize: 9, lineHeight: 14, marginTop: 9 },
+  exclusion: { color: '#9E8E9D', fontFamily: 'Inter-ExtraLight', fontSize: 9, lineHeight: 14, marginTop: 4 },
   itemLater: { marginTop: 14, paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: 'rgba(255,255,255,0.09)' },
   empty: { color: '#BDB5C9', fontFamily: 'Inter-Light', fontSize: 12, lineHeight: 18 },
   count: { color: '#9F96C5', fontFamily: 'Inter-Light', fontSize: 10, marginTop: 12 },

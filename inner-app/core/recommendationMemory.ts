@@ -17,7 +17,7 @@ function validSelection(value: unknown): value is SelectedRecommendation {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const selection = value as Partial<SelectedRecommendation>;
   return typeof selection.id === 'string'
-    && ['gentler_signal', 'clearer_signal', 'recurring_signal', 'repeat_environment', 'recognition_refresh'].includes(selection.kind ?? '')
+    && ['gentler_signal', 'clearer_signal', 'recurring_signal', 'repeat_environment', 'recognition_refresh', 'repeat_recipe'].includes(selection.kind ?? '')
     && typeof selection.title === 'string'
     && typeof selection.reason === 'string'
     && typeof selection.selectedAt === 'number';

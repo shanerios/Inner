@@ -7,7 +7,7 @@ jest.mock('@react-native-async-storage/async-storage', () =>
 
 import { buildPracticeContext } from '../practiceLinking';
 import { finishPracticeActivity, listPracticeActivity, recordPracticeActivity } from '../practiceHistory';
-import { saveRecurringSignalFocus } from '../recurringDreamSignals';
+import { markRecurringSignalPracticeCompleted, saveRecurringSignalFocus } from '../recurringDreamSignals';
 import { saveSelectedRecommendation } from '../recommendationMemory';
 
 describe('practice history', () => {
@@ -39,6 +39,20 @@ describe('practice history', () => {
     expect(context?.links[0]).toEqual(expect.objectContaining({
       type: 'recognition_signal',
       contentTitle: 'Recognition focus · Water',
+    }));
+  });
+
+  it('links the exact completed recognition practice when one preceded the night', async () => {
+    await saveRecurringSignalFocus({ sign: 'Water', count: 4, rememberedDreams: 7 }, undefined, () => 1_000);
+    await markRecurringSignalPracticeCompleted('Water', {
+      sessionId: 'journey-practice-1', completedAt: 2_000, signalId: 'guardian', presentationCount: 7, protocolVersion: 1,
+    });
+    const context = await buildPracticeContext(undefined, 3_000);
+    expect(context?.links[0]).toEqual(expect.objectContaining({
+      sessionId: 'journey-practice-1',
+      contentTitle: 'Recognition practice · Water',
+      linkReason: 'completed_recognition_practice',
+      signalId: 'guardian',
     }));
   });
 

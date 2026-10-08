@@ -12,6 +12,12 @@ export type FactoryAudioJourney = {
   timeline: AudioJourneyTimeline;
   /** Marks the waking-conditioning boundary inside a longer overnight timeline. */
   overnight?: { sleepOnsetDelayMs: number; recognitionSignalId?: RecognitionSignalId };
+  /** Identifies a personalized waking practice whose completion can be linked to a later Night Recipe. */
+  recognitionPractice?: {
+    type: 'recurring_dream_sign';
+    sign: string;
+    protocolVersion: 1;
+  };
 };
 
 export type PersonalizedLucidJourneyAnswers = {

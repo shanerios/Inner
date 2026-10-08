@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { FactoryAudioJourney } from './audio';
 import type { JournalEntry } from './journalRepo';
+import { RECOGNITION_SIGNALS, type RecognitionSignalId } from './recognitionSignals';
 
 export const RECURRING_SIGNAL_FOCUS_KEY = 'inner.recurringSignalFocus.v1';
 const RECENT_DREAM_LIMIT = 12;
@@ -17,6 +18,13 @@ export type RecurringDreamSignal = {
 
 export type RecurringSignalFocus = RecurringDreamSignal & {
   setAt: number;
+  completedPractice?: {
+    sessionId: string;
+    completedAt: number;
+    signalId: RecognitionSignalId;
+    presentationCount: number;
+    protocolVersion: 1;
+  };
 };
 
 export function activeRecurringSignalFocus(
@@ -83,10 +91,31 @@ export async function loadRecurringSignalFocus(storage: Storage = AsyncStorage):
     const parsed = raw ? JSON.parse(raw) : null;
     if (!parsed || typeof parsed.sign !== 'string' || typeof parsed.count !== 'number'
       || typeof parsed.rememberedDreams !== 'number' || typeof parsed.setAt !== 'number') return null;
-    return parsed;
+    const practice = parsed.completedPractice;
+    const validPractice = practice
+      && typeof practice.sessionId === 'string'
+      && typeof practice.completedAt === 'number'
+      && RECOGNITION_SIGNALS.some(signal => signal.id === practice.signalId)
+      && typeof practice.presentationCount === 'number'
+      && practice.protocolVersion === 1;
+    const { completedPractice: _completedPractice, ...focus } = parsed;
+    return validPractice ? { ...focus, completedPractice: practice } : focus;
   } catch {
     return null;
   }
+}
+
+export async function markRecurringSignalPracticeCompleted(
+  sign: string,
+  practice: RecurringSignalFocus['completedPractice'],
+  storage: Storage = AsyncStorage,
+): Promise<RecurringSignalFocus | null> {
+  if (!practice) return null;
+  const focus = await loadRecurringSignalFocus(storage);
+  if (!focus || focus.sign.trim().toLocaleLowerCase() !== sign.trim().toLocaleLowerCase()) return null;
+  const completed: RecurringSignalFocus = { ...focus, completedPractice: practice };
+  await storage.setItem(RECURRING_SIGNAL_FOCUS_KEY, JSON.stringify(completed));
+  return completed;
 }
 
 export async function clearRecurringSignalFocus(storage: Storage = AsyncStorage): Promise<void> {
@@ -104,6 +133,11 @@ export function createRecurringSignalJourney(
     title: `${baseJourney.title} — ${cleanSign}`,
     subtitle: `${cleanSign} recognition practice`,
     summary: `Rehearse ${cleanSign} as a personal dream sign while learning the same recognition tone used later tonight.`,
+    recognitionPractice: {
+      type: 'recurring_dream_sign',
+      sign: cleanSign,
+      protocolVersion: 1,
+    },
     timeline: {
       ...baseJourney.timeline,
       title: `${baseJourney.timeline.title} — ${cleanSign}`,

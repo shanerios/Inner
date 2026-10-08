@@ -33,6 +33,7 @@ import {
 import { bindNightPlanToJourney } from '../core/nightPlans';
 import { INNER_LAB_BUILD } from '../core/innerLab';
 import { startBedsideMotionRecording } from '../core/bedsideMotionSensor';
+import { markRecurringSignalPracticeCompleted } from '../core/recurringDreamSignals';
 
 const LUCIDITY_CUE_TRAINING_JOURNEY_ID = 'lucid-signal';
 /** How long a requested start may take before it is treated as stalled. */
@@ -63,6 +64,7 @@ export default function LucidJourneyPlayerScreen() {
   const cueScheduleStartedRef = useRef(false);
   const cueSchedulePromiseRef = useRef<Promise<boolean> | null>(null);
   const cueTrainingCompletedRef = useRef(false);
+  const recognitionSignalIdRef = useRef<RecognitionSignalId | null>(null);
   const memorySessionIdRef = useRef<string | null>(null);
   const memoryFinishedRef = useRef(false);
   const stopMotionRef = useRef<(() => Promise<void>) | null>(null);
@@ -109,6 +111,8 @@ export default function LucidJourneyPlayerScreen() {
     lastMemoryStageIdRef.current = null;
     lastMemoryCuePositionRef.current = 0;
     startStalledRef.current = false;
+    cueTrainingCompletedRef.current = false;
+    recognitionSignalIdRef.current = null;
     setPlaybackPaused(false);
 
     const traceStart = (step: string, message?: string) => {
@@ -154,6 +158,21 @@ export default function LucidJourneyPlayerScreen() {
         positionOverrideMs ?? currentPositionRef.current,
         message,
       ).then(async () => {
+        const practicedSignalId = recognitionSignalIdRef.current;
+        if (outcome === 'completed' && cueTrainingCompletedRef.current
+          && journey.recognitionPractice && practicedSignalId) {
+          const presentationCount = journey.timeline.stages.reduce(
+            (total, stage) => total + (stage.spatialEvents ?? []).filter(event => event.type === 'cue').length,
+            0,
+          );
+          await markRecurringSignalPracticeCompleted(journey.recognitionPractice.sign, {
+            sessionId: memorySessionId,
+            completedAt: Date.now(),
+            signalId: practicedSignalId,
+            presentationCount,
+            protocolVersion: journey.recognitionPractice.protocolVersion,
+          });
+        }
         // Only acknowledge after storage succeeds. Native terminal receipts
         // remain available if JS or the process disappears before this point.
         await proceduralAudioEngine.clearCheckpoint(memorySessionId);
@@ -254,6 +273,7 @@ export default function LucidJourneyPlayerScreen() {
           // The level the signal was played at, so a loudness report can be checked against it.
           message: `trimDb=${RECOGNITION_SIGNAL_TRIM_DB[selectedSignalId]}`,
         });
+        recognitionSignalIdRef.current = selectedSignalId;
         traceStart('signal_ready');
         if (!mounted) {
           finishMemory('user_stopped');
