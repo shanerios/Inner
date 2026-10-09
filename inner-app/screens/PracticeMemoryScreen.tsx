@@ -35,6 +35,7 @@ import {
 import { derivePracticeState } from '../core/practiceState';
 import { nightLearningSample } from '../core/nightLearning';
 import { adaptiveRecipeSample } from '../core/adaptiveRecipeLearning';
+import { NIGHT_EXCLUSION_LABELS } from '../core/nightEligibility';
 
 type Props = { navigation: any };
 
@@ -45,23 +46,6 @@ function recurringSigns(entries: JournalEntry[]) {
   });
   return Array.from(counts.entries()).filter(([, count]) => count >= 2).sort((a, b) => b[1] - a[1]).slice(0, 5);
 }
-
-const EVIDENCE_EXCLUSION_LABELS: Record<string, string> = {
-  test_session: 'test session',
-  not_overnight: 'not an Overnight Journey',
-  quiet_night: 'marked as a quiet night',
-  route_changed: 'audio route changed',
-  volume_low: 'device volume was near mute',
-  volume_changed: 'device volume changed',
-  missing_recipe: 'recipe unavailable',
-  missing_execution: 'playback receipt unavailable',
-  incomplete_execution: 'journey did not complete',
-  missing_cues: 'one or more signals were not delivered',
-  interrupted: 'playback was interrupted',
-  missing_sleep_answer: 'sleep effect was unanswered',
-  signal_level_overridden: 'signal level differed from the proposal',
-  missing_recall_answer: 'dream recall was unanswered',
-};
 
 function signalExperienceLabel(record: NightRecord): string {
   const experience = record.outcome.signalExperience;
@@ -165,7 +149,7 @@ export default function PracticeMemoryScreen({ navigation }: Props) {
               const execution = record.practiceContext?.links.find(link => link.type === 'overnight_journey')?.nightExecution;
               const recipe = record.practiceContext?.nightPlan?.recipe;
               const exclusions = [...new Set([signalSample.exclusion, recipeSample.exclusion].filter(Boolean))]
-                .map(exclusion => EVIDENCE_EXCLUSION_LABELS[exclusion!] ?? exclusion);
+                .map(exclusion => NIGHT_EXCLUSION_LABELS[exclusion!]);
               const fullyComparable = signalSample.eligibleForCueLevel && recipeSample.eligibleForEnvironment;
               const partlyComparable = signalSample.eligibleForCueLevel || recipeSample.eligibleForEnvironment;
               return (

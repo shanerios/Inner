@@ -1,20 +1,15 @@
 import type { DreamRecall } from './dreamDetails';
 import type { NightExecutionRecord } from './nightExecution';
 import type { NightRecord } from './nightRecords';
+import {
+  meanOutputVolume,
+  nightEligibilityExclusion,
+  nightExecutionFor,
+  sameVolumeBand,
+  type NightEligibilityExclusion,
+} from './nightEligibility';
 
-export type AdaptiveRecipeExclusion =
-  | 'test_session'
-  | 'not_overnight'
-  | 'quiet_night'
-  | 'missing_recipe'
-  | 'missing_execution'
-  | 'incomplete_execution'
-  | 'missing_cues'
-  | 'interrupted'
-  | 'route_changed'
-  | 'volume_low'
-  | 'volume_changed'
-  | 'missing_recall_answer';
+export type AdaptiveRecipeExclusion = NightEligibilityExclusion | 'missing_recall_answer';
 
 export type AdaptiveRecipeSample = {
   id: string;
@@ -43,8 +38,6 @@ export type SupportedEnvironmentAdjustment = {
   reason: string;
 };
 
-const MIN_OUTPUT_VOLUME = 0.15;
-const MAX_VOLUME_SPREAD = 0.15;
 const MAX_RECENT_SAMPLES = 12;
 const MIN_ENVIRONMENT_NIGHTS = 5;
 const MIN_ENVIRONMENT_RECALLS = 3;
@@ -55,28 +48,12 @@ function rounded(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
-function executionFor(record: NightRecord): NightExecutionRecord | undefined {
-  return record.practiceContext?.links.find(link => link.type === 'overnight_journey')?.nightExecution;
-}
-
 function exclusionFor(
   record: NightRecord,
   execution: NightExecutionRecord | undefined,
 ): AdaptiveRecipeExclusion | undefined {
-  const plan = record.practiceContext?.nightPlan;
-  const recipe = plan?.recipe;
-  if (record.testSession) return 'test_session';
-  if (record.source !== 'overnight_journey') return 'not_overnight';
-  if (plan?.quietNight) return 'quiet_night';
-  if (!recipe) return 'missing_recipe';
-  if (!execution) return 'missing_execution';
-  if (execution.status !== 'completed' && execution.status !== 'completed_early') return 'incomplete_execution';
-  if (!execution.plannedCues.length || execution.missingCueIds.length > 0
-    || execution.deliveredCues.length !== execution.plannedCues.length) return 'missing_cues';
-  if (execution.interruptionCount > 0) return 'interrupted';
-  if (execution.audioRouteChanges) return 'route_changed';
-  if (execution.outputVolume && execution.outputVolume.min < MIN_OUTPUT_VOLUME) return 'volume_low';
-  if (execution.outputVolume && execution.outputVolume.max - execution.outputVolume.min > MAX_VOLUME_SPREAD) return 'volume_changed';
+  const shared = nightEligibilityExclusion(record, execution, Boolean(record.practiceContext?.nightPlan?.recipe));
+  if (shared) return shared;
   if (!record.outcome.recall) return 'missing_recall_answer';
   return undefined;
 }
@@ -87,7 +64,7 @@ function exclusionFor(
  */
 export function adaptiveRecipeSample(record: NightRecord): AdaptiveRecipeSample {
   const recipe = record.practiceContext?.nightPlan?.recipe;
-  const execution = executionFor(record);
+  const execution = nightExecutionFor(record);
   const windows = recipe?.recognition.windows ?? [];
   const signalGainScale = windows.length
     ? rounded(windows.reduce((total, window) => total + window.signalGainScale, 0) / windows.length)
@@ -107,17 +84,10 @@ export function adaptiveRecipeSample(record: NightRecord): AdaptiveRecipeSample 
     signalGainScale,
     recognitionIntention: recipe?.recognition.intention?.sign.trim().toLocaleLowerCase(),
     audioRoute: execution?.audioRoute ?? 'unknown',
-    outputVolume: execution?.outputVolume
-      ? rounded((execution.outputVolume.min + execution.outputVolume.max) / 2)
-      : undefined,
+    outputVolume: meanOutputVolume(execution),
     recall: record.outcome.recall,
   };
   return sample;
-}
-
-function sameOptionalNumber(left?: number, right?: number): boolean {
-  if (left === undefined || right === undefined) return left === right;
-  return Math.abs(left - right) <= MAX_VOLUME_SPREAD;
 }
 
 function comparableExceptEnvironment(left: AdaptiveRecipeSample, right: AdaptiveRecipeSample): boolean {
@@ -129,7 +99,7 @@ function comparableExceptEnvironment(left: AdaptiveRecipeSample, right: Adaptive
     && left.signalGainScale === right.signalGainScale
     && left.recognitionIntention === right.recognitionIntention
     && left.audioRoute === right.audioRoute
-    && sameOptionalNumber(left.outputVolume, right.outputVolume);
+    && sameVolumeBand(left.outputVolume, right.outputVolume);
 }
 
 function titleCase(value: string): string {
