@@ -34,8 +34,12 @@ export const GENERIC_VOICE_SLUG = 'generic';
 /**
  * Per-clip level trim in dB, applied on top of the recorded loudness. Set by ear on a device, the way
  * the recognition signal trims are. Keyed by `${slug}-${slot}`; an absent key means no trim.
+ * `npm run voice:measure -- <folder> --write` fills the block between the markers from measured clips.
  */
-export const VOICE_TRIM_DB: Record<string, number> = {};
+export const VOICE_TRIM_DB: Record<string, number> = {
+  // voice-trim:begin
+  // voice-trim:end
+};
 
 export type VoiceClipPlan = {
   clipId: string;

@@ -1,4 +1,4 @@
-import { describe, expect, it, jest } from '@jest/globals';
+import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { DEFAULT_PROCEDURAL_AUDIO_CONFIG } from '../config';
 import { overnightJourney } from '../overnightJourney';
 import { compileOvernightProtocol, createRecognitionOvernightProtocol } from '../overnightProtocol';
@@ -26,6 +26,11 @@ function night(accelerated = false) {
 }
 
 describe('voice plan', () => {
+  // Real trims are written into the table from measured clips; these tests describe the logic, not those values.
+  const savedTrims = { ...VOICE_TRIM_DB };
+  beforeEach(() => { for (const key of Object.keys(VOICE_TRIM_DB)) delete VOICE_TRIM_DB[key]; });
+  afterEach(() => { for (const key of Object.keys(VOICE_TRIM_DB)) delete VOICE_TRIM_DB[key]; Object.assign(VOICE_TRIM_DB, savedTrims); });
+
   it('has a recording slug for every dream sign, and each slug is unique and file-safe', () => {
     const slugs = DREAM_SIGNS.map(sign => voiceSlugForSign(sign));
     expect(slugs.every(slug => slug && /^[a-z]+(-[a-z]+)*$/.test(slug))).toBe(true);
@@ -210,7 +215,7 @@ describe('choosing tonight\'s lines from the device', () => {
   it('hands the engine local files at the planned gain, and never throws', async () => {
     const env = fakeFs({ installed: installedIds(idsFor('water'), 2) });
     const plan = (await cachedVoicePlan('Water', env.fs))!;
-    expect(await resolveVoiceClips(plan.clips, env.fs)).toEqual(plan.clips.map(clip => ({ id: clip.clipId, uri: clipFile(clip.clipId, 2), gain: 1 })));
+    expect(await resolveVoiceClips(plan.clips, env.fs)).toEqual(plan.clips.map(clip => ({ id: clip.clipId, uri: clipFile(clip.clipId, 2), gain: clip.gain })));
     expect(await resolveVoiceClips([{ ...plan.clips[0], revision: undefined }], env.fs)).toBeNull();
     expect(await resolveVoiceClips([], env.fs)).toBeNull();
     const broken = { ...env.fs, exists: async () => { throw new Error('disk'); } };

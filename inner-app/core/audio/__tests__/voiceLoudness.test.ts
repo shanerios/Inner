@@ -1,4 +1,4 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it, jest } from '@jest/globals';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -124,5 +124,185 @@ describe('the measuring command', () => {
   it('exits with a usage message for a missing folder', () => {
     expect(() => run('/no/such/folder')).toThrow();
     expect(() => run()).toThrow();
+  });
+
+  describe('--write', () => {
+    const source = (inside: string) => `export const VOICE_TRIM_DB: Record<string, number> = {\n  // voice-trim:begin\n${inside}  // voice-trim:end\n};\nexport const OTHER = 1;\n`;
+
+    it('replaces only the block between the markers, with the measured trims', () => {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'voice-measure-'));
+      writeWav(path.join(dir, 'voice-prep-water-1.wav'), [tone(3, 0.1)]);
+      writeWav(path.join(dir, 'voice-prep-water-2.wav'), [tone(3, 0.05)]);
+      const file = path.join(dir, 'voiceGuidance.ts');
+      fs.writeFileSync(file, source("  'old-1': 9.9,\n"));
+      const output = run(dir, '--target', '-24', '--write', '--trim-file', file);
+      const written = fs.readFileSync(file, 'utf8');
+      expect(output).toContain('Wrote 2 trims');
+      expect(written).toMatch(/\/\/ voice-trim:begin\n  'water-1': -?[0-9.]+,\n  'water-2': -?[0-9.]+,\n  \/\/ voice-trim:end/);
+      expect(written).not.toContain('old-1');
+      expect(written.endsWith('export const OTHER = 1;\n')).toBe(true);
+      // The file stays valid TypeScript when evaluated.
+      const table = new Function(`${written.replace(/export const (\w+)(: [^=]+)? =/g, 'var $1 =')}; return VOICE_TRIM_DB;`)();
+      expect(Object.keys(table)).toEqual(['water-1', 'water-2']);
+    });
+
+    it('is repeatable: running it twice gives the same file', () => {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'voice-measure-'));
+      writeWav(path.join(dir, 'voice-prep-water-1.wav'), [tone(3, 0.1)]);
+      const file = path.join(dir, 'voiceGuidance.ts');
+      fs.writeFileSync(file, source(''));
+      run(dir, '--write', '--trim-file', file);
+      const once = fs.readFileSync(file, 'utf8');
+      run(dir, '--write', '--trim-file', file);
+      expect(fs.readFileSync(file, 'utf8')).toBe(once);
+    });
+
+    it('refuses a file without the markers and leaves it unchanged', () => {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'voice-measure-'));
+      writeWav(path.join(dir, 'voice-prep-water-1.wav'), [tone(3, 0.1)]);
+      const file = path.join(dir, 'other.ts');
+      fs.writeFileSync(file, 'export const VOICE_TRIM_DB = {};\n');
+      expect(() => run(dir, '--write', '--trim-file', file)).toThrow();
+      expect(fs.readFileSync(file, 'utf8')).toBe('export const VOICE_TRIM_DB = {};\n');
+    });
+
+    it('leaves clips that are already on target out of the table', () => {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'voice-measure-'));
+      writeWav(path.join(dir, 'voice-prep-water-1.wav'), [tone(3, 0.1)]);
+      const target = loudness.measureClip(path.join(dir, 'voice-prep-water-1.wav')).atMixLu;
+      writeWav(path.join(dir, 'voice-prep-water-2.wav'), [tone(3, 0.05)]);
+      const file = path.join(dir, 'voiceGuidance.ts');
+      fs.writeFileSync(file, source("  'old-1': 9.9,\n"));
+      run(dir, '--target', String(target), '--write', '--trim-file', file);
+      const written = fs.readFileSync(file, 'utf8');
+      expect(written).not.toContain('water-1');
+      expect(written).not.toContain('-0.0');
+      expect(written).toContain("'water-2':");
+    });
+
+    it('does not touch any file unless asked', () => {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'voice-measure-'));
+      writeWav(path.join(dir, 'voice-prep-water-1.wav'), [tone(3, 0.1)]);
+      const file = path.join(dir, 'voiceGuidance.ts');
+      fs.writeFileSync(file, source(''));
+      run(dir, '--trim-file', file);
+      expect(fs.readFileSync(file, 'utf8')).toBe(source(''));
+    });
+
+    it('leaves the real source with its markers in place', () => {
+      const real = fs.readFileSync(path.join(ROOT, 'core/audio/voiceGuidance.ts'), 'utf8');
+      expect(real).toContain('// voice-trim:begin');
+      expect(real.indexOf('// voice-trim:begin')).toBeLessThan(real.indexOf('// voice-trim:end'));
+    });
+  });
+});
+
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { planGain } = require('../../../scripts/normalize-voice-clips') as {
+  planGain(measurement: { atMixLu: number; peakDb: number }, target: number): { gainDb: number; limited: boolean };
+};
+const NORMALIZE = path.join(ROOT, 'scripts/normalize-voice-clips.js');
+const hasFfmpeg = (() => { try { execFileSync('ffmpeg', ['-version'], { stdio: 'ignore' }); return true; } catch { return false; } })();
+
+describe('level matching', () => {
+  it('plans the gain that closes the gap to the target', () => {
+    expect(planGain({ atMixLu: -27.7, peakDb: -15.6 }, -24)).toEqual({ gainDb: expect.closeTo(3.7, 5), limited: false });
+    expect(planGain({ atMixLu: -23.5, peakDb: -12.7 }, -24).gainDb).toBeCloseTo(-0.5, 5);
+  });
+
+  it('holds the gain back rather than push the peak over -1 dB', () => {
+    const plan = planGain({ atMixLu: -30, peakDb: -4 }, -24);
+    expect(plan.limited).toBe(true);
+    expect(plan.gainDb).toBeCloseTo(3, 5);
+    expect(planGain({ atMixLu: -30, peakDb: 0 }, -24)).toEqual({ gainDb: 0, limited: true });
+  });
+
+  const maybe = hasFfmpeg ? describe : describe.skip;
+  maybe('the normalize command (needs ffmpeg)', () => {
+    const run = (...args: string[]) => execFileSync('node', [NORMALIZE, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+
+    it('brings differently loud clips to the same level in a new folder and leaves the originals alone', () => {
+      const input = fs.mkdtempSync(path.join(os.tmpdir(), 'voice-in-'));
+      const output = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'voice-out-')), 'matched');
+      writeWav(path.join(input, 'voice-prep-water-1.wav'), [tone(4, 0.2)]);
+      writeWav(path.join(input, 'voice-prep-water-2.wav'), [tone(4, 0.04)]);
+      writeWav(path.join(input, 'voice-prep-water-3.wav'), [tone(4, 0.09)]);
+      const originals = fs.readdirSync(input).map(name => [name, fs.readFileSync(path.join(input, name))] as const);
+      const before = originals.map(([name]) => loudness.measureClip(path.join(input, name)).atMixLu);
+      expect(Math.max(...before) - Math.min(...before)).toBeGreaterThan(10);
+
+      const text = run(input, output, '--target', '-24');
+      const after = originals.map(([name]) => loudness.measureClip(path.join(output, name)).atMixLu);
+      for (const level of after) expect(Math.abs(level - -24)).toBeLessThan(0.5);
+      expect(text).toContain('Your originals were not changed');
+      for (const [name, bytes] of originals) expect(fs.readFileSync(path.join(input, name)).equals(bytes)).toBe(true);
+    });
+
+    it('converts to a lower rate, mono, 16-bit, and shrinks the files', () => {
+      const input = fs.mkdtempSync(path.join(os.tmpdir(), 'voice-in-'));
+      const output = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'voice-out-')), 'small');
+      writeWav(path.join(input, 'voice-prep-water-1.wav'), [tone(4, 0.1)], 44_100);
+      run(input, output, '--rate', '24000');
+      const converted = loudness.measureClip(path.join(output, 'voice-prep-water-1.wav'));
+      expect(converted.rate).toBe(24_000);
+      expect(converted.channels).toBe(1);
+      expect(fs.statSync(path.join(output, 'voice-prep-water-1.wav')).size).toBeLessThan(fs.statSync(path.join(input, 'voice-prep-water-1.wav')).size * 0.6);
+    });
+
+    it('refuses to write into the input folder or inside it, and for bad arguments', () => {
+      const input = fs.mkdtempSync(path.join(os.tmpdir(), 'voice-in-'));
+      writeWav(path.join(input, 'voice-prep-water-1.wav'), [tone(2, 0.1)]);
+      const before = fs.readFileSync(path.join(input, 'voice-prep-water-1.wav'));
+      expect(() => run(input, input)).toThrow();
+      expect(() => run(input, path.join(input, 'inside'))).toThrow();
+      expect(() => run(input)).toThrow();
+      expect(() => run(input, path.join(os.tmpdir(), 'x'), '--rate', '5')).toThrow();
+      expect(fs.readFileSync(path.join(input, 'voice-prep-water-1.wav')).equals(before)).toBe(true);
+    });
+  });
+});
+
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { buildManifest } = require('../../../scripts/voice-manifest') as {
+  buildManifest(files: string[], existing: Record<string, number>, bump: string[]): { manifest: { version: number; clips: Record<string, number> }; incomplete: string[]; unknown: string[] };
+};
+const MANIFEST = path.join(ROOT, 'scripts/voice-manifest.js');
+
+describe('the manifest command', () => {
+  const trio = (slug: string) => [1, 2, 3].map(slot => `voice-prep-${slug}-${slot}.wav`);
+
+  it('lists every clip at revision 1, and ignores other files', () => {
+    const { manifest } = buildManifest([...trio('flying'), ...trio('familiar-person'), 'notes.txt', 'manifest.json', 'voice-prep-bad.wav'], {}, []);
+    expect(Object.keys(manifest.clips)).toHaveLength(6);
+    expect(manifest.clips['voice-prep-familiar-person-2']).toBe(1);
+    expect(manifest.version).toBe(1);
+  });
+
+  it('keeps existing revisions and bumps only the clips asked for', () => {
+    const existing = { 'voice-prep-flying-1': 3, 'voice-prep-flying-2': 1 };
+    const { manifest } = buildManifest(trio('flying'), existing, ['voice-prep-flying-2']);
+    expect(manifest.clips).toEqual({ 'voice-prep-flying-1': 3, 'voice-prep-flying-2': 2, 'voice-prep-flying-3': 1 });
+  });
+
+  it('warns about a sign with fewer than three clips, and about a bump for a missing clip', () => {
+    const files = [...trio('flying'), 'voice-prep-water-1.wav', 'voice-prep-water-3.wav'];
+    const result = buildManifest(files, {}, ['voice-prep-lost-1']);
+    expect(result.incomplete).toEqual(['water (has 1, 3)']);
+    expect(result.unknown).toEqual(['voice-prep-lost-1']);
+  });
+
+  it('writes a manifest the app accepts, and is repeatable', () => {
+    const { parseVoiceManifest } = jest.requireActual('../voiceClips') as typeof import('../voiceClips');
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'voice-manifest-'));
+    for (const name of [...trio('flying'), ...trio('generic')]) writeWav(path.join(dir, name), [tone(1, 0.1)]);
+    execFileSync('node', [MANIFEST, dir], { encoding: 'utf8' });
+    const first = fs.readFileSync(path.join(dir, 'manifest.json'), 'utf8');
+    const parsed = parseVoiceManifest(first);
+    expect(Object.keys(parsed!.clips)).toHaveLength(6);
+    execFileSync('node', [MANIFEST, dir], { encoding: 'utf8' });
+    expect(fs.readFileSync(path.join(dir, 'manifest.json'), 'utf8')).toBe(first);
+    execFileSync('node', [MANIFEST, dir, '--bump', 'voice-prep-flying-1'], { encoding: 'utf8' });
+    expect(parseVoiceManifest(fs.readFileSync(path.join(dir, 'manifest.json'), 'utf8'))!.clips['voice-prep-flying-1']).toBe(2);
+    expect(() => execFileSync('node', [MANIFEST, '/no/such/folder'], { stdio: 'ignore' })).toThrow();
   });
 });

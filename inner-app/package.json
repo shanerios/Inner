@@ -11,6 +11,8 @@
     "start:tunnel": "npx expo start --tunnel -c",
     "typecheck": "tsc --noEmit",
     "voice:measure": "node scripts/measure-voice-clips.js",
+    "voice:normalize": "node scripts/normalize-voice-clips.js",
+    "voice:manifest": "node scripts/voice-manifest.js",
     "test": "jest --runInBand",
     "check": "npm run typecheck && npm test",
     "postinstall": "patch-package"
