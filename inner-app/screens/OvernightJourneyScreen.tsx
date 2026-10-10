@@ -677,7 +677,9 @@ export default function OvernightJourneyScreen() {
             {voiceGuidance
               ? quietNight
                 ? 'ON · Skipped tonight because this is a Quiet Night'
-                : `ON · ${voicePackStatusLine(voicePack)}`
+                : accelerated && INNER_LAB_BUILD
+                  ? 'ON · Skipped for the accelerated test'
+                  : `ON · ${voicePackStatusLine(voicePack)}`
               : 'OFF · The preparation is shown as text only'}
           </Text>
         </Pressable>

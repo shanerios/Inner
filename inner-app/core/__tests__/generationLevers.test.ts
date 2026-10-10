@@ -141,6 +141,9 @@ describe('the Overnight screen', () => {
   it('only speaks the preparation when allowed, and not on a Quiet Night or an accelerated test', () => {
     const screen = fs.readFileSync(path.resolve(__dirname, '../../screens/OvernightJourneyScreen.tsx'), 'utf8');
     expect(screen).toContain('const voiceWillPlay = voiceGuidance && !quietNight && !(accelerated && INNER_LAB_BUILD);');
+    // The card never claims readiness for a night where the voice will not play.
+    expect(screen).toContain("'ON · Skipped for the accelerated test'");
+    expect(screen).toContain("'ON · Skipped tonight because this is a Quiet Night'");
     expect(screen.match(/withPreparationVoice\(/g)).toHaveLength(1);
     expect(screen).toContain('? withPreparationVoice(preparedJourney, voicePlan)');
     // Wanted but not on the device: the night still starts, and its record says why.
