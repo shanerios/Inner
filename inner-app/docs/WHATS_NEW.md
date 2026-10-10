@@ -83,6 +83,10 @@ Ocean, Forest, and Temple have gained more natural environmental detail, while O
 - Overnight Journeys now name your recognition sign in the 7-minute waking preparation, using the same wording as Recognition practice. The sleep audio, signal timing and sound are unchanged, so the sign cannot shape what plays while you sleep.
 - Each Night Recipe now records which settings the night used and why each took its value: chosen by you, accepted from a recommendation, experiment or adaptive rule, or set by your dream sign. This is the groundwork for comparing one change at a time.
 
+- Added spoken guidance to the 7-minute waking preparation of an Overnight Journey. Three short lines are played by the audio engine, so they are heard with your eyes closed: after the first tone, during rehearsal, and at release. With a recognition sign set, the lines name it; otherwise a generic set plays. The soundscape eases down a little underneath, and the sleep audio and signal timing are unchanged.
+- Added a Voice Guidance switch to the Overnight review, on by default and remembered. Quiet Night and accelerated tests skip the voice. If the clips are not on the device, the night starts with the on-screen text instead.
+- The voice recordings and a native build are still needed, and this has not yet been checked on a device.
+
 #### Inner Lab experiments (not in production builds)
 
 - Added record-only bedside motion for Overnight Journeys in Inner Lab and development builds. It summarises the phone's accelerometer into one-minute readings (average, largest change, and how many readings arrived), stored on the device for the most recent 14 nights.
@@ -158,6 +162,7 @@ Ocean, Forest, and Temple have gained more natural environmental detail, while O
 - Structured dream outcomes can support aggregate event counts without sending freeform dream text.
 - Freeform journal content should remain outside analytics unless a future, explicit policy and consent flow says otherwise.
 - Population research remains separate from personal adaptation and requires an explicit opt-in before collection.
+- The voice guidance clips are downloaded as one complete pack, whatever dream sign you work with, and starting a night never requests a clip over the network. A request to the audio host therefore never reveals which sign you are focused on.
 
 ### Release verification completed so far
 

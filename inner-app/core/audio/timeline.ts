@@ -54,6 +54,10 @@ export function compileAudioJourneyTimeline(
       if (event.type === 'cue') {
         return { ...event, id: event.id.trim() };
       }
+      if (event.type === 'voice') {
+        if (!event.clipId.trim()) throw new Error(`Audio journey voice event ${event.id} has no clip`);
+        return { ...event, id: event.id.trim(), clipId: event.clipId.trim() };
+      }
       if (!Number.isFinite(event.durationMs) || event.durationMs < 500 || event.durationMs > 5_000 || event.atMs + event.durationMs > stage.durationMs) {
         throw new Error(`Audio journey spatial event ${event.id} has an invalid duration`);
       }

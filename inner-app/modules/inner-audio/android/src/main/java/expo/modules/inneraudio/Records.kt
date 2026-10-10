@@ -48,6 +48,13 @@ class SpatialEventRecord : Record {
   @Field var recognitionSpace: Boolean = false
   @Field var signalGainScale: Double = 1.0
   @Field var recoverySeconds: Double = 30.0
+  @Field var clipId: String = ""
+}
+
+class VoiceClipRecord : Record {
+  @Field var id: String = ""
+  @Field var uri: String = ""
+  @Field var gain: Double = 1.0
 }
 
 class TimelineStageRecord : Record {

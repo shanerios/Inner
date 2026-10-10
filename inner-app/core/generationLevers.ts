@@ -12,7 +12,8 @@ export type GenerationLeverId =
   | 'signal'
   | 'signal_level'
   | 'cue_plan'
-  | 'prep_focus';
+  | 'prep_focus'
+  | 'prep_voice';
 
 export type LeverStage = 'waking_preparation' | 'sleep_audio' | 'recognition_cueing';
 export type LeverOutcome = 'recall' | 'lucidity' | 'signal_experience' | 'sleep_impact' | 'sign_recognition';
@@ -91,6 +92,18 @@ export const GENERATION_LEVERS: readonly LeverDefinition[] = [
       { file: 'screens/OvernightJourneyScreen.tsx', token: 'withPreparationFocus' },
     ],
   },
+  {
+    id: 'prep_voice',
+    label: 'Preparation voice',
+    stage: 'waking_preparation',
+    description: 'Speaks the waking preparation aloud, or leaves it as text only.',
+    outcomes: ['sign_recognition', 'lucidity'],
+    altersSleepAudio: false,
+    honoredBy: [
+      { file: 'core/audio/voiceGuidance.ts', token: 'withPreparationVoice' },
+      { file: 'screens/OvernightJourneyScreen.tsx', token: 'withPreparationVoice' },
+    ],
+  },
 ] as const;
 
 export function leverDefinition(id: GenerationLeverId): LeverDefinition {
@@ -141,6 +154,14 @@ export type BuildGenerationNotesInput = {
   proposedConfiguration?: Partial<NightPlanConfiguration>;
   userChanged?: Array<keyof NightPlanConfiguration>;
   recognitionIntention?: NightRecipeRecognitionIntention;
+  /** Whether the waking preparation is spoken tonight. Omitted by callers that predate the voice. */
+  voiceDelivery?: 'voice' | 'text';
+  /** True when the practitioner turned voice guidance off, as opposed to Quiet Night turning it off. */
+  voiceDeclined?: boolean;
+  /** True when voice was wanted but the clips were not on the device yet. */
+  voiceUnavailable?: boolean;
+  /** Which recorded set was used: a sign's own, or the generic one. */
+  voiceLines?: string;
 };
 
 /**
@@ -176,6 +197,24 @@ export function buildGenerationNotes(input: BuildGenerationNotesInput): Generati
         reason: `Recurring sign: ${intention!.evidence.appearances} appearances in ${intention!.evidence.rememberedDreams} remembered dreams. Shapes the waking preparation only.`,
       }
     : { lever: 'prep_focus', value: null, source: 'default' });
+
+  if (input.voiceDelivery) {
+    notes.push(input.voiceDelivery === 'voice'
+      ? {
+          lever: 'prep_voice',
+          value: 'voice',
+          source: 'default',
+          ...(input.voiceLines ? { reason: input.voiceLines === 'generic' ? 'Generic lines.' : `Lines recorded for ${input.voiceLines}.` } : {}),
+        }
+      : input.voiceUnavailable
+        ? { lever: 'prep_voice', value: 'text', source: 'default', reason: 'The voice clips were not on the device yet.' }
+        : {
+            lever: 'prep_voice',
+            value: 'text',
+            source: 'chosen',
+            reason: input.voiceDeclined ? 'Voice guidance was turned off.' : 'Voice guidance was skipped for this night.',
+          });
+  }
 
   return { schemaVersion: 1, notes };
 }

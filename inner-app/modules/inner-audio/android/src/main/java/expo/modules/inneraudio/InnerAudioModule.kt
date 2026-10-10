@@ -75,6 +75,10 @@ class InnerAudioModule : Module() {
       ProceduralAudioEngine.setRecognitionSignal(signalId, uri, gain ?: 1.0)
     }
 
+    AsyncFunction("setVoiceClips") { clips: List<VoiceClipRecord> ->
+      ProceduralAudioEngine.setVoiceClips(clips)
+    }
+
     AsyncFunction("triggerCue") {
       ProceduralAudioEngine.triggerCue()
     }

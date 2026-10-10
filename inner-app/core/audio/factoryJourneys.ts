@@ -1,6 +1,7 @@
 import type { AudioJourneyTimeline, AudioJourneyStage, ProceduralEnvironment } from './types';
 import type { RecognitionSignalId } from '../recognitionSignals';
 import { toneGainForEnvironment } from './config';
+import type { VoiceClipPlan } from './voiceGuidance';
 
 export type FactoryAudioJourney = {
   id: string;
@@ -12,6 +13,8 @@ export type FactoryAudioJourney = {
   timeline: AudioJourneyTimeline;
   /** Marks the waking-conditioning boundary inside a longer overnight timeline. */
   overnight?: { sleepOnsetDelayMs: number; recognitionSignalId?: RecognitionSignalId };
+  /** Recorded voice clips the waking preparation plays; the engine looks them up by clip id. */
+  voiceClips?: VoiceClipPlan[];
   /** Identifies a personalized waking practice whose completion can be linked to a later Night Recipe. */
   recognitionPractice?: {
     type: 'recurring_dream_sign';
@@ -306,7 +309,7 @@ export function createJourneyPreview(
       },
       spatialEvents: item.spatialEvents?.map(event => {
         const atMs = Math.min(durationMs - 500, Math.round(event.atMs * localScale));
-        if (event.type === 'cue') return { ...event, atMs };
+        if (event.type === 'cue' || event.type === 'voice') return { ...event, atMs };
         return {
           ...event,
           atMs,
@@ -422,7 +425,7 @@ export function createPersonalizedLucidJourney(
           : sourceRate;
     const spatialEvents = answers.feel === 'grounded' || answers.feel === 'minimal'
       ? []
-      : (item.spatialEvents ?? []).map(event => event.type === 'cue'
+      : (item.spatialEvents ?? []).map(event => event.type === 'cue' || event.type === 'voice'
         ? { ...event, atMs: Math.round(event.atMs * durationScale) }
         : {
           ...event,

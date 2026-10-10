@@ -221,6 +221,13 @@ export class ProceduralPlaybackSession {
     });
   }
 
+  async setVoiceClips(clips: Array<{ id: string; uri: string; gain: number }>) {
+    await this.exclusive(async () => {
+      this.assertOwner();
+      await this.engine.setVoiceClips?.(clips);
+    });
+  }
+
   async triggerCue() {
     await this.exclusive(async () => {
       this.assertOwner();

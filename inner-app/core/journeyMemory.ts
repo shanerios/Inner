@@ -43,6 +43,8 @@ export type JourneyMemoryEventType =
   | 'recognition_signal_selected'
   | 'recognition_signal_fired'
   | 'recognition_signal_held'
+  | 'voice_clip_started'
+  | 'voice_clip_missing'
   | 'seeked'
   | 'app_state_changed'
   | 'playback_paused'

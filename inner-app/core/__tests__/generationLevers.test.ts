@@ -38,6 +38,8 @@ describe('generation lever registry', () => {
   it('has unique ids and declares which levers change sleep audio', () => {
     expect(new Set(GENERATION_LEVERS.map(lever => lever.id)).size).toBe(GENERATION_LEVERS.length);
     expect(leverDefinition('prep_focus').altersSleepAudio).toBe(false);
+    expect(leverDefinition('prep_voice').altersSleepAudio).toBe(false);
+    expect(leverDefinition('prep_voice').stage).toBe('waking_preparation');
     expect(leverDefinition('prep_focus').stage).toBe('waking_preparation');
     for (const id of ['environment', 'feel', 'signal', 'signal_level', 'cue_plan'] as const) {
       expect(leverDefinition(id).altersSleepAudio).toBe(true);
@@ -99,6 +101,22 @@ describe('generation notes', () => {
     expect(note(notes, 'prep_focus').reason).toContain('waking preparation only');
   });
 
+  it('records whether the preparation is spoken, and who decided', () => {
+    const spoken = buildGenerationNotes({ configuration, planSource: 'manual', voiceDelivery: 'voice' });
+    expect(note(spoken, 'prep_voice')).toEqual({ lever: 'prep_voice', value: 'voice', source: 'default' });
+    const declined = buildGenerationNotes({ configuration, planSource: 'manual', voiceDelivery: 'text', voiceDeclined: true });
+    expect(note(declined, 'prep_voice')).toMatchObject({ value: 'text', source: 'chosen', reason: 'Voice guidance was turned off.' });
+    const skipped = buildGenerationNotes({ configuration, planSource: 'manual', voiceDelivery: 'text', voiceDeclined: false });
+    expect(note(skipped, 'prep_voice').reason).toContain('skipped for this night');
+    const unavailable = buildGenerationNotes({ configuration, planSource: 'manual', voiceDelivery: 'text', voiceUnavailable: true });
+    expect(note(unavailable, 'prep_voice')).toMatchObject({ value: 'text', source: 'default' });
+    expect(note(unavailable, 'prep_voice').reason).toContain('not on the device');
+    expect(note(buildGenerationNotes({ configuration, planSource: 'manual', voiceDelivery: 'voice', voiceLines: 'generic' }), 'prep_voice').reason).toBe('Generic lines.');
+    expect(note(buildGenerationNotes({ configuration, planSource: 'manual', voiceDelivery: 'voice', voiceLines: 'chased' }), 'prep_voice').reason).toBe('Lines recorded for chased.');
+    // Callers that predate the voice add no note.
+    expect(buildGenerationNotes({ configuration, planSource: 'manual' }).notes.some(item => item.lever === 'prep_voice')).toBe(false);
+  });
+
   it('treats a blank sign as no sign', () => {
     const notes = buildGenerationNotes({ configuration, planSource: 'manual', recognitionIntention: { ...intention, sign: '  ' } });
     expect(note(notes, 'prep_focus').value).toBeNull();
@@ -118,5 +136,25 @@ describe('the Overnight screen', () => {
     expect(screen.match(/withPreparationFocus\(/g)).toHaveLength(1);
     expect(screen).toContain('generation: buildGenerationNotes({');
     expect(screen).toMatch(/withPreparationFocus\(\s*overnightJourney\(environment, feel, compiledNight,/);
+  });
+
+  it('only speaks the preparation when allowed, and not on a Quiet Night or an accelerated test', () => {
+    const screen = fs.readFileSync(path.resolve(__dirname, '../../screens/OvernightJourneyScreen.tsx'), 'utf8');
+    expect(screen).toContain('const voiceWillPlay = voiceGuidance && !quietNight && !(accelerated && INNER_LAB_BUILD);');
+    expect(screen.match(/withPreparationVoice\(/g)).toHaveLength(1);
+    expect(screen).toContain('journey: voicePlan ? withPreparationVoice(preparedJourney, voicePlan) : preparedJourney');
+    expect(screen).toContain("voiceDelivery: voicePlan ? 'voice' : 'text'");
+    // Chosen from the device only: starting a night never asks the network for a sign's clips.
+    expect(screen).toContain('await cachedVoicePlan(recipe.recognition.intention?.sign)');
+    expect(screen).toContain('prefetchVoicePack()');
+    expect(screen).not.toContain('prefetchVoiceClips');
+  });
+
+  it('loads the clips before the timeline starts and falls back to text without blocking', () => {
+    const player = fs.readFileSync(path.resolve(__dirname, '../../screens/LucidJourneyPlayerScreen.tsx'), 'utf8');
+    expect(player.match(/resolveVoiceClips\(/g)).toHaveLength(1);
+    expect(player.indexOf('resolveVoiceClips(')).toBeLessThan(player.indexOf('await session.startTimeline('));
+    expect(player).toContain("type: 'voice_clip_missing'");
+    expect(player).toContain('.catch(() => null)');
   });
 });

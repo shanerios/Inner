@@ -10,6 +10,7 @@
     "web": "expo start --web",
     "start:tunnel": "npx expo start --tunnel -c",
     "typecheck": "tsc --noEmit",
+    "voice:measure": "node scripts/measure-voice-clips.js",
     "test": "jest --runInBand",
     "check": "npm run typecheck && npm test",
     "postinstall": "patch-package"

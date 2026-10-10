@@ -27,6 +27,7 @@ type NativeInnerAudio = {
   drainDiagnosticEvents(): NativeAudioDiagnosticEvent[];
   getEngineDebugState?(): NativeEngineDebugState;
   setRecognitionSignal(signalId: string | null, uri: string | null, gain: number): Promise<void>;
+  setVoiceClips?(clips: Array<{ id: string; uri: string; gain: number }>): Promise<void>;
   triggerCue(): Promise<void>;
   setCheckpointSessionId?(sessionId: string | null): Promise<void>;
   getCheckpoint?(): NativeCheckpoint | null;
@@ -112,6 +113,11 @@ class NativeProceduralAudioEngine implements InnerAudioEngine {
 
   async setRecognitionSignal(signalId: string | null, uri: string | null, gain = 1) {
     await this.getNativeModule().setRecognitionSignal(signalId, uri, gain);
+  }
+
+  async setVoiceClips(clips: Array<{ id: string; uri: string; gain: number }>) {
+    // Older native builds have no voice slot; the text guidance still carries the preparation.
+    await this.getNativeModule().setVoiceClips?.(clips);
   }
 
   async triggerCue() {

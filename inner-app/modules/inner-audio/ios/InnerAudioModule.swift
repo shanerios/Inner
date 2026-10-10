@@ -57,6 +57,13 @@ struct SpatialEventRecord: Record {
   @Field var recognitionSpace = false
   @Field var signalGainScale = 1.0
   @Field var recoverySeconds = 30.0
+  @Field var clipId = ""
+}
+
+struct VoiceClipRecord: Record {
+  @Field var id = ""
+  @Field var uri = ""
+  @Field var gain = 1.0
 }
 
 struct AudioTimelineRecord: Record {
@@ -90,6 +97,7 @@ public final class InnerAudioModule: Module {
     Function("getEngineDebugState") { self.engine.debugState() }
     Function("drainDiagnosticEvents") { self.engine.drainDiagnosticEvents() }
     AsyncFunction("setRecognitionSignal") { (signalId: String?, uri: String?, gain: Double?) in try self.engine.setRecognitionSignal(signalId, uri, gain ?? 1) }
+    AsyncFunction("setVoiceClips") { (clips: [VoiceClipRecord]) in self.engine.setVoiceClips(clips) }
     AsyncFunction("triggerCue") { self.engine.triggerCue() }
     AsyncFunction("play") { try self.engine.play() }
     AsyncFunction("pause") { self.engine.pause() }
@@ -148,6 +156,18 @@ private struct TimelineStage {
   let parameters: Parameters
   let spatialEvents: [SpatialEvent]
   let cueEvents: [CueEvent]
+  let voiceEvents: [VoiceEvent]
+}
+
+private struct VoiceEvent {
+  let atMs: Double
+  let clipId: String
+}
+
+private struct VoiceClip {
+  let samples: [Float]
+  let sampleRate: Double
+  let gain: Double
 }
 
 private struct CueEvent {
@@ -360,6 +380,15 @@ final class ProceduralAudioEngine: NSObject {
   private var templeFreqs = [Double](repeating: 0, count: 4)
   private var cuePending = false
   private var cueTimelineThresholdMs = -1.0
+  private var voiceBank: [String: VoiceClip] = [:]
+  private var voiceTimelineThresholdMs = -1.0
+  private var voiceActive = false
+  private var voiceSamples: [Float] = []
+  private var voiceRate = 0.0
+  private var voiceGain = 1.0
+  private var voiceElapsedFrames = 0.0
+  private var voiceTotalFrames = 0.0
+  private var voiceBedGain = 1.0
   // After a resume from any pause, a due recognition cue waits for this window to end
   // (the sleeper may just have been woken); never longer than the cap past its schedule.
   // Mirrors the Kotlin engine's CUE_SETTLE_MS / CUE_MAX_HOLD_MS. `cueDisturbed` and
@@ -600,6 +629,10 @@ final class ProceduralAudioEngine: NSObject {
             signalGainScale: clamp(event.signalGainScale, 0.1, 2),
             recoverySeconds: clamp(event.recoverySeconds, 10, 120)
           )
+        },
+        voiceEvents: stage.spatialEvents.prefix(16).compactMap { event in
+          guard event.type == "voice", event.atMs >= 0, !event.clipId.isEmpty else { return nil }
+          return VoiceEvent(atMs: event.atMs, clipId: event.clipId)
         }
       )
     }
@@ -833,6 +866,10 @@ final class ProceduralAudioEngine: NSObject {
     templeFreqs = [Double](repeating: 0, count: 4)
     cuePending = false
     cueTimelineThresholdMs = -1
+    voiceTimelineThresholdMs = -1
+    voiceActive = false
+    voiceElapsedFrames = 0
+    voiceBedGain = 1
     cueDisturbed = false
     cueSettlePending = false
     cueHoldUntilMs = -1
@@ -996,6 +1033,109 @@ final class ProceduralAudioEngine: NSObject {
     lock.unlock()
   }
 
+  /// Replaces the recorded voice clips tonight's timeline refers to. A clip that cannot be read, is too
+  /// long, or exceeds the bank limit is skipped and reported, and never stops the others or the night.
+  func setVoiceClips(_ clips: [VoiceClipRecord]) {
+    var bank: [String: VoiceClip] = [:]
+    for clip in clips.prefix(Self.maxVoiceClips) {
+      guard !clip.id.isEmpty, !clip.uri.isEmpty else { continue }
+      do {
+        guard let url = URL(string: clip.uri), url.isFileURL else { throw NSError(domain: "InnerAudio", code: 1) }
+        let file = try AVAudioFile(forReading: url)
+        let rate = file.processingFormat.sampleRate
+        guard rate > 0, Double(file.length) / rate <= Self.maxVoiceSeconds,
+              let buffer = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: AVAudioFrameCount(file.length)) else {
+          throw NSError(domain: "InnerAudio", code: 2)
+        }
+        try file.read(into: buffer)
+        let channelCount = Int(file.processingFormat.channelCount)
+        guard let channels = buffer.floatChannelData, buffer.frameLength > 0, channelCount == 1 || channelCount == 2 else {
+          throw NSError(domain: "InnerAudio", code: 3)
+        }
+        let count = Int(buffer.frameLength)
+        let left = Array(UnsafeBufferPointer(start: channels[0], count: count))
+        // Mono mix: a recorded voice is centered, and a stereo file keeps its image only if it was meant to.
+        let mono: [Float] = channelCount == 2
+          ? zip(left, UnsafeBufferPointer(start: channels[1], count: count)).map { ($0 + $1) * 0.5 }
+          : left
+        bank[clip.id] = VoiceClip(samples: mono, sampleRate: rate, gain: clip.gain.isFinite ? min(2, max(0, clip.gain)) : 1)
+      } catch {
+        recordDiagnostic("voice_clip_missing", reason: "invalid_clip", extras: ["cueId": clip.id])
+      }
+    }
+    lock.lock()
+    voiceBank = bank
+    lock.unlock()
+  }
+
+  private func timelineVoiceEventMs(_ timeline: AudioTimeline, elapsedMs: Double, afterMs: Double) -> Double? {
+    var cursor = 0.0
+    for stage in timeline.stages {
+      for event in stage.voiceEvents {
+        let globalAtMs = cursor + event.atMs
+        if globalAtMs > afterMs && globalAtMs <= elapsedMs { return globalAtMs }
+      }
+      cursor += stage.durationMs
+    }
+    return nil
+  }
+
+  private func voiceEventAt(_ timeline: AudioTimeline, atMs: Double) -> VoiceEvent? {
+    var cursor = 0.0
+    for stage in timeline.stages {
+      for event in stage.voiceEvents where cursor + event.atMs == atMs { return event }
+      cursor += stage.durationMs
+    }
+    return nil
+  }
+
+  /// Starts a voice clip, or records why it could not: unloaded clip, or another still speaking.
+  private func startVoice(_ timeline: AudioTimeline, fireMs: Double, elapsedMs: Double) {
+    guard let event = voiceEventAt(timeline, atMs: fireMs) else { return }
+    lock.lock()
+    let clip = voiceBank[event.clipId]
+    lock.unlock()
+    guard let clip else {
+      recordDiagnostic("voice_clip_missing", reason: "not_loaded", extras: ["cueId": event.clipId])
+      return
+    }
+    if voiceActive {
+      recordDiagnostic("voice_clip_missing", reason: "overlap", extras: ["cueId": event.clipId])
+      return
+    }
+    voiceSamples = clip.samples
+    voiceRate = clip.sampleRate
+    voiceGain = clip.gain
+    voiceElapsedFrames = -Self.voiceLeadInSeconds * sampleRate
+    voiceTotalFrames = Double(clip.samples.count) / clip.sampleRate * sampleRate
+    voiceActive = voiceTotalFrames > 0
+    recordDiagnostic("voice_clip_started", extras: [
+      "cueId": event.clipId,
+      "scheduledPositionMs": fireMs,
+      "actualPositionMs": elapsedMs,
+      "driftMs": elapsedMs - fireMs,
+    ])
+  }
+
+  private func nextVoice() -> Double {
+    guard voiceActive else { return 0 }
+    if voiceElapsedFrames < 0 {
+      voiceElapsedFrames += 1
+      return 0
+    }
+    let sourcePosition = voiceElapsedFrames * voiceRate / sampleRate
+    let lower = min(voiceSamples.count - 1, Int(sourcePosition))
+    let upper = min(voiceSamples.count - 1, lower + 1)
+    let fraction = sourcePosition - Double(lower)
+    let sample = Double(voiceSamples[lower]) * (1 - fraction) + Double(voiceSamples[upper]) * fraction
+    let seconds = voiceElapsedFrames / sampleRate
+    let remaining = (voiceTotalFrames - voiceElapsedFrames) / sampleRate
+    let envelope = min(1, seconds / Self.voiceFadeInSeconds) * min(1, max(0, remaining) / Self.voiceFadeOutSeconds)
+    voiceElapsedFrames += 1
+    if voiceElapsedFrames >= voiceTotalFrames { voiceActive = false }
+    return sample * Self.voicePlaybackFactor * voiceGain * envelope
+  }
+
   private func recordDiagnostic(_ type: String, reason: String? = nil, route: String? = nil, extras: [String: Any] = [:]) {
     var event: [String: Any] = ["type": type, "atMs": Date().timeIntervalSince1970 * 1_000]
     if let reason { event["reason"] = reason }
@@ -1090,6 +1230,10 @@ final class ProceduralAudioEngine: NSObject {
       // Anything at-or-before the timeline's current position counts as
       // already fired, so a fresh timeline or a seek doesn't replay past cues.
       cueTimelineThresholdMs = timelineStartFrame * 1_000 / sampleRate
+      voiceTimelineThresholdMs = timelineStartFrame * 1_000 / sampleRate
+      voiceActive = false
+      voiceElapsedFrames = 0
+      voiceBedGain = 1
       cueHoldUntilMs = -1
       heldCueId = nil
       renderedTimelineGeneration = generation
@@ -1137,6 +1281,11 @@ final class ProceduralAudioEngine: NSObject {
           "actualPositionMs": timelineElapsedMs,
           "driftMs": timelineElapsedMs - cueFireMs,
         ])
+      }
+      if let activeTimeline,
+         let voiceFireMs = timelineVoiceEventMs(activeTimeline, elapsedMs: timelineElapsedMs, afterMs: voiceTimelineThresholdMs) {
+        voiceTimelineThresholdMs = voiceFireMs
+        startVoice(activeTimeline, fireMs: voiceFireMs, elapsedMs: timelineElapsedMs)
       }
       worldSalience.beginFrame(suppressRareEvents: recognitionSpace != nil || cueActive)
       let orbitPhase = spatialSeconds * target.spatialRate * Double.pi * 2 / 60
@@ -1393,8 +1542,12 @@ final class ProceduralAudioEngine: NSObject {
       let thresholdNoiseMix = thresholdDepth * 0.72
       let shapedNoiseLeft = (leftNoise * (1 - thresholdNoiseMix) + thresholdNoiseLowLeft * thresholdNoiseMix) * recognitionNoiseGain
       let shapedNoiseRight = (rightNoise * (1 - thresholdNoiseMix) + thresholdNoiseLowRight * thresholdNoiseMix) * recognitionNoiseGain
-      let leftMix = (leftCarrier + leftEntrainment + shapedNoiseLeft + shapedEnvironmentLeft + cue.left) * gains[3] * journeyFade * sleepGain * 0.32
-      let rightMix = (rightCarrier + rightEntrainment + shapedNoiseRight + shapedEnvironmentRight + cue.right) * gains[3] * journeyFade * sleepGain * 0.32
+      let voice = nextVoice()
+      let voiceDuckTarget = voiceActive ? Self.voiceBedDuck : 1.0
+      let voiceDuckStep = (1.0 - Self.voiceBedDuck) / (sampleRate * (voiceDuckTarget < voiceBedGain ? Self.voiceDuckAttackSeconds : Self.voiceDuckReleaseSeconds))
+      voiceBedGain += clamp(voiceDuckTarget - voiceBedGain, -voiceDuckStep, voiceDuckStep)
+      let leftMix = ((leftCarrier + leftEntrainment + shapedNoiseLeft + shapedEnvironmentLeft) * voiceBedGain + cue.left + voice) * gains[3] * journeyFade * sleepGain * 0.32
+      let rightMix = ((rightCarrier + rightEntrainment + shapedNoiseRight + shapedEnvironmentRight) * voiceBedGain + cue.right + voice) * gains[3] * journeyFade * sleepGain * 0.32
       left[frame] = Float(softLimit(leftMix))
       right[frame] = Float(softLimit(rightMix))
       phases[0] = fmod(phases[0] + tau * target.carrierHz / sampleRate, tau)
@@ -1782,6 +1935,19 @@ final class ProceduralAudioEngine: NSObject {
   // time.
   private static let cueNoteHz = [400.0, 600.0, 800.0]
   private static let cueNoteStarts = [0.0, 0.93, 1.86]
+  // Recorded voice guidance in the waking preparation. Played at file level times the same factor as
+  // recognition signals, with a per-clip trim from JavaScript. The bed eases down underneath so the
+  // words are not masked, and returns afterward. Mirrors the Kotlin engine's VOICE_* constants.
+  private static let voicePlaybackFactor = 1.45
+  // The voice begins this long after its scheduled time, so the bed has eased down before the first word.
+  private static let voiceLeadInSeconds = 0.4
+  private static let voiceFadeInSeconds = 0.04
+  private static let voiceFadeOutSeconds = 0.08
+  private static let voiceBedDuck = 0.708
+  private static let voiceDuckAttackSeconds = 0.4
+  private static let voiceDuckReleaseSeconds = 1.5
+  private static let maxVoiceClips = 40
+  private static let maxVoiceSeconds = 20.0
   private static let cueNoteSeconds = 0.75
   private static let cueAttackSeconds = 0.24
   private static let cueReleaseSeconds = 0.32

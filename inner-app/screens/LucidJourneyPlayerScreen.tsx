@@ -33,6 +33,7 @@ import {
 import { bindNightPlanToJourney } from '../core/nightPlans';
 import { INNER_LAB_BUILD } from '../core/innerLab';
 import { startBedsideMotionRecording } from '../core/bedsideMotionSensor';
+import { resolveVoiceClips } from '../core/audio/voiceClips';
 import { markRecurringSignalPracticeCompleted } from '../core/recurringDreamSignals';
 
 const LUCIDITY_CUE_TRAINING_JOURNEY_ID = 'lucid-signal';
@@ -274,6 +275,19 @@ export default function LucidJourneyPlayerScreen() {
           message: `trimDb=${RECOGNITION_SIGNAL_TRIM_DB[selectedSignalId]}`,
         });
         recognitionSignalIdRef.current = selectedSignalId;
+        // Spoken preparation: load tonight's clips, or fall back to the on-screen text. Never blocks the start.
+        if (journey.voiceClips?.length) {
+          const voiceClips = await resolveVoiceClips(journey.voiceClips).catch(() => null);
+          if (voiceClips) {
+            await session.setVoiceClips(voiceClips).catch(() => {});
+          } else {
+            void recordJourneyMemoryEvent(memorySession.id, {
+              type: 'voice_clip_missing',
+              positionMs: 0,
+              reason: 'clips_unavailable',
+            });
+          }
+        }
         traceStart('signal_ready');
         if (!mounted) {
           finishMemory('user_stopped');

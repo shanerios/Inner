@@ -53,6 +53,8 @@ function describeEvent(event: JourneyMemoryEvent): string {
       return `Signal fired${event.signalId ? ` · ${event.signalId}` : ''}${drift}`;
     }
     case 'previous_session_interrupted_unexpectedly': return interruptedBeforeRelaunchLabel(event);
+    case 'voice_clip_started': return `Voice guidance${event.cueId ? ` · ${event.cueId}` : ''}`;
+    case 'voice_clip_missing': return `Voice guidance unavailable${event.cueId ? ` · ${event.cueId}` : event.reason ? ` · ${event.reason}` : ''}`;
     case 'recognition_signal_held': return `Signal held until playback settled${event.cueId ? ` · ${event.cueId}` : ''}`;
     case 'seeked': return `Seeked from ${formatTime(event.fromPositionMs ?? 0)}`;
     case 'app_state_changed': return `App state · ${event.appState ?? 'unknown'}`;

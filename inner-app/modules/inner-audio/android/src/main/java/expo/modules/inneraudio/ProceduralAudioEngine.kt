@@ -104,6 +104,7 @@ private data class TimelineStageState(
   val parameters: AudioParameters,
   val spatialEvents: List<SpatialEventState>,
   val cueEvents: List<CueEventState>,
+  val voiceEvents: List<VoiceEventState>,
 )
 
 private data class SpatialEventState(
@@ -120,6 +121,15 @@ private data class CueEventState(
   val signalGainScale: Double,
   val recoverySeconds: Double,
 )
+
+private data class VoiceEventState(
+  val atMs: Double,
+  val clipId: String,
+)
+
+private class VoiceClip(val samples: FloatArray, val sampleRate: Double, val gain: Double)
+
+private class DecodedWav(val left: FloatArray, val right: FloatArray, val sampleRate: Double)
 
 private data class AudioTimelineState(
   val seed: Long,
@@ -207,6 +217,21 @@ private val CUE_NOTE_STARTS = doubleArrayOf(0.0, 0.93, 1.86)
 private const val CUE_SETTLE_MS = 90_000.0
 private const val CUE_MAX_HOLD_MS = 300_000.0
 private const val CUE_LATE_MS = 1_000.0
+/**
+ * Recorded voice guidance in the waking preparation. Played at file level times the same factor as
+ * recognition signals, with a per-clip trim from JavaScript. The bed eases down a little underneath
+ * so the words are not masked, and returns afterward.
+ */
+private const val VOICE_PLAYBACK_FACTOR = 1.45
+/** The voice begins this long after its scheduled time, so the bed has eased down before the first word. */
+private const val VOICE_LEAD_IN_SECONDS = 0.4
+private const val VOICE_FADE_IN_SECONDS = 0.04
+private const val VOICE_FADE_OUT_SECONDS = 0.08
+private const val VOICE_BED_DUCK = 0.708
+private const val VOICE_DUCK_ATTACK_SECONDS = 0.4
+private const val VOICE_DUCK_RELEASE_SECONDS = 1.5
+private const val MAX_VOICE_CLIPS = 40
+private const val MAX_VOICE_SECONDS = 20.0
 private const val CUE_NOTE_SECONDS = 0.75
 private const val CUE_ATTACK_SECONDS = 0.24
 private const val CUE_RELEASE_SECONDS = 0.32
@@ -372,6 +397,15 @@ object ProceduralAudioEngine {
   @Volatile private var cuePending = false
   private var cueActive = false
   private var cueTimelineThresholdMs = -1.0
+  @Volatile private var voiceBank: Map<String, VoiceClip> = emptyMap()
+  private var voiceTimelineThresholdMs = -1.0
+  private var voiceActive = false
+  private var voiceSamples = FloatArray(0)
+  private var voiceRate = 0.0
+  private var voiceGain = 1.0
+  private var voiceElapsedFrames = 0.0
+  private var voiceTotalFrames = 0.0
+  private var voiceBedGain = 1.0
   // Written under [lock] by the pause/resume hooks; the hold itself is render-thread only.
   private var cueDisturbed = false
   private var cueSettlePending = false
@@ -459,9 +493,23 @@ object ProceduralAudioEngine {
       }
       return
     }
-    val bytes = File(URI(uri)).readBytes()
+    val wav = parseWav(File(URI(uri)).readBytes(), "Recognition signal")
+    val left = wav.left
+    val right = wav.right
+    val sourceRate = wav.sampleRate.toInt()
+    lock.withLock {
+      recognitionSignalSamplesLeft = left
+      recognitionSignalSamplesRight = right
+      recognitionSignalSampleRate = sourceRate.toDouble()
+      recognitionSignalId = signalId
+      recognitionSignalGain = signalGain
+    }
+  }
+
+  /** Reads a 16-bit mono or stereo PCM WAV. [label] names the file kind in error messages. */
+  private fun parseWav(bytes: ByteArray, label: String): DecodedWav {
     require(bytes.size >= 44 && String(bytes, 0, 4, Charsets.US_ASCII) == "RIFF" && String(bytes, 8, 4, Charsets.US_ASCII) == "WAVE") {
-      "Recognition signal is not a valid WAV file"
+      "$label is not a valid WAV file"
     }
     val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
     var format = 0
@@ -488,7 +536,7 @@ object ProceduralAudioEngine {
       offset = body + chunkSize + (chunkSize and 1)
     }
     require(format == 1 && (channels == 1 || channels == 2) && bits == 16 && sourceRate > 0 && dataOffset >= 0) {
-      "Recognition signal must be 16-bit mono or stereo PCM WAV"
+      "$label must be 16-bit mono or stereo PCM WAV"
     }
     val frameCount = dataSize / 2 / channels
     val left = FloatArray(frameCount) { index -> buffer.getShort(dataOffset + index * channels * 2) / 32768f }
@@ -497,13 +545,28 @@ object ProceduralAudioEngine {
     } else {
       left
     }
-    lock.withLock {
-      recognitionSignalSamplesLeft = left
-      recognitionSignalSamplesRight = right
-      recognitionSignalSampleRate = sourceRate.toDouble()
-      recognitionSignalId = signalId
-      recognitionSignalGain = signalGain
+    return DecodedWav(left, right, sourceRate.toDouble())
+  }
+
+  /**
+   * Replaces the recorded voice clips tonight's timeline refers to. A clip that cannot be read, is too
+   * long, or exceeds the bank limit is skipped and reported, and never stops the others or the night.
+   */
+  fun setVoiceClips(clips: List<VoiceClipRecord>) {
+    val bank = HashMap<String, VoiceClip>()
+    for (clip in clips.take(MAX_VOICE_CLIPS)) {
+      if (clip.id.isEmpty() || clip.uri.isEmpty()) continue
+      try {
+        val wav = parseWav(File(URI(clip.uri)).readBytes(), "Voice clip")
+        require(wav.left.size / wav.sampleRate <= MAX_VOICE_SECONDS) { "Voice clip is longer than $MAX_VOICE_SECONDS seconds" }
+        // Mono mix: a recorded voice is centered, and a stereo file keeps its image only if it was meant to.
+        val mono = if (wav.right === wav.left) wav.left else FloatArray(wav.left.size) { (wav.left[it] + wav.right[it]) * 0.5f }
+        bank[clip.id] = VoiceClip(mono, wav.sampleRate, clamp(if (clip.gain.isFinite()) clip.gain else 1.0, 0.0, 2.0))
+      } catch (_: Exception) {
+        recordDiagnostic("voice_clip_missing", reason = "invalid_clip", extras = mapOf("cueId" to clip.id))
+      }
     }
+    voiceBank = bank
   }
 
   fun configure(raw: AudioConfigRecord) {
@@ -548,6 +611,10 @@ object ProceduralAudioEngine {
               signalGainScale = clamp(event.signalGainScale, 0.1, 2.0),
               recoverySeconds = clamp(event.recoverySeconds, 10.0, 120.0),
             )
+          },
+          voiceEvents = stage.spatialEvents.take(16).mapNotNull { event ->
+            if (event.type != "voice" || event.atMs < 0 || event.clipId.isEmpty()) return@mapNotNull null
+            VoiceEventState(atMs = event.atMs, clipId = event.clipId)
           },
         )
       }
@@ -694,6 +761,10 @@ object ProceduralAudioEngine {
     cosmicModel.reset(XORSHIFT_SEED, sampleRate)
     worldSalience.reset(sampleRate)
     cueTimelineThresholdMs = -1.0
+    voiceTimelineThresholdMs = -1.0
+    voiceActive = false
+    voiceElapsedFrames = 0.0
+    voiceBedGain = 1.0
     cueDisturbed = false
     cueSettlePending = false
     cueHoldUntilMs = -1.0
@@ -843,6 +914,10 @@ object ProceduralAudioEngine {
       // Anything at-or-before the timeline's current position counts as
       // already fired, so a fresh timeline or a seek doesn't replay past cues.
       cueTimelineThresholdMs = timelineStartFrame * 1_000.0 / sampleRate
+      voiceTimelineThresholdMs = timelineStartFrame * 1_000.0 / sampleRate
+      voiceActive = false
+      voiceElapsedFrames = 0.0
+      voiceBedGain = 1.0
       cueHoldUntilMs = -1.0
       heldCueId = null
       renderedTimelineGeneration = generation
@@ -888,6 +963,13 @@ object ProceduralAudioEngine {
             "actualPositionMs" to timelineElapsedMs,
             "driftMs" to (timelineElapsedMs - cueFireMs),
           ))
+        }
+      }
+      if (activeTimeline != null) {
+        val voiceFireMs = timelineVoiceEventMs(activeTimeline, timelineElapsedMs, voiceTimelineThresholdMs)
+        if (voiceFireMs != null) {
+          voiceTimelineThresholdMs = voiceFireMs
+          startVoice(activeTimeline, voiceFireMs, timelineElapsedMs)
         }
       }
       worldSalience.beginFrame(recognitionSpace != null || cueActive)
@@ -1107,8 +1189,12 @@ object ProceduralAudioEngine {
       val thresholdNoiseMix = thresholdDepth * 0.72
       val shapedNoiseLeft = (leftNoise * (1.0 - thresholdNoiseMix) + thresholdNoiseLowLeft * thresholdNoiseMix) * recognitionNoiseGain
       val shapedNoiseRight = (rightNoise * (1.0 - thresholdNoiseMix) + thresholdNoiseLowRight * thresholdNoiseMix) * recognitionNoiseGain
-      val leftMix = (leftCarrier + leftEntrainment + shapedNoiseLeft + shapedEnvironmentLeft + cue.first) * gains[3] * journeyFade * sleepGain * 0.32
-      val rightMix = (rightCarrier + rightEntrainment + shapedNoiseRight + shapedEnvironmentRight + cue.second) * gains[3] * journeyFade * sleepGain * 0.32
+      val voice = nextVoice()
+      val voiceDuckTarget = if (voiceActive) VOICE_BED_DUCK else 1.0
+      val voiceDuckStep = (1.0 - VOICE_BED_DUCK) / (sampleRate * if (voiceDuckTarget < voiceBedGain) VOICE_DUCK_ATTACK_SECONDS else VOICE_DUCK_RELEASE_SECONDS)
+      voiceBedGain += clamp(voiceDuckTarget - voiceBedGain, -voiceDuckStep, voiceDuckStep)
+      val leftMix = ((leftCarrier + leftEntrainment + shapedNoiseLeft + shapedEnvironmentLeft) * voiceBedGain + cue.first + voice) * gains[3] * journeyFade * sleepGain * 0.32
+      val rightMix = ((rightCarrier + rightEntrainment + shapedNoiseRight + shapedEnvironmentRight) * voiceBedGain + cue.second + voice) * gains[3] * journeyFade * sleepGain * 0.32
       output[frame * 2] = softLimit(leftMix).toFloat()
       output[frame * 2 + 1] = softLimit(rightMix).toFloat()
       phases[0] = (phases[0] + tau * target.carrierHz / sampleRate) % tau
@@ -1241,6 +1327,72 @@ object ProceduralAudioEngine {
       "vortex" -> 1 - 0.3 * target.spatialDepth
       else -> 1.0
     }
+  }
+
+  private fun timelineVoiceEventMs(timeline: AudioTimelineState, elapsedMs: Double, afterMs: Double): Double? {
+    var cursor = 0.0
+    for (stage in timeline.stages) {
+      for (event in stage.voiceEvents) {
+        val globalAtMs = cursor + event.atMs
+        if (globalAtMs > afterMs && globalAtMs <= elapsedMs) return globalAtMs
+      }
+      cursor += stage.durationMs
+    }
+    return null
+  }
+
+  private fun voiceEventAt(timeline: AudioTimelineState, atMs: Double): VoiceEventState? {
+    var cursor = 0.0
+    for (stage in timeline.stages) {
+      for (event in stage.voiceEvents) if (cursor + event.atMs == atMs) return event
+      cursor += stage.durationMs
+    }
+    return null
+  }
+
+  /** Starts a voice clip, or records why it could not: unloaded clip, or another still speaking. */
+  private fun startVoice(timeline: AudioTimelineState, fireMs: Double, elapsedMs: Double) {
+    val event = voiceEventAt(timeline, fireMs) ?: return
+    val clip = voiceBank[event.clipId]
+    if (clip == null) {
+      recordDiagnostic("voice_clip_missing", reason = "not_loaded", extras = mapOf("cueId" to event.clipId))
+      return
+    }
+    if (voiceActive) {
+      recordDiagnostic("voice_clip_missing", reason = "overlap", extras = mapOf("cueId" to event.clipId))
+      return
+    }
+    voiceSamples = clip.samples
+    voiceRate = clip.sampleRate
+    voiceGain = clip.gain
+    voiceElapsedFrames = -VOICE_LEAD_IN_SECONDS * sampleRate
+    voiceTotalFrames = clip.samples.size / clip.sampleRate * sampleRate
+    voiceActive = voiceTotalFrames > 0
+    recordDiagnostic("voice_clip_started", extras = mapOf(
+      "cueId" to event.clipId,
+      "scheduledPositionMs" to fireMs,
+      "actualPositionMs" to elapsedMs,
+      "driftMs" to (elapsedMs - fireMs),
+    ))
+  }
+
+  private fun nextVoice(): Double {
+    if (!voiceActive) return 0.0
+    if (voiceElapsedFrames < 0) {
+      voiceElapsedFrames += 1
+      return 0.0
+    }
+    val sourcePosition = voiceElapsedFrames * voiceRate / sampleRate
+    val lower = min(voiceSamples.lastIndex, sourcePosition.toInt())
+    val upper = min(voiceSamples.lastIndex, lower + 1)
+    val fraction = sourcePosition - lower
+    val sample = voiceSamples[lower] * (1 - fraction) + voiceSamples[upper] * fraction
+    val seconds = voiceElapsedFrames / sampleRate
+    val remaining = (voiceTotalFrames - voiceElapsedFrames) / sampleRate
+    val envelope = min(1.0, seconds / VOICE_FADE_IN_SECONDS) * min(1.0, max(0.0, remaining) / VOICE_FADE_OUT_SECONDS)
+    voiceElapsedFrames += 1
+    if (voiceElapsedFrames >= voiceTotalFrames) voiceActive = false
+    return sample * VOICE_PLAYBACK_FACTOR * voiceGain * envelope
   }
 
   private fun cueEventAt(timeline: AudioTimelineState, atMs: Double): CueEventState? {

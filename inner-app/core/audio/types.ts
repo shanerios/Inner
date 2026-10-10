@@ -26,7 +26,15 @@ export type AudioCueEvent = {
   recoverySeconds?: number;
 };
 
-export type AudioSpatialEvent = AudioSwooshEvent | AudioCueEvent;
+/** Plays a recorded voice clip loaded with `setVoiceClips`. Used only in waking-preparation stages. */
+export type AudioVoiceEvent = {
+  id: string;
+  atMs: number;
+  type: 'voice';
+  clipId: string;
+};
+
+export type AudioSpatialEvent = AudioSwooshEvent | AudioCueEvent | AudioVoiceEvent;
 
 export type ProceduralAudioConfig = {
   carrierHz: number;
@@ -150,7 +158,7 @@ export type AudioEngineListener = (snapshot: AudioEngineSnapshot) => void;
 export type NativePlaybackState = 'playing' | 'paused' | 'stopped';
 
 export type NativeAudioDiagnosticEvent = {
-  type: 'playback_resumed' | 'playback_paused' | 'playback_stopped' | 'foreground_service_started' | 'foreground_service_stopped' | 'audio_route_changed' | 'interruption_began' | 'interruption_ended' | 'recognition_signal_fired' | 'recognition_signal_held' | 'sleep_timer_fired' | 'audio_underrun' | 'error';
+  type: 'playback_resumed' | 'playback_paused' | 'playback_stopped' | 'foreground_service_started' | 'foreground_service_stopped' | 'audio_route_changed' | 'interruption_began' | 'interruption_ended' | 'recognition_signal_fired' | 'recognition_signal_held' | 'voice_clip_started' | 'voice_clip_missing' | 'sleep_timer_fired' | 'audio_underrun' | 'error';
   atMs: number;
   reason?: string;
   /** Short machine-readable context. Never user content. */
@@ -257,6 +265,8 @@ export interface InnerAudioEngine {
   /** `gain` is a linear level trim for the signal (1 = unchanged). */
   setRecognitionSignal(signalId: string | null, uri: string | null, gain?: number): Promise<void>;
   triggerCue(): Promise<void>;
+  /** Loads the recorded voice clips tonight's timeline refers to; replaces any earlier set. Absent on older native builds. */
+  setVoiceClips?(clips: Array<{ id: string; uri: string; gain: number }>): Promise<void>;
   /** Associate native evidence with the durable Journey Memory session. */
   setCheckpointSessionId(sessionId: string | null): Promise<void>;
   /** Most recent native checkpoint (legacy single-record API). */

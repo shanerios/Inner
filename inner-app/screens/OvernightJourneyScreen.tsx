@@ -37,6 +37,9 @@ import { attachNightPlanToJourneyMemory, createMorningReturnTestSession, interru
 import { changedFields, createNightPlan, type NightPlanConfiguration, type NightPlanSource } from '../core/nightPlans';
 import { buildGenerationNotes } from '../core/generationLevers';
 import { withPreparationFocus } from '../core/audio/preparationFocus';
+import { withPreparationVoice } from '../core/audio/voiceGuidance';
+import { cachedVoicePlan, prefetchVoicePack } from '../core/audio/voiceClips';
+import { getVoiceGuidanceEnabled, setVoiceGuidanceEnabled } from '../core/voiceGuidancePrefs';
 import { createNightRecipeV2, nightRecipeCueSummary } from '../core/nightRecipes';
 import type { NightRecipeRecognitionIntention } from '../core/nightRecipes';
 import { experimentContextForPractice, loadCurrentPracticeExperiment } from '../core/practiceExperiments';
@@ -117,6 +120,8 @@ function eventLabel(event: JourneyMemorySession['events'][number]): string {
     return `Native signal fired · ${event.signalId ?? 'unknown'}${drift}`;
   }
   if (event.type === 'previous_session_interrupted_unexpectedly') return interruptedBeforeRelaunchLabel(event);
+  if (event.type === 'voice_clip_started') return `Voice guidance · ${event.cueId ?? 'clip'}`;
+  if (event.type === 'voice_clip_missing') return `Voice guidance unavailable${event.cueId ? ` · ${event.cueId}` : event.reason ? ` · ${event.reason}` : ''}`;
   if (event.type === 'recognition_signal_held') return `Native signal held until playback settled · ${event.cueId ?? 'cue'}`;
   if (event.type === 'seeked') return `Scrubbed from ${clockLabel(event.fromPositionMs ?? 0)}`;
   if (event.type === 'app_state_changed') return `App state · ${event.appState ?? event.reason ?? 'changed'}`;
@@ -169,6 +174,7 @@ export default function OvernightJourneyScreen() {
   const [previewingSignal, setPreviewingSignal] = useState(false);
   const [accelerated, setAccelerated] = useState(false);
   const [quietNight, setQuietNight] = useState(false);
+  const [voiceGuidance, setVoiceGuidance] = useState(true);
   const [recognitionFocus, setRecognitionFocus] = useState<RecurringSignalFocus | null>(null);
   const [practiceState, setPracticeState] = useState<PracticeStateV1 | null>(null);
   const [inspectorVisible, setInspectorVisible] = useState(false);
@@ -181,6 +187,12 @@ export default function OvernightJourneyScreen() {
   const background = useVideoPlayer(require('../assets/videos/lucidscreen.mp4'), player => {
     player.loop = true; player.muted = true; player.audioMixingMode = 'mixWithOthers'; player.play();
   });
+
+  useEffect(() => {
+    let active = true;
+    void getVoiceGuidanceEnabled().then(enabled => { if (active) setVoiceGuidance(enabled); });
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -233,6 +245,14 @@ export default function OvernightJourneyScreen() {
     })();
     return () => { active = false; };
   }, [adaptiveProposal, route.params?.experimentId, route.params?.recommendationId]);
+
+  // Spoken preparation: on by default, off for Quiet Night (speech on a speaker carries) and for accelerated tests.
+  const voiceWillPlay = voiceGuidance && !quietNight && !(accelerated && INNER_LAB_BUILD);
+  useEffect(() => {
+    // Keep the whole voice pack on the device, whatever the sign, so asking for a file never reveals it
+    // and a poor connection later cannot cost the voice.
+    if (voiceWillPlay) void prefetchVoicePack().catch(() => {});
+  }, [voiceWillPlay]);
 
   const previewRecipe = useMemo(() => createNightRecipeV2({
     durationMinutes,
@@ -392,6 +412,8 @@ export default function OvernightJourneyScreen() {
         ...(route.params?.suggestedEnvironment ? { environment: route.params.suggestedEnvironment as string } : {}),
         ...(route.params?.suggestedCuePlan ? { cuePlan: route.params.suggestedCuePlan as LucidSignalCuePlan } : {}),
       };
+      // Chosen from what is already on the device, so a poor connection cannot cost the night and the sign is never requested.
+      const voicePlan = voiceWillPlay ? await cachedVoicePlan(recipe.recognition.intention?.sign) : null;
       const planReason = experiment?.question ?? adaptiveProposal?.reason ?? recommendation?.reason;
       const planConfiguration: NightPlanConfiguration = {
         durationMinutes,
@@ -424,16 +446,21 @@ export default function OvernightJourneyScreen() {
             proposedConfiguration: Object.keys(proposedConfiguration).length ? proposedConfiguration : undefined,
             userChanged: changedFields(Object.keys(proposedConfiguration).length ? proposedConfiguration : undefined, planConfiguration),
             recognitionIntention: recipe.recognition.intention,
+            voiceDelivery: voicePlan ? 'voice' : 'text',
+            voiceDeclined: !voiceGuidance,
+            voiceUnavailable: voiceWillPlay && !voicePlan,
+            voiceLines: voicePlan?.slug,
           }),
         },
         quietNight,
       });
+      // The frozen recipe's sign names the waking preparation only; sleep audio is unchanged.
+      const preparedJourney = withPreparationFocus(
+        overnightJourney(environment, feel, compiledNight, accelerated && INNER_LAB_BUILD, seed),
+        recipe.recognition.intention?.sign,
+      );
       navigation.navigate('LucidJourneyPlayer', {
-        // The frozen recipe's sign names the waking preparation only; sleep audio is unchanged.
-        journey: withPreparationFocus(
-          overnightJourney(environment, feel, compiledNight, accelerated && INNER_LAB_BUILD, seed),
-          recipe.recognition.intention?.sign,
-        ),
+        journey: voicePlan ? withPreparationVoice(preparedJourney, voicePlan) : preparedJourney,
         nightPlanId: plan.id,
       });
     } catch {
@@ -612,6 +639,26 @@ export default function OvernightJourneyScreen() {
             {quietNight
               ? 'ON · Playing low, so Inner will not learn signal levels from tonight'
               : 'OFF · Turn on if you are playing this quietly, such as beside someone sleeping'}
+          </Text>
+        </Pressable>
+
+        <Pressable
+          onPress={() => {
+            const next = !voiceGuidance;
+            setVoiceGuidance(next);
+            void setVoiceGuidanceEnabled(next);
+          }}
+          style={[styles.testMode, voiceWillPlay && styles.testModeSelected]}
+          accessibilityRole="switch"
+          accessibilityState={{ checked: voiceGuidance }}
+        >
+          <Text style={styles.testModeTitle}>VOICE GUIDANCE</Text>
+          <Text style={styles.testModeCopy}>
+            {voiceGuidance
+              ? quietNight
+                ? 'ON · Skipped tonight because this is a Quiet Night'
+                : 'ON · A voice guides the first minutes, then the night continues in sound alone'
+              : 'OFF · The preparation is shown as text only'}
           </Text>
         </Pressable>
 
