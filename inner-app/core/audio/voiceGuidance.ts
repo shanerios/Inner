@@ -1,4 +1,5 @@
 import { DREAM_SIGNS } from '../dreamSigns';
+import { recognitionSignalById } from '../recognitionSignals';
 import type { FactoryAudioJourney } from './factoryJourneys';
 
 /**
@@ -11,8 +12,21 @@ import type { FactoryAudioJourney } from './factoryJourneys';
  */
 export const VOICE_BASE_URL = 'https://f005.backblazeb2.com/file/inner-audio/OvernightVoice/';
 
-/** Where each line plays, measured from the start of the preparation. */
+/**
+ * Where each line plays, measured from the start of the preparation, when it does not follow a tone.
+ * Lines 1 and 2 follow a tone and are timed from where it ends (see `withPreparationVoice`); these
+ * values are only the fallback if that tone cannot be found.
+ */
 export const VOICE_SLOT_TIMES_MS = [20_000, 105_000, 335_000] as const;
+
+/** How long after a tone ends the first word is heard. Tune this to taste. */
+export const VOICE_AFTER_TONE_MS = 900;
+/** The engine waits this long before a clip's first sample; mirrors VOICE_LEAD_IN_SECONDS natively. */
+const ENGINE_LEAD_IN_MS = 400;
+/** Typical silence before the first word in the recordings. */
+const CLIP_HEAD_MS = 80;
+/** The preparation tone each line follows, by its cue id. The last line comes at release, after no tone. */
+const FOLLOWS_CUE: Record<number, string | null> = { 1: 'learn-cue-1', 2: 'rehearse-cue-2', 3: null };
 
 export type VoiceSlot = 1 | 2 | 3;
 
@@ -103,6 +117,22 @@ const PREPARATION_STAGE_IDS = new Set(['learn', 'rehearse', 'drift', 'release'])
  * Only stages that belong to the waking preparation are touched.
  */
 export function withPreparationVoice(journey: FactoryAudioJourney, plan: VoicePlan): FactoryAudioJourney {
+  // Where each preparation tone starts, so a line can follow the end of the tone it belongs to.
+  const toneStartMs = new Map<string, number>();
+  let elapsed = 0;
+  for (const stage of journey.timeline.stages) {
+    for (const event of stage.spatialEvents ?? []) if (event.type === 'cue') toneStartMs.set(event.id, elapsed + event.atMs);
+    elapsed += stage.durationMs;
+  }
+  const toneLengthMs = recognitionSignalById(journey.overnight?.recognitionSignalId ?? 'ascending').durationMs;
+  const timed = plan.clips.map((clip, index) => {
+    const cue = FOLLOWS_CUE[index + 1];
+    const start = cue ? toneStartMs.get(cue) : undefined;
+    return start === undefined
+      ? clip
+      : { ...clip, atMs: Math.round(start + toneLengthMs + VOICE_AFTER_TONE_MS - ENGINE_LEAD_IN_MS - CLIP_HEAD_MS) };
+  });
+
   let cursor = 0;
   const additions = new Map<number, Array<{ id: string; atMs: number; type: 'voice'; clipId: string }>>();
   journey.timeline.stages.forEach((stage, index) => {
@@ -110,7 +140,7 @@ export function withPreparationVoice(journey: FactoryAudioJourney, plan: VoicePl
     const start = cursor;
     const end = start + stage.durationMs;
     cursor = end;
-    for (const clip of plan.clips) {
+    for (const clip of timed) {
       if (clip.atMs >= start && clip.atMs < end) {
         additions.set(index, [
           ...(additions.get(index) ?? []),
@@ -122,7 +152,7 @@ export function withPreparationVoice(journey: FactoryAudioJourney, plan: VoicePl
   if (!additions.size) return journey;
   return {
     ...journey,
-    voiceClips: plan.clips,
+    voiceClips: timed,
     timeline: {
       ...journey.timeline,
       stages: journey.timeline.stages.map((stage, index) => additions.has(index)

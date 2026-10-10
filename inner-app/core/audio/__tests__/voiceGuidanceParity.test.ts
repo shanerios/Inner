@@ -45,6 +45,7 @@ describe('voice guidance: both engines play and mix a recorded clip the same way
     for (const source of [kotlin, swift]) {
       expect(source).toContain('"voice_clip_started"');
       expect(source).toContain('"voice_clip_missing"');
+      expect(source).toContain('"voice_clips_loaded"');
       expect(source).toContain('"not_loaded"');
       expect(source).toContain('"overlap"');
       expect(source).toContain('"invalid_clip"');

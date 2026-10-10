@@ -1066,6 +1066,7 @@ final class ProceduralAudioEngine: NSObject {
     lock.lock()
     voiceBank = bank
     lock.unlock()
+    recordDiagnostic("voice_clips_loaded", extras: ["detail": "loaded=\(bank.count) requested=\(clips.count)"])
   }
 
   private func timelineVoiceEventMs(_ timeline: AudioTimeline, elapsedMs: Double, afterMs: Double) -> Double? {

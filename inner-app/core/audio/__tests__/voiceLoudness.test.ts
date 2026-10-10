@@ -4,6 +4,11 @@ import * as os from 'os';
 import * as path from 'path';
 import { execFileSync } from 'child_process';
 
+jest.mock('@react-native-async-storage/async-storage', () =>
+  require('@react-native-async-storage/async-storage/jest/async-storage-mock'),
+);
+jest.mock('expo-av', () => ({ Audio: { Sound: { createAsync: jest.fn() } } }));
+
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const loudness = require('../../../scripts/lib/loudness') as {
   measureClip(file: string): { atMixLu: number; fileLufs: number; peakDb: number; seconds: number; rate: number; channels: number };

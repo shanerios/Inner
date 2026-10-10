@@ -142,11 +142,13 @@ describe('the Overnight screen', () => {
     const screen = fs.readFileSync(path.resolve(__dirname, '../../screens/OvernightJourneyScreen.tsx'), 'utf8');
     expect(screen).toContain('const voiceWillPlay = voiceGuidance && !quietNight && !(accelerated && INNER_LAB_BUILD);');
     expect(screen.match(/withPreparationVoice\(/g)).toHaveLength(1);
-    expect(screen).toContain('journey: voicePlan ? withPreparationVoice(preparedJourney, voicePlan) : preparedJourney');
+    expect(screen).toContain('? withPreparationVoice(preparedJourney, voicePlan)');
+    // Wanted but not on the device: the night still starts, and its record says why.
+    expect(screen).toContain("voiceSkipped: 'pack_not_on_device'");
     expect(screen).toContain("voiceDelivery: voicePlan ? 'voice' : 'text'");
     // Chosen from the device only: starting a night never asks the network for a sign's clips.
     expect(screen).toContain('await cachedVoicePlan(recipe.recognition.intention?.sign)');
-    expect(screen).toContain('prefetchVoicePack()');
+    expect(screen).toContain('prefetchVoicePack(undefined, progress =>');
     expect(screen).not.toContain('prefetchVoiceClips');
   });
 
@@ -155,6 +157,10 @@ describe('the Overnight screen', () => {
     expect(player.match(/resolveVoiceClips\(/g)).toHaveLength(1);
     expect(player.indexOf('resolveVoiceClips(')).toBeLessThan(player.indexOf('await session.startTimeline('));
     expect(player).toContain("type: 'voice_clip_missing'");
+    // Every step leaves a trace, so a silent night can be explained afterward.
+    expect(player).toContain("type: 'voice_clips_planned'");
+    expect(player).toContain("reason: 'set_failed'");
+    expect(player).toContain('journey.voiceSkipped');
     expect(player).toContain('.catch(() => null)');
   });
 });

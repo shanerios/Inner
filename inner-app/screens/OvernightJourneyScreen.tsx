@@ -38,7 +38,7 @@ import { changedFields, createNightPlan, type NightPlanConfiguration, type Night
 import { buildGenerationNotes } from '../core/generationLevers';
 import { withPreparationFocus } from '../core/audio/preparationFocus';
 import { withPreparationVoice } from '../core/audio/voiceGuidance';
-import { cachedVoicePlan, prefetchVoicePack } from '../core/audio/voiceClips';
+import { cachedVoicePlan, prefetchVoicePack, type VoicePackProgress } from '../core/audio/voiceClips';
 import { getVoiceGuidanceEnabled, setVoiceGuidanceEnabled } from '../core/voiceGuidancePrefs';
 import { createNightRecipeV2, nightRecipeCueSummary } from '../core/nightRecipes';
 import type { NightRecipeRecognitionIntention } from '../core/nightRecipes';
@@ -95,6 +95,18 @@ function roundedSignalLevel(value: number): number {
   return Math.round(value * 20) / 20;
 }
 
+/** What the voice pack is doing, in a line the practitioner can act on. */
+function voicePackStatusLine(progress: VoicePackProgress | null): string {
+  if (!progress || progress.phase === 'checking') return 'Checking the voice pack…';
+  if (progress.phase === 'unreachable') return 'Could not reach the voice pack, so tonight is text only';
+  if (progress.phase === 'empty') return 'The voice pack is not published yet, so tonight is text only';
+  if (progress.phase === 'ready') return `Voice ready · ${progress.done} of ${progress.total} clips on this phone`;
+  const failure = progress.failed ? ` · ${progress.failed} failed${progress.lastFailure ? ` (${progress.lastFailure})` : ''}` : '';
+  return progress.done >= progress.total
+    ? `Voice ready${failure}`
+    : `Getting the voice pack · ${progress.done} of ${progress.total}${failure}`;
+}
+
 function recognitionIntentionForFocus(
   focus: RecurringSignalFocus | null,
 ): NightRecipeRecognitionIntention | undefined {
@@ -120,8 +132,10 @@ function eventLabel(event: JourneyMemorySession['events'][number]): string {
     return `Native signal fired · ${event.signalId ?? 'unknown'}${drift}`;
   }
   if (event.type === 'previous_session_interrupted_unexpectedly') return interruptedBeforeRelaunchLabel(event);
+  if (event.type === 'voice_clips_planned') return `Voice guidance planned${event.message ? ` · ${event.message}` : ''}`;
+  if (event.type === 'voice_clips_loaded') return `Voice clips loaded${event.message ? ` · ${event.message}` : ''}`;
   if (event.type === 'voice_clip_started') return `Voice guidance · ${event.cueId ?? 'clip'}`;
-  if (event.type === 'voice_clip_missing') return `Voice guidance unavailable${event.cueId ? ` · ${event.cueId}` : event.reason ? ` · ${event.reason}` : ''}`;
+  if (event.type === 'voice_clip_missing') return `Voice guidance unavailable${event.cueId ? ` · ${event.cueId}` : ''}${event.reason ? ` · ${event.reason}` : ''}${event.message ? ` · ${event.message}` : ''}`;
   if (event.type === 'recognition_signal_held') return `Native signal held until playback settled · ${event.cueId ?? 'cue'}`;
   if (event.type === 'seeked') return `Scrubbed from ${clockLabel(event.fromPositionMs ?? 0)}`;
   if (event.type === 'app_state_changed') return `App state · ${event.appState ?? event.reason ?? 'changed'}`;
@@ -175,6 +189,7 @@ export default function OvernightJourneyScreen() {
   const [accelerated, setAccelerated] = useState(false);
   const [quietNight, setQuietNight] = useState(false);
   const [voiceGuidance, setVoiceGuidance] = useState(true);
+  const [voicePack, setVoicePack] = useState<VoicePackProgress | null>(null);
   const [recognitionFocus, setRecognitionFocus] = useState<RecurringSignalFocus | null>(null);
   const [practiceState, setPracticeState] = useState<PracticeStateV1 | null>(null);
   const [inspectorVisible, setInspectorVisible] = useState(false);
@@ -251,7 +266,10 @@ export default function OvernightJourneyScreen() {
   useEffect(() => {
     // Keep the whole voice pack on the device, whatever the sign, so asking for a file never reveals it
     // and a poor connection later cannot cost the voice.
-    if (voiceWillPlay) void prefetchVoicePack().catch(() => {});
+    if (!voiceWillPlay) return undefined;
+    let active = true;
+    void prefetchVoicePack(undefined, progress => { if (active) setVoicePack(progress); }).catch(() => {});
+    return () => { active = false; };
   }, [voiceWillPlay]);
 
   const previewRecipe = useMemo(() => createNightRecipeV2({
@@ -460,7 +478,9 @@ export default function OvernightJourneyScreen() {
         recipe.recognition.intention?.sign,
       );
       navigation.navigate('LucidJourneyPlayer', {
-        journey: voicePlan ? withPreparationVoice(preparedJourney, voicePlan) : preparedJourney,
+        journey: voicePlan
+          ? withPreparationVoice(preparedJourney, voicePlan)
+          : voiceWillPlay ? { ...preparedJourney, voiceSkipped: 'pack_not_on_device' } : preparedJourney,
         nightPlanId: plan.id,
       });
     } catch {
@@ -657,7 +677,7 @@ export default function OvernightJourneyScreen() {
             {voiceGuidance
               ? quietNight
                 ? 'ON · Skipped tonight because this is a Quiet Night'
-                : 'ON · A voice guides the first minutes, then the night continues in sound alone'
+                : `ON · ${voicePackStatusLine(voicePack)}`
               : 'OFF · The preparation is shown as text only'}
           </Text>
         </Pressable>

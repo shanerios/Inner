@@ -15,6 +15,8 @@ export type FactoryAudioJourney = {
   overnight?: { sleepOnsetDelayMs: number; recognitionSignalId?: RecognitionSignalId };
   /** Recorded voice clips the waking preparation plays; the engine looks them up by clip id. */
   voiceClips?: VoiceClipPlan[];
+  /** Set when voice was wanted but the clips were not on the device, so the night's record says why. */
+  voiceSkipped?: string;
   /** Identifies a personalized waking practice whose completion can be linked to a later Night Recipe. */
   recognitionPractice?: {
     type: 'recurring_dream_sign';

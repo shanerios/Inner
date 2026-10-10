@@ -6,6 +6,7 @@ import { compileAudioJourneyTimeline } from '../timeline';
 import {
   GENERIC_VOICE_SLUG,
   VOICE_BASE_URL,
+  VOICE_AFTER_TONE_MS,
   VOICE_SLOT_TIMES_MS,
   VOICE_TRIM_DB,
   voicePackPlans,
@@ -13,9 +14,14 @@ import {
   voiceSlugForSign,
   withPreparationVoice,
 } from '../voiceGuidance';
-import { cachedVoicePlan, prefetchVoicePack, resolveVoiceClips, type VoiceFileSystem } from '../voiceClips';
+import { cachedVoicePlan, prefetchVoicePack, resolveVoiceClips, type VoiceFileSystem, type VoicePackProgress } from '../voiceClips';
 import { DREAM_SIGNS } from '../../dreamSigns';
+import { RECOGNITION_SIGNALS } from '../../recognitionSignals';
 
+jest.mock('@react-native-async-storage/async-storage', () =>
+  require('@react-native-async-storage/async-storage/jest/async-storage-mock'),
+);
+jest.mock('expo-av', () => ({ Audio: { Sound: { createAsync: jest.fn() } } }));
 jest.mock('expo-file-system', () => ({ documentDirectory: 'file:///docs/', getInfoAsync: jest.fn(), makeDirectoryAsync: jest.fn(), downloadAsync: jest.fn(), moveAsync: jest.fn(), deleteAsync: jest.fn() }));
 
 function night(accelerated = false) {
@@ -89,8 +95,70 @@ describe('voice events in the journey', () => {
       }
       cursor += stage.durationMs;
     }
-    expect(found).toEqual(VOICE_SLOT_TIMES_MS.map((atMs, index) => ({ clipId: `voice-prep-flying-${index + 1}`, globalMs: atMs })));
+    expect(found.map(item => item.clipId)).toEqual([1, 2, 3].map(slot => `voice-prep-flying-${slot}`));
+    // Line 3 comes at release, after no tone, so it keeps its fixed time.
+    expect(found[2].globalMs).toBe(VOICE_SLOT_TIMES_MS[2]);
+    expect(found[0].globalMs).toBeLessThan(found[1].globalMs);
     expect(journey.voiceClips).toHaveLength(3);
+  });
+
+  describe('timing against the tone', () => {
+    // The first word is heard: scheduled time + the engine's 0.4 s lead-in + about 0.08 s of silence in the clip.
+    const firstWordMs = (atMs: number) => atMs + 400 + 80;
+    const journeyFor = (signalId: string) => {
+      const protocol = compileOvernightProtocol(createRecognitionOvernightProtocol({
+        environment: 'forest', feel: 'gentle', sleepDurationMinutes: 450, cuePlan: 'standard', signalId: signalId as any,
+      }), DEFAULT_PROCEDURAL_AUDIO_CONFIG);
+      return overnightJourney('forest', 'gentle', protocol, false, 6284);
+    };
+    const times = (journey: ReturnType<typeof night>) => {
+      let cursor = 0;
+      const voice: number[] = [];
+      const tones = new Map<string, number>();
+      for (const stage of journey.timeline.stages) {
+        for (const event of stage.spatialEvents ?? []) {
+          if (event.type === 'voice') voice.push(cursor + event.atMs);
+          if (event.type === 'cue') tones.set(event.id, cursor + event.atMs);
+        }
+        cursor += stage.durationMs;
+      }
+      return { voice, tones };
+    };
+
+    it.each(RECOGNITION_SIGNALS.map(signal => [signal.id, signal.durationMs] as const))('starts the first word %s ms after a %s tone ends, whatever the signal', (signalId, toneMs) => {
+      const { voice, tones } = times(withPreparationVoice(journeyFor(signalId), voicePlanForSign('Water')));
+      expect(firstWordMs(voice[0]) - (tones.get('learn-cue-1')! + toneMs)).toBeCloseTo(VOICE_AFTER_TONE_MS, -1);
+      expect(firstWordMs(voice[1]) - (tones.get('rehearse-cue-2')! + toneMs)).toBeCloseTo(VOICE_AFTER_TONE_MS, -1);
+    });
+
+    it('keeps the gap short enough to feel connected to the tone, and never before it ends', () => {
+      expect(VOICE_AFTER_TONE_MS).toBeGreaterThanOrEqual(500);
+      expect(VOICE_AFTER_TONE_MS).toBeLessThanOrEqual(2_500);
+    });
+
+    it('has the same gap for every signal, so changing signal never changes the pacing', () => {
+      const gaps = RECOGNITION_SIGNALS.map(signal => {
+        const { voice, tones } = times(withPreparationVoice(journeyFor(signal.id), voicePlanForSign('Water')));
+        return Math.round(firstWordMs(voice[0]) - (tones.get('learn-cue-1')! + signal.durationMs));
+      });
+      expect(new Set(gaps).size).toBe(1);
+    });
+
+    it('records the time each line is actually scheduled', () => {
+      const journey = withPreparationVoice(journeyFor('guardian'), voicePlanForSign('Water'));
+      const { voice } = times(journey);
+      expect(journey.voiceClips!.map(clip => clip.atMs)).toEqual(voice);
+    });
+
+    it('matches the real length of each signal file, so the gap is measured from where the tone really ends', () => {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const { readWav } = require('../../../scripts/lib/loudness') as { readWav(file: string): { channels: Float64Array[]; rate: number } };
+      const sounds = require('path').resolve(__dirname, '../../../assets/sounds');
+      for (const signal of RECOGNITION_SIGNALS.filter(item => item.id !== 'ascending')) {
+        const { channels, rate } = readWav(require('path').join(sounds, signal.notificationSound));
+        expect(Math.abs((channels[0].length / rate) * 1000 - signal.durationMs)).toBeLessThan(30);
+      }
+    });
   });
 
   it('adds voice only to the waking preparation, never the sleep stages', () => {
@@ -130,10 +198,10 @@ describe('voice events in the journey', () => {
     expect(() => compileAudioJourneyTimeline(broken, DEFAULT_PROCEDURAL_AUDIO_CONFIG)).toThrow();
   });
 
-  it('returns the journey unchanged when no clip falls inside the preparation', () => {
+  it('returns the journey unchanged when it has no waking preparation to speak in', () => {
     const journey = night();
-    const plan = { slug: 'x', clips: [{ clipId: 'late', fileName: 'late.wav', url: 'https://example.com/late.wav', atMs: 99_999_999, gain: 1 }] };
-    expect(withPreparationVoice(journey, plan)).toBe(journey);
+    const withoutPreparation = { ...journey, timeline: { ...journey.timeline, stages: journey.timeline.stages.map(stage => ({ ...stage, id: `sleep-${stage.id}` })) } };
+    expect(withPreparationVoice(withoutPreparation, voicePlanForSign('Water'))).toBe(withoutPreparation);
   });
 });
 
@@ -308,5 +376,38 @@ describe('keeping the voice pack on the device', () => {
     const env = fakeFs();
     const broken = { ...env.fs, fetchText: async () => { throw new Error('offline'); } };
     expect(await prefetchVoicePack(broken)).toBe(0);
+  });
+
+  it('reports progress as the pack arrives, ending ready', async () => {
+    const env = fakeFs({ remote: manifestOf(idsFor('generic')) });
+    const seen: VoicePackProgress[] = [];
+    await prefetchVoicePack(env.fs, progress => seen.push(progress));
+    expect(seen[0].phase).toBe('checking');
+    expect(seen.filter(item => item.phase === 'downloading').map(item => item.done)).toEqual([1, 2, 3]);
+    expect(seen.at(-1)).toMatchObject({ phase: 'ready', done: 3, total: 3, failed: 0 });
+  });
+
+  it('says why when the pack cannot be reached, is empty, or a clip fails', async () => {
+    const unreachable: VoicePackProgress[] = [];
+    await prefetchVoicePack(fakeFs({ remote: null }).fs, progress => unreachable.push(progress));
+    expect(unreachable.at(-1)?.phase).toBe('unreachable');
+
+    const empty: VoicePackProgress[] = [];
+    await prefetchVoicePack(fakeFs({ remote: manifestOf([]) }).fs, progress => empty.push(progress));
+    expect(empty.at(-1)?.phase).toBe('empty');
+
+    const notFound: VoicePackProgress[] = [];
+    await prefetchVoicePack(fakeFs({ remote: manifestOf(idsFor('generic')), downloadStatus: 404 }).fs, progress => notFound.push(progress));
+    expect(notFound.at(-1)).toMatchObject({ phase: 'downloading', done: 0, total: 3, failed: 3, lastFailure: 'http 404' });
+
+    const broken: VoicePackProgress[] = [];
+    await prefetchVoicePack(fakeFs({ remote: manifestOf(idsFor('generic')), failFor: 'generic-2' }).fs, progress => broken.push(progress));
+    expect(broken.at(-1)).toMatchObject({ done: 2, failed: 1 });
+    expect(broken.at(-1)?.lastFailure).toMatch(/^error: network/);
+  });
+
+  it('never lets a failing progress display stop the download', async () => {
+    const env = fakeFs({ remote: manifestOf(idsFor('generic')) });
+    expect(await prefetchVoicePack(env.fs, () => { throw new Error('render'); })).toBe(3);
   });
 });

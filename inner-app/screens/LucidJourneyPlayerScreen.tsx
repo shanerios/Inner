@@ -276,10 +276,26 @@ export default function LucidJourneyPlayerScreen() {
         });
         recognitionSignalIdRef.current = selectedSignalId;
         // Spoken preparation: load tonight's clips, or fall back to the on-screen text. Never blocks the start.
+        if (journey.voiceSkipped) {
+          void recordJourneyMemoryEvent(memorySession.id, { type: 'voice_clip_missing', positionMs: 0, reason: journey.voiceSkipped });
+        }
         if (journey.voiceClips?.length) {
+          const lines = journey.voiceClips[0].clipId.replace(/^voice-prep-/, '').replace(/-[123]$/, '');
+          void recordJourneyMemoryEvent(memorySession.id, {
+            type: 'voice_clips_planned',
+            positionMs: 0,
+            message: `lines=${lines} clips=${journey.voiceClips.length}`,
+          });
           const voiceClips = await resolveVoiceClips(journey.voiceClips).catch(() => null);
           if (voiceClips) {
-            await session.setVoiceClips(voiceClips).catch(() => {});
+            await session.setVoiceClips(voiceClips).catch(error => {
+              void recordJourneyMemoryEvent(memorySession.id, {
+                type: 'voice_clip_missing',
+                positionMs: 0,
+                reason: 'set_failed',
+                message: String((error as Error)?.message ?? error).slice(0, 120),
+              });
+            });
           } else {
             void recordJourneyMemoryEvent(memorySession.id, {
               type: 'voice_clip_missing',

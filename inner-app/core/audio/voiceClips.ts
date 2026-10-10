@@ -141,50 +141,94 @@ export async function cachedVoicePlan(
   return null;
 }
 
-async function installClip(fs: VoiceFileSystem, clip: VoiceClipPlan, revision: number): Promise<boolean> {
+/** Why a clip did not arrive, in a few plain words. Never includes anything about the practitioner. */
+async function installClip(fs: VoiceFileSystem, clip: VoiceClipPlan, revision: number): Promise<{ ok: true } | { ok: false; reason: string }> {
   const target = clipPath(fs, clip.clipId, revision);
   const partial = `${target}.download`;
   try {
     await fs.makeDirectory(fs.directory);
     const result = await fs.download(clip.url, partial);
     const written = await fs.exists(partial);
-    if (result.status !== 200 || !written.exists || (written.size ?? 0) < MIN_CLIP_BYTES) {
+    if (result.status !== 200) {
       await fs.remove(partial);
-      return false;
+      return { ok: false, reason: `http ${result.status}` };
+    }
+    if (!written.exists || (written.size ?? 0) < MIN_CLIP_BYTES) {
+      await fs.remove(partial);
+      return { ok: false, reason: 'file too small' };
     }
     await fs.remove(target);
     await fs.move(partial, target);
-    return true;
-  } catch {
+    return { ok: true };
+  } catch (error) {
     await fs.remove(partial);
-    return false;
+    return { ok: false, reason: `error: ${String((error as Error)?.message ?? error).slice(0, 80)}` };
   }
 }
+
+/** Where a pack update stands, for showing the practitioner and for the night's record. */
+export type VoicePackProgress = {
+  phase: 'checking' | 'downloading' | 'ready' | 'unreachable' | 'empty';
+  /** Clips on the device and current. */
+  done: number;
+  /** Clips the manifest lists. */
+  total: number;
+  failed: number;
+  /** The most recent failure, in a few words. */
+  lastFailure?: string;
+};
 
 /**
  * Brings the device up to date with the published manifest, in the background and one clip at a time.
  * Every listed clip is fetched whatever the practitioner's sign. With no manifest, or an unreachable
  * one, nothing is requested. A failed clip is retried on a later visit. Returns clips now available.
  */
-export async function prefetchVoicePack(fs: VoiceFileSystem = defaultVoiceFileSystem): Promise<number> {
+export async function prefetchVoicePack(
+  fs: VoiceFileSystem = defaultVoiceFileSystem,
+  onProgress?: (progress: VoicePackProgress) => void,
+): Promise<number> {
+  const report = (progress: VoicePackProgress) => { try { onProgress?.(progress); } catch { /* a display problem never stops a download */ } };
+  report({ phase: 'checking', done: 0, total: 0, failed: 0 });
   const remote = parseVoiceManifest(await fs.fetchText(VOICE_MANIFEST_URL).catch(() => null));
-  if (!remote) return 0;
+  if (!remote) {
+    report({ phase: 'unreachable', done: 0, total: 0, failed: 0 });
+    return 0;
+  }
   const installed = await installedManifest(fs);
   const known = new Map<string, VoiceClipPlan>();
   for (const plan of voicePackPlans()) for (const clip of plan.clips) known.set(clip.clipId, clip);
+  const listed = Object.entries(remote.clips).filter(([clipId]) => known.has(clipId));
+  if (!listed.length) {
+    report({ phase: 'empty', done: 0, total: 0, failed: 0 });
+    return 0;
+  }
 
-  for (const [clipId, revision] of Object.entries(remote.clips)) {
-    const clip = known.get(clipId);
-    if (!clip || !clip.url.startsWith('https://')) continue;
-    if (installed.clips[clipId] === revision && await hasClip(fs, clipId, revision)) continue;
+  let done = 0;
+  let failed = 0;
+  let lastFailure: string | undefined;
+  for (const [clipId, revision] of listed) {
+    const clip = known.get(clipId)!;
+    if (!clip.url.startsWith('https://')) { failed += 1; lastFailure = 'not https'; continue; }
+    if (installed.clips[clipId] === revision && await hasClip(fs, clipId, revision)) {
+      done += 1;
+      report({ phase: 'downloading', done, total: listed.length, failed, lastFailure });
+      continue;
+    }
     const previous = installed.clips[clipId];
-    if (await timeout(installClip(fs, clip, revision), 30_000)) {
+    const result = await timeout(installClip(fs, clip, revision), 30_000);
+    if (result?.ok) {
+      done += 1;
       installed.clips[clipId] = revision;
       // Record each clip as it arrives, so a night can use whatever is complete even if the rest fail.
       await fs.writeText(`${fs.directory}${MANIFEST_NAME}`, JSON.stringify(installed)).catch(() => {});
       if (previous && previous !== revision) await fs.remove(clipPath(fs, clipId, previous));
+    } else {
+      failed += 1;
+      lastFailure = result ? result.reason : 'timed out';
     }
+    report({ phase: 'downloading', done, total: listed.length, failed, lastFailure });
   }
+  report({ phase: failed ? 'downloading' : 'ready', done, total: listed.length, failed, lastFailure });
   let available = 0;
   for (const [clipId, revision] of Object.entries(installed.clips)) {
     if (await hasClip(fs, clipId, revision)) available += 1;

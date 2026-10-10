@@ -567,6 +567,7 @@ object ProceduralAudioEngine {
       }
     }
     voiceBank = bank
+    recordDiagnostic("voice_clips_loaded", extras = mapOf("detail" to "loaded=${bank.size} requested=${clips.size}"))
   }
 
   fun configure(raw: AudioConfigRecord) {

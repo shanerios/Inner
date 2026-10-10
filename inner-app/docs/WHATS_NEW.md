@@ -16,6 +16,8 @@ New on-device Practice Memory begins connecting journeys, signals, environments,
 
 Ocean, Forest, and Temple have gained more natural environmental detail, while Overnight Journeys now preserve an explicit Night Recipe, place recognition signals within the duration you choose, and include additional recovery and long-session reliability improvements. Inner can also make small, explained signal-level suggestions after enough comparable nights confirm whether cues were noticed or caused waking.
 
+The 7-minute preparation before an Overnight Journey can now be spoken aloud, so you can follow it with your eyes closed. With a recognition sign set, the voice names it. You can turn spoken guidance off at any time.
+
 ### Detailed product log
 
 #### Morning Return and voice journaling
@@ -84,8 +86,11 @@ Ocean, Forest, and Temple have gained more natural environmental detail, while O
 - Each Night Recipe now records which settings the night used and why each took its value: chosen by you, accepted from a recommendation, experiment or adaptive rule, or set by your dream sign. This is the groundwork for comparing one change at a time.
 
 - Added spoken guidance to the 7-minute waking preparation of an Overnight Journey. Three short lines are played by the audio engine, so they are heard with your eyes closed: after the first tone, during rehearsal, and at release. With a recognition sign set, the lines name it; otherwise a generic set plays. The soundscape eases down a little underneath, and the sleep audio and signal timing are unchanged.
+- Each spoken line follows the tone it belongs to: the first word is heard 0.9 seconds after the tone ends, whichever recognition signal is selected, so changing signal does not change the pacing.
 - Added a Voice Guidance switch to the Overnight review, on by default and remembered. Quiet Night and accelerated tests skip the voice. If the clips are not on the device, the night starts with the on-screen text instead.
-- The voice recordings and a native build are still needed, and this has not yet been checked on a device.
+- The switch shows the voice pack's state in plain words: checking, downloading with a count, ready with the number of clips on the phone, or the reason it could not be fetched. A night that starts without voice records why.
+- Recorded as 33 clips: the ten recognition signs plus a generic set, three lines each. A sign with fewer than three clips uses the generic lines. The pack is published with a manifest, so clips can be added or re-mixed later without an app update.
+- Checked on a physical Pixel 8 Pro: the pack downloaded in full, the lines played after the tones, and the levels and the easing of the soundscape were judged good by ear. It has not yet been run on an iPhone.
 
 #### Inner Lab experiments (not in production builds)
 
@@ -167,17 +172,24 @@ Ocean, Forest, and Temple have gained more natural environmental detail, while O
 ### Release verification completed so far
 
 - TypeScript type checking passes.
-- Full automated suite passes: 64 suites, 452 tests, and 6 snapshots.
+- Full automated suite passes: 71 suites, 588 tests, and 6 snapshots.
 - Android's native InnerAudio module compiles with recipe-driven gain and recovery fields; the matching iOS source passes Swift parsing.
 - Android standalone release builds successfully after a clean native build.
 - A standalone Inner Lab accelerated night completed on a physical Pixel 8 Pro and produced the expected Morning Return without Metro.
 - Android Morning Return voice capture was verified on a physical Pixel 8 Pro: permission, recording, automatic stop, transcription, text insertion, save, and Dream Log persistence.
 - Audio behavior has parity coverage across Android and iOS for the new procedural environment elements.
 - Accelerated long-journey runs were previously reported as passing for the generative environments.
+- Android offline full-night renders of all six worlds (7.12 hours each) pass against the native engine; the production and Temple nights were re-run after the voice slot was added.
+- A new Inner Lab release build with spoken guidance, the signal-cue guard, and the volume and route evidence was installed on a physical Pixel 8 Pro as an update, preserving data.
+- The iOS native engine, including the voice slot, compiles for the simulator; it has not yet run on an iPhone.
+- A first overnight test on the Pixel ran 3 hours 37 minutes before the Bluetooth earbuds' battery ended it; Android's records show the app itself was not terminated. The signal windows (from about 4 hours) have not yet been exercised on a real night.
 
 ### Before publishing
 
 - Confirm the final marketing version and iOS/Android build numbers.
+- Run spoken guidance on a physical iPhone, and confirm the voice pack and manifest are published in `OvernightVoice` with the final clips.
+- Decide the voice pack size: 33 clips are about 21 MB at 44.1 kHz and about 11 MB at 24 kHz, and every user downloads all of them.
+- Run at least one full overnight on a physical device with the new build, covering the signal windows, and review the recorded night.
 - Recheck the store-ready draft against the exact contents of the release branch.
 - Complete physical-device smoke tests on both iOS and Android for Morning Return, voice capture, Dream Log save/edit/export, and Overnight Journey recovery.
 - Recheck the six adjusted Lucid screen headers on representative small and large devices.
