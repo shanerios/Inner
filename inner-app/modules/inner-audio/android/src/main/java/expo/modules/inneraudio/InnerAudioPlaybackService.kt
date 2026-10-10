@@ -86,6 +86,8 @@ class InnerAudioPlaybackService : Service() {
     private const val RENDER_CHUNK_FRAMES = 960
     private const val ROUTE_LOG_TAG = "InnerAudioRoute"
     private const val MEDIA_PAUSE_ROUTE_GRACE_MS = 3_000L
+    /** Volume and route are judged only after this much of the journey: people set both while settling in. */
+    private const val OUTPUT_EVIDENCE_SETTLE_MS = 900_000.0
     private val processInstanceId = java.util.UUID.randomUUID().toString()
     // The checkpoint is also written on every meaningful lifecycle change.
     // Two minutes bounds lost position without waking storage 1,440 times/night.
@@ -412,11 +414,15 @@ class InnerAudioPlaybackService : Service() {
    * device add or removal. Learning uses the count to disqualify a night whose route changed.
    */
   @Synchronized
-  private fun sampleAudioRoute(sessionId: String, route: String) {
+  private fun sampleAudioRoute(sessionId: String, route: String, positionMs: Double) {
     if (routeSessionId != sessionId) {
       routeSessionId = sessionId
       routeAtStart = route
+      lastSampledRoute = route
       routeChanges = 0
+    }
+    if (positionMs < OUTPUT_EVIDENCE_SETTLE_MS) {
+      routeAtStart = route
     } else if (route != lastSampledRoute) {
       routeChanges += 1
     }
@@ -429,12 +435,13 @@ class InnerAudioPlaybackService : Service() {
    * a signal that was simply too soft; it is evidence only and nothing reacts to it.
    */
   @Synchronized
-  private fun sampleOutputVolume(sessionId: String): Double? {
+  private fun sampleOutputVolume(sessionId: String, positionMs: Double): Double? {
     val manager = audioManager ?: return null
     val max = manager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
     if (max <= 0) return null
     val current = manager.getStreamVolume(AudioManager.STREAM_MUSIC).toDouble() / max
-    if (volumeSessionId != sessionId) {
+    val settling = positionMs < OUTPUT_EVIDENCE_SETTLE_MS
+    if (volumeSessionId != sessionId || settling) {
       volumeSessionId = sessionId
       outputVolumeMin = current
       outputVolumeMax = current
@@ -482,10 +489,11 @@ class InnerAudioPlaybackService : Service() {
         put("engineRunning", isRunning)
         put("audioRoute", if (activePrivateDeviceId != null) "private" else "speaker")
         put("audioFocus", if (hasAudioFocus) "held" else "not_held")
-        sampleAudioRoute(snapshot["sessionId"] as? String ?: return, if (activePrivateDeviceId != null) "private" else "speaker")
+        val positionMs = snapshot["positionMs"] as? Double ?: 0.0
+        sampleAudioRoute(snapshot["sessionId"] as? String ?: return, if (activePrivateDeviceId != null) "private" else "speaker", positionMs)
         put("audioRouteAtStart", routeAtStart)
         put("audioRouteChanges", routeChanges)
-        sampleOutputVolume(snapshot["sessionId"] as? String ?: return)?.let { current ->
+        sampleOutputVolume(snapshot["sessionId"] as? String ?: return, positionMs)?.let { current ->
           put("outputVolume", current)
           put("outputVolumeMin", outputVolumeMin)
           put("outputVolumeMax", outputVolumeMax)

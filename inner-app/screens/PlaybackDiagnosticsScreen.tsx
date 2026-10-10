@@ -16,7 +16,7 @@ import * as Sharing from 'expo-sharing';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { JourneyMemoryEvent, JourneyMemorySession, JourneyMemoryState } from '../core/journeyMemory';
-import { loadJourneyMemory } from '../core/journeyMemory';
+import { interruptedBeforeRelaunchLabel, loadJourneyMemory } from '../core/journeyMemory';
 import {
   buildPlaybackDiagnosticsExport,
   serializePlaybackDiagnostics,
@@ -52,6 +52,7 @@ function describeEvent(event: JourneyMemoryEvent): string {
       const drift = event.driftMs == null ? '' : ` · drift ${Math.round(event.driftMs)} ms`;
       return `Signal fired${event.signalId ? ` · ${event.signalId}` : ''}${drift}`;
     }
+    case 'previous_session_interrupted_unexpectedly': return interruptedBeforeRelaunchLabel(event);
     case 'recognition_signal_held': return `Signal held until playback settled${event.cueId ? ` · ${event.cueId}` : ''}`;
     case 'seeked': return `Seeked from ${formatTime(event.fromPositionMs ?? 0)}`;
     case 'app_state_changed': return `App state · ${event.appState ?? 'unknown'}`;

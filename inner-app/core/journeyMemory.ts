@@ -581,6 +581,13 @@ export type JourneyMemoryCheckpoint = Omit<NativeCheckpoint, 'pendingDiagnostics
   pendingDiagnostics?: NativeAudioDiagnosticEvent[];
 };
 
+/**
+ * A process exit only explains an ended journey if it happened right after the last checkpoint
+ * (written every two minutes while the service runs). Hours later it is an idle process being
+ * cleaned up, not the reason the audio stopped.
+ */
+const PROCESS_EXIT_CAUSE_WINDOW_MS = 10 * 60_000;
+
 export function findMatchingProcessExit(
   sessionStartedAt: number,
   checkpoint: JourneyMemoryCheckpoint,
@@ -589,8 +596,31 @@ export function findMatchingProcessExit(
 ): NativeProcessExitInfo | undefined {
   return exits
     .filter(exit => exit.timestamp >= sessionStartedAt && exit.timestamp <= currentTime + 60_000)
+    .filter(exit => exit.timestamp >= checkpoint.lastUpdatedAt - 60_000
+      && exit.timestamp <= checkpoint.lastUpdatedAt + PROCESS_EXIT_CAUSE_WINDOW_MS)
     .filter(exit => checkpoint.processId == null || exit.processId === checkpoint.processId)
     .sort((a, b) => b.timestamp - a.timestamp)[0];
+}
+
+/** Plain wording for the event recorded when a relaunch finds a journey that ended without a receipt. */
+export function interruptedBeforeRelaunchLabel(event: Pick<JourneyMemoryEvent, 'reason'>): string {
+  if (event.reason === 'route_loss_before_relaunch') return 'Ended when the headphones or speaker disconnected';
+  if (event.reason === 'interruption_before_relaunch') return 'Ended by a system audio interruption';
+  return 'Ended without a final receipt';
+}
+
+/**
+ * Whether a recovered session should be filed as an unexpected termination. A night that ended
+ * because the audio output disconnected or the system interrupted playback is a known cause, not
+ * a crash or kill, unless Android also recorded a process exit right after the last checkpoint.
+ */
+export function shouldReportUnexpectedTermination(
+  checkpoint: Pick<JourneyMemoryCheckpoint, 'terminalOutcome' | 'pauseReason'>,
+  matchingExit?: NativeProcessExitInfo,
+): boolean {
+  if (checkpoint.terminalOutcome || checkpoint.pauseReason === 'user') return false;
+  const knownAudioPause = checkpoint.pauseReason === 'route_loss' || checkpoint.pauseReason === 'interruption';
+  return !knownAudioPause || Boolean(matchingExit);
 }
 
 /**
@@ -649,7 +679,11 @@ export async function reconcileInterruptedJourneyMemorySession(
     if (!checkpoint.terminalOutcome) recoveredEvents.push({
       at: now(),
       type: checkpoint.pauseReason === 'user' ? 'playback_paused' : 'previous_session_interrupted_unexpectedly',
-      reason: checkpoint.pauseReason === 'user' ? 'user_pause_before_relaunch' : undefined,
+      reason: checkpoint.pauseReason === 'user'
+        ? 'user_pause_before_relaunch'
+        : checkpoint.pauseReason === 'route_loss' ? 'route_loss_before_relaunch'
+          : checkpoint.pauseReason === 'interruption' ? 'interruption_before_relaunch'
+            : undefined,
       positionMs: checkpoint.positionMs,
       stageId: checkpoint.stageId,
       lastUpdatedAt: checkpoint.lastUpdatedAt,

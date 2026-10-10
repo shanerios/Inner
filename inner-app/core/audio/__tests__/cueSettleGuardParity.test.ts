@@ -14,6 +14,8 @@ describe('the cue settle guard: both engines hold a cue after a resume the same 
     expect(s('cueSettleMs')).toBe(k('CUE_SETTLE_MS'));
     expect(k('CUE_MAX_HOLD_MS')).toBe(300_000);
     expect(s('cueMaxHoldMs')).toBe(k('CUE_MAX_HOLD_MS'));
+    expect(k('CUE_LATE_MS')).toBe(1_000);
+    expect(s('cueLateMs')).toBe(k('CUE_LATE_MS'));
   });
 
   it('arms the guard from the shared pause and resume hooks and clears it on reset', () => {
@@ -32,5 +34,24 @@ describe('the cue settle guard: both engines hold a cue after a resume the same 
     expect(swift).toContain('if heldCueId != cueId');
     expect(kotlin).toContain('"recognition_signal_held"');
     expect(swift).toContain('"recognition_signal_held"');
+  });
+
+  it('holds only overnight recognition cues, and makes a late cue wait for a sounding one', () => {
+    expect(kotlin).toContain('if (cueEventAt(timeline, cueFireMs)?.recognitionSpace != true) return false');
+    expect(swift).toContain('guard cueEventAt(timeline, atMs: cueFireMs)?.recognitionSpace == true else { return false }');
+    expect(kotlin).toContain('val behindPlayingCue = cueActive && lateMs > CUE_LATE_MS');
+    expect(swift).toContain('let behindPlayingCue = cueActive && lateMs > Self.cueLateMs');
+  });
+
+  it('judges output volume and route only after the same settling period on both platforms', () => {
+    const service = fs.readFileSync(path.join(ROOT, 'modules/inner-audio/android/src/main/java/expo/modules/inneraudio/InnerAudioPlaybackService.kt'), 'utf8');
+    const k = Number(service.match(/private const val OUTPUT_EVIDENCE_SETTLE_MS = ([0-9_.]+)/)?.[1].replace(/_/g, ''));
+    const s = Number(swift.match(/private static let outputEvidenceSettleMs = ([0-9_.]+)/)?.[1].replace(/_/g, ''));
+    expect(k).toBe(900_000);
+    expect(s).toBe(k);
+    expect(service).toContain('val settling = positionMs < OUTPUT_EVIDENCE_SETTLE_MS');
+    expect(swift).toContain('position < Self.outputEvidenceSettleMs');
+    expect(service).toContain('if (positionMs < OUTPUT_EVIDENCE_SETTLE_MS) {');
+    expect(swift).toContain('if positionMs < Self.outputEvidenceSettleMs {');
   });
 });

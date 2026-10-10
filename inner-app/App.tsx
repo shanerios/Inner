@@ -51,7 +51,12 @@ import { InteractionManager, AppState, Easing } from 'react-native';
 // import NetInfo from '@react-native-community/netinfo';
 import { initAudioOnce } from './core/initAudio';
 import { proceduralAudioEngine } from './core/audio';
-import { findMatchingProcessExit, loadJourneyMemory, reconcileInterruptedJourneyMemorySession } from './core/journeyMemory';
+import {
+  findMatchingProcessExit,
+  loadJourneyMemory,
+  reconcileInterruptedJourneyMemorySession,
+  shouldReportUnexpectedTermination,
+} from './core/journeyMemory';
 import { cancelLucidityCueNotifications, LUCIDITY_CUE_NOTIFICATION_TYPE, scheduleReengagementNotification } from './utils/notifications';
 import { createEntry } from './core/journalRepo';
 import { initChottuLinkOnce } from './src/core/deeplinking/chottuLink';
@@ -340,7 +345,7 @@ export default Sentry.wrap(function App() {
             Date.now,
             processExits,
           );
-          if (outcome && !checkpoint.terminalOutcome && checkpoint.pauseReason !== 'user') {
+          if (outcome && shouldReportUnexpectedTermination(checkpoint, matchingExit)) {
             const diagnostic = {
               outcome,
               checkpointAgeMs: Math.max(0, Date.now() - checkpoint.lastUpdatedAt),

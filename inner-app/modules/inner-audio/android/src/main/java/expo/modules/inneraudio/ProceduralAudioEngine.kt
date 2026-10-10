@@ -198,12 +198,15 @@ private const val TEMPLE_FOOTSTEPS_ROOM_SEND = 0.55
 private val CUE_NOTE_HZ = doubleArrayOf(400.0, 600.0, 800.0)
 private val CUE_NOTE_STARTS = doubleArrayOf(0.0, 0.93, 1.86)
 /**
- * After playback resumes from any pause (interruption, route loss, user), a recognition
- * cue that comes due inside this window waits until it ends: the sleeper may just have
- * been woken. A cue is never held longer than the cap past its scheduled time.
+ * After playback resumes from any pause (interruption, route loss, user), an overnight
+ * recognition cue that comes due inside this window waits until it ends: the sleeper may
+ * just have been woken. Waking-practice cues are never held. A cue is never held longer
+ * than the cap past its scheduled time, and a late cue also waits for any cue still
+ * sounding, so held cues cannot stack on top of each other.
  */
 private const val CUE_SETTLE_MS = 90_000.0
 private const val CUE_MAX_HOLD_MS = 300_000.0
+private const val CUE_LATE_MS = 1_000.0
 private const val CUE_NOTE_SECONDS = 0.75
 private const val CUE_ATTACK_SECONDS = 0.24
 private const val CUE_RELEASE_SECONDS = 0.32
@@ -1255,14 +1258,19 @@ object ProceduralAudioEngine {
    * window and the receipt shows the delay as drift. Recorded once per cue.
    */
   private fun holdCue(timeline: AudioTimelineState, cueFireMs: Double, elapsedMs: Double): Boolean {
-    if (elapsedMs >= cueHoldUntilMs || elapsedMs - cueFireMs >= CUE_MAX_HOLD_MS) return false
+    if (cueEventAt(timeline, cueFireMs)?.recognitionSpace != true) return false
+    val lateMs = elapsedMs - cueFireMs
+    if (lateMs >= CUE_MAX_HOLD_MS) return false
+    val settling = elapsedMs < cueHoldUntilMs
+    val behindPlayingCue = cueActive && lateMs > CUE_LATE_MS
+    if (!settling && !behindPlayingCue) return false
     val cueId = cueIdAt(timeline, cueFireMs)
     if (heldCueId != cueId) {
       heldCueId = cueId
       recordDiagnostic("recognition_signal_held", extras = mapOf(
         "cueId" to cueId,
         "scheduledPositionMs" to cueFireMs,
-        "holdUntilPositionMs" to cueHoldUntilMs,
+        "holdUntilPositionMs" to maxOf(cueHoldUntilMs, elapsedMs),
       ))
     }
     return true

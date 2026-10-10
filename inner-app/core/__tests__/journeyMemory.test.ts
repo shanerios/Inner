@@ -11,6 +11,9 @@ import {
   loadJourneyMemory,
   recordJourneyMemoryEvent,
   reconcileInterruptedJourneyMemorySession,
+  findMatchingProcessExit,
+  shouldReportUnexpectedTermination,
+  interruptedBeforeRelaunchLabel,
 } from '../journeyMemory';
 import { nightExecutionForSession } from '../nightExecution';
 import { DEFAULT_PROCEDURAL_AUDIO_CONFIG } from '../audio';
@@ -585,6 +588,64 @@ describe('checkpoint reconciliation', () => {
       desiredPlaying: true,
       pssKb: 12_345,
     });
+  });
+
+  it('does not blame a late idle-process cleanup for a night that ended when the headphones disconnected', async () => {
+    // The real pattern: playback paused for route loss at the last checkpoint, and Android cleaned
+    // the idle, cached process up nearly seven hours later.
+    const storage = memoryStorage();
+    const session = await beginJourneyMemorySession(
+      'test-journey', timeline, DEFAULT_PROCEDURAL_AUDIO_CONFIG, storage as any, () => 100,
+    );
+    const lastUpdatedAt = 500;
+    const checkpoint = {
+      sessionId: session.id,
+      positionMs: 15_000,
+      lastUpdatedAt,
+      firedSignalIds: [],
+      processId: 42,
+      playbackState: 'paused' as const,
+      engineRunning: true,
+      desiredPlaying: true,
+      pauseReason: 'route_loss' as const,
+      audioRoute: 'private' as const,
+    };
+    const lateExit = { reasonCode: 3, reason: 'low_memory', timestamp: lastUpdatedAt + 24_800_000, processId: 42, importance: 400 };
+    const outcome = await reconcileInterruptedJourneyMemorySession(checkpoint, storage as any, () => lastUpdatedAt + 24_821_000, [lateExit]);
+
+    expect(outcome).toBe('abandoned_interrupted');
+    const saved = (await loadJourneyMemory(storage as any)).sessions[0];
+    expect(saved.endReason).toBe('interrupted');
+    expect(saved.events.at(-2)).toMatchObject({
+      type: 'previous_session_interrupted_unexpectedly',
+      reason: 'route_loss_before_relaunch',
+      pauseReason: 'route_loss',
+    });
+    expect(saved.events.at(-2)).not.toHaveProperty('exitReason');
+    expect(findMatchingProcessExit(session.startedAt, checkpoint as any, [lateExit], lastUpdatedAt + 24_821_000)).toBeUndefined();
+    expect(shouldReportUnexpectedTermination(checkpoint)).toBe(false);
+  });
+
+  it('still blames a process exit that follows the last checkpoint closely', () => {
+    const checkpoint = { sessionId: 's', positionMs: 1, lastUpdatedAt: 1_000_000, firedSignalIds: [], processId: 42, pauseReason: 'route_loss' as const };
+    const exit = { reasonCode: 3, reason: 'low_memory', timestamp: 1_000_000 + 90_000, processId: 42, importance: 125 };
+    expect(findMatchingProcessExit(0, checkpoint as any, [exit], 2_000_000)).toEqual(exit);
+    // A kill during an audio pause is still worth reporting.
+    expect(shouldReportUnexpectedTermination(checkpoint, exit)).toBe(true);
+  });
+
+  it('decides which recovered nights are reported as unexpected', () => {
+    expect(shouldReportUnexpectedTermination({ pauseReason: undefined })).toBe(true);
+    expect(shouldReportUnexpectedTermination({ pauseReason: 'route_loss' })).toBe(false);
+    expect(shouldReportUnexpectedTermination({ pauseReason: 'interruption' })).toBe(false);
+    expect(shouldReportUnexpectedTermination({ pauseReason: 'user' })).toBe(false);
+    expect(shouldReportUnexpectedTermination({ terminalOutcome: 'completed' as any, pauseReason: undefined })).toBe(false);
+  });
+
+  it('describes a route-loss ending in plain words', () => {
+    expect(interruptedBeforeRelaunchLabel({ reason: 'route_loss_before_relaunch' })).toBe('Ended when the headphones or speaker disconnected');
+    expect(interruptedBeforeRelaunchLabel({ reason: 'interruption_before_relaunch' })).toBe('Ended by a system audio interruption');
+    expect(interruptedBeforeRelaunchLabel({})).toBe('Ended without a final receipt');
   });
 
   it('does not attribute another process id exit to the interrupted session', async () => {

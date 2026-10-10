@@ -28,7 +28,9 @@ class CueSettleGuardTest {
     ProceduralAudioEngine.reset()
   }
 
-  private fun timeline(): AudioTimelineRecord = AudioTimelineRecord().apply {
+  private fun timeline(
+    cues: List<Triple<String, Double, Boolean>> = listOf(Triple("cue-1", cueAtMs, true)),
+  ): AudioTimelineRecord = AudioTimelineRecord().apply {
     id = "cue-settle-fixture"
     title = "Cue settle fixture"
     seed = 4_242.0
@@ -36,7 +38,9 @@ class CueSettleGuardTest {
       TimelineStageRecord().apply {
         id = "stage-a"; label = "Stage A"; durationMs = 600_000.0
         config = AudioConfigRecord().apply { environment = "ocean"; environmentGain = 0.12; masterGain = 0.5 }
-        spatialEvents = listOf(SpatialEventRecord().apply { id = "cue-1"; atMs = cueAtMs; type = "cue"; recognitionSpace = true })
+        spatialEvents = cues.map { (cueId, at, recognition) ->
+          SpatialEventRecord().apply { id = cueId; atMs = at; type = "cue"; recognitionSpace = recognition }
+        }
       },
     )
   }
@@ -46,9 +50,9 @@ class CueSettleGuardTest {
     val held = mutableListOf<Map<String, Any>>()
   }
 
-  private fun start(): Run {
+  private fun start(cues: List<Triple<String, Double, Boolean>> = listOf(Triple("cue-1", cueAtMs, true))): Run {
     ProceduralAudioEngine.configure(AudioConfigRecord())
-    ProceduralAudioEngine.setTimeline(timeline())
+    ProceduralAudioEngine.setTimeline(timeline(cues))
     return Run()
   }
 
@@ -130,5 +134,43 @@ class CueSettleGuardTest {
     assertEquals(1, run.held.size)
     assertEquals(1, run.fired.size)
     assertTrue((run.fired[0]["actualPositionMs"] as Double) <= cueAtMs + 300_000.0 + 500.0)
+  }
+
+  @Test fun wakingPracticeCuesAreNeverHeld() {
+    // The pattern from a real night: pause and resume during the waking practice, three practice
+    // cues scheduled 25-30 s apart. They are not recognition windows, so the guard leaves them alone.
+    val run = start(listOf(
+      Triple("rehearse-cue-1", 70_000.0, false),
+      Triple("rehearse-cue-2", 95_000.0, false),
+      Triple("rehearse-cue-3", 125_000.0, false),
+    ))
+    renderUntil(run, 60_000.0)
+    disturb()
+    renderUntil(run, 150_000.0)
+    assertEquals(0, run.held.size)
+    assertEquals(3, run.fired.size)
+    run.fired.forEach { assertTrue(Math.abs(it["driftMs"] as Double) < 100.0) }
+  }
+
+  @Test fun heldRecognitionCuesNeverStackOnTopOfEachOther() {
+    // Two recognition cues come due inside one settle window. Once the window ends they must
+    // sound one after the other, not within the same moment.
+    val run = start(listOf(Triple("cue-1", 100_000.0, true), Triple("cue-2", 120_000.0, true)))
+    renderUntil(run, 95_000.0)
+    disturb()
+    renderUntil(run, 260_000.0)
+    assertEquals(2, run.fired.size)
+    val first = run.fired[0]["actualPositionMs"] as Double
+    val second = run.fired[1]["actualPositionMs"] as Double
+    assertTrue("first=$first second=$second", second - first >= 7_000.0)
+    assertEquals(2, run.held.size)
+  }
+
+  @Test fun anOnTimeRecognitionCueIsNotDelayedByAPlayingOne() {
+    val run = start(listOf(Triple("cue-1", 20_000.0, true), Triple("cue-2", 24_000.0, true)))
+    renderUntil(run, 40_000.0)
+    assertEquals(0, run.held.size)
+    assertEquals(2, run.fired.size)
+    run.fired.forEach { assertTrue(Math.abs(it["driftMs"] as Double) < 100.0) }
   }
 }

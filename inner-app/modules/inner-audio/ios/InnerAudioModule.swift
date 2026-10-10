@@ -366,6 +366,7 @@ final class ProceduralAudioEngine: NSObject {
   // `cueSettlePending` are written under `lock`; the hold itself is render-thread only.
   private static let cueSettleMs = 90_000.0
   private static let cueMaxHoldMs = 300_000.0
+  private static let cueLateMs = 1_000.0
   private var cueDisturbed = false
   private var cueSettlePending = false
   private var cueHoldUntilMs = -1.0
@@ -413,6 +414,8 @@ final class ProceduralAudioEngine: NSObject {
   private static let processInstanceId = UUID().uuidString
   private static let checkpointStore = JourneyCheckpointStore(url: FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("inner-journey-checkpoints.json"))
   private var checkpointSessionId: String?
+  /// Volume and route are judged only after this much of the journey: people set both while settling in.
+  private static let outputEvidenceSettleMs = 900_000.0
   private var volumeSessionId: String?
   private var routeSessionId: String?
   private var routeAtStart = "unknown"
@@ -478,14 +481,18 @@ final class ProceduralAudioEngine: NSObject {
 
   /// Tracks the private/speaker class across checkpoint writes and route-change
   /// notifications, so learning can disqualify a night whose route changed.
-  private func noteAudioRoute(sessionId: String) {
+  private func noteAudioRoute(sessionId: String, positionMs: Double) {
     let route = isPrivateOutput(AVAudioSession.sharedInstance().currentRoute) ? "private" : "speaker"
     diagnosticLock.lock()
     defer { diagnosticLock.unlock() }
     if routeSessionId != sessionId {
       routeSessionId = sessionId
       routeAtStart = route
+      lastSampledRoute = route
       routeChanges = 0
+    }
+    if positionMs < Self.outputEvidenceSettleMs {
+      routeAtStart = route
     } else if route != lastSampledRoute {
       routeChanges += 1
     }
@@ -523,7 +530,7 @@ final class ProceduralAudioEngine: NSObject {
     record["engineRunning"] = engine.isRunning
     record["audioRoute"] = isPrivateOutput(AVAudioSession.sharedInstance().currentRoute) ? "private" : "speaker"
     record["audioFocus"] = "unknown"
-    noteAudioRoute(sessionId: sessionId)
+    noteAudioRoute(sessionId: sessionId, positionMs: position)
     diagnosticLock.lock()
     record["audioRouteAtStart"] = routeAtStart
     record["audioRouteChanges"] = routeChanges
@@ -531,7 +538,7 @@ final class ProceduralAudioEngine: NSObject {
     // System media volume (0..1) with this session's lowest and highest samples. Evidence only.
     let currentVolume = AVAudioSession.sharedInstance().outputVolume
     diagnosticLock.lock()
-    if volumeSessionId != sessionId {
+    if volumeSessionId != sessionId || position < Self.outputEvidenceSettleMs {
       volumeSessionId = sessionId
       outputVolumeMin = currentVolume
       outputVolumeMax = currentVolume
@@ -1546,14 +1553,19 @@ final class ProceduralAudioEngine: NSObject {
   /// pending (the fire threshold is not advanced), so it plays on the first frame after the
   /// window and the receipt shows the delay as drift. Recorded once per cue.
   private func holdCue(_ timeline: AudioTimeline, cueFireMs: Double, elapsedMs: Double) -> Bool {
-    if elapsedMs >= cueHoldUntilMs || elapsedMs - cueFireMs >= Self.cueMaxHoldMs { return false }
+    guard cueEventAt(timeline, atMs: cueFireMs)?.recognitionSpace == true else { return false }
+    let lateMs = elapsedMs - cueFireMs
+    if lateMs >= Self.cueMaxHoldMs { return false }
+    let settling = elapsedMs < cueHoldUntilMs
+    let behindPlayingCue = cueActive && lateMs > Self.cueLateMs
+    if !settling && !behindPlayingCue { return false }
     let cueId = cueIdAt(timeline, atMs: cueFireMs)
     if heldCueId != cueId {
       heldCueId = cueId
       recordDiagnostic("recognition_signal_held", extras: [
         "cueId": cueId,
         "scheduledPositionMs": cueFireMs,
-        "holdUntilPositionMs": cueHoldUntilMs,
+        "holdUntilPositionMs": max(cueHoldUntilMs, elapsedMs),
       ])
     }
     return true
@@ -2390,8 +2402,9 @@ final class ProceduralAudioEngine: NSObject {
     updatePrivateOutput(for: session.currentRoute)
     lock.lock()
     let routeSessionId = checkpointSessionId
+    let routePositionMs = timelineElapsedFrames * 1_000 / sampleRate
     lock.unlock()
-    if let routeSessionId { noteAudioRoute(sessionId: routeSessionId) }
+    if let routeSessionId { noteAudioRoute(sessionId: routeSessionId, positionMs: routePositionMs) }
     if lostPrivateOutput && desiredPlaying {
       desiredPlaying = false
       pause(reason: .routeLoss)

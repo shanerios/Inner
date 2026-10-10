@@ -33,7 +33,7 @@ import {
 import { Typography } from '../core/typography';
 import { INNER_LAB_BUILD } from '../core/innerLab';
 import { loadBedsideMotion, summarizeBedsideMotion } from '../core/bedsideMotion';
-import { attachNightPlanToJourneyMemory, createMorningReturnTestSession, loadJourneyMemory, type JourneyMemorySession } from '../core/journeyMemory';
+import { attachNightPlanToJourneyMemory, createMorningReturnTestSession, interruptedBeforeRelaunchLabel, loadJourneyMemory, type JourneyMemorySession } from '../core/journeyMemory';
 import { createNightPlan, type NightPlanConfiguration, type NightPlanSource } from '../core/nightPlans';
 import { createNightRecipeV2, nightRecipeCueSummary } from '../core/nightRecipes';
 import type { NightRecipeRecognitionIntention } from '../core/nightRecipes';
@@ -114,6 +114,7 @@ function eventLabel(event: JourneyMemorySession['events'][number]): string {
     const drift = event.driftMs === undefined ? '' : ` · drift ${Math.round(event.driftMs)}ms`;
     return `Native signal fired · ${event.signalId ?? 'unknown'}${drift}`;
   }
+  if (event.type === 'previous_session_interrupted_unexpectedly') return interruptedBeforeRelaunchLabel(event);
   if (event.type === 'recognition_signal_held') return `Native signal held until playback settled · ${event.cueId ?? 'cue'}`;
   if (event.type === 'seeked') return `Scrubbed from ${clockLabel(event.fromPositionMs ?? 0)}`;
   if (event.type === 'app_state_changed') return `App state · ${event.appState ?? event.reason ?? 'changed'}`;
