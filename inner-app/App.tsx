@@ -101,7 +101,7 @@ import { navigationRef } from './src/navigation/navigationRef';
 import * as Sentry from '@sentry/react-native';
 import { initializeMemoryTelemetry } from './core/memorySafeVideo';
 import { PostHogProvider, usePostHog } from 'posthog-react-native';
-import { sanitizeSentryEvent } from './core/sentrySanitizer';
+import { sanitizeSentryEvent, scrubBreadcrumb } from './core/sentrySanitizer';
 
 Sentry.init({
   dsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
@@ -124,6 +124,8 @@ Sentry.init({
   // spotlight: __DEV__,
 
   beforeSend: sanitizeSentryEvent,
+  // Scrub at the source so nothing derived from a dream reaches the JavaScript or the native scope.
+  beforeBreadcrumb: scrubBreadcrumb,
 });
 
 initializeMemoryTelemetry();

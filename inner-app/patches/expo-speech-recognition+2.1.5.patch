@@ -1,0 +1,40 @@
+diff --git a/node_modules/expo-speech-recognition/android/src/main/java/expo/modules/speechrecognition/ExpoSpeechService.kt b/node_modules/expo-speech-recognition/android/src/main/java/expo/modules/speechrecognition/ExpoSpeechService.kt
+index 06ff2e0..677697f 100644
+--- a/node_modules/expo-speech-recognition/android/src/main/java/expo/modules/speechrecognition/ExpoSpeechService.kt
++++ b/node_modules/expo-speech-recognition/android/src/main/java/expo/modules/speechrecognition/ExpoSpeechService.kt
+@@ -364,7 +364,7 @@ class ExpoSpeechService(
+             // Optional list of strings, towards which the recognizer should bias the recognition results.
+             // These are separate from the device context.
+             val strings = ArrayList(contextualStrings)
+-            log("biasing strings: ${strings.joinToString(", ")}")
++            log("biasing strings: ${strings.size} provided")
+             intent.putExtra(
+                 RecognizerIntent.EXTRA_BIASING_STRINGS,
+                 // List<String> -> ArrayList<java.lang.String>
+@@ -612,7 +612,7 @@ class ExpoSpeechService(
+                 ),
+             )
+         }
+-        log("onResults(), results: $resultsList")
++        log("onResults(), count: ${resultsList.size}")
+ 
+         teardownAndEnd()
+     }
+@@ -622,7 +622,7 @@ class ExpoSpeechService(
+         // Avoid sending result event if there was an empty result, or the first result is an empty string
+         val nonEmptyStrings = partialResultsList.filter { it["transcript"]?.toString()?.isNotEmpty() ?: false }
+ 
+-        log("onPartialResults(), results: $nonEmptyStrings")
++        log("onPartialResults(), count: ${nonEmptyStrings.size}")
+         if (nonEmptyStrings.isNotEmpty()) {
+             sendEvent("result", mapOf("results" to nonEmptyStrings, "isFinal" to false))
+         }
+@@ -664,7 +664,7 @@ class ExpoSpeechService(
+                 ),
+             )
+         }
+-        log("onSegmentResults(), transcriptions: $resultsList")
++        log("onSegmentResults(), count: ${resultsList.size}")
+ 
+         // If the user opted to stop
+         if (recognitionState == RecognitionState.STOPPING) {

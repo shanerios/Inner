@@ -9,7 +9,8 @@
         "simulator": true
       },
       "env": {
-        "EXPO_NEW_ARCH_ENABLED": "0"
+        "EXPO_NEW_ARCH_ENABLED": "0",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       }
     },
     "development-client": {
@@ -28,7 +29,8 @@
       "android": { "buildType": "apk", "gradleCommand": ":app:assembleProceduralDevRelease" },
       "env": {
         "EXPO_NEW_ARCH_ENABLED": "0",
-        "EXPO_PUBLIC_INNER_LAB": "1"
+        "EXPO_PUBLIC_INNER_LAB": "1",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       }
     },
     "internal": {

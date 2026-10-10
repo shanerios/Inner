@@ -167,12 +167,14 @@ The 7-minute preparation before an Overnight Journey can now be spoken aloud, so
 - Structured dream outcomes can support aggregate event counts without sending freeform dream text.
 - Freeform journal content should remain outside analytics unless a future, explicit policy and consent flow says otherwise.
 - Population research remains separate from personal adaptation and requires an explicit opt-in before collection.
+- Error-report breadcrumbs are now filtered where they are created. Only screen names, lifecycle events and the fact that a tap happened are kept; touch labels, console output and anything not on an allowlist are dropped, so nothing derived from a dream, such as a dream sign in a button label, can reach crash reporting.
+- Dictated text is no longer written to Android's system log. The speech library now records only how many results arrived, and a test fails if the logging ever returns.
 - The voice guidance clips are downloaded as one complete pack, whatever dream sign you work with, and starting a night never requests a clip over the network. A request to the audio host therefore never reveals which sign you are focused on.
 
 ### Release verification completed so far
 
 - TypeScript type checking passes.
-- Full automated suite passes: 71 suites, 588 tests, and 6 snapshots.
+- Full automated suite passes: 72 suites, 602 tests, and 6 snapshots.
 - Android's native InnerAudio module compiles with recipe-driven gain and recovery fields; the matching iOS source passes Swift parsing.
 - Android standalone release builds successfully after a clean native build.
 - A standalone Inner Lab accelerated night completed on a physical Pixel 8 Pro and produced the expected Morning Return without Metro.
@@ -180,6 +182,7 @@ The 7-minute preparation before an Overnight Journey can now be spoken aloud, so
 - Audio behavior has parity coverage across Android and iOS for the new procedural environment elements.
 - Accelerated long-journey runs were previously reported as passing for the generative environments.
 - Android offline full-night renders of all six worlds (7.12 hours each) pass against the native engine; the production and Temple nights were re-run after the voice slot was added.
+- Sentry React Native was updated from 8.14.0 to 8.15.1, which fixes an Android error that dropped every breadcrumb from native crash reports. On a physical Pixel 8 Pro no breadcrumb errors appeared during normal use, and a spoken test phrase left no trace of its words in the system log.
 - A new Inner Lab release build with spoken guidance, the signal-cue guard, and the volume and route evidence was installed on a physical Pixel 8 Pro as an update, preserving data.
 - The iOS native engine, including the voice slot, compiles for the simulator; it has not yet run on an iPhone.
 - A first overnight test on the Pixel ran 3 hours 37 minutes before the Bluetooth earbuds' battery ended it; Android's records show the app itself was not terminated. The signal windows (from about 4 hours) have not yet been exercised on a real night.
@@ -187,6 +190,8 @@ The 7-minute preparation before an Overnight Journey can now be spoken aloud, so
 ### Before publishing
 
 - Confirm the final marketing version and iOS/Android build numbers.
+- Sentry 8.15.1 now runs source map upload during builds. The production EAS environment has `SENTRY_AUTH_TOKEN`; the Inner Lab and development profiles skip the upload. Check the first production build uploads cleanly.
+- Run `pod install` before the next iOS build, since the Sentry update moves the Cocoa SDK from 9.16.1 to 9.18.0.
 - Run spoken guidance on a physical iPhone, and confirm the voice pack and manifest are published in `OvernightVoice` with the final clips.
 - Decide the voice pack size: 33 clips are about 21 MB at 44.1 kHz and about 11 MB at 24 kHz, and every user downloads all of them.
 - Run at least one full overnight on a physical device with the new build, covering the signal windows, and review the recorded night.
