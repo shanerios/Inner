@@ -128,7 +128,8 @@ describe('ProceduralPlaybackSession', () => {
 
   it('keeps the native timeline aligned when seeking', async () => {
     const native = engine();
-    const session = new ProceduralPlaybackSession(native);
+    // A fixed clock: with the real one, a millisecond between the seek and the read fails the exact match.
+    const session = new ProceduralPlaybackSession(native, () => 1_000);
     await session.start(DEFAULT_PROCEDURAL_AUDIO_CONFIG);
     await session.seekToMs(120_000);
     expect(session.getPositionMs()).toBe(120_000);

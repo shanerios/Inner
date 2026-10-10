@@ -80,6 +80,9 @@ Ocean, Forest, and Temple have gained more natural environmental detail, while O
 - After playback resumes from an interruption, such as an alarm or a call, an overnight recognition signal that comes due within the next 90 seconds now waits until that window ends instead of sounding right as you may have just been woken. A signal is never held more than five minutes past its scheduled time, and the delay is recorded with the night.
 - Shows an explained adaptive signal-level suggestion in the same control before the night begins while leaving the final starting level with the practitioner.
 
+- Overnight Journeys now name your recognition sign in the 7-minute waking preparation, using the same wording as Recognition practice. The sleep audio, signal timing and sound are unchanged, so the sign cannot shape what plays while you sleep.
+- Each Night Recipe now records which settings the night used and why each took its value: chosen by you, accepted from a recommendation, experiment or adaptive rule, or set by your dream sign. This is the groundwork for comparing one change at a time.
+
 #### Inner Lab experiments (not in production builds)
 
 - Added record-only bedside motion for Overnight Journeys in Inner Lab and development builds. It summarises the phone's accelerometer into one-minute readings (average, largest change, and how many readings arrived), stored on the device for the most recent 14 nights.

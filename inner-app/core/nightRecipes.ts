@@ -3,6 +3,7 @@ import { recognitionCueMinutesForDuration } from './lucidSignalPlans';
 import type { RecognitionSignalId } from './recognitionSignals';
 import type { ProceduralEnvironment } from './audio/types';
 import type { PracticeObjective } from './practiceState';
+import type { GenerationNotesV1 } from './generationLevers';
 
 export const NIGHT_RECIPE_SCHEMA_VERSION = 2 as const;
 
@@ -62,6 +63,8 @@ export type NightRecipeV2 = {
     intention?: NightRecipeRecognitionIntention;
   };
   environmentArc: 'protected_standard';
+  /** Which generator levers this night used and where each value came from. */
+  generation?: GenerationNotesV1;
 };
 
 export type CreateNightRecipeInput = {

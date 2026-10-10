@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { FactoryAudioJourney } from './audio';
+import { personalizedSignalGuidance } from './audio/preparationFocus';
 import type { JournalEntry } from './journalRepo';
 import { RECOGNITION_SIGNALS, type RecognitionSignalId } from './recognitionSignals';
 
@@ -71,9 +72,7 @@ export function recurringSignalObservation(signal: RecurringDreamSignal): string
   return `${signal.sign} has appeared in ${signal.count} of your last ${signal.rememberedDreams} remembered dreams.`;
 }
 
-export function recurringSignalPrompt(sign: string): string {
-  return `When you encounter ${sign.toLocaleLowerCase()}, pause and ask: could this be a dream?`;
-}
+export { recurringSignalPrompt } from './audio/preparationFocus';
 
 export async function saveRecurringSignalFocus(
   signal: RecurringDreamSignal,
@@ -127,7 +126,6 @@ export function createRecurringSignalJourney(
   sign: string,
 ): FactoryAudioJourney {
   const cleanSign = sign.trim();
-  const lowerSign = cleanSign.toLocaleLowerCase();
   return {
     ...baseJourney,
     title: `${baseJourney.title} — ${cleanSign}`,
@@ -141,13 +139,7 @@ export function createRecurringSignalJourney(
     timeline: {
       ...baseJourney.timeline,
       title: `${baseJourney.timeline.title} — ${cleanSign}`,
-      guidance: baseJourney.timeline.guidance?.map(cue => {
-        if (cue.id === 'signal-intro') return { ...cue, prompt: `A tone will sound. Pair it with your recurring sign: ${cleanSign}.` };
-        if (cue.id === 'signal-first') return { ...cue, prompt: `Picture noticing ${lowerSign} inside a dream. Let the tone sharpen your attention.` };
-        if (cue.id === 'signal-rehearse') return { ...cue, prompt: recurringSignalPrompt(cleanSign) };
-        if (cue.id === 'signal-release') return { ...cue, prompt: `If the tone or ${lowerSign} appears tonight, remember: you may be dreaming.` };
-        return cue;
-      }),
+      guidance: personalizedSignalGuidance(baseJourney.timeline.guidance, cleanSign),
     },
   };
 }

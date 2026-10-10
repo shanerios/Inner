@@ -34,7 +34,9 @@ import { Typography } from '../core/typography';
 import { INNER_LAB_BUILD } from '../core/innerLab';
 import { loadBedsideMotion, summarizeBedsideMotion } from '../core/bedsideMotion';
 import { attachNightPlanToJourneyMemory, createMorningReturnTestSession, interruptedBeforeRelaunchLabel, loadJourneyMemory, type JourneyMemorySession } from '../core/journeyMemory';
-import { createNightPlan, type NightPlanConfiguration, type NightPlanSource } from '../core/nightPlans';
+import { changedFields, createNightPlan, type NightPlanConfiguration, type NightPlanSource } from '../core/nightPlans';
+import { buildGenerationNotes } from '../core/generationLevers';
+import { withPreparationFocus } from '../core/audio/preparationFocus';
 import { createNightRecipeV2, nightRecipeCueSummary } from '../core/nightRecipes';
 import type { NightRecipeRecognitionIntention } from '../core/nightRecipes';
 import { experimentContextForPractice, loadCurrentPracticeExperiment } from '../core/practiceExperiments';
@@ -390,19 +392,21 @@ export default function OvernightJourneyScreen() {
         ...(route.params?.suggestedEnvironment ? { environment: route.params.suggestedEnvironment as string } : {}),
         ...(route.params?.suggestedCuePlan ? { cuePlan: route.params.suggestedCuePlan as LucidSignalCuePlan } : {}),
       };
+      const planReason = experiment?.question ?? adaptiveProposal?.reason ?? recommendation?.reason;
+      const planConfiguration: NightPlanConfiguration = {
+        durationMinutes,
+        environment,
+        feel,
+        signalId,
+        cuePlan,
+        recognitionWindowCount: recognitionWindows,
+        signalGainScale,
+      };
       const plan = await createNightPlan({
         source,
-        reason: experiment?.question ?? adaptiveProposal?.reason ?? recommendation?.reason,
+        reason: planReason,
         proposedConfiguration: Object.keys(proposedConfiguration).length ? proposedConfiguration : undefined,
-        configuration: {
-          durationMinutes,
-          environment,
-          feel,
-          signalId,
-          cuePlan,
-          recognitionWindowCount: recognitionWindows,
-          signalGainScale,
-        },
+        configuration: planConfiguration,
         experiment,
         recommendation,
         adaptiveRule: adaptiveProposal ? {
@@ -410,11 +414,26 @@ export default function OvernightJourneyScreen() {
           rule: adaptiveProposal.rule,
           title: adaptiveProposal.title,
         } : undefined,
-        recipe,
+        // The notes record why each lever took its value; they do not affect what plays.
+        recipe: {
+          ...recipe,
+          generation: buildGenerationNotes({
+            configuration: planConfiguration,
+            planSource: source,
+            planReason,
+            proposedConfiguration: Object.keys(proposedConfiguration).length ? proposedConfiguration : undefined,
+            userChanged: changedFields(Object.keys(proposedConfiguration).length ? proposedConfiguration : undefined, planConfiguration),
+            recognitionIntention: recipe.recognition.intention,
+          }),
+        },
         quietNight,
       });
       navigation.navigate('LucidJourneyPlayer', {
-        journey: overnightJourney(environment, feel, compiledNight, accelerated && INNER_LAB_BUILD, seed),
+        // The frozen recipe's sign names the waking preparation only; sleep audio is unchanged.
+        journey: withPreparationFocus(
+          overnightJourney(environment, feel, compiledNight, accelerated && INNER_LAB_BUILD, seed),
+          recipe.recognition.intention?.sign,
+        ),
         nightPlanId: plan.id,
       });
     } catch {
@@ -604,6 +623,7 @@ export default function OvernightJourneyScreen() {
           <Text style={styles.readySchedule}>Signals near {nightRecipeCueSummary(previewRecipe)}</Text>
           <Text style={styles.readyLine}>{recognitionSignalById(signalId).name} · {feel}</Text>
           {recognitionFocus && <Text style={styles.readyLine}>Recognition focus · {recognitionFocus.sign}</Text>}
+          {recognitionFocus && <Text style={styles.readyLine}>Preparation names it · sleep audio unchanged</Text>}
           {practiceState && <Text style={styles.readyLine}>Learning objective · {practiceState.objective.title}</Text>}
           {quietNight && <Text style={styles.readyLine}>Quiet night · not used for signal-level learning</Text>}
           <Text style={styles.readyLine}>Signal volume · {signalLevelLabel(signalGainScale)}</Text>

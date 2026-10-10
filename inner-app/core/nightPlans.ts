@@ -92,7 +92,7 @@ async function saveStore(store: NightPlanStore, storage: Storage): Promise<void>
   }));
 }
 
-function changedFields(
+export function changedFields(
   proposed: Partial<NightPlanConfiguration> | undefined,
   final: NightPlanConfiguration,
 ): Array<keyof NightPlanConfiguration> {
