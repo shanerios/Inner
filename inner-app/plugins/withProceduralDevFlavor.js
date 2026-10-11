@@ -10,7 +10,7 @@
 //
 // EAS build profiles pin `android.gradleCommand` to the "prod" flavor in eas.json, so
 // existing production/preview/internal builds are unaffected by the added flavor dimension.
-const { withAndroidManifest, withAppBuildGradle } = require('@expo/config-plugins');
+const { withAndroidManifest, withAppBuildGradle, withMainApplication } = require('@expo/config-plugins');
 
 const ANCHOR = "namespace 'com.getinner.app'";
 
@@ -36,6 +36,50 @@ const FLAVOR_BLOCK = `
 `;
 
 function withProceduralDevFlavor(config) {
+  config = withMainApplication(config, (cfg) => {
+    if (cfg.modResults.language !== 'kt') {
+      throw new Error('withProceduralDevFlavor only supports a Kotlin MainApplication');
+    }
+    if (cfg.modResults.contents.includes('Inner: release decoded UI backgrounds')) return cfg;
+
+    let contents = cfg.modResults.contents;
+    const applicationImport = 'import android.app.Application';
+    if (!contents.includes(applicationImport)) {
+      throw new Error('withProceduralDevFlavor: could not find the Application import in MainApplication.kt.');
+    }
+    contents = contents.replace(applicationImport, `${applicationImport}
+import android.content.ComponentCallbacks2`);
+
+    const reactPackageImport = 'import com.facebook.react.PackageList';
+    if (!contents.includes(reactPackageImport)) {
+      throw new Error('withProceduralDevFlavor: could not find the React imports in MainApplication.kt.');
+    }
+    contents = contents.replace(reactPackageImport, `import com.facebook.drawee.backends.pipeline.Fresco
+${reactPackageImport}`);
+
+    const hostImport = 'import com.facebook.react.defaults.DefaultReactNativeHost';
+    if (!contents.includes(hostImport)) {
+      throw new Error('withProceduralDevFlavor: could not find the React Native host import in MainApplication.kt.');
+    }
+    contents = contents.replace(hostImport, `${hostImport}
+import com.facebook.react.modules.fresco.FrescoModule`);
+
+    const classEnd = contents.lastIndexOf('\n}');
+    if (classEnd < 0) {
+      throw new Error('withProceduralDevFlavor: could not find the end of MainApplication.kt.');
+    }
+    const memoryTrim = `
+
+  // Inner: release decoded UI backgrounds once the phone is put down for an Overnight Journey.
+  override fun onTrimMemory(level: Int) {
+    super.onTrimMemory(level)
+    if (level >= ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN && FrescoModule.hasBeenInitialized()) {
+      Fresco.getImagePipeline().clearMemoryCaches()
+    }
+  }`;
+    cfg.modResults.contents = contents.slice(0, classEnd) + memoryTrim + contents.slice(classEnd);
+    return cfg;
+  });
   config = withAppBuildGradle(config, (cfg) => {
     if (cfg.modResults.language !== 'groovy') {
       throw new Error('withProceduralDevFlavor only supports the Groovy android/app/build.gradle');

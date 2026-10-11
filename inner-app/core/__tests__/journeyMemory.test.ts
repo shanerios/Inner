@@ -11,6 +11,7 @@ import {
   loadJourneyMemory,
   recordJourneyMemoryEvent,
   reconcileInterruptedJourneyMemorySession,
+  preserveJourneyContinuationEvidence,
   findMatchingProcessExit,
   shouldReportUnexpectedTermination,
   interruptedBeforeRelaunchLabel,
@@ -416,6 +417,62 @@ describe('v1 schema migration', () => {
 });
 
 describe('checkpoint reconciliation', () => {
+  it('preserves a killed process receipt while leaving the journey open to continue', async () => {
+    const storage = memoryStorage();
+    const session = await beginJourneyMemorySession(
+      'overnight-recognition-ocean-standard', timeline, DEFAULT_PROCEDURAL_AUDIO_CONFIG, storage as any, () => 100,
+    );
+    const checkpoint = {
+      sessionId: session.id,
+      positionMs: 15_000,
+      lastUpdatedAt: 500,
+      firedSignalIds: [],
+      processId: 42,
+      processInstanceId: 'night-process',
+      playbackState: 'playing' as const,
+      engineRunning: true,
+      desiredPlaying: true,
+      pendingDiagnostics: [{ type: 'audio_underrun' as const, atMs: 450, underrunCount: 2 }],
+    };
+    const processExit = {
+      reasonCode: 2,
+      reason: 'signaled',
+      timestamp: 550,
+      processId: 42,
+      importance: 125,
+      status: 9,
+      rssKb: 410 * 1024,
+    };
+
+    expect(await preserveJourneyContinuationEvidence(
+      checkpoint, storage as any, () => 600, [processExit],
+    )).toBe(true);
+    const saved = (await loadJourneyMemory(storage as any)).sessions[0];
+    expect(saved.endedAt).toBeUndefined();
+    expect(saved.outcome).toBeUndefined();
+    expect(saved.nativeCheckpoint).toMatchObject({
+      positionMs: 15_000,
+      processInstanceId: 'night-process',
+    });
+    expect(saved.events).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: 'audio_underrun', at: 450, underrunCount: 2 }),
+      expect.objectContaining({
+        type: 'previous_session_interrupted_unexpectedly',
+        at: 550,
+        exitReason: 'signaled',
+        processStatus: 9,
+        rssKb: 410 * 1024,
+      }),
+    ]));
+
+    // Relaunching again before the user chooses Continue or End must not duplicate the evidence.
+    expect(await preserveJourneyContinuationEvidence(
+      checkpoint, storage as any, () => 700, [processExit],
+    )).toBe(true);
+    expect((await loadJourneyMemory(storage as any)).sessions[0].events
+      .filter(event => event.type === 'previous_session_interrupted_unexpectedly')).toHaveLength(1);
+  });
+
   it('marks a session near its planned end with all signals fired as recovered', async () => {
     const storage = memoryStorage();
     const session = await beginJourneyMemorySession(

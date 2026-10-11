@@ -1,5 +1,5 @@
 import React from 'react';
-import { AppState, Image, Platform, StyleSheet, View } from 'react-native';
+import { AppState, Image, Platform, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import * as Device from 'expo-device';
 import {
   VideoView as ExpoVideoView,
@@ -182,9 +182,20 @@ function PictureFrame({ still, video, style }: {
   video: React.ReactElement | null;
   style: React.ComponentProps<typeof View>['style'];
 }) {
+  // Android can draw the still at its intrinsic pixel size while a screen is being covered, so once the
+  // frame has been measured the image is given that exact size instead of relying on fill alone.
+  const [size, setSize] = React.useState<{ width: number; height: number } | null>(null);
+  const onLayout = React.useCallback((event: LayoutChangeEvent) => {
+    const { width, height } = event.nativeEvent.layout;
+    setSize(previous => (previous && previous.width === width && previous.height === height ? previous : { width, height }));
+  }, []);
   return (
-    <View style={[style, styles.staticFrame]} pointerEvents="none">
-      <Image source={still} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
+    <View style={[style, styles.staticFrame]} pointerEvents="none" onLayout={onLayout}>
+      <Image
+        source={still}
+        style={size ? [styles.stillImage, size] : StyleSheet.absoluteFillObject}
+        resizeMode="cover"
+      />
       {video}
     </View>
   );
@@ -237,6 +248,7 @@ export function VideoView(props: React.ComponentProps<typeof ExpoVideoView>) {
 
 const styles = StyleSheet.create({
   empty: { backgroundColor: '#0d0d1a' },
+  stillImage: { position: 'absolute', top: 0, left: 0 },
   staticFrame: {
     overflow: 'hidden',
     backgroundColor: '#0d0d1a',

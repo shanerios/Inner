@@ -152,4 +152,11 @@ describe('background video wrapper', () => {
     const flat = ([] as unknown[]).concat(frame.props.style).flat(3);
     expect(flat).toEqual(expect.arrayContaining([expect.objectContaining({ flex: 1 })]));
   });
+  it('sizes the still to the measured frame, so Android cannot draw it at its intrinsic pixel size', () => {
+    const view = render(WITH_STILL);
+    const frame = view.stills()[0].parent!.parent!;
+    act(() => { frame.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width: 402, height: 874 } } }); });
+    const flat = ([] as unknown[]).concat(view.stills()[0].props.style).flat(3);
+    expect(flat).toEqual(expect.arrayContaining([expect.objectContaining({ width: 402, height: 874 })]));
+  });
 });

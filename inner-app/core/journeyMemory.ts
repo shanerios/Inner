@@ -628,6 +628,88 @@ export function shouldReportUnexpectedTermination(
 }
 
 /**
+ * Keeps the evidence that made an Overnight Journey eligible for continuation
+ * without closing the session. Continuing is a user choice, but the original
+ * interruption still belongs in the night's record (and in exported
+ * diagnostics) after the native checkpoint is eventually replaced or cleared.
+ */
+export async function preserveJourneyContinuationEvidence(
+  checkpoint: JourneyMemoryCheckpoint,
+  storage: Storage = AsyncStorage,
+  now: () => number = Date.now,
+  processExits: NativeProcessExitInfo[] = [],
+): Promise<boolean> {
+  return enqueue(async () => {
+    const state = await loadJourneyMemory(storage, true);
+    const session = state.sessions.find(item => item.id === checkpoint.sessionId);
+    if (!session || session.endedAt || checkpoint.terminalOutcome) return false;
+
+    const processExit = findMatchingProcessExit(session.startedAt, checkpoint, processExits, now());
+    const alreadyPreserved = session.events.some(event =>
+      event.type === 'previous_session_interrupted_unexpectedly'
+      && event.lastUpdatedAt === checkpoint.lastUpdatedAt
+      && event.processInstanceId === checkpoint.processInstanceId,
+    );
+    if (alreadyPreserved) return true;
+
+    const pendingEvents: JourneyMemoryEvent[] = (checkpoint.pendingDiagnostics ?? [])
+      .filter(event => !session.events.some(existing => existing.type === event.type && existing.at === event.atMs))
+      .map(event => ({
+        type: event.type,
+        at: event.atMs,
+        positionMs: checkpoint.positionMs,
+        reason: event.reason,
+        route: event.route,
+        signalId: event.signalId,
+        cueId: event.cueId,
+        scheduledPositionMs: event.scheduledPositionMs,
+        actualPositionMs: event.actualPositionMs,
+        driftMs: event.driftMs,
+        underrunCount: event.underrunCount,
+      }));
+    const interruptionEvent: JourneyMemoryEvent = {
+      at: processExit?.timestamp ?? now(),
+      type: 'previous_session_interrupted_unexpectedly',
+      reason: checkpoint.pauseReason === 'route_loss'
+        ? 'route_loss_before_relaunch'
+        : checkpoint.pauseReason === 'interruption' ? 'interruption_before_relaunch' : undefined,
+      positionMs: checkpoint.positionMs,
+      stageId: checkpoint.stageId,
+      lastUpdatedAt: checkpoint.lastUpdatedAt,
+      route: checkpoint.audioRoute,
+      engineRunning: checkpoint.engineRunning,
+      playbackState: checkpoint.playbackState,
+      audioFocus: checkpoint.audioFocus,
+      foregroundServiceState: checkpoint.engineRunning ? 'running' : 'stopped',
+      desiredPlaying: checkpoint.desiredPlaying,
+      pauseReason: checkpoint.pauseReason,
+      lastStopReason: checkpoint.lastStopReason,
+      processId: checkpoint.processId,
+      processInstanceId: checkpoint.processInstanceId,
+      exitReason: processExit?.reason,
+      exitReasonCode: processExit?.reasonCode,
+      exitDescription: processExit?.description,
+      exitTimestamp: processExit?.timestamp,
+      processImportance: processExit?.importance,
+      processStatus: processExit?.status,
+      pssKb: processExit?.pssKb,
+      rssKb: processExit?.rssKb,
+    };
+    const { pendingDiagnostics: _pending, ...nativeCheckpoint } = checkpoint;
+    const updated = {
+      ...session,
+      nativeCheckpoint,
+      events: [...session.events, ...pendingEvents, interruptionEvent].slice(-MAX_EVENTS_PER_SESSION),
+    };
+    await storage.setItem(JOURNEY_MEMORY_KEY, JSON.stringify({
+      ...state,
+      sessions: state.sessions.map(item => item.id === session.id ? updated : item),
+    }));
+    return true;
+  });
+}
+
+/**
  * Reconciles one native checkpoint into a terminal outcome. Only acts on a
  * session that is genuinely still open (no `endedAt`) -- a checkpoint left
  * over from a session that already finished cleanly (and should have been

@@ -20,6 +20,11 @@ The 7-minute preparation before an Overnight Journey can now be spoken aloud, so
 
 ### Detailed product log
 
+#### Overnight reliability
+
+- Android now releases cached image memory when the app goes to the background, to lower the chance of the app process being removed during a long Overnight Journey. Not yet confirmed to prevent it.
+- Preserves Android process-exit evidence when an interrupted night is continued, so later diagnostics still explain why continuation was needed.
+
 #### Morning Return and voice journaling
 
 - Added Morning Return after eligible Overnight Journeys and valid early completions.
@@ -162,6 +167,7 @@ The 7-minute preparation before an Overnight Journey can now be spoken aloud, so
 - Kept Overnight Journey unchanged because that screen has no orb above its title.
 - Moved dependent playback and mixer controls with their headings to preserve spacing.
 - Fixed descriptor-chip clipping caused by wider bold text.
+- Fixed an oversized, cropped flash of the Home background when leaving Home on Android.
 - Fixed the brief ghost of the previous screen and the blank background flash when moving between screens with video backgrounds (for example Arrive to Home). The previous background now stays on screen until the next one fades in.
 
 ### Privacy and analytics notes

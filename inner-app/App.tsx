@@ -54,6 +54,7 @@ import { initAudioOnce } from './core/initAudio';
 import { proceduralAudioEngine } from './core/audio';
 import {
   findMatchingProcessExit,
+  preserveJourneyContinuationEvidence,
   loadJourneyMemory,
   reconcileInterruptedJourneyMemorySession,
   shouldReportUnexpectedTermination,
@@ -347,10 +348,47 @@ export default Sentry.wrap(function App() {
           // A recent interrupted Overnight Journey is a choice, not an
           // automatic failure. Home will offer Continue or End and retain the
           // checkpoint until one of those paths has been saved successfully.
-          if (isResumableJourneyCheckpoint(checkpoint, session)) return false;
           const matchingExit = session
             ? findMatchingProcessExit(session.startedAt, checkpoint, processExits)
             : undefined;
+          if (isResumableJourneyCheckpoint(checkpoint, session)) {
+            await preserveJourneyContinuationEvidence(checkpoint, AsyncStorage, Date.now, processExits);
+            if (shouldReportUnexpectedTermination(checkpoint, matchingExit)) {
+              const diagnostic = {
+                outcome: 'continuation_offered',
+                checkpointAgeMs: Math.max(0, Date.now() - checkpoint.lastUpdatedAt),
+                positionMs: checkpoint.positionMs,
+                playbackState: checkpoint.playbackState,
+                engineRunning: checkpoint.engineRunning,
+                audioRoute: checkpoint.audioRoute,
+                audioFocus: checkpoint.audioFocus,
+                desiredPlaying: checkpoint.desiredPlaying,
+                pauseReason: checkpoint.pauseReason,
+                lastStopReason: checkpoint.lastStopReason,
+                exitReason: matchingExit?.reason ?? 'unavailable',
+                exitReasonCode: matchingExit?.reasonCode,
+                exitTimestamp: matchingExit?.timestamp,
+                exitDescription: matchingExit?.description,
+                processImportance: matchingExit?.importance,
+                processStatus: matchingExit?.status,
+                pssKb: matchingExit?.pssKb,
+                rssKb: matchingExit?.rssKb,
+              };
+              Sentry.addBreadcrumb({
+                category: 'media.lifecycle',
+                level: 'warning',
+                message: 'Previous overnight playback ended unexpectedly; continuation preserved',
+                data: diagnostic,
+              });
+              Sentry.withScope(scope => {
+                scope.setContext('overnight_termination', diagnostic);
+                scope.setTag('overnight_outcome', 'continuation_offered');
+                scope.setTag('android_exit_reason', matchingExit?.reason ?? 'unavailable');
+                Sentry.captureMessage('Overnight playback ended unexpectedly', 'warning');
+              });
+            }
+            return false;
+          }
           const outcome = await reconcileInterruptedJourneyMemorySession(
             checkpoint,
             AsyncStorage,

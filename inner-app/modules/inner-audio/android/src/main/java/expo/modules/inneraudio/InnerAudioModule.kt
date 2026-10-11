@@ -98,7 +98,7 @@ class InnerAudioModule : Module() {
         emptyList<Map<String, Any?>>()
       } else {
         val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
-        activityManager.getHistoricalProcessExitReasons(context.packageName, 0, 10).map { exit ->
+        activityManager.getHistoricalProcessExitReasons(context.packageName, 0, 32).map { exit ->
           mapOf(
             "reasonCode" to exit.reason,
             "reason" to exitReasonName(exit.reason),
