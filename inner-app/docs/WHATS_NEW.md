@@ -162,6 +162,7 @@ The 7-minute preparation before an Overnight Journey can now be spoken aloud, so
 - Fixed descriptor-chip clipping caused by wider bold text.
 
 ### Privacy and analytics notes
+- Fixed the brief ghost of the previous screen and the blank background flash when moving between screens with video backgrounds (for example Arrive to Home). The previous background now stays on screen until the next one fades in.
 
 - Practice Memory and personalized recommendations are designed to work locally on the device.
 - Structured dream outcomes can support aggregate event counts without sending freeform dream text.

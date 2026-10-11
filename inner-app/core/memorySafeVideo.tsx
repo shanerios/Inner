@@ -168,28 +168,68 @@ export function useVideoPlayer(
   return player;
 }
 
+/**
+ * The picture and, when it should be playing, the video on top of it. Both layouts below render this same
+ * shape, so React keeps the one image view alive when a screen loses focus and only the video comes away.
+ * Rebuilding the image at that moment left one empty frame while it decoded.
+ *
+ * Keep the same measured/clipped outer frame as ExpoVideoView: applying the caller's layout style
+ * directly to Image can let Android size the drawable from its intrinsic pixels, producing an oversized,
+ * top-left crop.
+ */
+function PictureFrame({ still, video, style }: {
+  still: StaticSource;
+  video: React.ReactElement | null;
+  style: React.ComponentProps<typeof View>['style'];
+}) {
+  return (
+    <View style={[style, styles.staticFrame]} pointerEvents="none">
+      <Image source={still} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
+      {video}
+    </View>
+  );
+}
+
+/** How long a screen that has lost focus keeps showing its still picture. A transition is under a second,
+ * and a full-screen still is about 12 MB once decoded, so it is released as soon as the screen has gone. */
+export const STILL_HOLD_MS = 1_200;
+
 /** API-compatible wrapper, allowing existing screens to gain static fallback
- * rendering without duplicating lifecycle code. */
+ * rendering without duplicating lifecycle code.
+ *
+ * Every background has a matching still, and the still is what makes a screen change look whole:
+ * - A screen that is leaving keeps its picture for the length of the transition. Going dark at the
+ *   start of it left the screen's buttons and text floating over nothing while the next one faded in.
+ * - A screen that is arriving shows its still straight away, under the video, until the video has a
+ *   first frame. Without it the screen's elements appeared before its background did. */
 export function VideoView(props: React.ComponentProps<typeof ExpoVideoView>) {
   const metadata = playerMetadata.get(props.player);
+  const still = metadata?.staticSource;
+  const leaving = Boolean(metadata && metadata.enabled && !metadata.focused);
+  const [stillExpired, setStillExpired] = React.useState(false);
 
-  if (metadata && (!metadata.enabled || !metadata.focused)) {
+  React.useEffect(() => {
+    if (!leaving) {
+      setStillExpired(false);
+      return undefined;
+    }
+    const timer = setTimeout(() => setStillExpired(true), STILL_HOLD_MS);
+    return () => clearTimeout(timer);
+  }, [leaving]);
+
+  if (metadata && !metadata.enabled) {
     return <View style={[styles.empty, props.style]} />;
   }
 
-  if (usesStaticBackgrounds && metadata?.staticSource) {
-    // Keep the same measured/clipped outer frame as ExpoVideoView. Applying the
-    // caller's layout style directly to Image can let Android size the drawable
-    // from its intrinsic pixels, producing an oversized, top-left crop.
-    return (
-      <View style={[props.style, styles.staticFrame]} pointerEvents="none">
-        <Image
-          source={metadata.staticSource}
-          style={StyleSheet.absoluteFillObject}
-          resizeMode="cover"
-        />
-      </View>
-    );
+  if (metadata && !metadata.focused) {
+    return still && !stillExpired
+      ? <PictureFrame still={still} video={null} style={props.style} />
+      : <View style={[styles.empty, props.style]} />;
+  }
+
+  if (still) {
+    const video = usesStaticBackgrounds ? null : <ExpoVideoView {...props} style={StyleSheet.absoluteFillObject} />;
+    return <PictureFrame still={still} video={video} style={props.style} />;
   }
 
   return <ExpoVideoView {...props} />;
