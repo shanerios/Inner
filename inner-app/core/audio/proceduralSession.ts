@@ -71,6 +71,44 @@ export class ProceduralPlaybackSession {
     await this.exclusive(() => this.claimEngine());
   }
 
+  /**
+   * Takes ownership of a timeline already held by the native service without
+   * stopping or reconfiguring it. Used when React is recreated around a live
+   * Overnight Journey.
+   */
+  async adoptExisting(config: ProceduralAudioConfig) {
+    await this.exclusive(async () => {
+      this.lifecycle.owner?.markDisplaced();
+      this.lifecycle.owner = this;
+      this.config = config;
+      const [nativeState, nativePositionMs] = await Promise.all([
+        this.engine.getPlaybackState(),
+        this.engine.getTimelinePositionMs(),
+      ]);
+      this.accumulatedMs = Math.max(0, nativePositionMs ?? 0);
+      this.playing = nativeState === 'playing';
+      this.startedAtMs = this.playing ? this.now() : null;
+    });
+  }
+
+  /** Recreates a lost native timeline and begins at its preserved position. */
+  async resumeTimeline(
+    initialConfig: ProceduralAudioConfig,
+    timeline: CompiledAudioJourneyTimeline,
+    positionMs: number,
+  ) {
+    await this.exclusive(async () => {
+      await this.claimEngine();
+      this.config = initialConfig;
+      this.accumulatedMs = Math.max(0, Math.min(positionMs, timeline.totalDurationMs));
+      await this.engine.configure(initialConfig);
+      await this.engine.setTimeline(timeline);
+      await this.engine.seekTimeline(this.accumulatedMs);
+      await this.engine.setNowPlaying(timeline.title);
+      await this.playOwned();
+    });
+  }
+
   async start(config: ProceduralAudioConfig, title = 'Inner') {
     await this.exclusive(async () => {
       await this.claimEngine();

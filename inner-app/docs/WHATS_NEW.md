@@ -135,6 +135,8 @@ The 7-minute preparation before an Overnight Journey can now be spoken aloud, so
 
 - Made accelerated-night controls available in standalone Inner Lab builds without requiring Metro or a cloud-build-only environment flag.
 - Added native journey checkpoints to improve recovery after interruption or process loss.
+- Added a paused-night continuation on Home. A recent interrupted Overnight Journey is preserved with its exact playback position, remaining time, frozen timeline, and Night Recipe instead of being finalized immediately.
+- Continue reattaches to a still-running native journey without rebuilding its audio, or reconstructs a lost native timeline from Journey Memory and resumes at the checkpoint. End Journey deliberately closes the night while retaining its interruption record.
 - Added wall-clock reconciliation so long sessions can recover their correct position.
 - Added a render heartbeat for stronger full-night playback monitoring.
 - Preserved the established behavior of alarms and external audio routing during overnight playback.
@@ -160,9 +162,9 @@ The 7-minute preparation before an Overnight Journey can now be spoken aloud, so
 - Kept Overnight Journey unchanged because that screen has no orb above its title.
 - Moved dependent playback and mixer controls with their headings to preserve spacing.
 - Fixed descriptor-chip clipping caused by wider bold text.
+- Fixed the brief ghost of the previous screen and the blank background flash when moving between screens with video backgrounds (for example Arrive to Home). The previous background now stays on screen until the next one fades in.
 
 ### Privacy and analytics notes
-- Fixed the brief ghost of the previous screen and the blank background flash when moving between screens with video backgrounds (for example Arrive to Home). The previous background now stays on screen until the next one fades in.
 
 - Practice Memory and personalized recommendations are designed to work locally on the device.
 - Structured dream outcomes can support aggregate event counts without sending freeform dream text.

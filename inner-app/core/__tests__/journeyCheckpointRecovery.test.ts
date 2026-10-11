@@ -36,6 +36,14 @@ it('acknowledges only after the durable write and keeps IDs separate', async () 
   expect(order).toEqual(['write:one', 'ack:one', 'write:two', 'ack:two']);
 });
 
+it('preserves a checkpoint when the caller offers it as a continuation', async () => {
+  const clearCheckpoint = jest.fn(async (_id?: string) => {});
+  const reconcile = jest.fn(async () => false);
+  await recoverJourneyCheckpoints({ getCheckpoint: async () => checkpoint('paused'), clearCheckpoint }, reconcile);
+  expect(reconcile).toHaveBeenCalledTimes(1);
+  expect(clearCheckpoint).not.toHaveBeenCalled();
+});
+
 it('does not reinterpret a legacy live service as a dead session', () => {
   expect(isLiveJourneyCheckpoint(checkpoint('legacy'), { ...live, checkpointSessionId: undefined })).toBe(true);
 });

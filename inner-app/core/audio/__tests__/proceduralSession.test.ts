@@ -126,6 +126,35 @@ describe('ProceduralPlaybackSession', () => {
     expect(native.play).toHaveBeenCalled();
   });
 
+  it('adopts a paused native timeline without stopping or replacing it', async () => {
+    const native = engine();
+    native.getPlaybackState.mockResolvedValue('paused');
+    native.getTimelinePositionMs.mockResolvedValue(42_000);
+    const session = new ProceduralPlaybackSession(native, () => 100_000);
+
+    await session.adoptExisting(DEFAULT_PROCEDURAL_AUDIO_CONFIG);
+
+    expect(session.ownsEngine()).toBe(true);
+    expect(session.getPositionMs()).toBe(42_000);
+    expect(native.stop).not.toHaveBeenCalled();
+    expect(native.setTimeline).not.toHaveBeenCalled();
+  });
+
+  it('rebuilds a lost timeline before playing from its preserved position', async () => {
+    const native = engine();
+    const session = new ProceduralPlaybackSession(native, () => 1_000);
+    const timeline = compileAudioJourneyTimeline({
+      id: 'resume', title: 'Resume', stages: [{ id: 'one', label: 'One', durationMs: 60_000, target: {} }],
+    }, DEFAULT_PROCEDURAL_AUDIO_CONFIG);
+
+    await session.resumeTimeline(DEFAULT_PROCEDURAL_AUDIO_CONFIG, timeline, 42_000);
+
+    expect(native.setTimeline).toHaveBeenCalledWith(timeline);
+    expect(native.seekTimeline).toHaveBeenCalledWith(42_000);
+    expect(order(native.seekTimeline)).toBeLessThan(order(native.play));
+    expect(session.getPositionMs()).toBe(42_000);
+  });
+
   it('keeps the native timeline aligned when seeking', async () => {
     const native = engine();
     // A fixed clock: with the real one, a millisecond between the seek and the read fails the exact match.

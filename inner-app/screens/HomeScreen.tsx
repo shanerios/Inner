@@ -2,7 +2,7 @@ import { Asset } from 'expo-asset';
 import { useVideoPlayer, VideoView } from '../core/memorySafeVideo';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useMemo, useRef } from 'react';
-import { Animated, Easing, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Animated, AppState, Easing, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Directions, Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Purchases from 'react-native-purchases';
 import { safePresentPaywall } from '../src/core/subscriptions/safePresentPaywall';
@@ -45,6 +45,7 @@ import { useScale } from '../utils/scale';
 import LunarWhisperModal from '../src/lunar/LunarWhisperModal';
 import ReviewPromptModal from '../components/ReviewPromptModal';
 import MorningReturnCard from '../components/MorningReturnCard';
+import JourneyContinuationCard from '../components/JourneyContinuationCard';
 import TonightRecommendationCard from '../components/TonightRecommendationCard';
 import ActiveExperimentHomeCard from '../components/ActiveExperimentHomeCard';
 import { useMorningReturnContinuation } from '../components/MorningReturnContext';
@@ -56,9 +57,16 @@ import {
 } from '../core/adaptiveNight';
 import { listEntries } from '../core/journalRepo';
 import { loadNightRecords } from '../core/nightRecords';
-import { loadJourneyMemory } from '../core/journeyMemory';
+import { finishJourneyMemorySession, loadJourneyMemory } from '../core/journeyMemory';
 import { createRecurringSignalJourney, deriveRecurringDreamSignal, saveRecurringSignalFocus } from '../core/recurringDreamSignals';
-import { FACTORY_AUDIO_JOURNEYS } from '../core/audio';
+import { FACTORY_AUDIO_JOURNEYS, proceduralAudioEngine } from '../core/audio';
+import {
+  findJourneyContinuation,
+  journeyContinuationTimeLabel,
+  journeyForContinuation,
+  type JourneyContinuation,
+} from '../core/journeyContinuation';
+import { loadNightPlan } from '../core/nightPlans';
 import {
   armPracticeExperimentNight,
   loadCurrentPracticeExperiment,
@@ -232,6 +240,7 @@ const GUARDIAN_SWIPE_STEP_INDEX = 1;
 
 export default function HomeScreen({ navigation, route }: any) {
   const morningReturnContinuation = useMorningReturnContinuation();
+  const [journeyContinuation, setJourneyContinuation] = React.useState<JourneyContinuation | null>(null);
   // --- DEBUG: visualize/tune orb hit area ---
   const DEBUG_ORB_HIT = false; // set to false to hide the debug ring
   const portalScale = useRef(new Animated.Value(1)).current;
@@ -1052,6 +1061,85 @@ const loop = Animated.loop(
   const [tonightRecommendation, setTonightRecommendation] = React.useState<TonightRecommendation | null>(null);
   const [practiceExperiment, setPracticeExperiment] = React.useState<PracticeExperiment | null>(null);
   const [recommendationDismissed, setRecommendationDismissed] = React.useState(false);
+
+  const refreshJourneyContinuation = useCallback(async () => {
+    if (!proceduralAudioEngine.isAvailable()) {
+      setJourneyContinuation(null);
+      return;
+    }
+    try {
+      const [memory, checkpoints] = await Promise.all([
+        loadJourneyMemory(),
+        proceduralAudioEngine.getCheckpoints?.() ?? proceduralAudioEngine.getCheckpoint().then(item => item ? [item] : []),
+      ]);
+      setJourneyContinuation(findJourneyContinuation(memory, checkpoints));
+    } catch {
+      setJourneyContinuation(null);
+    }
+  }, []);
+
+  useFocusEffect(useCallback(() => {
+    void refreshJourneyContinuation();
+  }, [refreshJourneyContinuation]));
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', state => {
+      if (state === 'active') void refreshJourneyContinuation();
+    });
+    return () => subscription.remove();
+  }, [refreshJourneyContinuation]);
+
+  const continuePausedJourney = useCallback(async () => {
+    const continuation = journeyContinuation;
+    if (!continuation) return;
+    try {
+      const plan = continuation.session.nightPlanId
+        ? await loadNightPlan(continuation.session.nightPlanId)
+        : null;
+      navigation.navigate('LucidJourneyPlayer', {
+        journey: journeyForContinuation(continuation.session, plan),
+        nightPlanId: continuation.session.nightPlanId,
+        resumeSessionId: continuation.session.id,
+        resumePositionMs: continuation.checkpoint.positionMs,
+      });
+    } catch {
+      Alert.alert('Journey unavailable', 'Inner could not reopen the preserved journey. Please try again.');
+    }
+  }, [journeyContinuation, navigation]);
+
+  const endPausedJourney = useCallback(() => {
+    const continuation = journeyContinuation;
+    if (!continuation) return;
+    Alert.alert(
+      'End this journey?',
+      'This closes the paused night and keeps its interruption record in Practice Memory.',
+      [
+        { text: 'Keep Paused', style: 'cancel' },
+        {
+          text: 'End Journey',
+          style: 'destructive',
+          onPress: () => {
+            void (async () => {
+              const live = await proceduralAudioEngine.getDebugState?.().catch(() => null);
+              if (live?.checkpointSessionId === continuation.session.id) {
+                await proceduralAudioEngine.stop().catch(() => {});
+              }
+              await finishJourneyMemorySession(
+                continuation.session.id,
+                'user_stopped',
+                continuation.checkpoint.positionMs,
+                'Ended from paused journey continuation',
+              );
+              await proceduralAudioEngine.clearCheckpoint(continuation.session.id);
+              setJourneyContinuation(null);
+            })().catch(() => {
+              Alert.alert('Journey not ended', 'Inner kept the journey paused so its record would not be lost.');
+            });
+          },
+        },
+      ],
+    );
+  }, [journeyContinuation]);
   const [experimentDismissed, setExperimentDismissed] = React.useState(false);
   const recommendationDismissKey = React.useMemo(() => {
     const d = new Date();
@@ -2835,8 +2923,28 @@ const openInnerFlame = useCallback(async () => {
         />
       </Animated.View>
 
-      {/* Morning Return, active experiment, or evidence-based recommendation */}
-      {morningReturnContinuation.visible ? (
+      {/* Paused journey, Morning Return, active experiment, or evidence-based recommendation */}
+      {journeyContinuation ? (
+        <View
+          pointerEvents="box-none"
+          style={{
+            position: 'absolute',
+            top: insets.top + verticalScale(16),
+            left: 0,
+            right: 0,
+            zIndex: 80,
+            elevation: 80,
+          }}
+        >
+          <View style={{ alignSelf: 'center', width: '78%', maxWidth: scale(380), paddingHorizontal: scale(6) }}>
+            <JourneyContinuationCard
+              remainingLabel={journeyContinuationTimeLabel(journeyContinuation.remainingMs)}
+              onContinue={() => { void continuePausedJourney(); }}
+              onEnd={endPausedJourney}
+            />
+          </View>
+        </View>
+      ) : morningReturnContinuation.visible ? (
         <View
           pointerEvents="box-none"
           style={{

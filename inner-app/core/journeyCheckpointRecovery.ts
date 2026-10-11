@@ -23,7 +23,9 @@ export async function recoverJourneyCheckpoints(
     // Failed native inspection is not evidence that playback ended.
     if (engine.getDebugState && !live && !checkpoint.terminalOutcome) continue;
     if (isLiveJourneyCheckpoint(checkpoint, live)) continue;
-    await reconcile(checkpoint);
+    // `false` means the caller deliberately preserved this checkpoint for a
+    // user-visible continuation choice.
+    if (await reconcile(checkpoint) === false) continue;
     await engine.clearCheckpoint(checkpoint.sessionId);
   }
 }

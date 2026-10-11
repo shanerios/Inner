@@ -1,4 +1,5 @@
 import { recoverJourneyCheckpoints } from './core/journeyCheckpointRecovery';
+import { isResumableJourneyCheckpoint } from './core/journeyContinuation';
 import React, { useEffect, useRef } from "react";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import OnboardingFlow from './screens/OnboardingFlow';
@@ -156,7 +157,12 @@ type RootStackParamList = {
     suggestedConfiguration?: import('./core/nightPlans').NightPlanConfiguration;
   } | undefined;
   PlaybackDiagnostics: undefined;
-  LucidJourneyPlayer: { journeyId?: string; journey?: import('./core/audio').FactoryAudioJourney };
+  LucidJourneyPlayer: {
+    journeyId?: string;
+    journey?: import('./core/audio').FactoryAudioJourney;
+    resumeSessionId?: string;
+    resumePositionMs?: number;
+  };
   JourneyPlayer: { trackId?: string; chamber?: string; proceduralJourneyId?: string; openLiveMix?: boolean } | undefined;
   Glossary: { trackId: 'lucid' | 'obe' };
   Journal: undefined;
@@ -338,6 +344,10 @@ export default Sentry.wrap(function App() {
         ]);
         await recoverJourneyCheckpoints(proceduralAudioEngine, async checkpoint => {
           const session = memory.sessions.find(item => item.id === checkpoint.sessionId);
+          // A recent interrupted Overnight Journey is a choice, not an
+          // automatic failure. Home will offer Continue or End and retain the
+          // checkpoint until one of those paths has been saved successfully.
+          if (isResumableJourneyCheckpoint(checkpoint, session)) return false;
           const matchingExit = session
             ? findMatchingProcessExit(session.startedAt, checkpoint, processExits)
             : undefined;

@@ -28,6 +28,7 @@ import {
   beginJourneyMemorySession,
   attachNightPlanToJourneyMemory,
   finishJourneyMemorySession,
+  loadJourneyMemory,
   recordJourneyMemoryEvent,
 } from '../core/journeyMemory';
 import { bindNightPlanToJourney } from '../core/nightPlans';
@@ -44,14 +45,20 @@ const START_HEALTH_POLL_MS = 1_000;
 const START_HANG_MS = 20_000;
 const JOURNEY_NOT_BEGUN_MESSAGE = 'The journey did not begin. Nothing has been lost.';
 
-type Params = { journeyId?: string; journey?: FactoryAudioJourney; nightPlanId?: string };
+type Params = {
+  journeyId?: string;
+  journey?: FactoryAudioJourney;
+  nightPlanId?: string;
+  resumeSessionId?: string;
+  resumePositionMs?: number;
+};
 
 export default function LucidJourneyPlayerScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute();
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
-  const { journeyId, journey: suppliedJourney, nightPlanId } = (route.params || {}) as Params;
+  const { journeyId, journey: suppliedJourney, nightPlanId, resumeSessionId, resumePositionMs } = (route.params || {}) as Params;
   const journey = useMemo(
     () => suppliedJourney ?? FACTORY_AUDIO_JOURNEYS.find(item => item.id === journeyId),
     [journeyId, suppliedJourney],
@@ -222,13 +229,16 @@ export default function LucidJourneyPlayerScreen() {
         }
         // Journey Memory needs nothing from the engine, so it comes first: every
         // later step, and any failure, is then recorded against this attempt.
-        const memorySession = await beginJourneyMemorySession(
-          journey.id,
-          playbackTimeline,
-          DEFAULT_PROCEDURAL_AUDIO_CONFIG,
-        );
+        const memorySession = resumeSessionId
+          ? (await loadJourneyMemory()).sessions.find(item => item.id === resumeSessionId && !item.endedAt)
+          : await beginJourneyMemorySession(
+              journey.id,
+              playbackTimeline,
+              DEFAULT_PROCEDURAL_AUDIO_CONFIG,
+            );
+        if (!memorySession) throw new Error('The paused journey is no longer available.');
         memorySessionIdRef.current = memorySession.id;
-        if (nightPlanId) {
+        if (!resumeSessionId && nightPlanId) {
           await attachNightPlanToJourneyMemory(memorySession.id, nightPlanId);
           await bindNightPlanToJourney(nightPlanId, memorySession.id, memorySession.startedAt).catch(() => {});
         }
@@ -236,11 +246,25 @@ export default function LucidJourneyPlayerScreen() {
           finishMemory('user_stopped');
           return;
         }
-        traceStart('attempt_begin', `attempt=${attempt}`);
+        const preservedPositionMs = resumeSessionId
+          ? Math.max(0, Math.min(resumePositionMs ?? 0, timeline.totalDurationMs))
+          : 0;
+        if (resumeSessionId) {
+          currentPositionRef.current = preservedPositionMs;
+          lastMemoryCuePositionRef.current = preservedPositionMs;
+          setPositionMs(preservedPositionMs);
+        }
+        traceStart(resumeSessionId ? 'resume_attempt_begin' : 'attempt_begin', `attempt=${attempt}`);
         // Take the engine (leaving it stopped and clean) before writing any
         // native state for this journey, so an earlier session's late teardown
         // can no longer land on top of it.
-        await session.acquire();
+        const liveState = resumeSessionId ? await session.getDebugState().catch(() => null) : null;
+        const canAdoptLiveTimeline = !!resumeSessionId
+          && liveState?.checkpointSessionId === resumeSessionId
+          && liveState.timelineLoaded
+          && liveState.playbackState !== 'stopped';
+        if (canAdoptLiveTimeline) await session.adoptExisting(memorySession.initialConfig);
+        else await session.acquire();
         if (!mounted) {
           finishMemory('user_stopped');
           return;
@@ -310,7 +334,17 @@ export default function LucidJourneyPlayerScreen() {
           return;
         }
         startHangTimer = setTimeout(() => { void reportStall('start_hung', null); }, START_HANG_MS);
-        await session.startTimeline(DEFAULT_PROCEDURAL_AUDIO_CONFIG, playbackTimeline);
+        if (resumeSessionId) {
+          if (canAdoptLiveTimeline) await session.play();
+          else await session.resumeTimeline(memorySession.initialConfig, playbackTimeline, preservedPositionMs);
+          await recordJourneyMemoryEvent(memorySession.id, {
+            type: 'playback_resumed',
+            positionMs: preservedPositionMs,
+            reason: canAdoptLiveTimeline ? 'continued_live_checkpoint' : 'continued_rebuilt_checkpoint',
+          });
+        } else {
+          await session.startTimeline(DEFAULT_PROCEDURAL_AUDIO_CONFIG, playbackTimeline);
+        }
         if (startHangTimer) clearTimeout(startHangTimer);
         startHangTimer = null;
         const playRequestedAtMs = Date.now();
@@ -325,7 +359,7 @@ export default function LucidJourneyPlayerScreen() {
         }
         // The native timer keeps the ending dependable while the screen is
         // locked or JavaScript is suspended, and applies a short final fade.
-        await session.setSleepTimer(Date.now() + timeline.totalDurationMs);
+        await session.setSleepTimer(Date.now() + Math.max(0, timeline.totalDurationMs - preservedPositionMs));
         traceStart('sleep_timer_set');
         // If the screen was left while starting, its cleanup has already queued
         // the engine stop; there is no interval to create and nothing to offer.
@@ -459,7 +493,17 @@ export default function LucidJourneyPlayerScreen() {
         // failed); record it before the session is closed as failed.
         const debug = await session.getDebugState().catch(() => null);
         await session.drainDiagnosticEvents().then(recordNativeEvents).catch(() => {});
-        finishMemory('failed', `${startMessage} | ${describeEngineState(debug, null, Date.now())}`);
+        if (resumeSessionId) {
+          const memorySessionId = memorySessionIdRef.current;
+          if (memorySessionId) void recordJourneyMemoryEvent(memorySessionId, {
+            type: 'error',
+            positionMs: currentPositionRef.current,
+            reason: 'continuation_failed',
+            message: `${startMessage} | ${describeEngineState(debug, null, Date.now())}`,
+          });
+        } else {
+          finishMemory('failed', `${startMessage} | ${describeEngineState(debug, null, Date.now())}`);
+        }
         if (mounted) {
           setPlaybackPaused(false);
           setStartError(startFailureMessage(startFailure, JOURNEY_NOT_BEGUN_MESSAGE));
@@ -514,9 +558,9 @@ export default function LucidJourneyPlayerScreen() {
       // A deliberate TRY AGAIN restarts this effect and must close its failed
       // attempt. An app/bridge teardown leaves native playback and its durable
       // checkpoint alone for the reconstructed UI or next cold launch.
-      if (explicitEffectRestartRef.current) closeForExplicitExit(false);
+      if (explicitEffectRestartRef.current && !resumeSessionId) closeForExplicitExit(false);
     };
-  }, [journey, attempt, nightPlanId]);
+  }, [journey, attempt, nightPlanId, resumePositionMs, resumeSessionId]);
 
   const retryStart = () => {
     setError(null);
