@@ -141,6 +141,7 @@ The 7-minute preparation before an Overnight Journey can now be spoken aloud, so
 - Made accelerated-night controls available in standalone Inner Lab builds without requiring Metro or a cloud-build-only environment flag.
 - Added native journey checkpoints to improve recovery after interruption or process loss.
 - Added a paused-night continuation on Home. A recent interrupted Overnight Journey is preserved with its exact playback position, remaining time, frozen timeline, and Night Recipe instead of being finalized immediately.
+- The paused night appears on Home's main button as "Continue your journey" with the time remaining, with a quiet "End this night" link beneath it, instead of a separate card.
 - Continue reattaches to a still-running native journey without rebuilding its audio, or reconstructs a lost native timeline from Journey Memory and resumes at the checkpoint. End Journey deliberately closes the night while retaining its interruption record.
 - Added wall-clock reconciliation so long sessions can recover their correct position.
 - Added a render heartbeat for stronger full-night playback monitoring.

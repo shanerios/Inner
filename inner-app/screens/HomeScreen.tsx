@@ -45,7 +45,6 @@ import { useScale } from '../utils/scale';
 import LunarWhisperModal from '../src/lunar/LunarWhisperModal';
 import ReviewPromptModal from '../components/ReviewPromptModal';
 import MorningReturnCard from '../components/MorningReturnCard';
-import JourneyContinuationCard from '../components/JourneyContinuationCard';
 import TonightRecommendationCard from '../components/TonightRecommendationCard';
 import ActiveExperimentHomeCard from '../components/ActiveExperimentHomeCard';
 import { useMorningReturnContinuation } from '../components/MorningReturnContext';
@@ -309,6 +308,23 @@ export default function HomeScreen({ navigation, route }: any) {
           marginBottom: verticalScale(12),
           zIndex: 75,
           elevation: 75,
+        },
+        continuationRemaining: {
+          color: 'rgba(224,217,235,0.78)',
+          textAlign: 'center',
+          marginTop: 2,
+        },
+        endPausedJourney: {
+          alignSelf: 'center',
+          paddingVertical: verticalScale(4),
+        },
+        endPausedJourneyText: {
+          color: 'rgba(235,228,246,0.86)',
+          fontFamily: 'Inter-Regular',
+          fontSize: 12,
+          textShadowColor: 'rgba(0,0,0,0.75)',
+          textShadowOffset: { width: 0, height: 1 },
+          textShadowRadius: 4,
         },
         primaryButton: {
           backgroundColor: 'rgba(207,195,224,0.16)',
@@ -2923,28 +2939,8 @@ const openInnerFlame = useCallback(async () => {
         />
       </Animated.View>
 
-      {/* Paused journey, Morning Return, active experiment, or evidence-based recommendation */}
-      {journeyContinuation ? (
-        <View
-          pointerEvents="box-none"
-          style={{
-            position: 'absolute',
-            top: insets.top + verticalScale(16),
-            left: 0,
-            right: 0,
-            zIndex: 80,
-            elevation: 80,
-          }}
-        >
-          <View style={{ alignSelf: 'center', width: '78%', maxWidth: scale(380), paddingHorizontal: scale(6) }}>
-            <JourneyContinuationCard
-              remainingLabel={journeyContinuationTimeLabel(journeyContinuation.remainingMs)}
-              onContinue={() => { void continuePausedJourney(); }}
-              onEnd={endPausedJourney}
-            />
-          </View>
-        </View>
-      ) : morningReturnContinuation.visible ? (
+      {/* Morning Return, active experiment, or evidence-based recommendation */}
+      {morningReturnContinuation.visible ? (
         <View
           pointerEvents="box-none"
           style={{
@@ -3458,6 +3454,11 @@ const openInnerFlame = useCallback(async () => {
                 setNavigating(true);
                 try {
                     try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
+                    // A paused Overnight Journey takes priority over the last soundscape.
+                    if (journeyContinuation) {
+                      await continuePausedJourney();
+                      return;
+                    }
                     const last = await getLastSession();
                     if (last) {
                         if (last.type === 'journey') {
@@ -3479,7 +3480,9 @@ const openInnerFlame = useCallback(async () => {
               disabled={navigating}
               style={[styles.primaryButton, { overflow: 'hidden', opacity: navigating ? 0.7 : 1 }]}
               accessibilityRole="button"
-              accessibilityLabel={resumeLabel}
+              accessibilityLabel={journeyContinuation
+                ? `Continue your paused Overnight Journey. ${journeyContinuationTimeLabel(journeyContinuation.remainingMs)}`
+                : resumeLabel}
             >
               {/* Static top gloss */}
               <LinearGradient
@@ -3532,8 +3535,13 @@ const openInnerFlame = useCallback(async () => {
                 ]}
               >
                 {' '}
-                {resumeLabel}{' '}
+                {journeyContinuation ? 'Continue your journey' : resumeLabel}{' '}
               </Text>
+              {!!journeyContinuation && (
+                <Text style={[Typography.caption, styles.continuationRemaining]}>
+                  {journeyContinuationTimeLabel(journeyContinuation.remainingMs)}
+                </Text>
+              )}
               {false && !!resumeSub && <Text style={[Typography.caption, { color: '#2B2F46', textAlign: 'center', marginTop: 2, opacity: 0.8 }]}>{resumeSub}</Text>}
               {false && (
                 <View style={styles.progressTrack}>
@@ -3541,6 +3549,17 @@ const openInnerFlame = useCallback(async () => {
                 </View>
               )}
             </TouchableOpacity>
+            {!!journeyContinuation && (
+              <TouchableOpacity
+                onPress={endPausedJourney}
+                hitSlop={{ top: 10, bottom: 10, left: 20, right: 20 }}
+                accessibilityRole="button"
+                accessibilityLabel="End the paused Overnight Journey"
+                style={styles.endPausedJourney}
+              >
+                <Text style={styles.endPausedJourneyText}>End this night</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
         {/* Cards row (no scrolling) */}
