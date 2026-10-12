@@ -84,6 +84,12 @@ class InnerAudioPlaybackService : Service() {
     private const val CHANNEL_ID = "inner_audio_playback"
     private const val NOTIFICATION_ID = 8420
     private const val RENDER_CHUNK_FRAMES = 960
+    /**
+     * Output buffer length. Overnight audio has no latency requirement, and a short buffer let brief
+     * scheduling stalls in the background (screen off) drain it and pop. A pause leaves buffered audio in
+     * the track, so no cue rendered into it is lost.
+     */
+    private const val TRACK_BUFFER_SECONDS = 1.0
     private const val ROUTE_LOG_TAG = "InnerAudioRoute"
     private const val MEDIA_PAUSE_ROUTE_GRACE_MS = 3_000L
     /** Volume and route are judged only after this much of the journey: people set both while settling in. */
@@ -695,8 +701,8 @@ class InnerAudioPlaybackService : Service() {
   private fun buildAudioTrack(): AudioTrack {
     val sampleRate = ProceduralAudioEngine.sampleRate.toInt()
     val minBufferBytes = AudioTrack.getMinBufferSize(sampleRate, AudioFormat.CHANNEL_OUT_STEREO, AudioFormat.ENCODING_PCM_FLOAT)
-    val bufferBytes = max(minBufferBytes * 3, sampleRate / 5 * 4 * 2)
-    return AudioTrack.Builder()
+    val bufferBytes = max(minBufferBytes * 3, (sampleRate * TRACK_BUFFER_SECONDS).toInt() * 4 * 2)
+    val builder = AudioTrack.Builder()
       .setAudioAttributes(
         AudioAttributes.Builder()
           .setUsage(AudioAttributes.USAGE_MEDIA)
@@ -712,7 +718,26 @@ class InnerAudioPlaybackService : Service() {
       )
       .setBufferSizeInBytes(bufferBytes)
       .setTransferMode(AudioTrack.MODE_STREAM)
-      .build()
+    // Deep-buffer path: fewer wakeups and larger hardware buffers, the mode meant for background playback.
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) builder.setPerformanceMode(AudioTrack.PERFORMANCE_MODE_POWER_SAVING)
+    return builder.build()
+  }
+
+  /** Numbers and flags only. Lets an underrun be told apart as slow rendering, a stalled thread, or a throttled phone. */
+  private fun underrunContext(renderMaxNs: Long, periodMaxNs: Long): String {
+    val power = getSystemService(Context.POWER_SERVICE) as? PowerManager
+    val parts = mutableListOf(
+      "renderMaxMs=${renderMaxNs / 1_000_000}",
+      "periodMaxMs=${periodMaxNs / 1_000_000}",
+      "bufferMs=${(TRACK_BUFFER_SECONDS * 1000).toInt()}",
+    )
+    power?.let {
+      parts += "screen=${if (it.isInteractive) "on" else "off"}"
+      parts += "saver=${if (it.isPowerSaveMode) 1 else 0}"
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) parts += "thermal=${it.currentThermalStatus}"
+    }
+    android.os.Debug.getRuntimeStat("art.gc.gc-count")?.let { parts += "gc=$it" }
+    return parts.joinToString(" ")
   }
 
   private fun startRenderThread() {
@@ -722,15 +747,26 @@ class InnerAudioPlaybackService : Service() {
     renderThread = Thread({
       Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO)
       val buffer = FloatArray(RENDER_CHUNK_FRAMES * 2)
+      // Worst render time and worst gap between writes since the last underrun report.
+      var renderMaxNs = 0L
+      var periodMaxNs = 0L
+      var lastWriteEndNs = 0L
       while (renderThreadRunning.get()) {
         if (renderThreadPaused.get()) {
+          lastWriteEndNs = 0L
           try { Thread.sleep(20) } catch (_: InterruptedException) { }
           continue
         }
+        val renderStartNs = System.nanoTime()
         // Phases only ever advance inside render(); pausing the call site (rather than
         // the AudioTrack alone) is what keeps phase state frozen across pause/resume.
         ProceduralAudioEngine.render(buffer, RENDER_CHUNK_FRAMES)
+        val renderNs = System.nanoTime() - renderStartNs
+        if (renderNs > renderMaxNs) renderMaxNs = renderNs
         val written = track.write(buffer, 0, buffer.size, AudioTrack.WRITE_BLOCKING)
+        val writeEndNs = System.nanoTime()
+        if (lastWriteEndNs != 0L && writeEndNs - lastWriteEndNs > periodMaxNs) periodMaxNs = writeEndNs - lastWriteEndNs
+        lastWriteEndNs = writeEndNs
         if (written < 0) {
           renderThreadRunning.set(false)
           renderThreadPaused.set(true)
@@ -750,8 +786,13 @@ class InnerAudioPlaybackService : Service() {
             lastUnderrunCount = underrunCount
             ProceduralAudioEngine.recordDiagnostic(
               "audio_underrun",
-              extras = mapOf("underrunCount" to underrunCount),
+              extras = mapOf(
+                "underrunCount" to underrunCount,
+                "detail" to underrunContext(renderMaxNs, periodMaxNs),
+              ),
             )
+            renderMaxNs = 0L
+            periodMaxNs = 0L
           }
         }
       }

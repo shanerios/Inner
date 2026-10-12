@@ -24,6 +24,8 @@ The 7-minute preparation before an Overnight Journey can now be spoken aloud, so
 
 - Android now releases cached image memory when the app goes to the background, to lower the chance of the app process being removed during a long Overnight Journey. Not yet confirmed to prevent it.
 - Preserves Android process-exit evidence when an interrupted night is continued, so later diagnostics still explain why continuation was needed.
+- Android Overnight playback now uses a larger audio buffer in the system's background-playback mode, to avoid brief audio dropouts while the screen is off. A full-length test night ran with none.
+- Dropout reports now include the phone's state at that moment (screen, battery saver, thermal status), so any that remain can be traced.
 
 #### Morning Return and voice journaling
 
