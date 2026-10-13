@@ -62,9 +62,15 @@ import {
 import { createEntry, getEntry, saveEntry } from '../core/journalRepo';
 import type { Audio } from 'expo-av';
 
+/** Where the fixed title block sits below the top inset, and the gap kept between it and the first journey. */
+const INTRO_TOP = 126;
+const INTRO_GAP = 46;
+
 export default function LucidJourneysScreen() {
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
+  // The title and subtitle are measured so the list below never starts underneath them.
+  const [introHeight, setIntroHeight] = React.useState(0);
   const [expandedJourneyId, setExpandedJourneyId] = useState<string | null>(null);
   const [savedJourneys, setSavedJourneys] = useState<SavedPersonalizedJourney[]>([]);
   const [savedJourneysVisible, setSavedJourneysVisible] = useState(false);
@@ -415,9 +421,10 @@ export default function LucidJourneysScreen() {
 
       <View
         pointerEvents="none"
+        onLayout={event => setIntroHeight(event.nativeEvent.layout.height)}
         style={[
           styles.fixedIntro,
-          { top: insets.top + 126 },
+          { top: insets.top + INTRO_TOP },
           Platform.OS === 'android' && styles.androidTitleOffset,
         ]}
       >
@@ -439,7 +446,7 @@ export default function LucidJourneysScreen() {
 
       <ScrollView
         style={styles.scrollViewport}
-        contentContainerStyle={[styles.content, { paddingTop: insets.top + (Platform.OS === 'android' ? 236 : 206), paddingBottom: insets.bottom + 28 }]}
+        contentContainerStyle={[styles.content, { paddingTop: insets.top + (Platform.OS === 'android' ? 236 : Math.max(206, INTRO_TOP + introHeight + INTRO_GAP)), paddingBottom: insets.bottom + 28 }]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
