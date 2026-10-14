@@ -198,17 +198,21 @@ The 7-minute preparation before an Overnight Journey can now be spoken aloud, so
 - Android offline full-night renders of all six worlds (7.12 hours each) pass against the native engine; the production and Temple nights were re-run after the voice slot was added.
 - Sentry React Native was updated from 8.14.0 to 8.15.1, which fixes an Android error that dropped every breadcrumb from native crash reports. On a physical Pixel 8 Pro no breadcrumb errors appeared during normal use, and a spoken test phrase left no trace of its words in the system log.
 - A new Inner Lab release build with spoken guidance, the signal-cue guard, and the volume and route evidence was installed on a physical Pixel 8 Pro as an update, preserving data.
-- The iOS native engine, including the voice slot, compiles for the simulator; it has not yet run on an iPhone.
-- A first overnight test on the Pixel ran 3 hours 37 minutes before the Bluetooth earbuds' battery ended it; Android's records show the app itself was not terminated. The signal windows (from about 4 hours) have not yet been exercised on a real night.
+- Spoken guidance was verified on a physical iPhone 16 Pro: the voice pack downloaded (33 of 33 clips), all three lines played with the right timing and level, audio kept playing with the screen locked, and a phone call paused playback and resumed cleanly.
+- A full 7.1-hour Overnight Journey completed on a physical iPhone 12 Pro (iOS 18.6.2): all 10 signals fired on schedule, all three voice lines played, and the wall clock matched the rendered position to within a second. It ran on the phone speaker; earbuds are untested on iOS.
+- Paused-night continuation was verified on devices. On the Pixel, a night killed in the background was continued the next morning from its checkpoint. On an iPhone, after the app was swiped away, Home offered Continue, which resumed from the point left off, and End closed the night.
+- Morning Return voice capture was verified on a physical iPhone 12 Pro after the microphone permission prompt.
+- A first overnight test on the Pixel ran 3 hours 37 minutes before the Bluetooth earbuds' battery ended it; Android's records show the app itself was not terminated.
+- After the Android audio buffer was enlarged to 1 second, two consecutive full 7.1-hour nights on the Pixel completed with zero underruns, all 10 signals firing on schedule, and no interruptions. Both ran on the phone speaker.
 
 ### Before publishing
 
 - Confirm the final marketing version and iOS/Android build numbers.
 - Sentry 8.15.1 now runs source map upload during builds. The production EAS environment has `SENTRY_AUTH_TOKEN`; the Inner Lab and development profiles skip the upload. Check the first production build uploads cleanly.
 - Run `pod install` before the next iOS build, since the Sentry update moves the Cocoa SDK from 9.16.1 to 9.18.0.
-- Run spoken guidance on a physical iPhone, and confirm the voice pack and manifest are published in `OvernightVoice` with the final clips.
+- Confirm the voice pack and manifest in `OvernightVoice` still match the final clips (they were verified on devices on 2026-10-12).
 - Decide the voice pack size: 33 clips are about 21 MB at 44.1 kHz and about 11 MB at 24 kHz, and every user downloads all of them.
-- Run at least one full overnight on a physical device with the new build, covering the signal windows, and review the recorded night.
+- Run a full overnight on a production-flavor build (so far only Inner Lab builds were run), and ideally one on earbuds on each platform once earbuds that last a full night are available.
 - Recheck the store-ready draft against the exact contents of the release branch.
 - Complete physical-device smoke tests on both iOS and Android for Morning Return, voice capture, Dream Log save/edit/export, and Overnight Journey recovery.
 - Recheck the six adjusted Lucid screen headers on representative small and large devices.
