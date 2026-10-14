@@ -171,6 +171,7 @@ The 7-minute preparation before an Overnight Journey can now be spoken aloud, so
 - Moved dependent playback and mixer controls with their headings to preserve spacing.
 - Fixed descriptor-chip clipping caused by wider bold text.
 - Fixed the Lucid Journeys list overlapping the subtitle on iPhone. The list now starts below the measured title and subtitle.
+- Removed the account-creation prompt shown after the first journal entry. Account backup isn't available yet, so the prompt led to a "coming soon" screen.
 - Fixed an oversized, cropped flash of the Home background when leaving Home on Android.
 - Fixed the brief ghost of the previous screen and the blank background flash when moving between screens with video backgrounds (for example Arrive to Home). The previous background now stays on screen until the next one fades in.
 

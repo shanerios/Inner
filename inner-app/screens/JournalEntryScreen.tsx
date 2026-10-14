@@ -15,6 +15,7 @@ import { addReviewScore, REVIEW_SCORE_THRESHOLD } from '../hooks/useReviewScore'
 import { useBreath } from '../core/BreathProvider';
 import SoftAccountPrompt from '../components/onboarding/SoftAccountPrompt';
 import { hasSeenAccountPrompt, markAccountPromptSeen } from '../core/onboardingPrefs';
+import { ACCOUNT_REGISTRATION_AVAILABLE } from '../core/accountAvailability';
 import { hasInnerAccess } from '../src/core/subscriptions/revenueCat';
 import { safePresentPaywall } from '../src/core/subscriptions/safePresentPaywall';
 import { isAerisLimitReached } from '../src/core/aeris/aerisUsage';
@@ -264,7 +265,7 @@ export default function JournalEntryScreen({ route, navigation }: Props) {
                 const raw = await AsyncStorage.getItem('journalSaveCount');
                 const count = (parseInt(raw ?? '0', 10) || 0) + 1;
                 await AsyncStorage.setItem('journalSaveCount', String(count));
-                if (count === 1 && !(await hasSeenAccountPrompt())) {
+                if (ACCOUNT_REGISTRATION_AVAILABLE && count === 1 && !(await hasSeenAccountPrompt())) {
                   await markAccountPromptSeen();
                   setShowAccountPrompt(true);
                 }
