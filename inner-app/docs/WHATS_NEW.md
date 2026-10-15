@@ -204,6 +204,7 @@ The 7-minute preparation before an Overnight Journey can now be spoken aloud, so
 - Morning Return voice capture was verified on a physical iPhone 12 Pro after the microphone permission prompt.
 - A first overnight test on the Pixel ran 3 hours 37 minutes before the Bluetooth earbuds' battery ended it; Android's records show the app itself was not terminated.
 - After the Android audio buffer was enlarged to 1 second, two consecutive full 7.1-hour nights on the Pixel completed with zero underruns, all 10 signals firing on schedule, and no interruptions. Both ran on the phone speaker.
+- Physical-device overnight validation now includes two successful post-buffer Android nights and one successful iOS night, with every planned recognition signal delivered correctly.
 
 ### Before publishing
 
@@ -211,10 +212,10 @@ The 7-minute preparation before an Overnight Journey can now be spoken aloud, so
 - Sentry 8.15.1 now runs source map upload during builds. The production EAS environment has `SENTRY_AUTH_TOKEN`; the Inner Lab and development profiles skip the upload. Check the first production build uploads cleanly.
 - Run `pod install` before the next iOS build, since the Sentry update moves the Cocoa SDK from 9.16.1 to 9.18.0.
 - Confirm the voice pack and manifest in `OvernightVoice` still match the final clips (they were verified on devices on 2026-10-12).
-- Decide the voice pack size: 33 clips are about 21 MB at 44.1 kHz and about 11 MB at 24 kHz, and every user downloads all of them.
-- Run a full overnight on a production-flavor build (so far only Inner Lab builds were run), and ideally one on earbuds on each platform once earbuds that last a full night are available.
+- Voice-pack format is decided: retain the current 44.1 kHz set of 33 clips at about 21 MB to preserve the smooth, subtle quality of the spoken preparation.
+- Run a full overnight on a production-flavor build; the completed physical-device overnight tests used Inner Lab builds. Full-night earbuds remain an optional additional check once earbuds that last through the night are available.
 - Recheck the store-ready draft against the exact contents of the release branch.
-- Complete physical-device smoke tests on both iOS and Android for Morning Return, voice capture, Dream Log save/edit/export, and Overnight Journey recovery.
+- Complete any remaining physical-device smoke checks for Dream Log edit/export; Morning Return, voice capture, Overnight playback, signal delivery, and journey recovery have already been exercised on devices across Android and iOS.
 - Recheck the six adjusted Lucid screen headers on representative small and large devices.
 - Confirm microphone permission copy and store privacy disclosures include speech-to-text behavior.
 - Replace this section heading with the shipped version and release date, then create a new Unreleased section above it.
