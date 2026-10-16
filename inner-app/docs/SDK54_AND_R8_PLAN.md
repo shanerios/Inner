@@ -109,6 +109,13 @@ Launch and onboarding Â· paywall loads offerings, sandbox purchase and restore Â
 
 **Rollback:** every phase is its own commit range on a branch. `main` and the `pre-sdk54` tag are never touched until Gate C. After release, a bad build is rolled back by halting the staged rollout and shipping the previous release's code, which stays buildable from the tag.
 
+## 7a. Baselines recorded before any change (2026-10-15, commit `af5f588`, tag `pre-sdk54`)
+
+- `tsc --noEmit`: clean (exit 0).
+- Full Jest suite: **74 suites, 619 tests, 6 snapshots**, all passing.
+- Android DEX without R8 (Lab release APK): 5 files, about 46 MB. With R8 forced on in the trial (prod flavor): 3 files, about 19 MB. Mapping: 82% of classes and 68% of members renamed.
+- Last verified nights: Pixel, two full 7.1 h nights with 0 underruns; iPhone 12 Pro, one full night, all 10 signals on schedule.
+
 ## 8. Later work (not part of this plan)
 - Move to SDK 55+: the New Architecture is required, and `expo-av` is removed (migrate the 11 files that use it to `expo-audio` and `expo-video`).
 - The next Play target level (expected API 37) is due in 2027; SDK 54 will not satisfy it.
