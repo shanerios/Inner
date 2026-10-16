@@ -1,0 +1,134 @@
+# Expo SDK 54 upgrade and R8 minification — plan
+
+Written 2026-10-15. Nothing in this plan has been applied to the repo. Evidence below comes from reading the code, the three patches, the config plugins, Expo's and Google's primary sources, and one throwaway R8 trial build (command-line flags only, no files changed).
+
+## 1. Why, and by when
+
+| Driver | Source | Date |
+|---|---|---|
+| Updates must target Android 16 (API 36). Inner has an extension. | Play Console notice; [Google's target API page](https://developer.android.com/google/play/requirements/target-sdk) | **Nov 1, 2026** (an update still on API 35 can be published before then, not after) |
+| DEX code optimization below threshold (obfuscation 3%, needs 25%+) | Play Console, Android vitals | **Feb 2027** |
+| Edge-to-edge and large-screen recommendations | Play Console | Recommended, no date |
+
+Where the app is today: Expo SDK 53, React Native 0.79.6, compileSdk and targetSdk 35, Android Gradle Plugin 8.8.2, legacy architecture (`newArchEnabled: false`), minSdk 24, R8 off.
+
+**Target:** Expo SDK 54 (React Native 0.81.5, targets Android 16) with the legacy architecture kept, then R8 on, shipped in two separate steps so any release-only crash can be attributed.
+
+### Why SDK 54 and not newer
+The latest Expo SDK is 58. SDK 55 and later require the New Architecture and remove `expo-av` (11 files use it). Each of those is its own migration. SDK 54 is the smallest step that satisfies Google, and it is the last SDK that still allows the legacy architecture. A later phase (section 8) covers SDK 55+ and the API 37 requirement that is expected in 2027.
+
+## 2. Sequencing (recommended)
+
+1. **Release from `main` first, on API 35, before Nov 1.** Everything verified so far (the overnight, voice and continuation work) is on `main`. The extension allows it. This keeps the big feature release from being tied to a framework upgrade.
+2. **SDK 54 on a branch, starting now, in parallel.** Target: ready to ship within about 2–3 weeks of the first release, because after Nov 1 any hotfix needs API 36.
+3. **R8 on top of SDK 54 as its own step** (separate build, separate device matrix).
+
+Decision point **Oct 24**: if the SDK 54 branch is not building and passing on devices, ship step 1 and keep working. Nothing live breaks if SDK 54 is late; only updates are blocked after Nov 1.
+
+## 3. SDK 54 — what has to change
+
+### 3.1 JavaScript
+| Change | Files | Why |
+|---|---|---|
+| `expo-file-system` → `expo-file-system/legacy` | 13 files: `App.tsx`, `learn/screens/LessonReader.tsx`, `learn/screens/LearnHub.tsx`, `core/useOfflineAsset.ts`, `core/ritualAudio.ts`, `core/audio/voiceClips.ts`, `utils/audioCache.ts`, `screens/DreamArchiveScreen.tsx`, `screens/PlaybackDiagnosticsScreen.tsx`, `screens/JourneyPlayer.tsx`, `components/SettingsModal.tsx`, plus 2 tests | In SDK 54 the default export is the new API; the old functions we use (`getInfoAsync`, `downloadAsync`, `createDownloadResumable`, `cacheDirectory`, ...) live at `/legacy` |
+| Update the Jest mocks to the same path | `core/audio/__tests__/voiceGuidance.test.ts`, `core/__tests__/ritualAudio.test.ts` | Tests mock the module name; they would silently mock the wrong module |
+| Reanimated stays on 3.x | `package.json`, `babel.config.js` | Reanimated 4 needs the New Architecture. 3.19.x is the only 3.x line that supports RN 0.81 on the legacy architecture ([Reanimated compatibility](https://docs.swmansion.com/react-native-reanimated/docs/3.x/guides/compatibility/)). Keep the babel plugin. |
+| Remove unused `moti` | `package.json` | 0 imports in the code. Removes a Reanimated dependency edge. |
+| Sentry stays at 8.15.1 | `package.json` → `expo.install.exclude` | `expo install --fix` would downgrade it to 7.2 and bring back the breadcrumb bug |
+
+### 3.2 Config and plugins
+| Change | Why |
+|---|---|
+| `react-native-edge-to-edge` plugin: install it directly, or replace with `androidNavigationBar.enforceContrast` | No longer a dependency of `expo` in SDK 54 ([Expo SDK 54 changelog](https://expo.dev/changelog/sdk-54)). Our `app.json` plugin list still names it. |
+| `edgeToEdgeEnabled` in `app.json` | Always on in SDK 54; the key becomes redundant |
+| `app.json` `version` and runtime version | `runtimeVersion` policy is `appVersion`; the release must use a new version (3.2) so no older binary can receive JS built for new native code |
+| `plugins/withProceduralDevFlavor.js` | It patches `MainApplication.kt` and `app/build.gradle` by anchor strings. The SDK 54 template still contains every anchor it needs (`import android.app.Application`, `import com.facebook.react.PackageList`, `import com.facebook.react.defaults.DefaultReactNativeHost`), and the plugin throws if an anchor goes missing, so it fails loudly. `FrescoModule.hasBeenInitialized()` must be checked at compile time. |
+| `android/` and `ios/` are generated (gitignored) | All native settings must live in config plugins, never in edited generated files |
+
+### 3.3 Packages (Expo's SDK 54 targets)
+`expo ~54.0.x`, `react 19.1.0`, `react-native 0.81.5`, `expo-av ~16.0.8`, `expo-video ~3.0.16`, `expo-notifications ~0.32.17`, `expo-updates ~29.0.20`, `expo-file-system ~19.0.24`, `react-native-gesture-handler ~2.28.0`, `react-native-screens ~4.16.0`, `react-native-safe-area-context ~5.6.0`, `react-native-svg 15.12.1`, `react-native-webview 13.15.0`, `lottie-react-native ~7.3.1`, `jest-expo ~54.0.18`. Third-party packages not tracked by Expo (RevenueCat, PostHog, Track Player, ChottuLink, spotlight tour, expo-speech-recognition) are addressed in the risk register.
+
+### 3.4 Patches (patch-package)
+| Patch | What it protects | On upgrade |
+|---|---|---|
+| `expo-speech-recognition+2.1.5` | **Privacy:** stops dictated text reaching logcat | Must still apply. The guard test `dictationLogging.test.ts` must pass. |
+| `expo-video+2.2.3` | iOS race in `sourceLoad` payload (`Task { @MainActor in`) | Will **fail to apply** to expo-video 3.0.x. Upstream 3.0.16 still has the plain `Task {` at the same spot (checked), so the patch must be re-created as `expo-video+3.0.16.patch`. |
+| `react-native-track-player+4.1.2` | Android crash on a null-intent restart of the sticky service | Package is already at its latest version (4.1.2); patch stays. |
+
+patch-package fails the install on a patch that does not apply, so none of these can be dropped silently.
+
+## 4. R8 minification — what to change
+
+The trial (production flavor, SDK 53, R8 forced on with command-line flags) **succeeded in 3 minutes**:
+- Obfuscation: **82% of classes** and **68% of members** renamed. The Play threshold is 25%.
+- Code size: 3 DEX files, about 19 MB, against 5 DEX files, about 46 MB without R8 (not exactly like for like: Lab versus prod flavor).
+- Only warning: a benign stack-map note from RevenueCat's bundled Amazon appstore jar (683 repeats, one source).
+- The default rules file (`proguard-android.txt`) contains `-dontoptimize`, so R8 only **shrinks and renames**; it does not rewrite code. That is the conservative mode.
+- Our `Record` classes and our module class are kept by `expo-modules-core`'s own consumer rules, so the native audio engine's JS-to-native data is protected. `usage.txt` shows only unused *members* removed from our classes (such as generated data-class component functions), not whole classes.
+
+### Settings (in config, not in generated files)
+Use `expo-build-properties` (SDK 54 names confirmed in its source):
+- `enableMinifyInReleaseBuilds: true`
+- `enableShrinkResourcesInReleaseBuilds: **false**` (see risk R4)
+- `extraProguardRules`: start empty. Add a rule only for a specific, observed failure.
+
+### Companion work
+- Confirm Sentry uploads the ProGuard mapping (production EAS environment has `SENTRY_AUTH_TOKEN`) and that Play receives the mapping inside the AAB. Without this, release crashes are unreadable.
+- Run a deliberate test crash on the R8 build and read it in Sentry.
+
+## 5. Risk register
+
+| # | Risk | Evidence | Safeguard | How to verify |
+|---|---|---|---|---|
+| R1 | Track Player 4.1.2 fails to compile or run on RN 0.81 | Latest release; no direct report found; RN 0.81 broke Kotlin `currentActivity` property access in some libraries | Our grep: Track Player has no `currentActivity` use; ChottuLink and RevenueCat use `getCurrentActivity()` from Java, which still works. Spike will confirm. Fallback: patch, or replace Track Player (4 files plus the service) | Debug and release build on Pixel; Chambers playback; lock-screen controls |
+| R2 | `expo-speech-recognition` 2.1.5 incompatible with SDK 54 | Newer versions exist (3.1.3, then 56+) | Spike on a throwaway branch. If it must change, re-create the privacy patch against the new version | Morning Return voice capture on Pixel and iPhone; `dictationLogging.test.ts`; logcat check that no phrase is logged |
+| R3 | expo-video 3.x behaves differently in our focus-based attach/detach wrapper | Changelog: no breaking API changes for our usage; 3.0.12 fixes player re-assignment on Android and rapid source replacement on iOS | Keep `memorySafeVideo.test.tsx`; re-create the iOS patch | Frame-by-frame transitions: Arrive→Home, Home→Archives, Home→Garden on both platforms |
+| R4 | Resource shrinking removes the notification sound files (`res/raw/lucidity_cue.wav`, `signal_bell.wav`, `signal_chimes.wav`, `signal_droplets.wav`) that are referenced by name at runtime | Files are in `res/raw`; the shrinker cannot see name-based references | Keep `enableShrinkResourcesInReleaseBuilds` off. Play's DEX metric does not need it. | Schedule a wake notification and a signal notification on an R8 build |
+| R5 | R8 renames something found by reflection (RevenueCat, Sentry, Fresco, our Records) | Libraries ship consumer rules; RevenueCat keeps almost everything (64 of 2,292 classes renamed); our Records are kept | Device test matrix below before anything ships | Full matrix on the R8 build |
+| R6 | OTA update delivers new JS to an old binary (or the reverse) | `expo-updates` is installed with an update URL and policy `appVersion`; the code never calls it, but `eas update` could be used | Bump the app version for the release; never publish an update for 3.1 from the branch | `eas update:list` before release |
+| R7 | Reanimated 3.19.x with Expo 54's babel preset | Docs table says 3.19.x supports 0.81 on the old architecture | Single real use is `components/SuggestionCard.tsx`. Spike builds it. Fallback: rewrite that one component with React Native `Animated` and drop Reanimated entirely. | Open the card on both platforms |
+| R8 | iOS: `expo-video` patch rebase, chottulink `arm64`-only build, Pods | Known build quirk already documented in this repo | Same flags as the existing recipe; Xcode 26 image in `eas.json` | Simulator build, then a physical iPhone |
+| R9 | Metro 0.83 import semantics (`experimentalImportSupport` default on) can change circular-import behaviour | Changelog | Full Jest suite plus a launch/smoke on both platforms | Jest green, app opens, all main tabs open |
+| R10 | API 36 ignores portrait lock on screens 600 dp or wider | Changelog and Play notice. Manifest locks `portrait`. | Decide after seeing a tablet or fold emulator. Not a crash risk; a layout risk. | Android tablet emulator pass |
+| R11 | `FrescoModule.hasBeenInitialized()` in our memory-trim plugin changes in RN 0.81 | Not checked yet | Compile will fail loudly | Release build |
+
+## 6. Device test matrix (run on every candidate build, both platforms where applicable)
+
+Launch and onboarding · paywall loads offerings, sandbox purchase and restore · Sentry test event arrives (deobfuscated on the R8 build) · PostHog events arrive and contain no user content · Overnight Journey: start, voice lines, all signals, kill the app, Continue from Home · a Chamber via Track Player with lock-screen controls · wake and signal notifications with their sounds (Android) · Morning Return voice capture · Dream Log save, edit, export (print and share) · voice pack download and "33 of 33" · video backgrounds across Home, Archives, Garden, Chambers, Lucid Journeys · deep links (ChottuLink) · a full 7-hour overnight with the screen off.
+
+## 7. Phases and gates
+
+| Phase | Work | Gate to pass before moving on |
+|---|---|---|
+| 0. Safety net (today) | Tag `main` as `pre-sdk54`; branch `sdk-54`. Record baselines: Jest count, DEX size, a clean Pixel night. | Tag and branch exist; baselines written down |
+| 1. Spike (time-boxed, 1–2 days, throwaway worktree) | `npx expo install expo@^54 --fix` with Sentry excluded; resolve R1, R2, R3, R7, R11 | A debug build opens on the simulator and the Pixel; unknowns in section 5 are answered |
+| 2. SDK 54 proper | Section 3 changes; re-create `expo-video` patch; Jest and `tsc` green | Gate A: `expo-doctor` clean, `tsc` clean, Jest green, release builds on both platforms |
+| 3. Device verification | Section 6 matrix on a Lab build; one full overnight on each platform | Gate B: matrix passes, no new Sentry errors, overnight completes |
+| 4. R8 | Section 4 settings on top of the SDK 54 branch | Gate C: the same matrix passes on the R8 build; mapping uploaded; test crash readable |
+| 5. Release | Bump version and build numbers; internal testing track, then closed testing, then staged production rollout | Crash-free rate and ANRs in Play and Sentry for the first 24 hours |
+
+**Rollback:** every phase is its own commit range on a branch. `main` and the `pre-sdk54` tag are never touched until Gate C. After release, a bad build is rolled back by halting the staged rollout and shipping the previous release's code, which stays buildable from the tag.
+
+## 8. Later work (not part of this plan)
+- Move to SDK 55+: the New Architecture is required, and `expo-av` is removed (migrate the 11 files that use it to `expo-audio` and `expo-video`).
+- The next Play target level (expected API 37) is due in 2027; SDK 54 will not satisfy it.
+- Optionally enable resource shrinking later with an explicit `keep.xml` for `res/raw`.
+
+## 9. Audit pass (second check of this plan)
+
+| Claim | How it was checked | Result |
+|---|---|---|
+| Update deadline Aug 31, 2026 with extension to Nov 1, 2026 | Google's target API page, fetched | Confirmed |
+| SDK 54 targets API 36 on RN 0.81 | Expo SDK 54 changelog | Confirmed |
+| Current stack: RN 0.79.6, API 35, AGP 8.8.2, legacy arch | `libs.versions.toml`, `gradle.properties`, `app.json` | Confirmed |
+| 13 files import `expo-file-system` | Repo-wide search. My first pass only covered some folders and found 10; the full search found 13 (it adds `learn/` and the two tests) | Corrected to 13 |
+| Reanimated 3.19.x supports RN 0.81 on Paper | Reanimated 3.x compatibility table | Confirmed |
+| `enableMinifyInReleaseBuilds`, `enableShrinkResourcesInReleaseBuilds`, `extraProguardRules` exist in SDK 54 | `expo-build-properties` source at the sdk-54 branch | Confirmed |
+| R8 builds and obfuscates well above 25% | Trial build, `mapping.txt` | Confirmed: 82% classes, 68% members |
+| Default rules disable optimization | `configuration.txt` shows `-dontoptimize` | Confirmed |
+| Our Records are protected | `expo-modules-core` consumer rules and the mapping file | Confirmed |
+| MainApplication plugin anchors survive in SDK 54 | SDK 54 template source | Confirmed |
+| expo-video 3.x iOS patch location unchanged | Upstream `VideoPlayer.swift` at sdk-54 | Confirmed (patch must be re-created) |
+| Track Player, expo-speech-recognition, ChottuLink and Fresco API on RN 0.81 | **Not verifiable without building** | **Open: resolved by the Phase 1 spike** |
+| Runtime behaviour of the R8 build (reflection, notification sounds) | **Needs a device** | **Open: Gate C** |
+| Whether any Play listing text, store privacy disclosure or screenshot copy mentions things this changes | Not examined | Open |
