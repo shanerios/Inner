@@ -116,6 +116,36 @@ Launch and onboarding · paywall loads offerings, sandbox purchase and restore �
 - Android DEX without R8 (Lab release APK): 5 files, about 46 MB. With R8 forced on in the trial (prod flavor): 3 files, about 19 MB. Mapping: 82% of classes and 68% of members renamed.
 - Last verified nights: Pixel, two full 7.1 h nights with 0 underruns; iPhone 12 Pro, one full night, all 10 signals on schedule.
 
+## 7b. Phase 1 spike results (2026-10-16, branch `sdk-54-spike`, commit `c0a6f9f`)
+
+**Gate result: passed.** The SDK 54 dependency set builds on Android (Lab release, targetSdk 36), compiles every iOS pod, bundles the iOS JavaScript (10.1 MB Hermes bundle), and passes `tsc` and the full Jest suite (74 suites, 619 tests, same as baseline). The Lab build was installed on the Pixel as an update (data preserved): splash, Re-tune Intentions, Arrive and Home render correctly, and the Arrive→Home and Home→Archives transitions are clean frame by frame (no ghost, no blank frame, no oversized still).
+
+### Unknowns from section 5, now answered
+| Risk | Outcome |
+|---|---|
+| R1 Track Player on RN 0.81 | **Compile failed** on two `Arguments.fromBundle(Bundle?)` calls (RN 0.81 wants a non-null Bundle). Fixed null-safely inside our existing patch; compiles. **Runtime playback still to test on a device.** |
+| R2 expo-speech-recognition 2.1.5 | Compiles; privacy patch applies; dictation-logging guard test passes. Runtime still to test. |
+| R3 expo-video 3.x | Compiles; iOS patch re-created as `expo-video+3.0.16.patch`; video transitions verified on the Pixel. iOS transitions still to test. |
+| R7 Reanimated 3.19.5 | Builds and loads. Logs a caught `NoSuchFieldException: mIsFinished` at startup (Reanimated reflects on a field RN 0.81 removed). Benign, but a sign of fragility; only `SuggestionCard.tsx` uses it, so removing Reanimated is a live option for Phase 2. |
+| R11 Fresco memory-trim plugin | Prebuild applied it and it compiles on RN 0.81 |
+| ChottuLink | Compiles on Android and iOS |
+
+### New findings (add to the risk register)
+| # | Finding | Fix |
+|---|---|---|
+| R12 | `fmt` (bundled with RN 0.81) fails to compile with the local Xcode 26.6 (`consteval` errors). The EAS images pin Xcode 26.0, but local builds fail. | Force `FMT_USE_CONSTEVAL 0` in the `fmt` header from the Podfile via a config plugin |
+| R13 | `@react-native-community/slider` 5.x compiles its New Architecture view unconditionally, so it cannot build on the legacy architecture (iOS) | Stay on 4.5.6 and add it to `expo.install.exclude` (done in the spike) |
+| R14 | Gradle runs out of Metaspace on SDK 54 with the generated 512 MB limit; this affects EAS cloud builds too | Raise to `-Xmx4096m -XX:MaxMetaspaceSize=1024m` through a config plugin (not a hand-edited generated file) |
+| R15 | `metro.config.js` imported `@expo/metro-config` (no longer reachable) and `metro-config/src/defaults/exclusionList` (gone in Metro 0.83); `babel-preset-expo` was nested out of reach | Use a plain `blockList` array; remove the unused import; add `babel-preset-expo` as an explicit dev dependency (all done in the spike) |
+| R16 | Expo's `expo install --fix` would also move `@types/react` and TypeScript, and needs them aligned or npm fails with ERESOLVE | Set `@types/react ~19.1.10` and `typescript ~5.9.2` |
+| R17 | The Android APK grew from about 130 MB to about 156 MB (native libraries +17 MB across four ABIs, DEX +6 MB). Users download only their own architecture from Play. | Measure the AAB per-device size in Phase 2; R8 reclaims most of the DEX growth |
+
+### Changes made in the spike, to be carried into Phase 2
+13 files moved to `expo-file-system/legacy`; edge-to-edge plugin replaced by `androidNavigationBar.enforceContrast`; two `Alert.prompt` callback types annotated; `moti` removed; Reanimated pinned to ~3.19.5; Sentry, Reanimated and slider excluded from `expo install --fix`; Track Player and `expo-video` patches updated; `metro.config.js` and dev dependencies fixed as above.
+
+### Still to do before Gate A
+Config plugins for R12 and R14; iOS simulator or device run (the spike's `/tmp` location breaks Xcode's bundling step through a symlinked path, so the iOS app run must happen from the real repo folder); `expo-doctor`.
+
 ## 8. Later work (not part of this plan)
 - Move to SDK 55+: the New Architecture is required, and `expo-av` is removed (migrate the 11 files that use it to `expo-audio` and `expo-video`).
 - The next Play target level (expected API 37) is due in 2027; SDK 54 will not satisfy it.
