@@ -81,7 +81,7 @@ export default function ProceduralJourneyBuilder({ currentConfig, onAudition }: 
     if (Platform.OS === 'ios') {
       Alert.prompt('Save Journey', 'Name this sequence.', [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Save', onPress: name => { void persist(name); } },
+        { text: 'Save', onPress: (name?: string) => { void persist(name); } },
       ], 'plain-text', title === 'Untitled Journey' ? `Journey ${saved.length + 1}` : title);
     } else {
       void persist(`Journey ${saved.length + 1}`);

@@ -1,12 +1,12 @@
 import { beforeEach, afterEach, describe, expect, it, jest } from '@jest/globals';
 
-jest.mock('expo-file-system', () => ({
+jest.mock('expo-file-system/legacy', () => ({
   cacheDirectory: 'file:///cache/',
   makeDirectoryAsync: jest.fn(), getInfoAsync: jest.fn(),
   deleteAsync: jest.fn(), moveAsync: jest.fn(), createDownloadResumable: jest.fn(),
 }));
 
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { getRitualAudioUri, RITUAL_AUDIO } from '../ritualAudio';
 const fs = FileSystem as jest.Mocked<typeof FileSystem>;
 const asset = RITUAL_AUDIO.clean_slate_pre;

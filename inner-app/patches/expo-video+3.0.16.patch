@@ -1,8 +1,8 @@
 diff --git a/node_modules/expo-video/ios/VideoPlayer.swift b/node_modules/expo-video/ios/VideoPlayer.swift
-index 52b5ebb..be23f2c 100644
+index 847500d..9192f30 100644
 --- a/node_modules/expo-video/ios/VideoPlayer.swift
 +++ b/node_modules/expo-video/ios/VideoPlayer.swift
-@@ -383,7 +383,10 @@ internal final class VideoPlayer: SharedRef<AVPlayer>, Hashable, VideoPlayerObse
+@@ -372,7 +372,10 @@ internal final class VideoPlayer: SharedRef<AVPlayer>, Hashable, VideoPlayerObse
      )
      safeEmit(event: "availableAudioTracksChange", payload: audioPayload)
  

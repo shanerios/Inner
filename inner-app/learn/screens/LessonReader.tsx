@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { SafeAreaView, View, Text, StyleSheet, ScrollView, ActivityIndicator, Pressable, NativeSyntheticEvent, NativeScrollEvent, Animated } from 'react-native';
 import { useRoute, RouteProp, useNavigation } from '@react-navigation/native';
 import Markdown from 'react-native-markdown-display';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { Asset } from 'expo-asset';
 import * as Haptics from 'expo-haptics';
 import * as Speech from 'expo-speech';

@@ -1007,7 +1007,7 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
             await TrackPlayer.setVolume(1.0);
             // Sanity check: confirm the cached file exists and has non-zero size.
             try {
-              const FileSystem = require('expo-file-system');
+              const FileSystem = require('expo-file-system/legacy');
               if (typeof url === 'string' && url.startsWith('file://')) {
                 const info = await FileSystem.getInfoAsync(url);
                 console.log('[TP] local file info', { exists: info?.exists, size: info?.size, uri: info?.uri });
