@@ -188,7 +188,7 @@ export default function ProceduralMixerPanel({
     if (Platform.OS === 'ios') {
       Alert.prompt('Save Mix', 'Give this combination a name.', [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Save', onPress: name => { void persist(name); } },
+        { text: 'Save', onPress: (name?: string) => { void persist(name); } },
       ], 'plain-text', `Mix ${presets.length + 1}`);
       return;
     }

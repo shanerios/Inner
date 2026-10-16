@@ -1,4 +1,4 @@
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { voicePackPlans, voicePlanForSign, VOICE_BASE_URL, type VoiceClipPlan, type VoicePlan } from './voiceGuidance';
 
 /**

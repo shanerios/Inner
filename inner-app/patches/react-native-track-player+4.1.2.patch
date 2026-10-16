@@ -1,3 +1,198 @@
+diff --git a/node_modules/react-native-track-player/android/build/generated/source/buildConfig/release/com/doublesymmetry/trackplayer/BuildConfig.java b/node_modules/react-native-track-player/android/build/generated/source/buildConfig/release/com/doublesymmetry/trackplayer/BuildConfig.java
+new file mode 100644
+index 0000000..9957a83
+--- /dev/null
++++ b/node_modules/react-native-track-player/android/build/generated/source/buildConfig/release/com/doublesymmetry/trackplayer/BuildConfig.java
+@@ -0,0 +1,10 @@
++/**
++ * Automatically generated file. DO NOT MODIFY
++ */
++package com.doublesymmetry.trackplayer;
++
++public final class BuildConfig {
++  public static final boolean DEBUG = false;
++  public static final String LIBRARY_PACKAGE_NAME = "com.doublesymmetry.trackplayer";
++  public static final String BUILD_TYPE = "release";
++}
+diff --git a/node_modules/react-native-track-player/android/build/intermediates/annotation_processor_list/release/javaPreCompileRelease/annotationProcessors.json b/node_modules/react-native-track-player/android/build/intermediates/annotation_processor_list/release/javaPreCompileRelease/annotationProcessors.json
+new file mode 100644
+index 0000000..9e26dfe
+--- /dev/null
++++ b/node_modules/react-native-track-player/android/build/intermediates/annotation_processor_list/release/javaPreCompileRelease/annotationProcessors.json
+@@ -0,0 +1 @@
++{}
+\ No newline at end of file
+diff --git a/node_modules/react-native-track-player/android/build/intermediates/compile_r_class_jar/release/generateReleaseRFile/R.jar b/node_modules/react-native-track-player/android/build/intermediates/compile_r_class_jar/release/generateReleaseRFile/R.jar
+new file mode 100644
+index 0000000..42d3912
+Binary files /dev/null and b/node_modules/react-native-track-player/android/build/intermediates/compile_r_class_jar/release/generateReleaseRFile/R.jar differ
+diff --git a/node_modules/react-native-track-player/android/build/intermediates/compile_symbol_list/release/generateReleaseRFile/R.txt b/node_modules/react-native-track-player/android/build/intermediates/compile_symbol_list/release/generateReleaseRFile/R.txt
+new file mode 100644
+index 0000000..80e4515
+--- /dev/null
++++ b/node_modules/react-native-track-player/android/build/intermediates/compile_symbol_list/release/generateReleaseRFile/R.txt
+@@ -0,0 +1,4 @@
++int drawable forward 0x0
++int drawable rewind 0x0
++int string rntp_temporary_channel_id 0x0
++int string rntp_temporary_channel_name 0x0
+diff --git a/node_modules/react-native-track-player/android/build/intermediates/incremental/mergeReleaseJniLibFolders/merger.xml b/node_modules/react-native-track-player/android/build/intermediates/incremental/mergeReleaseJniLibFolders/merger.xml
+new file mode 100644
+index 0000000..15cb64b
+--- /dev/null
++++ b/node_modules/react-native-track-player/android/build/intermediates/incremental/mergeReleaseJniLibFolders/merger.xml
+@@ -0,0 +1,2 @@
++<?xml version="1.0" encoding="utf-8"?>
++<merger version="3"><dataSet config="main" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/private/tmp/claude-501/-Users-kolor-Desktop-Work-inner-inner-app/33fbf0b3-6d60-4cbd-a46f-a4cfbe64a371/scratchpad/spike/inner-app/node_modules/react-native-track-player/android/src/main/jniLibs"/></dataSet><dataSet config="release" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/private/tmp/claude-501/-Users-kolor-Desktop-Work-inner-inner-app/33fbf0b3-6d60-4cbd-a46f-a4cfbe64a371/scratchpad/spike/inner-app/node_modules/react-native-track-player/android/src/release/jniLibs"/></dataSet></merger>
+\ No newline at end of file
+diff --git a/node_modules/react-native-track-player/android/build/intermediates/incremental/release/packageReleaseResources/compile-file-map.properties b/node_modules/react-native-track-player/android/build/intermediates/incremental/release/packageReleaseResources/compile-file-map.properties
+new file mode 100644
+index 0000000..e443912
+--- /dev/null
++++ b/node_modules/react-native-track-player/android/build/intermediates/incremental/release/packageReleaseResources/compile-file-map.properties
+@@ -0,0 +1,3 @@
++#Fri Oct 16 17:40:02 EDT 2026
++com.doublesymmetry.trackplayer.react-native-track-player-main-5\:/drawable/rewind.xml=/private/tmp/claude-501/-Users-kolor-Desktop-Work-inner-inner-app/33fbf0b3-6d60-4cbd-a46f-a4cfbe64a371/scratchpad/spike/inner-app/node_modules/react-native-track-player/android/build/intermediates/packaged_res/release/packageReleaseResources/drawable/rewind.xml
++com.doublesymmetry.trackplayer.react-native-track-player-main-5\:/drawable/forward.xml=/private/tmp/claude-501/-Users-kolor-Desktop-Work-inner-inner-app/33fbf0b3-6d60-4cbd-a46f-a4cfbe64a371/scratchpad/spike/inner-app/node_modules/react-native-track-player/android/build/intermediates/packaged_res/release/packageReleaseResources/drawable/forward.xml
+diff --git a/node_modules/react-native-track-player/android/build/intermediates/incremental/release/packageReleaseResources/merged.dir/values/values.xml b/node_modules/react-native-track-player/android/build/intermediates/incremental/release/packageReleaseResources/merged.dir/values/values.xml
+new file mode 100644
+index 0000000..80a694d
+--- /dev/null
++++ b/node_modules/react-native-track-player/android/build/intermediates/incremental/release/packageReleaseResources/merged.dir/values/values.xml
+@@ -0,0 +1,5 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="rntp_temporary_channel_id">rntp_temporary_channel</string>
++    <string name="rntp_temporary_channel_name">temporary_channel</string>
++</resources>
+\ No newline at end of file
+diff --git a/node_modules/react-native-track-player/android/build/intermediates/incremental/release/packageReleaseResources/merger.xml b/node_modules/react-native-track-player/android/build/intermediates/incremental/release/packageReleaseResources/merger.xml
+new file mode 100644
+index 0000000..5bd0829
+--- /dev/null
++++ b/node_modules/react-native-track-player/android/build/intermediates/incremental/release/packageReleaseResources/merger.xml
+@@ -0,0 +1,2 @@
++<?xml version="1.0" encoding="utf-8"?>
++<merger version="3"><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="main$Generated" generated="true" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/private/tmp/claude-501/-Users-kolor-Desktop-Work-inner-inner-app/33fbf0b3-6d60-4cbd-a46f-a4cfbe64a371/scratchpad/spike/inner-app/node_modules/react-native-track-player/android/src/main/res"/></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="main" generated-set="main$Generated" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/private/tmp/claude-501/-Users-kolor-Desktop-Work-inner-inner-app/33fbf0b3-6d60-4cbd-a46f-a4cfbe64a371/scratchpad/spike/inner-app/node_modules/react-native-track-player/android/src/main/res"><file name="forward" path="/private/tmp/claude-501/-Users-kolor-Desktop-Work-inner-inner-app/33fbf0b3-6d60-4cbd-a46f-a4cfbe64a371/scratchpad/spike/inner-app/node_modules/react-native-track-player/android/src/main/res/drawable/forward.xml" qualifiers="" type="drawable"/><file name="rewind" path="/private/tmp/claude-501/-Users-kolor-Desktop-Work-inner-inner-app/33fbf0b3-6d60-4cbd-a46f-a4cfbe64a371/scratchpad/spike/inner-app/node_modules/react-native-track-player/android/src/main/res/drawable/rewind.xml" qualifiers="" type="drawable"/><file path="/private/tmp/claude-501/-Users-kolor-Desktop-Work-inner-inner-app/33fbf0b3-6d60-4cbd-a46f-a4cfbe64a371/scratchpad/spike/inner-app/node_modules/react-native-track-player/android/src/main/res/values/strings.xml" qualifiers=""><string name="rntp_temporary_channel_id">rntp_temporary_channel</string><string name="rntp_temporary_channel_name">temporary_channel</string></file></source></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="release$Generated" generated="true" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/private/tmp/claude-501/-Users-kolor-Desktop-Work-inner-inner-app/33fbf0b3-6d60-4cbd-a46f-a4cfbe64a371/scratchpad/spike/inner-app/node_modules/react-native-track-player/android/src/release/res"/></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="release" generated-set="release$Generated" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/private/tmp/claude-501/-Users-kolor-Desktop-Work-inner-inner-app/33fbf0b3-6d60-4cbd-a46f-a4cfbe64a371/scratchpad/spike/inner-app/node_modules/react-native-track-player/android/src/release/res"/></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="generated$Generated" generated="true" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/private/tmp/claude-501/-Users-kolor-Desktop-Work-inner-inner-app/33fbf0b3-6d60-4cbd-a46f-a4cfbe64a371/scratchpad/spike/inner-app/node_modules/react-native-track-player/android/build/generated/res/resValues/release"/></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="generated" generated-set="generated$Generated" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/private/tmp/claude-501/-Users-kolor-Desktop-Work-inner-inner-app/33fbf0b3-6d60-4cbd-a46f-a4cfbe64a371/scratchpad/spike/inner-app/node_modules/react-native-track-player/android/build/generated/res/resValues/release"/></dataSet><mergedItems/></merger>
+\ No newline at end of file
+diff --git a/node_modules/react-native-track-player/android/build/intermediates/local_only_symbol_list/release/parseReleaseLocalResources/R-def.txt b/node_modules/react-native-track-player/android/build/intermediates/local_only_symbol_list/release/parseReleaseLocalResources/R-def.txt
+new file mode 100644
+index 0000000..3655221
+--- /dev/null
++++ b/node_modules/react-native-track-player/android/build/intermediates/local_only_symbol_list/release/parseReleaseLocalResources/R-def.txt
+@@ -0,0 +1,6 @@
++R_DEF: Internal format may change without notice
++local
++drawable forward
++drawable rewind
++string rntp_temporary_channel_id
++string rntp_temporary_channel_name
+diff --git a/node_modules/react-native-track-player/android/build/intermediates/nested_resources_validation_report/release/generateReleaseResources/nestedResourcesValidationReport.txt b/node_modules/react-native-track-player/android/build/intermediates/nested_resources_validation_report/release/generateReleaseResources/nestedResourcesValidationReport.txt
+new file mode 100644
+index 0000000..08f4ebe
+--- /dev/null
++++ b/node_modules/react-native-track-player/android/build/intermediates/nested_resources_validation_report/release/generateReleaseResources/nestedResourcesValidationReport.txt
+@@ -0,0 +1 @@
++0 Warning/Error
+\ No newline at end of file
+diff --git a/node_modules/react-native-track-player/android/build/intermediates/packaged_res/release/packageReleaseResources/drawable/forward.xml b/node_modules/react-native-track-player/android/build/intermediates/packaged_res/release/packageReleaseResources/drawable/forward.xml
+new file mode 100644
+index 0000000..32e3663
+--- /dev/null
++++ b/node_modules/react-native-track-player/android/build/intermediates/packaged_res/release/packageReleaseResources/drawable/forward.xml
+@@ -0,0 +1,5 @@
++<vector android:autoMirrored="true" android:height="24dp"
++    android:tint="#FFFFFF" android:viewportHeight="24"
++    android:viewportWidth="24" android:width="24dp" xmlns:android="http://schemas.android.com/apk/res/android">
++    <path android:fillColor="@android:color/white" android:pathData="M18,13c0,3.31 -2.69,6 -6,6s-6,-2.69 -6,-6s2.69,-6 6,-6v4l5,-5l-5,-5v4c-4.42,0 -8,3.58 -8,8c0,4.42 3.58,8 8,8c4.42,0 8,-3.58 8,-8H18z"/>
++    </vector>
+diff --git a/node_modules/react-native-track-player/android/build/intermediates/packaged_res/release/packageReleaseResources/drawable/rewind.xml b/node_modules/react-native-track-player/android/build/intermediates/packaged_res/release/packageReleaseResources/drawable/rewind.xml
+new file mode 100644
+index 0000000..99c06c4
+--- /dev/null
++++ b/node_modules/react-native-track-player/android/build/intermediates/packaged_res/release/packageReleaseResources/drawable/rewind.xml
+@@ -0,0 +1,5 @@
++<vector android:autoMirrored="true" android:height="24dp"
++    android:tint="#FFFFFF" android:viewportHeight="24"
++    android:viewportWidth="24" android:width="24dp" xmlns:android="http://schemas.android.com/apk/res/android">
++    <path android:fillColor="@android:color/white" android:pathData="M12,5V1L7,6l5,5V7c3.31,0 6,2.69 6,6s-2.69,6 -6,6 -6,-2.69 -6,-6H4c0,4.42 3.58,8 8,8s8,-3.58 8,-8 -3.58,-8 -8,-8z"/>
++</vector>
+diff --git a/node_modules/react-native-track-player/android/build/intermediates/packaged_res/release/packageReleaseResources/values/values.xml b/node_modules/react-native-track-player/android/build/intermediates/packaged_res/release/packageReleaseResources/values/values.xml
+new file mode 100644
+index 0000000..80a694d
+--- /dev/null
++++ b/node_modules/react-native-track-player/android/build/intermediates/packaged_res/release/packageReleaseResources/values/values.xml
+@@ -0,0 +1,5 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="rntp_temporary_channel_id">rntp_temporary_channel</string>
++    <string name="rntp_temporary_channel_name">temporary_channel</string>
++</resources>
+\ No newline at end of file
+diff --git a/node_modules/react-native-track-player/android/build/intermediates/symbol_list_with_package_name/release/generateReleaseRFile/package-aware-r.txt b/node_modules/react-native-track-player/android/build/intermediates/symbol_list_with_package_name/release/generateReleaseRFile/package-aware-r.txt
+new file mode 100644
+index 0000000..d16dca5
+--- /dev/null
++++ b/node_modules/react-native-track-player/android/build/intermediates/symbol_list_with_package_name/release/generateReleaseRFile/package-aware-r.txt
+@@ -0,0 +1,5 @@
++com.doublesymmetry.trackplayer
++drawable forward
++drawable rewind
++string rntp_temporary_channel_id
++string rntp_temporary_channel_name
+diff --git a/node_modules/react-native-track-player/android/build/kotlin/compileReleaseKotlin/cacheable/dirty-sources.txt b/node_modules/react-native-track-player/android/build/kotlin/compileReleaseKotlin/cacheable/dirty-sources.txt
+new file mode 100644
+index 0000000..f64c4a1
+--- /dev/null
++++ b/node_modules/react-native-track-player/android/build/kotlin/compileReleaseKotlin/cacheable/dirty-sources.txt
+@@ -0,0 +1,17 @@
++/private/tmp/claude-501/-Users-kolor-Desktop-Work-inner-inner-app/33fbf0b3-6d60-4cbd-a46f-a4cfbe64a371/scratchpad/spike/inner-app/node_modules/react-native-track-player/android/src/main/java/com/doublesymmetry/trackplayer/TrackPlayer.kt
++/private/tmp/claude-501/-Users-kolor-Desktop-Work-inner-inner-app/33fbf0b3-6d60-4cbd-a46f-a4cfbe64a371/scratchpad/spike/inner-app/node_modules/react-native-track-player/android/src/main/java/com/doublesymmetry/trackplayer/model/TrackMetadata.kt
++/private/tmp/claude-501/-Users-kolor-Desktop-Work-inner-inner-app/33fbf0b3-6d60-4cbd-a46f-a4cfbe64a371/scratchpad/spike/inner-app/node_modules/react-native-track-player/android/src/main/java/com/doublesymmetry/trackplayer/utils/RejectionException.kt
++/private/tmp/claude-501/-Users-kolor-Desktop-Work-inner-inner-app/33fbf0b3-6d60-4cbd-a46f-a4cfbe64a371/scratchpad/spike/inner-app/node_modules/react-native-track-player/android/src/main/java/com/doublesymmetry/trackplayer/extensions/EnumExtensions.kt
++/private/tmp/claude-501/-Users-kolor-Desktop-Work-inner-inner-app/33fbf0b3-6d60-4cbd-a46f-a4cfbe64a371/scratchpad/spike/inner-app/node_modules/react-native-track-player/android/src/main/java/com/doublesymmetry/trackplayer/model/MetadataAdapter.kt
++/private/tmp/claude-501/-Users-kolor-Desktop-Work-inner-inner-app/33fbf0b3-6d60-4cbd-a46f-a4cfbe64a371/scratchpad/spike/inner-app/node_modules/react-native-track-player/android/src/main/java/com/doublesymmetry/trackplayer/utils/AppForegroundTracker.kt
++/private/tmp/claude-501/-Users-kolor-Desktop-Work-inner-inner-app/33fbf0b3-6d60-4cbd-a46f-a4cfbe64a371/scratchpad/spike/inner-app/node_modules/react-native-track-player/android/src/main/java/com/doublesymmetry/trackplayer/model/PlaybackMetadata.kt
++/private/tmp/claude-501/-Users-kolor-Desktop-Work-inner-inner-app/33fbf0b3-6d60-4cbd-a46f-a4cfbe64a371/scratchpad/spike/inner-app/node_modules/react-native-track-player/android/src/main/java/com/doublesymmetry/trackplayer/model/TrackAudioItem.kt
++/private/tmp/claude-501/-Users-kolor-Desktop-Work-inner-inner-app/33fbf0b3-6d60-4cbd-a46f-a4cfbe64a371/scratchpad/spike/inner-app/node_modules/react-native-track-player/android/src/main/java/com/doublesymmetry/trackplayer/service/MusicService.kt
++/private/tmp/claude-501/-Users-kolor-Desktop-Work-inner-inner-app/33fbf0b3-6d60-4cbd-a46f-a4cfbe64a371/scratchpad/spike/inner-app/node_modules/react-native-track-player/android/src/main/java/com/doublesymmetry/trackplayer/module/MusicModule.kt
++/private/tmp/claude-501/-Users-kolor-Desktop-Work-inner-inner-app/33fbf0b3-6d60-4cbd-a46f-a4cfbe64a371/scratchpad/spike/inner-app/node_modules/react-native-track-player/android/src/main/java/com/doublesymmetry/trackplayer/model/State.kt
++/private/tmp/claude-501/-Users-kolor-Desktop-Work-inner-inner-app/33fbf0b3-6d60-4cbd-a46f-a4cfbe64a371/scratchpad/spike/inner-app/node_modules/react-native-track-player/android/src/main/java/com/doublesymmetry/trackplayer/utils/BundleUtils.kt
++/private/tmp/claude-501/-Users-kolor-Desktop-Work-inner-inner-app/33fbf0b3-6d60-4cbd-a46f-a4cfbe64a371/scratchpad/spike/inner-app/node_modules/react-native-track-player/android/src/main/java/com/doublesymmetry/trackplayer/module/MusicEvents.kt
++/private/tmp/claude-501/-Users-kolor-Desktop-Work-inner-inner-app/33fbf0b3-6d60-4cbd-a46f-a4cfbe64a371/scratchpad/spike/inner-app/node_modules/react-native-track-player/android/src/main/java/com/doublesymmetry/trackplayer/extensions/NumberExt.kt
++/private/tmp/claude-501/-Users-kolor-Desktop-Work-inner-inner-app/33fbf0b3-6d60-4cbd-a46f-a4cfbe64a371/scratchpad/spike/inner-app/node_modules/react-native-track-player/android/src/main/java/com/doublesymmetry/trackplayer/extensions/AudioPlayerStateExt.kt
++/private/tmp/claude-501/-Users-kolor-Desktop-Work-inner-inner-app/33fbf0b3-6d60-4cbd-a46f-a4cfbe64a371/scratchpad/spike/inner-app/node_modules/react-native-track-player/android/src/main/java/com/doublesymmetry/trackplayer/model/Track.kt
++/private/tmp/claude-501/-Users-kolor-Desktop-Work-inner-inner-app/33fbf0b3-6d60-4cbd-a46f-a4cfbe64a371/scratchpad/spike/inner-app/node_modules/react-native-track-player/android/src/main/java/com/doublesymmetry/trackplayer/model/NowPlayingMetadata.kt
+\ No newline at end of file
+diff --git a/node_modules/react-native-track-player/android/build/kotlin/compileReleaseKotlin/local-state/build-history.bin b/node_modules/react-native-track-player/android/build/kotlin/compileReleaseKotlin/local-state/build-history.bin
+new file mode 100644
+index 0000000..09c3bb2
+Binary files /dev/null and b/node_modules/react-native-track-player/android/build/kotlin/compileReleaseKotlin/local-state/build-history.bin differ
+diff --git a/node_modules/react-native-track-player/android/src/main/java/com/doublesymmetry/trackplayer/module/MusicModule.kt b/node_modules/react-native-track-player/android/src/main/java/com/doublesymmetry/trackplayer/module/MusicModule.kt
+index b2409a0..fa3fab6 100644
+--- a/node_modules/react-native-track-player/android/src/main/java/com/doublesymmetry/trackplayer/module/MusicModule.kt
++++ b/node_modules/react-native-track-player/android/src/main/java/com/doublesymmetry/trackplayer/module/MusicModule.kt
+@@ -545,7 +545,8 @@ class MusicModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaM
+         if (verifyServiceBoundOrReject(callback)) return@launch
+ 
+         if (index >= 0 && index < musicService.tracks.size) {
+-            callback.resolve(Arguments.fromBundle(musicService.tracks[index].originalItem))
++            // React Native 0.81 requires a non-null Bundle; resolve null when the track has no original item.
++            callback.resolve(musicService.tracks[index].originalItem?.let { Arguments.fromBundle(it) })
+         } else {
+             callback.resolve(null)
+         }
+@@ -584,9 +585,7 @@ class MusicModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaM
+         if (verifyServiceBoundOrReject(callback)) return@launch
+         callback.resolve(
+             if (musicService.tracks.isEmpty()) null
+-            else Arguments.fromBundle(
+-                musicService.tracks[musicService.getCurrentTrackIndex()].originalItem
+-            )
++            else musicService.tracks[musicService.getCurrentTrackIndex()].originalItem?.let { Arguments.fromBundle(it) }
+         )
+     }
+ 
 diff --git a/node_modules/react-native-track-player/android/src/main/java/com/doublesymmetry/trackplayer/service/MusicService.kt b/node_modules/react-native-track-player/android/src/main/java/com/doublesymmetry/trackplayer/service/MusicService.kt
 index afa6b0f..69c8dc6 100644
 --- a/node_modules/react-native-track-player/android/src/main/java/com/doublesymmetry/trackplayer/service/MusicService.kt

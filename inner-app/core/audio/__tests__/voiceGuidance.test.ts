@@ -22,7 +22,7 @@ jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock'),
 );
 jest.mock('expo-av', () => ({ Audio: { Sound: { createAsync: jest.fn() } } }));
-jest.mock('expo-file-system', () => ({ documentDirectory: 'file:///docs/', getInfoAsync: jest.fn(), makeDirectoryAsync: jest.fn(), downloadAsync: jest.fn(), moveAsync: jest.fn(), deleteAsync: jest.fn() }));
+jest.mock('expo-file-system/legacy', () => ({ documentDirectory: 'file:///docs/', getInfoAsync: jest.fn(), makeDirectoryAsync: jest.fn(), downloadAsync: jest.fn(), moveAsync: jest.fn(), deleteAsync: jest.fn() }));
 
 function night(accelerated = false) {
   const protocol = compileOvernightProtocol(createRecognitionOvernightProtocol({

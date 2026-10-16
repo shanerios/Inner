@@ -1,7 +1,5 @@
 // metro.config.js
 const path = require('path');
-const { getDefaultConfig } = require('@expo/metro-config');
-const exclusionList = require('metro-config/src/defaults/exclusionList');
 
 const {
   getSentryExpoConfig
@@ -27,14 +25,15 @@ config.resolver = {
   disableHierarchicalLookup: true,
   nodeModulesPaths: [path.resolve(projectRoot, 'node_modules')],
 
-  blockList: exclusionList([
+  // Metro accepts a plain list of patterns; the old exclusionList deep import is gone in Metro 0.83.
+  blockList: [
     /\/\.claude\/.*/,
     /\/\.claude-worktrees\/.*/,
     /\/node_modules_old\/.*/,
     /\/ios\/Pods\/.*/,
     /\/ios\/build\/.*/,
     /\/android\/.*/,
-  ]),
+  ],
 };
 
 module.exports = config;

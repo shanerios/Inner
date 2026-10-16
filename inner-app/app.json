@@ -51,15 +51,6 @@
     },
     "plugins": [
       [
-        "react-native-edge-to-edge",
-        {
-          "android": {
-            "parentTheme": "Default",
-            "enforceNavigationBarContrast": false
-          }
-        }
-      ],
-      [
         "./plugins/withTrackPlayerNotificationIcon",
         {
           "icon": "./assets/images/inner_orb_icon.png"
@@ -111,6 +102,9 @@
     "owner": "shanerios",
     "updates": {
       "url": "https://u.expo.dev/73977c48-2e46-4763-9e5d-15e0a6f25a48"
+    },
+    "androidNavigationBar": {
+      "enforceContrast": false
     }
   }
 }

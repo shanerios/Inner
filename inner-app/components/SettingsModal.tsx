@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 import { useVideoPlayer, VideoView } from '../core/memorySafeVideo';
 import * as Haptics from 'expo-haptics';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Typography } from '../core/typography';
 import { Typography as _Typography, Body as _Body } from '../core/typography';

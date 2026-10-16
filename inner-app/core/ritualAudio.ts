@@ -1,4 +1,4 @@
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 
 // Verified B2 recordings. When replacing a recording, update its size and digest.
 export const RITUAL_AUDIO = {

@@ -46,7 +46,7 @@ import GuardianPlayerScreen from './screens/GuardianPlayerScreen';
 import { Asset } from 'expo-asset';
 
 import { Audio } from "expo-av";
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Notifications from 'expo-notifications';
 import { InteractionManager, AppState, Easing } from 'react-native';
 // import NetInfo from '@react-native-community/netinfo';

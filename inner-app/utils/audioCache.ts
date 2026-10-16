@@ -1,5 +1,5 @@
 // utils/audioCache.ts
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 
 export async function getCachedPath(url: string): Promise<string | null> {
   await ensureDir();
