@@ -19,6 +19,8 @@ const Body = _Body ?? ({
   subtle:  { ...Typography.caption },
 } as const);
 
+/** The intro video is 8 seconds; allow a short late start and a grace period before finishing without its end event. */
+const INTRO_END_WATCHDOG_MS = 10_500;
 const SPLASH_TIMESTAMP_KEY = 'inner.splash.lastOpenTimestamp';
 const SPLASH_SKIPPED_TIMESTAMP_KEY = 'inner.splash.lastSkippedTimestamp';
 const USER_ID_KEY = 'inner.user.id';
@@ -127,6 +129,8 @@ export default function SplashScreen() {
   };
 
   const handleVideoEnd = () => {
+    // The end of the intro can be reported by the video, by Skip, or by the watchdog below; only the first counts.
+    if (!showVideoRef.current) return;
     if (skipTimerRef.current) {
       clearTimeout(skipTimerRef.current);
       skipTimerRef.current = null;
@@ -247,8 +251,15 @@ export default function SplashScreen() {
       handleVideoEnd();
     });
 
+    // Safety net: the wordmark, tagline and orb only appear once the intro is over. If the native
+    // end-of-video event is ever lost, finish the intro on our own rather than leave the screen stuck.
+    const watchdog = setTimeout(() => {
+      if (showVideoRef.current) handleVideoEnd();
+    }, INTRO_END_WATCHDOG_MS);
+
     return () => {
       cancelled = true;
+      clearTimeout(watchdog);
       endSub.remove();
     };
   }, [showVideo]);
