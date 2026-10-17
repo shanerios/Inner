@@ -11,6 +11,7 @@ declare module 'react-test-renderer' {
     parent: ReactTestInstance | null;
     children: Array<ReactTestInstance | string>;
     findAllByType(type: unknown): ReactTestInstance[];
+    findAll(predicate: (node: ReactTestInstance) => boolean): ReactTestInstance[];
   }
 
   export interface ReactTestRenderer {
