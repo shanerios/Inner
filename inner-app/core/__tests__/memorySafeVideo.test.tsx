@@ -27,15 +27,15 @@ import { STILL_HOLD_MS, VideoView, useVideoPlayer } from '../memorySafeVideo';
 const WITH_STILL = require('../../assets/videos/arrive_bg.mp4');
 const WITHOUT_STILL = { uri: 'https://example.com/background.mp4' };
 
-function Probe({ source, enabled = true }: { source: unknown; enabled?: boolean }) {
+function Probe({ source, enabled = true, release = false }: { source: unknown; enabled?: boolean; release?: boolean }) {
   const player = useVideoPlayer(source as never, undefined, { enabled });
-  return <VideoView player={player} contentFit="cover" style={{ flex: 1 }} nativeControls={false} />;
+  return <VideoView player={player} releaseStillOnFirstFrame={release} contentFit="cover" style={{ flex: 1 }} nativeControls={false} />;
 }
 
-function render(source: unknown, enabled = true) {
+function render(source: unknown, enabled = true, release = false) {
   let renderer!: ReactTestRenderer;
-  act(() => { renderer = TestRenderer.create(<Probe source={source} enabled={enabled} />); });
-  const update = () => act(() => { renderer.update(<Probe source={source} enabled={enabled} />); });
+  act(() => { renderer = TestRenderer.create(<Probe source={source} enabled={enabled} release={release} />); });
+  const update = () => act(() => { renderer.update(<Probe source={source} enabled={enabled} release={release} />); });
   return {
     renderer,
     update,
@@ -158,5 +158,62 @@ describe('background video wrapper', () => {
     act(() => { frame.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width: 402, height: 874 } } }); });
     const flat = ([] as unknown[]).concat(view.stills()[0].props.style).flat(3);
     expect(flat).toEqual(expect.arrayContaining([expect.objectContaining({ width: 402, height: 874 })]));
+  });
+  it('keeps the first-frame still under the video by default, even after the first frame', () => {
+    const view = render(WITH_STILL);
+    act(() => { view.videos()[0].props.onFirstFrameRender?.(); });
+    expect(view.stills()).toHaveLength(1);
+    expect(view.videos()).toHaveLength(1);
+  });
+
+  it('drops the still once the first frame is drawn when asked to, and keeps the video', () => {
+    const view = render(WITH_STILL, true, true);
+    expect(view.stills()).toHaveLength(1);
+    act(() => { view.videos()[0].props.onFirstFrameRender(); });
+    expect(view.stills()).toHaveLength(0);
+    expect(view.videos()).toHaveLength(1);
+  });
+
+  it('stops painting its own background once the still is released, so the picture underneath shows through', () => {
+    const view = render(WITH_STILL, true, true);
+    const frame = () => {
+      const host = view.renderer.root.findAll(node => (node.type as unknown) === 'View' && node.props.pointerEvents === 'none')[0];
+      return ([] as unknown[]).concat(host.props.style).flat(3) as Array<{ backgroundColor?: string }>;
+    };
+    expect(frame().some(style => style && style.backgroundColor === '#0d0d1a')).toBe(true);
+    act(() => { view.videos()[0].props.onFirstFrameRender(); });
+    const after = frame();
+    expect(after[after.length - 1].backgroundColor).toBe('transparent');
+  });
+
+  it('keeps the still while the first frame has not drawn, so the screen is never empty', () => {
+    const view = render(WITH_STILL, true, true);
+    view.update();
+    expect(view.stills()).toHaveLength(1);
+  });
+
+  it('brings the still back when the screen leaves, so a released still is covered again', () => {
+    const view = render(WITH_STILL, true, true);
+    act(() => { view.videos()[0].props.onFirstFrameRender(); });
+    expect(view.stills()).toHaveLength(0);
+    mockFocused = false;
+    view.update();
+    expect(view.stills()).toHaveLength(1);
+    mockFocused = true;
+    view.update();
+    expect(view.stills()).toHaveLength(1);
+    expect(view.videos()).toHaveLength(1);
+  });
+
+  it('still calls the caller\'s own onFirstFrameRender', () => {
+    const calls: string[] = [];
+    function WithHandler() {
+      const player = useVideoPlayer(WITH_STILL as never, undefined, { enabled: true });
+      return <VideoView player={player} releaseStillOnFirstFrame onFirstFrameRender={() => calls.push('called')} style={{ flex: 1 }} />;
+    }
+    let renderer!: ReactTestRenderer;
+    act(() => { renderer = TestRenderer.create(<WithHandler />); });
+    act(() => { renderer.root.findAllByType('MockVideo' as never)[0].props.onFirstFrameRender(); });
+    expect(calls).toEqual(['called']);
   });
 });
