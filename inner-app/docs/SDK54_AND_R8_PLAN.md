@@ -162,6 +162,31 @@ Config plugins for R12 and R14; iOS simulator or device run (the spike's `/tmp` 
 
 **Still before Gate B:** a full 7-hour overnight on each platform, iOS device run, purchases on the Play internal testing track, notification channel check once a notification is scheduled.
 
+## 7d. Phase 4 results: R8 minification (2026-10-16, branch `sdk-54-r8`, commit `94dd82a`)
+
+**Configuration:** `expo-build-properties` (1.0.10) in `app.json`: `enableMinifyInReleaseBuilds: true`, `enableShrinkResourcesInReleaseBuilds: false`. No extra keep rules were needed. Nothing is hand-edited in the generated `android/` folder.
+
+**Measured (from R8's mapping file):**
+| | Before (no R8) | With R8 |
+|---|---|---|
+| Classes renamed | about 3% (Play's figure) | **84.4%** (22,978 of 27,212) |
+| Members renamed | n/a | **68.9%** (392,484 of 569,384) |
+| Lab APK, all architectures | 156.7 MB | 134.9 MB |
+| DEX code | 23.8 MB | 20.4 MB |
+| Production bundle (AAB) | n/a | 94.0 MB |
+
+The Play threshold is 25%. The production flavor produced identical figures to the Lab flavor. Warnings: 683 repeats of one benign stack-map note from RevenueCat's bundled Amazon appstore jar; no errors, no missing classes.
+
+**Bundle checks:** the R8 mapping (64.2 MB) is embedded in the AAB at `BUNDLE-METADATA/com.android.tools.build.obfuscation/proguard.map` and is identical to the build's own mapping file, so Play can decode crashes. Native debug symbols and baseline profiles are also included.
+
+**Runtime verification on a Pixel (Lab flavor with R8, installed over existing data):** launch and splash; Morning Return voice capture; Overnight Journey with the screen on and off, with signals and voice lines firing (the accelerated variant was not used); Chamber playback with the screen on and off, and lock-screen controls; navigation through Home, Archives, Garden, Settings and the Dream Journal. The whole-session log contained no `ClassNotFound`, `NoSuchMethod`, `NoSuchField`, `NoClassDefFound` or fatal errors from our process (the only matches were from other apps' processes and the pre-existing harmless Reanimated warning).
+
+**Gate C status: mostly passed.** Remaining before calling R8 done:
+- Confirm Sentry receives its own copy of the mapping on the first EAS production build (needs the auth token; skipped locally on purpose). Until then rely on Play's copy.
+- A full 7-hour overnight on an R8 build (today's runs were short).
+- Google's own DEX optimization figure, which only updates after an R8 build has been on a Play track for a few days.
+- Per-device download size, which Play Console shows after upload.
+
 ## 8. Later work (not part of this plan)
 - Move to SDK 55+: the New Architecture is required, and `expo-av` is removed (migrate the 11 files that use it to `expo-audio` and `expo-video`).
 - React Native Directory flags `react-native-track-player` as unsupported on the New Architecture. SDK 55+ requires the New Architecture, so Track Player needs a plan (fork, patch, or replace; it is used in 4 files plus the playback service). It also flags `react-native-render-html` as unmaintained; it has no imports in the app and can be removed.
