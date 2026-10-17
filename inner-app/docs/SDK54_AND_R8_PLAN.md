@@ -201,6 +201,23 @@ Both ran on the phone speaker, regular (not accelerated) Overnight Journey, scre
 
 **This closes the last runtime unknown on both platforms.** What remains before a release candidate is store-side: purchases on the Play internal track and TestFlight, the first EAS cloud builds with the config plugins, Sentry's copy of the R8 mapping, and Google's own DEX figure after an upload.
 
+## 7f. First EAS cloud builds (2026-10-17, branch `sdk-54-r8`, production profile, version 3.3)
+
+| | Android | iOS |
+|---|---|---|
+| Build | `28fda1f2-3854-41ee-a345-1347d2b32227`, versionCode 64 | `4834039a-e055-4ab9-bea6-547c713ad50f`, buildNumber 2077 |
+| Result | **Finished**, Gradle "BUILD SUCCESSFUL in 11m", AAB 94.0 MB | **Finished**, IPA produced (EAS image `macos-sequoia-15.6-xcode-26.0`) |
+| SDK | 54.0.0 | 54.0.0 |
+| Credentials | Existing remote keystore | Existing remote credentials (team VWC56A3F56) |
+
+**Confirmed from the Android build log:** EAS ran its own prebuild (the archive is the committed git state, with the gitignored `android/` and `ios/` excluded); R8 ran (`minifyProdReleaseWithR8`, `enableMinifyInReleaseBuilds: true`); the Gradle JVM settings were large enough (EAS also sets its own limits of 4 GB heap and 1 GB Metaspace, so no out-of-memory); Sentry's JavaScript source-map upload ran with the production environment's credentials; `expo-doctor` reported the same 4 pre-existing failed checks, which are non-blocking in the cloud.
+
+**Gap found: Sentry does not receive the R8 mapping for native Android code.** Only the JavaScript source-map upload ran. Without the mapping, a native Android crash would reach Sentry obfuscated (JavaScript errors stay readable, and Google Play decodes native crashes from its own copy of the mapping inside the bundle). Sentry's Expo plugin has an option for this, `experimental_android: { enableAndroidGradlePlugin, includeProguardMapping, autoUploadProguardMapping }`; it is marked experimental and adds Sentry's Android Gradle plugin to the build, so it should be enabled deliberately and verified with another cloud build.
+
+**Process note:** a first Android attempt used a stray `EAS_NO_VCS` setting, which would have archived the raw folder (including the locally generated `android/`) and skipped EAS's own prebuild. It was cancelled before producing anything; the rerun used the committed git state.
+
+**iOS submission:** scheduled to App Store Connect / TestFlight on 2026-10-17 (submission `67236243-0210-4aa0-942e-623bca17a7ea`), with explicit approval.
+
 ## 8. Later work (not part of this plan)
 - Move to SDK 55+: the New Architecture is required, and `expo-av` is removed (migrate the 11 files that use it to `expo-audio` and `expo-video`).
 - React Native Directory flags `react-native-track-player` as unsupported on the New Architecture. SDK 55+ requires the New Architecture, so Track Player needs a plan (fork, patch, or replace; it is used in 4 files plus the playback service). It also flags `react-native-render-html` as unmaintained; it has no imports in the app and can be removed.
