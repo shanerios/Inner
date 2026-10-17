@@ -177,8 +177,9 @@ export function useVideoPlayer(
  * directly to Image can let Android size the drawable from its intrinsic pixels, producing an oversized,
  * top-left crop.
  */
-function PictureFrame({ still, video, style }: {
+function PictureFrame({ still, showStill = true, video, style }: {
   still: StaticSource;
+  showStill?: boolean;
   video: React.ReactElement | null;
   style: React.ComponentProps<typeof View>['style'];
 }) {
@@ -190,12 +191,16 @@ function PictureFrame({ still, video, style }: {
     setSize(previous => (previous && previous.width === width && previous.height === height ? previous : { width, height }));
   }, []);
   return (
-    <View style={[style, styles.staticFrame]} pointerEvents="none" onLayout={onLayout}>
-      <Image
+    // Once the still is released the frame must not paint its own opaque background: when the video layer
+    // clears at the end, whatever is underneath (the caller's own picture) has to show through.
+    <View style={[style, styles.staticFrame, !showStill && styles.releasedFrame]} pointerEvents="none" onLayout={onLayout}>
+      {showStill ? (
+        <Image
         source={still}
         style={size ? [styles.stillImage, size] : StyleSheet.absoluteFillObject}
         resizeMode="cover"
       />
+      ) : null}
       {video}
     </View>
   );
@@ -213,17 +218,29 @@ export const STILL_HOLD_MS = 1_200;
  *   start of it left the screen's buttons and text floating over nothing while the next one faded in.
  * - A screen that is arriving shows its still straight away, under the video, until the video has a
  *   first frame. Without it the screen's elements appeared before its background did. */
-export function VideoView(props: React.ComponentProps<typeof ExpoVideoView>) {
+type VideoViewProps = React.ComponentProps<typeof ExpoVideoView> & {
+  /**
+   * Drop the first-frame still as soon as the video has drawn its own first frame. Use it for a video that
+   * hands over to a different picture when it ends: the video layer clears for a moment at the end, and
+   * the first-frame still underneath would otherwise show through for that moment.
+   */
+  releaseStillOnFirstFrame?: boolean;
+};
+
+export function VideoView({ releaseStillOnFirstFrame = false, ...props }: VideoViewProps) {
   const metadata = playerMetadata.get(props.player);
   const still = metadata?.staticSource;
   const leaving = Boolean(metadata && metadata.enabled && !metadata.focused);
   const [stillExpired, setStillExpired] = React.useState(false);
+  const [firstFrameDrawn, setFirstFrameDrawn] = React.useState(false);
 
   React.useEffect(() => {
     if (!leaving) {
       setStillExpired(false);
       return undefined;
     }
+    // The view is rebuilt when the screen returns, so its still is needed again until the next first frame.
+    setFirstFrameDrawn(false);
     const timer = setTimeout(() => setStillExpired(true), STILL_HOLD_MS);
     return () => clearTimeout(timer);
   }, [leaving]);
@@ -239,8 +256,24 @@ export function VideoView(props: React.ComponentProps<typeof ExpoVideoView>) {
   }
 
   if (still) {
-    const video = usesStaticBackgrounds ? null : <ExpoVideoView {...props} style={StyleSheet.absoluteFillObject} />;
-    return <PictureFrame still={still} video={video} style={props.style} />;
+    const video = usesStaticBackgrounds ? null : (
+      <ExpoVideoView
+        {...props}
+        style={StyleSheet.absoluteFillObject}
+        onFirstFrameRender={() => {
+          if (releaseStillOnFirstFrame) setFirstFrameDrawn(true);
+          props.onFirstFrameRender?.();
+        }}
+      />
+    );
+    return (
+      <PictureFrame
+        still={still}
+        showStill={usesStaticBackgrounds || !releaseStillOnFirstFrame || !firstFrameDrawn}
+        video={video}
+        style={props.style}
+      />
+    );
   }
 
   return <ExpoVideoView {...props} />;
@@ -253,6 +286,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     backgroundColor: '#0d0d1a',
   },
+  releasedFrame: { backgroundColor: 'transparent' },
 });
 
 export function initializeMemoryTelemetry() {
