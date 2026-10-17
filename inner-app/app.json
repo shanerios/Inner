@@ -28,7 +28,8 @@
         "ITSAppUsesNonExemptEncryption": false,
         "UIBackgroundModes": [
           "audio"
-        ]
+        ],
+        "NSPhotoLibraryUsageDescription": "Inner does not read or collect your photos. Permission would only be requested if you chose to save or share an image from the app."
       }
     },
     "android": {
