@@ -58,6 +58,15 @@
       ],
       "./plugins/withProceduralDevFlavor",
       "./plugins/withGradleMemory",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "enableMinifyInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": false
+          }
+        }
+      ],
       "./plugins/withFmtConstevalFix",
       "./plugins/withNoFontWeightAdjustment",
       [
