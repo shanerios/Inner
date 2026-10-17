@@ -57,6 +57,8 @@
         }
       ],
       "./plugins/withProceduralDevFlavor",
+      "./plugins/withGradleMemory",
+      "./plugins/withFmtConstevalFix",
       "./plugins/withNoFontWeightAdjustment",
       [
         "expo-notifications",
