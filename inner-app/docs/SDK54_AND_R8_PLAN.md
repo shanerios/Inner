@@ -146,8 +146,25 @@ Launch and onboarding Â· paywall loads offerings, sandbox purchase and restore Â
 ### Still to do before Gate A
 Config plugins for R12 and R14; iOS simulator or device run (the spike's `/tmp` location breaks Xcode's bundling step through a symlinked path, so the iOS app run must happen from the real repo folder); `expo-doctor`.
 
+## 7c. Phase 2 results and Gate A (2026-10-16, branch `sdk-54`, commit `512b4e9`)
+
+**Gate A: passed.**
+- `tsc --noEmit`: clean.
+- Full Jest: **75 suites, 625 tests, 6 snapshots**, all passing (baseline 74 / 619, plus the new plugin suite).
+- `expo-doctor`: 4 of 18 checks fail, all four also fail on `main` (the fifth failure on `main`, "packages match the installed Expo SDK", is fixed by the upgrade). The four: a gitignore false alarm about the local module's `android/ios` folders (its 43 source files are tracked), an `app.config.js`/`app.json` notice, the deliberate `disableHierarchicalLookup` Metro setting, and React Native Directory metadata (see "Later work").
+- Android Lab release builds from a clean `expo prebuild`, with no hand-edited files.
+- iOS simulator build succeeds from the real folder (no `/tmp` symlink issue), including JS bundling and the `fmt` workaround; the app launches in the simulator and the intro video plays.
+- New config plugins, both registered in `app.json` and unit-tested: `withGradleMemory` (JVM limits for Gradle, also protects EAS cloud builds) and `withFmtConstevalFix` (Podfile patch for newer Xcode).
+
+**Runtime checks on SDK 54 so far (Pixel, Lab build):** screens and transitions, voice capture, accelerated overnight with signals, Chamber playback with lock screen and controls. Notification sound files confirmed packaged in the APK.
+
+**Decisions made in Phase 2:** keep Reanimated 3.19.5 for now (it works; one caught startup warning); leave the app version unchanged until release prep, because the first release from `main` and this one cannot both be 3.2.
+
+**Still before Gate B:** a full 7-hour overnight on each platform, iOS device run, purchases on the Play internal testing track, notification channel check once a notification is scheduled.
+
 ## 8. Later work (not part of this plan)
 - Move to SDK 55+: the New Architecture is required, and `expo-av` is removed (migrate the 11 files that use it to `expo-audio` and `expo-video`).
+- React Native Directory flags `react-native-track-player` as unsupported on the New Architecture. SDK 55+ requires the New Architecture, so Track Player needs a plan (fork, patch, or replace; it is used in 4 files plus the playback service). It also flags `react-native-render-html` as unmaintained; it has no imports in the app and can be removed.
 - The next Play target level (expected API 37) is due in 2027; SDK 54 will not satisfy it.
 - Optionally enable resource shrinking later with an explicit `keep.xml` for `res/raw`.
 
