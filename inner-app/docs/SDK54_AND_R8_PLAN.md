@@ -187,6 +187,20 @@ The Play threshold is 25%. The production flavor produced identical figures to t
 - Google's own DEX optimization figure, which only updates after an R8 build has been on a Play track for a few days.
 - Per-device download size, which Play Console shows after upload.
 
+## 7e. Full overnights on the SDK 54 builds (night of 2026-10-16 to 17)
+
+| | iPhone 12 Pro (iOS 18.6.2), SDK 54 Lab | Pixel 8 Pro, SDK 54 + R8 Lab |
+|---|---|---|
+| Completed | 427 of 427 min, ended by the sleep timer | 427 of 427 min; sleep timer and foreground service stopped at +427.0 min |
+| Recognition signals | 10 of 10, 0 ms drift (windows at 257, 342, 392 min) | 10 of 10, 0 ms drift (windows at 257, 342, 392 min) |
+| Voice lines | 3 of 3 on time (17.4 s, 100.4 s, 335.0 s) | 3 of 3 on time |
+| Audio underruns | not recorded on iOS | 0 |
+| Interruptions, route changes, errors | none | none |
+
+Both ran on the phone speaker, regular (not accelerated) Overnight Journey, screen locked, charging. The Pixel's recorded wall-clock end (580 min) is only when the app was opened in the morning and finalised the record; the audio stopped at 427 min.
+
+**This closes the last runtime unknown on both platforms.** What remains before a release candidate is store-side: purchases on the Play internal track and TestFlight, the first EAS cloud builds with the config plugins, Sentry's copy of the R8 mapping, and Google's own DEX figure after an upload.
+
 ## 8. Later work (not part of this plan)
 - Move to SDK 55+: the New Architecture is required, and `expo-av` is removed (migrate the 11 files that use it to `expo-audio` and `expo-video`).
 - React Native Directory flags `react-native-track-player` as unsupported on the New Architecture. SDK 55+ requires the New Architecture, so Track Player needs a plan (fork, patch, or replace; it is used in 4 files plus the playback service). It also flags `react-native-render-html` as unmaintained; it has no imports in the app and can be removed.
