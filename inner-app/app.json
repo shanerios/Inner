@@ -44,7 +44,10 @@
         "backgroundColor": "#1f233a"
       },
       "edgeToEdgeEnabled": true,
-      "newArchEnabled": false
+      "newArchEnabled": false,
+      "blockedPermissions": [
+        "android.permission.ACTIVITY_RECOGNITION"
+      ]
     },
     "notification": {
       "icon": "./assets/images/inner_orb_icon.png",
