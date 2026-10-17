@@ -18,6 +18,37 @@ Ocean, Forest, and Temple have gained more natural environmental detail, while O
 
 The 7-minute preparation before an Overnight Journey can now be spoken aloud, so you can follow it with your eyes closed. With a recognition sign set, the voice names it. You can turn spoken guidance off at any time.
 
+If a night is interrupted, Home now offers to continue it from where it left off, or to end it. Overnight audio on Android is smoother, and screen transitions and the opening intro are more polished.
+
+#### Google Play release notes (limit 500 characters)
+
+```
+What's new in 3.3
+• Morning Return: a quick reflection after an Overnight Journey, with one-tap voice entry, saved to your Dream Log.
+• Richer dream entries: lucid awareness, agency and whether an Inner cue appeared (all optional).
+• Spoken preparation: follow the 7-minute prep with your eyes closed. You can turn it off.
+• Continue your journey: if a night is interrupted, pick it up from Home.
+• More natural Ocean, Forest and Temple soundscapes.
+• Smoother overnight audio and reliability fixes.
+```
+
+#### App Store "What's New" (limit 4,000 characters)
+
+```
+What's new in Inner 3.3
+
+Inner now connects your nights with what you remember in the morning.
+
+• Morning Return: after an eligible Overnight Journey, a quick reflection with one-tap voice entry that can go straight into your Dream Log.
+• Richer dream entries: optionally capture lucid awareness, agency, attempted control, what changed, and whether an Inner cue appeared.
+• Practice Memory: on your device, Inner begins connecting your journeys, signals, environments and dream outcomes. It can surface recurring dream signs, explain possible personal patterns and suggest a relevant next practice, without treating correlation as proof. After enough comparable nights it can also make small, explained signal-level suggestions.
+• Spoken preparation: the 7-minute preparation before an Overnight Journey can be spoken aloud, so you can follow it with your eyes closed. If you have a recognition sign set, the voice names it. You can turn it off at any time.
+• Continue your journey: if a night is interrupted, Home offers to continue it from where it left off, or to end it.
+• Overnight Journeys: each night keeps a clear record of how it was built, recognition signals land within the duration you choose, and recovery and long-session reliability are improved.
+• Soundscapes: Ocean, Forest and Temple have more natural detail.
+• Polish: smoother screen transitions and a more polished opening intro.
+```
+
 ### Detailed product log
 
 #### Overnight reliability
