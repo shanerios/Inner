@@ -478,6 +478,7 @@ export default function SplashScreen() {
         <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
           <VideoView
             player={videoPlayer}
+            releaseStillOnFirstFrame
             contentFit="cover"
             style={StyleSheet.absoluteFill}
             nativeControls={false}
