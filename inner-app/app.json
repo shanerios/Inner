@@ -90,7 +90,15 @@
         {
           "url": "https://sentry.io/",
           "project": "react-native",
-          "organization": "kolor-design-llc"
+          "organization": "kolor-design-llc",
+          "experimental_android": {
+            "enableAndroidGradlePlugin": true,
+            "includeProguardMapping": true,
+            "autoUploadProguardMapping": true,
+            "uploadNativeSymbols": true,
+            "autoUploadNativeSymbols": true,
+            "includeNativeSources": false
+          }
         }
       ],
       "expo-localization",
