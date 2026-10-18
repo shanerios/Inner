@@ -218,6 +218,22 @@ Both ran on the phone speaker, regular (not accelerated) Overnight Journey, scre
 
 **iOS submission:** scheduled to App Store Connect / TestFlight on 2026-10-17 (submission `67236243-0210-4aa0-942e-623bca17a7ea`), with explicit approval.
 
+## 7g. Google Play's own figures for the live release (2026-10-17, app bundle 66, version 3.3)
+
+Read from Play Console's app bundle details for the production release:
+
+| Item | Google Play reports | Note |
+|---|---|---|
+| Obfuscation percentage | **88%** | Was 3% on 3.1; Play's threshold is 25%. Our own mapping-file estimate was 84.4% of classes, 68.9% of members |
+| Target SDK | **36** | Meets the Nov 1, 2026 requirement |
+| Memory page size | Supports 16 KB | Matches the local alignment check |
+| R8 configuration | Full Mode enabled | Resource shrinking, resource shrinking optimized and repackage classes are not enabled (by design: shrinking could drop the notification sounds in `res/raw`) |
+| DEX code optimization | High | |
+| Optimization percentage / Shrinking percentage | shown as "-" with an alert | R8 code optimization is off (`-dontoptimize`, the conservative default) and resource shrinking is off on purpose. The original warning listed only Obfuscation; revisit only if Play flags these |
+| Total uncompressed DEX size | 21.4 MB | Local measurement: 20.4 MB |
+
+The Android vitals notice "DEX code optimization is below our threshold" should clear for 3.3 within a few days; if it still lists 3.3, capture the page and investigate.
+
 ## 8. Later work (not part of this plan)
 - Move to SDK 55+: the New Architecture is required, and `expo-av` is removed (migrate the 11 files that use it to `expo-audio` and `expo-video`).
 - React Native Directory flags `react-native-track-player` as unsupported on the New Architecture. SDK 55+ requires the New Architecture, so Track Player needs a plan (fork, patch, or replace; it is used in 4 files plus the playback service). It also flags `react-native-render-html` as unmaintained; it has no imports in the app and can be removed.
