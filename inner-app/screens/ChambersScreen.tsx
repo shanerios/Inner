@@ -670,7 +670,7 @@ export default function ChambersScreen() {
     setTimeout(() => {
       safePresentPaywall(() => {
         refreshEntitlement();
-      }, 'chamber').finally(() => setPresentingPaywall(false));
+      }, 'chamber', 'chamber_locked').finally(() => setPresentingPaywall(false));
     }, Platform.OS === 'ios' ? 400 : 200);
   }, [presentingPaywall, refreshEntitlement]);
 

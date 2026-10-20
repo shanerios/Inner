@@ -11,6 +11,7 @@ import { isAerisLimitReached } from '../src/core/aeris/aerisUsage';
 import FogPulse from '../components/FogPulse';
 import HomeAuraContinuity from '../components/HomeAuraContinuity';
 import SettingsModal from '../components/SettingsModal';
+import { trackOnboardingCompletedIfStarted } from '../core/onboardingAnalytics';
 import * as ThresholdEngine from '../src/core/thresholds/ThresholdEngine';
 
 import { useFocusEffect, useIsFocused } from '@react-navigation/native';
@@ -585,7 +586,7 @@ const presentPaywall = React.useCallback(() => {
   safePresentPaywall(() => {
     // Runs only on successful purchase/restore
     __DEV__ && logEntitlementState('presentPaywall_success');
-  }, 'settings').finally(() => setPresentingPaywall(false));
+  }, 'settings', 'settings_menu').finally(() => setPresentingPaywall(false));
 }, [presentingPaywall, logEntitlementState]);
 
 // Paywall from Settings: close Settings first, present paywall AFTER Modal fully dismisses.
@@ -615,6 +616,9 @@ const handleSettingsModalDismissed = useCallback(async () => {
     await presentPaywall();
   }
 }, [presentPaywall]);
+
+  // First arrival on Home after onboarding on this install (no-op for everyone else)
+  React.useEffect(() => { void trackOnboardingCompletedIfStarted(); }, []);
 
   // Load Ember state once when Home mounts
   React.useEffect(() => {
@@ -3371,7 +3375,7 @@ const openInnerFlame = useCallback(async () => {
                 if (!hasAccess && limitReached) {
                   safePresentPaywall(() => {
                     try { navigation.navigate('Aeris'); } catch {}
-                  }, 'aeris');
+                  }, 'aeris', 'aeris_limit_home');
                   return;
                 }
                 try { navigation.navigate('Aeris'); } catch {}

@@ -1,4 +1,5 @@
 // screens/JournalEntryScreen.tsx
+import { trackEntryRevisited } from '../core/journalAnalytics';
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, Pressable, Alert, KeyboardAvoidingView, Platform, ScrollView, Animated, Easing } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -165,9 +166,14 @@ export default function JournalEntryScreen({ route, navigation }: Props) {
     }).start();
   }, [enterVeil]);
 
+  const revisitTrackedRef = useRef(false);
   const load = useCallback(async () => {
     const e = await getEntry(id);
     if (e) {
+      if (!revisitTrackedRef.current) {
+        revisitTrackedRef.current = true;
+        trackEntryRevisited(e.createdAt);
+      }
       let hydrated = e as JournalEntry & {
         dreamSigns?: string[];
         captureMinutesFromWake?: number | null;
@@ -553,9 +559,8 @@ export default function JournalEntryScreen({ route, navigation }: Props) {
                 parts.push(`Dream Signs: ${dreamSigns.join(', ')}`);
               }
               const dreamContext = parts.join('\n\n');
-              posthog.capture('aeris_journal_entry_analyzed', {
-                entry_id: entry?.id ?? id,
-              });
+              // No entry id: analytics must not link events to a specific journal record.
+              posthog.capture('aeris_journal_entry_analyzed');
 
               const [hasAccess, limitReached] = await Promise.all([
                 hasInnerAccess(),
@@ -564,7 +569,7 @@ export default function JournalEntryScreen({ route, navigation }: Props) {
               if (!hasAccess && limitReached) {
                 safePresentPaywall(() => {
                   navigation.navigate('Aeris', { dreamContext });
-                }, 'aeris');
+                }, 'aeris', 'aeris_limit_journal');
                 return;
               }
               navigation.navigate('Aeris', { dreamContext });

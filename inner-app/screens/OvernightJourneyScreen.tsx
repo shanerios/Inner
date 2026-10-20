@@ -33,6 +33,7 @@ import {
 import { Typography } from '../core/typography';
 import { INNER_LAB_BUILD } from '../core/innerLab';
 import { loadBedsideMotion, summarizeBedsideMotion } from '../core/bedsideMotion';
+import { trackOvernightConfigured } from '../core/journeyAnalytics';
 import { attachNightPlanToJourneyMemory, createMorningReturnTestSession, interruptedBeforeRelaunchLabel, loadJourneyMemory, type JourneyMemorySession } from '../core/journeyMemory';
 import { changedFields, createNightPlan, type NightPlanConfiguration, type NightPlanSource } from '../core/nightPlans';
 import { buildGenerationNotes } from '../core/generationLevers';
@@ -477,6 +478,13 @@ export default function OvernightJourneyScreen() {
         overnightJourney(environment, feel, compiledNight, accelerated && INNER_LAB_BUILD, seed),
         recipe.recognition.intention?.sign,
       );
+      trackOvernightConfigured({
+        durationMinutes,
+        recognitionWindows,
+        voiceGuidance: !!voicePlan,
+        planSource: source,
+        accelerated: accelerated && INNER_LAB_BUILD,
+      });
       navigation.navigate('LucidJourneyPlayer', {
         journey: voicePlan
           ? withPreparationVoice(preparedJourney, voicePlan)

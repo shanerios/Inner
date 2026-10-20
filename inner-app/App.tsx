@@ -103,6 +103,8 @@ import { navigationRef } from './src/navigation/navigationRef';
 import * as Sentry from '@sentry/react-native';
 import { initializeMemoryTelemetry } from './core/memorySafeVideo';
 import { PostHogProvider, usePostHog } from 'posthog-react-native';
+import * as Application from 'expo-application';
+import { classifyBuild, initAnalytics, resolvePostHogConfig } from './core/analytics';
 import { sanitizeSentryEvent, scrubBreadcrumb } from './core/sentrySanitizer';
 
 Sentry.init({
@@ -272,13 +274,29 @@ function JourneyPicker() {
 
 
 
-function PostHogBootTracker() {
+// Lab and dev builds (including dev builds on the production bundle id) use EXPO_PUBLIC_POSTHOG_KEY_LAB
+// when set; otherwise they share the production project and every event carries build_channel.
+// Literal process.env.EXPO_PUBLIC_* references are required so Expo can inline them.
+const POSTHOG_CONFIG = resolvePostHogConfig(
+  classifyBuild({
+    applicationId: Application.applicationId,
+    labEnv: process.env.EXPO_PUBLIC_INNER_LAB,
+    isDev: __DEV__,
+  }),
+  {
+    prodKey: process.env.EXPO_PUBLIC_POSTHOG_KEY,
+    labKey: process.env.EXPO_PUBLIC_POSTHOG_KEY_LAB,
+    host: process.env.EXPO_PUBLIC_POSTHOG_HOST,
+  },
+);
+
+/** Hands the client to the shared analytics helper and registers channel/internal super properties. */
+function AnalyticsBoot() {
   const posthog = usePostHog();
 
   React.useEffect(() => {
-    posthog.capture('app_opened', {
-      platform: Platform.OS,
-    });
+    if (!posthog) return;
+    initAnalytics(posthog, POSTHOG_CONFIG.channel).catch(() => {});
   }, [posthog]);
 
   return null;
@@ -471,14 +489,15 @@ export default Sentry.wrap(function App() {
 
   return (
     <PostHogProvider
-      apiKey={process.env.EXPO_PUBLIC_POSTHOG_KEY ?? ''}
+      apiKey={POSTHOG_CONFIG.apiKey}
       autocapture={false}
       options={{
-        host: process.env.EXPO_PUBLIC_POSTHOG_HOST ?? 'https://us.i.posthog.com',
+        host: POSTHOG_CONFIG.host,
         captureAppLifecycleEvents: true,
+        disabled: POSTHOG_CONFIG.disabled,
       }}
     >
-      <PostHogBootTracker />
+      <AnalyticsBoot />
       <SafeAreaProvider>
         <BreathProvider>
           <IntentionProvider>

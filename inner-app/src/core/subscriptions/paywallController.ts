@@ -20,12 +20,16 @@ export type PaywallTrigger = 'chamber' | 'garden' | 'settings' | 'onboarding' | 
 let _pendingOnSuccess: (() => void) | undefined;
 let _pendingOnDismiss: (() => void) | undefined;
 let _pendingTrigger: PaywallTrigger = 'chamber';
+// Analytics-only entry point label. Does not affect paywall copy or behaviour.
+let _pendingSource: string | undefined;
 
 export function openPaywall(
   onSuccess?: () => void,
   onDismiss?: () => void,
   trigger: PaywallTrigger = 'chamber',
+  source?: string,
 ): void {
+  _pendingSource = source;
   _pendingOnSuccess = onSuccess;
   _pendingOnDismiss = onDismiss;
   _pendingTrigger = trigger;
@@ -43,15 +47,18 @@ export function consumePendingCallbacks(): {
   onSuccess: (() => void) | undefined;
   onDismiss: (() => void) | undefined;
   trigger: PaywallTrigger;
+  source: string | undefined;
 } {
   const result = {
     onSuccess: _pendingOnSuccess,
     onDismiss: _pendingOnDismiss,
     trigger: _pendingTrigger,
+    source: _pendingSource,
   };
   _pendingOnSuccess = undefined;
   _pendingOnDismiss = undefined;
   _pendingTrigger = 'chamber';
+  _pendingSource = undefined;
   return result;
 }
 

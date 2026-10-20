@@ -1,4 +1,5 @@
 // core/journalRepo.ts
+import { trackEntryContent } from './journalAnalytics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { secureGetItem, secureRemoveItem, secureSetItem } from './secureStorage';
 import { DreamDetails, normalizeDreamDetails } from './dreamDetails';
@@ -134,6 +135,7 @@ export async function createEntry(partial?: Partial<JournalEntry>): Promise<Jour
   await secureSetItem(ENTRY_KEY(entry.id), JSON.stringify(entry));
   const ids = await readIndex();
   await writeIndex([entry.id, ...ids]); // prepend newest
+  void trackEntryContent(entry);
   return entry;
 }
 
@@ -146,6 +148,7 @@ export async function saveEntry(entry: JournalEntry): Promise<void> {
   if (!ids.includes(entry.id)) {
     await writeIndex([entry.id, ...ids]);
   }
+  void trackEntryContent(normalized);
 }
 
 export async function deleteEntry(id: string): Promise<void> {

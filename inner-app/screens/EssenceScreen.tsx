@@ -697,7 +697,7 @@ export default function EssenceScreen() {
               console.log('[FOG] Essence: navigating → Paywall(onboarding)');
               // The 7-day-trial paywall gates entry to the dashboard; PaywallScreen
               // itself routes to Home (with fogStart) on purchase, restore, or skip.
-              openPaywall(undefined, undefined, 'onboarding');
+              openPaywall(undefined, undefined, 'onboarding', 'onboarding_essence');
             }, 1900);
           }}
           style={styles.primaryButton}

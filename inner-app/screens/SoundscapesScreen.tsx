@@ -295,7 +295,7 @@ export default function SoundscapesScreen() {
 
   const openPaywall = React.useCallback(async () => {
     try { await Haptics.selectionAsync(); } catch {}
-    try { await safePresentPaywall(undefined, 'garden'); return; } catch (e) {
+    try { await safePresentPaywall(undefined, 'garden', 'garden_locked'); return; } catch (e) {
       console.log('[PAYWALL] Failed to present paywall', e);
     }
     Alert.alert(
