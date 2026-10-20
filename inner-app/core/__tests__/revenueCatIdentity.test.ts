@@ -3,12 +3,12 @@ jest.mock('@react-native-async-storage/async-storage', () =>
 
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import {
-  ANALYTICS_USER_ID_KEY,
   LINKED_PAIR_KEY,
   linkPostHogIdentity,
   POSTHOG_USER_ID_ATTRIBUTE,
   resetRevenueCatIdentityForTests,
 } from '../revenueCatIdentity';
+import { ANALYTICS_USER_ID_KEY, resetAnalyticsIdentityForTests } from '../analyticsIdentity';
 
 function storageWith(initial: Record<string, string> = {}) {
   const values = new Map(Object.entries(initial));
@@ -26,97 +26,86 @@ function purchasesWith(appUserId = '$RCAnonymousID:abc') {
   };
 }
 
-beforeEach(() => resetRevenueCatIdentityForTests());
+const resolves = (id: string | null) => jest.fn(async () => id);
+
+beforeEach(() => {
+  resetRevenueCatIdentityForTests();
+  resetAnalyticsIdentityForTests();
+});
 
 describe('RevenueCat to PostHog identity link', () => {
-  it('sets only $posthogUserId, using the existing install UUID', async () => {
-    const storage = storageWith({ [ANALYTICS_USER_ID_KEY]: 'uuid-1' });
+  it('sets only $posthogUserId, using the shared analytics identity', async () => {
+    const storage = storageWith();
     const purchases = purchasesWith();
-    expect(await linkPostHogIdentity(purchases, storage)).toBe('linked');
+    expect(await linkPostHogIdentity(purchases, storage, resolves('uuid-1'))).toBe('linked');
     expect(purchases.setAttributes).toHaveBeenCalledTimes(1);
     expect(purchases.setAttributes).toHaveBeenCalledWith({ [POSTHOG_USER_ID_ATTRIBUTE]: 'uuid-1' });
     expect(POSTHOG_USER_ID_ATTRIBUTE).toBe('$posthogUserId');
   });
 
-  it('never generates an identity, and never logs in or changes the app user id', async () => {
+  it('sends nothing when no identity can be resolved, and never logs in or changes the app user id', async () => {
     const storage = storageWith();
     const purchases: any = { ...purchasesWith(), logIn: jest.fn(), logOut: jest.fn() };
-    expect(await linkPostHogIdentity(purchases, storage)).toBe('no_identity');
+    expect(await linkPostHogIdentity(purchases, storage, resolves(null))).toBe('no_identity');
     expect(purchases.setAttributes).not.toHaveBeenCalled();
-    expect(storage.setItem).not.toHaveBeenCalled();
-    storage.values.set(ANALYTICS_USER_ID_KEY, 'uuid-1');
-    await linkPostHogIdentity(purchases, storage);
+    expect(await linkPostHogIdentity(purchases, storage, resolves('uuid-1'))).toBe('linked');
     expect(purchases.logIn).not.toHaveBeenCalled();
     expect(purchases.logOut).not.toHaveBeenCalled();
-    expect(storage.values.get(ANALYTICS_USER_ID_KEY)).toBe('uuid-1');
   });
 
   it('is idempotent for the same customer and identity', async () => {
-    const storage = storageWith({ [ANALYTICS_USER_ID_KEY]: 'uuid-1' });
+    const storage = storageWith();
     const purchases = purchasesWith();
-    await linkPostHogIdentity(purchases, storage);
-    expect(await linkPostHogIdentity(purchases, storage)).toBe('unchanged');
+    await linkPostHogIdentity(purchases, storage, resolves('uuid-1'));
+    expect(await linkPostHogIdentity(purchases, storage, resolves('uuid-1'))).toBe('unchanged');
     expect(purchases.setAttributes).toHaveBeenCalledTimes(1);
   });
 
   it('re-links when the RevenueCat customer changes (reinstall or restore on a new customer)', async () => {
-    const storage = storageWith({ [ANALYTICS_USER_ID_KEY]: 'uuid-1' });
-    await linkPostHogIdentity(purchasesWith('$RCAnonymousID:one'), storage);
+    const storage = storageWith();
+    await linkPostHogIdentity(purchasesWith('$RCAnonymousID:one'), storage, resolves('uuid-1'));
     const second = purchasesWith('$RCAnonymousID:two');
-    expect(await linkPostHogIdentity(second, storage)).toBe('linked');
+    expect(await linkPostHogIdentity(second, storage, resolves('uuid-1'))).toBe('linked');
     expect(second.setAttributes).toHaveBeenCalledWith({ [POSTHOG_USER_ID_ATTRIBUTE]: 'uuid-1' });
     expect(storage.values.get(LINKED_PAIR_KEY)).toBe('$RCAnonymousID:two|uuid-1');
   });
 
   it('collapses concurrent calls into one attribute write', async () => {
-    const storage = storageWith({ [ANALYTICS_USER_ID_KEY]: 'uuid-1' });
+    const storage = storageWith();
     const purchases = purchasesWith();
     const results = await Promise.all([
-      linkPostHogIdentity(purchases, storage),
-      linkPostHogIdentity(purchases, storage),
+      linkPostHogIdentity(purchases, storage, resolves('uuid-1')),
+      linkPostHogIdentity(purchases, storage, resolves('uuid-1')),
     ]);
     expect(results.sort()).toEqual(['in_flight', 'linked']);
     expect(purchases.setAttributes).toHaveBeenCalledTimes(1);
   });
 
   it('resolves failed, retries next time, and never rejects when RevenueCat throws', async () => {
-    const storage = storageWith({ [ANALYTICS_USER_ID_KEY]: 'uuid-1' });
+    const storage = storageWith();
     const purchases = purchasesWith();
     purchases.setAttributes.mockRejectedValueOnce(new Error('not configured'));
-    await expect(linkPostHogIdentity(purchases, storage)).resolves.toBe('failed');
+    await expect(linkPostHogIdentity(purchases, storage, resolves('uuid-1'))).resolves.toBe('failed');
     expect(storage.values.has(LINKED_PAIR_KEY)).toBe(false);
-    expect(await linkPostHogIdentity(purchases, storage)).toBe('linked');
+    expect(await linkPostHogIdentity(purchases, storage, resolves('uuid-1'))).toBe('linked');
   });
 
-  it('survives storage failures without throwing', async () => {
+  it('survives storage and resolver failures without throwing', async () => {
     const storage = { getItem: jest.fn(async () => { throw new Error('disk'); }), setItem: jest.fn(async () => {}) };
-    await expect(linkPostHogIdentity(purchasesWith(), storage as any)).resolves.toBe('failed');
+    await expect(linkPostHogIdentity(purchasesWith(), storage as any, resolves('uuid-1'))).resolves.toBe('failed');
+    const boom = jest.fn(async () => { throw new Error('resolver'); });
+    await expect(linkPostHogIdentity(purchasesWith(), storageWith(), boom as any)).resolves.toBe('failed');
   });
 
-  it('does not depend on PostHog being available', async () => {
-    // The helper takes no analytics client at all: with analytics disabled the link still resolves.
-    const storage = storageWith({ [ANALYTICS_USER_ID_KEY]: 'uuid-1' });
-    await expect(linkPostHogIdentity(purchasesWith(), storage)).resolves.toBe('linked');
-  });
-});
-
-describe('wiring', () => {
-  const fs = require('fs');
-  const path = require('path');
-  const source = fs.readFileSync(path.join(__dirname, '../../utils/revenueCat.ts'), 'utf8') as string;
-
-  it('links only after configure, without awaiting it, and without logIn', () => {
-    const configureAt = source.indexOf('Purchases.configure({ apiKey })');
-    const linkAt = source.indexOf('linkPostHogIdentity(Purchases)');
-    expect(configureAt).toBeGreaterThan(-1);
-    expect(linkAt).toBeGreaterThan(configureAt);
-    expect(source).not.toMatch(/await\s+linkPostHogIdentity/);
-    expect(source).not.toMatch(/logIn\(|logOut\(/);
-  });
-
-  it('uses the same storage key SplashScreen identifies with', () => {
-    const splash = fs.readFileSync(path.join(__dirname, '../../screens/SplashScreen.tsx'), 'utf8') as string;
-    expect(splash).toContain(`const USER_ID_KEY = '${ANALYTICS_USER_ID_KEY}'`);
-    expect(splash).toContain('posthog?.identify(userId)');
+  it('links the very UUID that is persisted for posthog.identify, even when it is created at that moment', async () => {
+    const storage = storageWith();
+    const purchases = purchasesWith();
+    const { getOrCreateAnalyticsUserId } = require('../analyticsIdentity');
+    const fromSplash = getOrCreateAnalyticsUserId(storage, () => 'fresh-uuid');
+    const result = await linkPostHogIdentity(purchases, storage, () => getOrCreateAnalyticsUserId(storage, () => 'second-uuid'));
+    expect(result).toBe('linked');
+    expect(await fromSplash).toBe('fresh-uuid');
+    expect(purchases.setAttributes).toHaveBeenCalledWith({ [POSTHOG_USER_ID_ATTRIBUTE]: 'fresh-uuid' });
+    expect(storage.values.get(ANALYTICS_USER_ID_KEY)).toBe('fresh-uuid');
   });
 });

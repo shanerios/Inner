@@ -1,17 +1,16 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getOrCreateAnalyticsUserId } from './analyticsIdentity';
 
 /**
  * Links the RevenueCat customer to the PostHog person so RevenueCat's server-side PostHog events
  * (rc_initial_purchase_event, rc_renewal_event, ...) land on the same person as the app's events.
  *
  * It only sets the `$posthogUserId` subscriber attribute. It never calls logIn, never changes the
- * RevenueCat app user ID, and never touches purchases, offerings or entitlements. The value is the
- * existing random install UUID already passed to posthog.identify(); no new identity is created.
+ * RevenueCat app user ID, and never touches purchases, offerings or entitlements. The value comes from
+ * the shared resolver SplashScreen also uses for posthog.identify(), so it is always the same UUID.
  */
 
 export const POSTHOG_USER_ID_ATTRIBUTE = '$posthogUserId';
-/** Same key SplashScreen uses for posthog.identify(). */
-export const ANALYTICS_USER_ID_KEY = 'inner.user.id';
 /** `${revenueCatAppUserId}|${posthogId}` last attached, so the call repeats only when either changes. */
 export const LINKED_PAIR_KEY = 'inner.analytics.rcLinkedPair';
 
@@ -41,13 +40,14 @@ export function resetRevenueCatIdentityForTests() {
 export function linkPostHogIdentity(
   purchases: PurchasesLike,
   storage: StorageLike = AsyncStorage,
+  resolveUserId: () => Promise<string | null> = getOrCreateAnalyticsUserId,
 ): Promise<LinkResult> {
   if (inFlight) return Promise.resolve('in_flight');
   inFlight = (async (): Promise<LinkResult> => {
     try {
-      // Reuse the identity SplashScreen already created. Never generate one here: a second ID would
-      // not match the PostHog person.
-      const posthogId = await storage.getItem(ANALYTICS_USER_ID_KEY);
+      // The one shared resolver: it returns the existing UUID, or creates it once for both this link and
+      // posthog.identify(), whichever runs first. There is never a second identity.
+      const posthogId = await resolveUserId();
       if (!posthogId) return 'no_identity';
 
       const appUserId = await purchases.getAppUserID();
