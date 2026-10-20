@@ -10,6 +10,7 @@ export type NightEligibilityExclusion =
   | 'test_session'
   | 'not_overnight'
   | 'quiet_night'
+  | 'recognition_only'
   | 'missing_recipe'
   | 'missing_execution'
   | 'incomplete_execution'
@@ -39,6 +40,7 @@ export const NIGHT_EXCLUSION_LABELS: Record<NightEligibilityExclusion | LearnerO
   test_session: 'test session',
   not_overnight: 'not an Overnight Journey',
   quiet_night: 'marked as a quiet night',
+  recognition_only: 'Recognition Only night, not yet used for learning',
   missing_recipe: 'recipe unavailable',
   missing_execution: 'playback receipt unavailable',
   incomplete_execution: 'journey did not complete',
@@ -69,6 +71,9 @@ export function nightEligibilityExclusion(
   if (record.testSession) return 'test_session';
   if (record.source !== 'overnight_journey') return 'not_overnight';
   if (record.practiceContext?.nightPlan?.quietNight) return 'quiet_night';
+  // Levels and environments learned from a bedded night do not transfer to a signal heard alone.
+  const plan = record.practiceContext?.nightPlan;
+  if (plan?.configuration?.mode === 'recognition_only' || plan?.recipe?.mode === 'recognition_only') return 'recognition_only';
   if (!hasRecipe) return 'missing_recipe';
   if (!execution) return 'missing_execution';
   if (execution.status !== 'completed' && execution.status !== 'completed_early') return 'incomplete_execution';

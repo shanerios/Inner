@@ -20,6 +20,8 @@ export type NightPlanConfiguration = {
   recognitionWindowCount: number;
   /** Linear trim relative to the signal's calibrated base level. */
   signalGainScale?: number;
+  /** Absent means a full Overnight Journey. */
+  mode?: 'full' | 'recognition_only';
 };
 
 export type NightPlan = {

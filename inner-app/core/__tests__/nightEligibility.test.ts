@@ -22,6 +22,7 @@ type Options = {
   routeChanges?: number;
   volume?: { min: number; max: number };
   quietNight?: boolean;
+  recognitionOnly?: boolean;
   testSession?: boolean;
   source?: NightRecord['source'];
   withRecipe?: boolean;
@@ -71,6 +72,7 @@ function night(options: Options = {}): NightRecord {
         configuration: {
           durationMinutes: 420, environment: 'ocean', feel: 'gentle', signalId: 'guardian', cuePlan: 'gentle',
           recognitionWindowCount: planned, signalGainScale: 1,
+          ...(options.recognitionOnly ? { mode: 'recognition_only' } : {}),
         },
         userChanged: [],
         ...(options.quietNight ? { quietNight: true } : {}),
@@ -91,6 +93,7 @@ const CASES: Array<[string, Options]> = [
   ['test_session', { testSession: true }],
   ['not_overnight', { source: 'scheduled_signal' }],
   ['quiet_night', { quietNight: true }],
+  ['recognition_only', { recognitionOnly: true }],
   ['missing_recipe', { withRecipe: false }],
   ['missing_execution', { withExecution: false }],
   ['incomplete_execution', { status: 'partial' }],
