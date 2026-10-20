@@ -108,7 +108,17 @@ import { classifyBuild, initAnalytics, resolvePostHogConfig } from './core/analy
 import { initRevenueCatOnce } from './utils/revenueCat';
 import { sanitizeSentryEvent, scrubBreadcrumb } from './core/sentrySanitizer';
 
+// One classification for the whole app: production, beta, internal, lab or dev. It tags every PostHog
+// event (build_channel) and the Sentry environment, so Lab and dev crashes never read as production.
+const BUILD_CHANNEL = classifyBuild({
+  applicationId: Application.applicationId,
+  labEnv: process.env.EXPO_PUBLIC_INNER_LAB,
+  channelEnv: process.env.EXPO_PUBLIC_INNER_CHANNEL,
+  isDev: __DEV__,
+});
+
 Sentry.init({
+  environment: BUILD_CHANNEL,
   dsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
 
   // Adds more context data to events (IP address, cookies, user, etc.)
@@ -275,21 +285,14 @@ function JourneyPicker() {
 
 
 
-// Lab and dev builds (including dev builds on the production bundle id) use EXPO_PUBLIC_POSTHOG_KEY_LAB
-// when set; otherwise they share the production project and every event carries build_channel.
-// Literal process.env.EXPO_PUBLIC_* references are required so Expo can inline them.
-const POSTHOG_CONFIG = resolvePostHogConfig(
-  classifyBuild({
-    applicationId: Application.applicationId,
-    labEnv: process.env.EXPO_PUBLIC_INNER_LAB,
-    isDev: __DEV__,
-  }),
-  {
-    prodKey: process.env.EXPO_PUBLIC_POSTHOG_KEY,
-    labKey: process.env.EXPO_PUBLIC_POSTHOG_KEY_LAB,
-    host: process.env.EXPO_PUBLIC_POSTHOG_HOST,
-  },
-);
+// Lab and dev builds use EXPO_PUBLIC_POSTHOG_KEY_LAB when set; otherwise they share the production
+// project and every event carries build_channel. Literal process.env.EXPO_PUBLIC_* references are
+// required so Expo can inline them.
+const POSTHOG_CONFIG = resolvePostHogConfig(BUILD_CHANNEL, {
+  prodKey: process.env.EXPO_PUBLIC_POSTHOG_KEY,
+  labKey: process.env.EXPO_PUBLIC_POSTHOG_KEY_LAB,
+  host: process.env.EXPO_PUBLIC_POSTHOG_HOST,
+});
 
 /** Hands the client to the shared analytics helper and registers channel/internal super properties. */
 function AnalyticsBoot() {
@@ -297,7 +300,7 @@ function AnalyticsBoot() {
 
   React.useEffect(() => {
     if (!posthog) return;
-    initAnalytics(posthog, POSTHOG_CONFIG.channel).catch(() => {});
+    initAnalytics(posthog, BUILD_CHANNEL).catch(() => {});
   }, [posthog]);
 
   return null;

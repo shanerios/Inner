@@ -16,8 +16,10 @@
       },
       "env": {
         "EXPO_NEW_ARCH_ENABLED": "0",
-        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
-      }
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true",
+        "EXPO_PUBLIC_INNER_CHANNEL": "dev"
+      },
+      "environment": "development"
     },
     "development-client": {
       "extends": "development",
@@ -27,14 +29,19 @@
     },
     "apk": {
       "channel": "preview",
+      "environment": "production",
       "android": {
         "buildType": "apk",
         "gradleCommand": ":app:assembleProdRelease"
+      },
+      "env": {
+        "EXPO_PUBLIC_INNER_CHANNEL": "internal"
       }
     },
     "lab": {
       "distribution": "internal",
       "channel": "internal",
+      "environment": "preview",
       "android": {
         "buildType": "apk",
         "gradleCommand": ":app:assembleProceduralDevRelease"
@@ -42,11 +49,13 @@
       "env": {
         "EXPO_NEW_ARCH_ENABLED": "0",
         "EXPO_PUBLIC_INNER_LAB": "1",
-        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true",
+        "EXPO_PUBLIC_INNER_CHANNEL": "lab"
       }
     },
     "internal": {
       "channel": "internal",
+      "environment": "production",
       "android": {
         "buildType": "app-bundle",
         "gradleCommand": ":app:bundleProdRelease"
@@ -57,12 +66,14 @@
       },
       "autoIncrement": true,
       "env": {
-        "EXPO_NEW_ARCH_ENABLED": "0"
+        "EXPO_NEW_ARCH_ENABLED": "0",
+        "EXPO_PUBLIC_INNER_CHANNEL": "internal"
       }
     },
     "preview": {
       "distribution": "store",
       "channel": "preview",
+      "environment": "production",
       "android": {
         "buildType": "app-bundle",
         "gradleCommand": ":app:bundleProdRelease"
@@ -73,7 +84,8 @@
       },
       "autoIncrement": true,
       "env": {
-        "EXPO_NEW_ARCH_ENABLED": "0"
+        "EXPO_NEW_ARCH_ENABLED": "0",
+        "EXPO_PUBLIC_INNER_CHANNEL": "beta"
       }
     },
     "production": {
@@ -90,7 +102,8 @@
       },
       "autoIncrement": true,
       "env": {
-        "EXPO_NEW_ARCH_ENABLED": "0"
+        "EXPO_NEW_ARCH_ENABLED": "0",
+        "EXPO_PUBLIC_INNER_CHANNEL": "production"
       }
     }
   },

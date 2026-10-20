@@ -8,18 +8,36 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
  * - once-per-session events cannot double fire.
  */
 
-export type BuildChannel = 'production' | 'lab' | 'dev';
+/**
+ * Where a build came from, kept separate from `is_internal` (who is using it):
+ * - production: the store release build
+ * - beta: external testers on a store track (real users, analysed on their own)
+ * - internal: internal-distribution store tracks used by the team (excluded from public metrics)
+ * - lab: Inner Lab builds
+ * - dev: local development builds (any __DEV__ build, even on the production bundle ID)
+ */
+export type BuildChannel = 'production' | 'beta' | 'internal' | 'lab' | 'dev';
 
 export const LAB_APPLICATION_ID = 'com.getinner.app.proceduraldev';
 
-/** Pure classification so it can be tested. Lab wins over dev; any __DEV__ build is never production. */
+const STORE_CHANNELS: ReadonlySet<string> = new Set(['production', 'beta', 'internal']);
+
+/**
+ * Pure classification so it can be tested. Order matters:
+ * 1. Lab is decided by its own bundle ID or flag, or an explicit lab channel.
+ * 2. Any __DEV__ build is dev, whatever its bundle ID or profile, so it is never production.
+ * 3. Otherwise the channel the EAS profile declared (EXPO_PUBLIC_INNER_CHANNEL) applies.
+ * 4. A build with no or unrecognised channel is production, which is what a store build is.
+ */
 export function classifyBuild(input: {
   applicationId?: string | null;
   labEnv?: string | null;
+  channelEnv?: string | null;
   isDev: boolean;
 }): BuildChannel {
-  if (input.applicationId === LAB_APPLICATION_ID || input.labEnv === '1') return 'lab';
-  if (input.isDev) return 'dev';
+  if (input.applicationId === LAB_APPLICATION_ID || input.labEnv === '1' || input.channelEnv === 'lab') return 'lab';
+  if (input.isDev || input.channelEnv === 'dev') return 'dev';
+  if (input.channelEnv && STORE_CHANNELS.has(input.channelEnv)) return input.channelEnv as BuildChannel;
   return 'production';
 }
 
@@ -32,16 +50,18 @@ export type PostHogRuntimeConfig = {
 };
 
 /**
- * Production uses the production key. Lab and dev builds use the lab key when one is configured
- * (a separate PostHog project) and otherwise share the production project, where every event carries
- * `build_channel` so dashboards can exclude them. With no key at all nothing is sent.
+ * Production, beta and internal store builds always use the production key. Only lab and dev builds
+ * use the lab key when one is configured (a separate PostHog project); otherwise they share the
+ * production project, where every event carries `build_channel` so dashboards can exclude them.
+ * With no key at all nothing is sent.
  */
 export function resolvePostHogConfig(
   channel: BuildChannel,
   env: { prodKey?: string; labKey?: string; host?: string },
 ): PostHogRuntimeConfig {
   const host = env.host || 'https://us.i.posthog.com';
-  const apiKey = (channel === 'production' ? env.prodKey : env.labKey || env.prodKey) ?? '';
+  const usesLabKey = channel === 'lab' || channel === 'dev';
+  const apiKey = (usesLabKey ? env.labKey || env.prodKey : env.prodKey) ?? '';
   return { channel, apiKey, host, disabled: apiKey.length === 0 };
 }
 

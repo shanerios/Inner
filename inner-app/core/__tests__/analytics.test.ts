@@ -19,23 +19,38 @@ describe('build classification', () => {
   it('treats the lab application id as lab', () => {
     expect(classifyBuild({ applicationId: LAB_APPLICATION_ID, isDev: false })).toBe('lab');
   });
-  it('treats the lab env flag as lab', () => {
+  it('treats the lab env flag or lab channel as lab', () => {
     expect(classifyBuild({ applicationId: 'com.getinner.app', labEnv: '1', isDev: false })).toBe('lab');
+    expect(classifyBuild({ applicationId: 'com.getinner.app', channelEnv: 'lab', isDev: false })).toBe('lab');
   });
-  it('classifies a __DEV__ build on the production bundle id as dev, never production', () => {
+  it('classifies a __DEV__ build on the production bundle id as dev, never production, whatever its channel', () => {
     expect(classifyBuild({ applicationId: 'com.getinner.app', isDev: true })).toBe('dev');
+    expect(classifyBuild({ applicationId: 'com.getinner.app', channelEnv: 'production', isDev: true })).toBe('dev');
+    expect(classifyBuild({ applicationId: 'com.getinner.app', channelEnv: 'beta', isDev: true })).toBe('dev');
   });
-  it('classifies a release build on the production id as production', () => {
+  it('lab wins over a store channel on the lab bundle id', () => {
+    expect(classifyBuild({ applicationId: LAB_APPLICATION_ID, channelEnv: 'production', isDev: false })).toBe('lab');
+  });
+  it('uses the profile channel for store builds', () => {
+    for (const channel of ['production', 'beta', 'internal'] as const) {
+      expect(classifyBuild({ applicationId: 'com.getinner.app', channelEnv: channel, isDev: false })).toBe(channel);
+    }
+    expect(classifyBuild({ applicationId: 'com.getinner.app', channelEnv: 'dev', isDev: false })).toBe('dev');
+  });
+  it('treats a store build with no or an unrecognised channel as production', () => {
     expect(classifyBuild({ applicationId: 'com.getinner.app', isDev: false })).toBe('production');
+    expect(classifyBuild({ applicationId: 'com.getinner.app', channelEnv: 'staging', isDev: false })).toBe('production');
+    expect(classifyBuild({ applicationId: 'com.getinner.app', channelEnv: '', isDev: false })).toBe('production');
   });
 });
 
 describe('posthog config', () => {
-  it('uses the production key only for production', () => {
-    const cfg = resolvePostHogConfig('production', { prodKey: 'p', labKey: 'l' });
-    expect(cfg).toMatchObject({ apiKey: 'p', disabled: false });
+  it('uses the production key for store channels', () => {
+    for (const channel of ['production', 'beta', 'internal'] as const) {
+      expect(resolvePostHogConfig(channel, { prodKey: 'p', labKey: 'l' })).toMatchObject({ apiKey: 'p', disabled: false });
+    }
   });
-  it('uses the lab key for lab and dev', () => {
+  it('uses the lab key only for lab and dev', () => {
     expect(resolvePostHogConfig('lab', { prodKey: 'p', labKey: 'l' }).apiKey).toBe('l');
     expect(resolvePostHogConfig('dev', { prodKey: 'p', labKey: 'l' }).apiKey).toBe('l');
   });
@@ -43,8 +58,10 @@ describe('posthog config', () => {
     expect(resolvePostHogConfig('dev', { prodKey: 'p' })).toMatchObject({ apiKey: 'p', disabled: false });
     expect(resolvePostHogConfig('lab', { prodKey: 'p' })).toMatchObject({ apiKey: 'p', disabled: false });
   });
-  it('never sends production builds to the lab key', () => {
-    expect(resolvePostHogConfig('production', { labKey: 'l' })).toMatchObject({ apiKey: '', disabled: true });
+  it('never sends store builds to the lab key', () => {
+    for (const channel of ['production', 'beta', 'internal'] as const) {
+      expect(resolvePostHogConfig(channel, { labKey: 'l' })).toMatchObject({ apiKey: '', disabled: true });
+    }
   });
   it('sends nothing when no key is configured at all', () => {
     expect(resolvePostHogConfig('lab', {})).toMatchObject({ apiKey: '', disabled: true });
