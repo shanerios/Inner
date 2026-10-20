@@ -1,4 +1,4 @@
-import Purchases from 'react-native-purchases';
+import { getCustomerInfoReady } from '../../../utils/revenueCat';
 import { ENTITLEMENT_ID } from './constants';
 
 // getCustomerInfo() can hang rather than reject (e.g. SDK never configured,
@@ -9,7 +9,7 @@ const ENTITLEMENT_CHECK_TIMEOUT_MS = 5000;
 export async function hasInnerAccess(): Promise<boolean> {
   try {
     const info = await Promise.race([
-      Purchases.getCustomerInfo(),
+      getCustomerInfoReady(),
       new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error('RevenueCat entitlement check timed out')), ENTITLEMENT_CHECK_TIMEOUT_MS)
       ),

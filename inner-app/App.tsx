@@ -105,6 +105,7 @@ import { initializeMemoryTelemetry } from './core/memorySafeVideo';
 import { PostHogProvider, usePostHog } from 'posthog-react-native';
 import * as Application from 'expo-application';
 import { classifyBuild, initAnalytics, resolvePostHogConfig } from './core/analytics';
+import { initRevenueCatOnce } from './utils/revenueCat';
 import { sanitizeSentryEvent, scrubBreadcrumb } from './core/sentrySanitizer';
 
 Sentry.init({
@@ -327,6 +328,13 @@ export default Sentry.wrap(function App() {
     return () => { (globalThis as any).__fog = undefined; };
   }, []);
 
+
+  // Configure RevenueCat once at startup so entitlement checks work on a cold start without a paywall
+  // visit. Not awaited: it never blocks navigation or audio, and readers configure on demand if they
+  // get there first.
+  useEffect(() => {
+    initRevenueCatOnce().catch(() => {});
+  }, []);
 
   // Start deferred deep-link resolution after React's first render instead of
   // during module evaluation. Paywall entry points initialize RevenueCat when needed.

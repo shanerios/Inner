@@ -1,3 +1,4 @@
+import { getCustomerInfoReady } from '../utils/revenueCat';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
@@ -18,7 +19,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 import { usePostHog } from 'posthog-react-native';
-import Purchases from 'react-native-purchases';
 import { safePresentPaywall } from '../src/core/subscriptions/safePresentPaywall';
 import { hasInnerAccess } from '../src/core/subscriptions/revenueCat';
 import {
@@ -535,7 +535,7 @@ export default function AerisScreen({ route }: { route: any }) {
 
     let isSubscribed = false;
     try {
-      const info = await Purchases.getCustomerInfo();
+      const info = await getCustomerInfoReady();
       isSubscribed = !!info?.entitlements?.active?.['continuing_with_inner'];
     } catch {}
 

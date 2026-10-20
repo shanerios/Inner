@@ -1,10 +1,10 @@
+import { getCustomerInfoReady } from '../utils/revenueCat';
 import { Asset } from 'expo-asset';
 import { useVideoPlayer, VideoView } from '../core/memorySafeVideo';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useMemo, useRef } from 'react';
 import { Alert, Animated, AppState, Easing, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Directions, Gesture, GestureDetector } from 'react-native-gesture-handler';
-import Purchases from 'react-native-purchases';
 import { safePresentPaywall } from '../src/core/subscriptions/safePresentPaywall';
 import { hasInnerAccess } from '../src/core/subscriptions/revenueCat';
 import { isAerisLimitReached } from '../src/core/aeris/aerisUsage';
@@ -562,7 +562,7 @@ const ENTITLEMENT_ID = 'continuing_with_inner';
 const logEntitlementState = useCallback(
   async (tag: string) => {
     try {
-      const info = await Purchases.getCustomerInfo();
+      const info = await getCustomerInfoReady();
       const active = Object.keys(info?.entitlements?.active ?? {});
       const has = Boolean(info?.entitlements?.active?.[ENTITLEMENT_ID]);
 
