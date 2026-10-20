@@ -1,5 +1,6 @@
 import Purchases, { LOG_LEVEL } from 'react-native-purchases';
 import { Platform } from 'react-native';
+import { linkPostHogIdentity } from '../core/revenueCatIdentity';
 
 // ── RevenueCat init (must be ready BEFORE any paywall calls) ──────────────────
 let __rcInitPromise: Promise<boolean> | null = null;
@@ -31,6 +32,12 @@ export function initRevenueCatOnce(): Promise<boolean> {
       // Configure creates the singleton. This MUST happen before any SDK calls.
       Purchases.configure({ apiKey });
       if (__DEV__) console.log('[RevenueCat] configured for', Platform.OS);
+
+      // Attach the PostHog identity as a subscriber attribute. Fire and forget: never awaited, so it
+      // cannot delay startup or a purchase, and it never changes the RevenueCat app user ID.
+      void linkPostHogIdentity(Purchases).then(result => {
+        if (__DEV__) console.log('[RevenueCat] PostHog identity link:', result);
+      });
 
       // Optional: touch the SDK once to ensure the singleton is actually usable.
       // (Do not block app startup on network; this will be fast if offline.)
