@@ -24,6 +24,8 @@ export type AudioCueEvent = {
   signalGainScale?: number;
   /** How long the protected sound field settles after this presentation. */
   recoverySeconds?: number;
+  /** Native raised-cosine fade-in over the start of the signal, in ms. Absent or 0 leaves the signal's own attack. */
+  cueFadeInMs?: number;
 };
 
 /** Plays a recorded voice clip loaded with `setVoiceClips`. Used only in waking-preparation stages. */
@@ -264,7 +266,8 @@ export interface InnerAudioEngine {
   getDebugState?(): Promise<NativeEngineDebugState | null>;
   /** `gain` is a linear level trim for the signal (1 = unchanged). */
   setRecognitionSignal(signalId: string | null, uri: string | null, gain?: number): Promise<void>;
-  triggerCue(): Promise<void>;
+  /** `fadeInMs` applies a native fade-in to this one cue; omitted or 0 plays the signal's own attack. */
+  triggerCue(fadeInMs?: number): Promise<void>;
   /** Loads the recorded voice clips tonight's timeline refers to; replaces any earlier set. Absent on older native builds. */
   setVoiceClips?(clips: Array<{ id: string; uri: string; gain: number }>): Promise<void>;
   /** Associate native evidence with the durable Journey Memory session. */

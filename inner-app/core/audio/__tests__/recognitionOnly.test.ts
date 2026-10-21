@@ -2,7 +2,7 @@ import { describe, expect, it } from '@jest/globals';
 import { DEFAULT_PROCEDURAL_AUDIO_CONFIG } from '../config';
 import { compileOvernightProtocol, createRecognitionOvernightProtocol, SILENT_BED } from '../overnightProtocol';
 import { overnightJourney } from '../overnightJourney';
-import { overnightModeForJourneyId } from '../../overnightMode';
+import { overnightModeForJourneyId, RECOGNITION_ONLY_CUE_FADE_IN_MS } from '../../overnightMode';
 
 const CONTINUOUS_LAYERS = ['environmentGain', 'toneGain', 'binauralGain', 'noiseGain', 'templeGain'] as const;
 
@@ -86,6 +86,17 @@ describe('Recognition Only overnight mode', () => {
 
   it('exports a bed patch that is fully off', () => {
     for (const layer of CONTINUOUS_LAYERS) expect(SILENT_BED[layer]).toBe(0);
+  });
+
+  it('fades in every Recognition Only cue, preparation and sleep windows alike, and no full-journey cue', () => {
+    const cues = (journey: ReturnType<typeof build>['journey']) => journey.timeline.stages
+      .flatMap(stage => stage.spatialEvents ?? []).filter(event => event.type === 'cue');
+    const only = cues(build('recognition_only').journey);
+    expect(only.length).toBeGreaterThanOrEqual(10);
+    expect(RECOGNITION_ONLY_CUE_FADE_IN_MS).toBeGreaterThanOrEqual(50);
+    expect(RECOGNITION_ONLY_CUE_FADE_IN_MS).toBeLessThanOrEqual(150);
+    for (const cue of only) expect((cue as { cueFadeInMs?: number }).cueFadeInMs).toBe(RECOGNITION_ONLY_CUE_FADE_IN_MS);
+    for (const cue of cues(build('full').journey)) expect(cue).not.toHaveProperty('cueFadeInMs');
   });
 
   it('does not make the full journey silent', () => {

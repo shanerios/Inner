@@ -3,6 +3,7 @@ import { identityPatch } from './identityArc';
 import { binauralForWorld, noiseForWorld } from './worldProfiles';
 import { toneGainForEnvironment } from './config';
 import { SILENT_BED, type CompiledOvernightProtocol } from './overnightProtocol';
+import { RECOGNITION_ONLY_CUE_FADE_IN_MS } from '../overnightMode';
 import type { ProceduralEnvironment } from './types';
 
 /** `none` selects Recognition Only: the full night's timing and cues with no continuous audio. */
@@ -60,6 +61,7 @@ export function overnightJourney(
                 recognitionSpace: true,
                 signalGainScale: presentation?.kind === 'playRecognitionSignal' ? presentation.gainScale : undefined,
                 recoverySeconds: presentation?.kind === 'playRecognitionSignal' ? presentation.recoverySeconds : undefined,
+                ...(recognitionOnly ? { cueFadeInMs: RECOGNITION_ONLY_CUE_FADE_IN_MS } : {}),
               };
             }),
         };
@@ -107,6 +109,9 @@ export function overnightJourney(
           // engine blends the first stage from the default config (which carries a tone), so it must not fade.
           ...stage,
           transitionMs: index === 0 ? 0 : stage.transitionMs,
+          spatialEvents: stage.spatialEvents?.map(event => (
+            event.type === 'cue' ? { ...event, cueFadeInMs: RECOGNITION_ONLY_CUE_FADE_IN_MS } : event
+          )),
           target: { ...stage.target, ...SILENT_BED },
         } : {
           ...stage,

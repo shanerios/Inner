@@ -42,7 +42,7 @@ import { withPreparationVoice } from '../core/audio/voiceGuidance';
 import { cachedVoicePlan, prefetchVoicePack, type VoicePackProgress } from '../core/audio/voiceClips';
 import { getVoiceGuidanceEnabled, setVoiceGuidanceEnabled } from '../core/voiceGuidancePrefs';
 import { createNightRecipeV2, nightRecipeCueSummary } from '../core/nightRecipes';
-import { RECOGNITION_ONLY_SIGNAL_GAIN_CAP } from '../core/overnightMode';
+import { RECOGNITION_ONLY_CUE_FADE_IN_MS, RECOGNITION_ONLY_SIGNAL_GAIN_CAP } from '../core/overnightMode';
 import type { NightRecipeRecognitionIntention } from '../core/nightRecipes';
 import { experimentContextForPractice, loadCurrentPracticeExperiment } from '../core/practiceExperiments';
 import { loadSelectedRecommendation, recommendationForPracticeContext } from '../core/recommendationMemory';
@@ -348,7 +348,8 @@ export default function OvernightJourneyScreen() {
         playback.uri,
         playback.gain * previewGainScale,
       );
-      await previewSessionRef.current.triggerCue();
+      // The same fade a Recognition Only night applies to every signal; a full journey previews unchanged.
+      await previewSessionRef.current.triggerCue(recognitionOnly ? RECOGNITION_ONLY_CUE_FADE_IN_MS : undefined);
       setPreviewingSignal(true);
       previewStopTimerRef.current = setTimeout(() => {
         if (request === previewRequestRef.current) void stopSignalPreview();
@@ -358,7 +359,7 @@ export default function OvernightJourneyScreen() {
       setPreviewingSignal(false);
       Alert.alert('Preview unavailable', 'The signal preview did not begin. Try again in a moment.');
     }
-  }, [signalGainScale, signalId, stopSignalPreview]);
+  }, [recognitionOnly, signalGainScale, signalId, stopSignalPreview]);
 
   useEffect(() => () => {
     previewRequestRef.current += 1;
