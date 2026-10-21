@@ -16,10 +16,13 @@ import kotlin.math.sqrt
  * iOS, AudioTrack, the device output path or the phone's volume.
  */
 class RecognitionOnlyMeasurementTest {
+  /** The engine is a process-wide singleton and reset() keeps the loaded recognition signal and sleep timer. */
   @After fun cleanup() {
     ProceduralAudioEngine.wallClockMs = { System.currentTimeMillis() }
     ProceduralAudioEngine.onSleepTimerElapsed = null
     ProceduralAudioEngine.checkpointSessionId = null
+    ProceduralAudioEngine.setSleepTimer(null)
+    ProceduralAudioEngine.setRecognitionSignal(null, null, 1.0)
     ProceduralAudioEngine.reset()
   }
 
@@ -92,8 +95,11 @@ class RecognitionOnlyMeasurementTest {
     return Fixture(timeline, cueStarts, cursor)
   }
 
-  /** Hook for fields added to the cue event later; unused until then. */
-  private fun SpatialEventRecord.applyExtra(e: JSONObject) {}
+  /** Fade-in applied to every cue event of the next render; 0 is the unchanged signal. */
+  private var cueFadeOverrideMs: Double? = null
+
+  @Suppress("UNUSED_PARAMETER")
+  private fun SpatialEventRecord.applyExtra(e: JSONObject) { cueFadeInMs = cueFadeOverrideMs ?: e.optDouble("cueFadeInMs", 0.0) }
 
   class Result(
     val silentPeak: Float, val silentSamples: Long, val cuePeaks: List<Float>, val checksum: Long,
@@ -149,6 +155,7 @@ class RecognitionOnlyMeasurementTest {
   private fun db(x: Double) = 20 * log10(maxOf(x, 1e-12))
 
   @Test fun recognitionOnlySilenceAndCueLevels() {
+    cueFadeOverrideMs = null // use what the production builder wrote into the fixture
     val sb = StringBuilder()
     for (signal in signals) {
       val r = render("recognition-only-accelerated-fixture.json", signal, null)
@@ -161,5 +168,80 @@ class RecognitionOnlyMeasurementTest {
     sb.append("FULL bell: silentPeakOutsideCues=${full.silentPeak} (${db(full.silentPeak.toDouble()).toInt()} dBFS) cuePeaks=${full.cuePeaks.map { "%.1f".format(db(it.toDouble())) }} checksum=${full.checksum}\n")
     println("MEASUREMENT\n$sb")
     File("build/recognition-only-measurement.txt").writeText(sb.toString())
+  }
+
+  /** Checksums of the pre-fade engine (commit "Add offline Android measurement"), accelerated fixtures. */
+  private val baselineChecksums = mapOf(
+    "ascending" to 4428982168361108263L, "bell" to -6432970975180044955L, "chimes" to -1513313917085856507L,
+    "droplets" to -4223457457938525691L, "guardian" to -986510275622859880L,
+  )
+  private val baselineFullBell = 5982285127743174121L
+
+  @Test fun noFadeIsBitIdenticalToTheEngineBeforeTheFadeExisted() {
+    cueFadeOverrideMs = 0.0
+    for (signal in signals) {
+      assertEquals("Recognition Only ${signal.id} output changed with no fade", baselineChecksums[signal.id], render("recognition-only-accelerated-fixture.json", signal, null).checksum)
+    }
+    assertEquals("full journey output changed", baselineFullBell, render("full-reference-accelerated-fixture.json", signals[1], null).checksum)
+  }
+
+  @Test fun fadeInSweep() {
+    val sb = StringBuilder("fadeMs signal  cue1 peak@10/50/100/250ms (dBFS) | peak(dBFS) rms(dBFS) | silentPeak\n")
+    for (fade in listOf(0.0, 50.0, 100.0, 150.0)) {
+      cueFadeOverrideMs = fade
+      for (signal in signals) {
+        val r = render("recognition-only-accelerated-fixture.json", signal, null)
+        val rms = db(r.cueRms.first())
+        sb.append("%5.0f  %-9s %s | %6.1f %6.1f | %s\n".format(fade, signal.id, r.attackPeaks.first().joinToString("/") { "%.1f".format(db(it)) }, db(r.cuePeaks.first().toDouble()), rms, r.silentPeak))
+        assertEquals(0f, r.silentPeak, 0f)
+        if (fade == 0.0) assertEquals(baselineChecksums[signal.id], r.checksum) else assertNotEquals(baselineChecksums[signal.id], r.checksum)
+      }
+    }
+    cueFadeOverrideMs = null
+    println("FADE SWEEP\n$sb")
+    File("build/recognition-only-fade-sweep.txt").writeText(sb.toString())
+  }
+
+  /** Preview path: a bare triggerCue(), as the mixer and full-journey preview make it, versus one with a fade. */
+  private fun previewCue(signal: Signal, fadeInMs: Double?): Pair<DoubleArray, Long> {
+    ProceduralAudioEngine.reset()
+    val sr = ProceduralAudioEngine.sampleRate
+    ProceduralAudioEngine.configure(AudioConfigRecord().apply { toneGain = 0.0; binauralGain = 0.0; noiseGain = 0.0; environmentGain = 0.0; masterGain = 0.35 })
+    ProceduralAudioEngine.setRecognitionSignal(signal.id, signal.file?.let { File(assets, it).toURI().toString() }, Math.pow(10.0, signal.trimDb / 20.0))
+    if (fadeInMs == null) ProceduralAudioEngine.triggerCue() else ProceduralAudioEngine.triggerCue(fadeInMs)
+    val buffer = FloatArray(960 * 2)
+    val edges = doubleArrayOf(10.0, 50.0, 100.0, 250.0)
+    val peaks = DoubleArray(edges.size)
+    var checksum = 1125899906842597L
+    var frames = 0L
+    while (frames < sr * 3) {
+      java.util.Arrays.fill(buffer, 0f)
+      ProceduralAudioEngine.render(buffer, 960)
+      for (f in 0 until 960) {
+        val tMs = (frames + f) * 1_000.0 / sr
+        for (c in 0..1) {
+          val v = buffer[f * 2 + c]
+          checksum = checksum * 31 + java.lang.Float.floatToIntBits(v)
+          for (k in edges.indices) if (tMs <= edges[k] && abs(v) > peaks[k]) peaks[k] = abs(v).toDouble()
+        }
+      }
+      frames += 960
+    }
+    return peaks to checksum
+  }
+
+  @Test fun previewFadeIsOptInAndLeavesTheBareCallUnchanged() {
+    val sb = StringBuilder()
+    for (signal in listOf(signals[1], signals[2])) {
+      val (barePeaks, bareSum) = previewCue(signal, null)
+      val (zeroPeaks, zeroSum) = previewCue(signal, 0.0)
+      val (fadedPeaks, fadedSum) = previewCue(signal, 100.0)
+      assertEquals("a zero fade must equal the bare call (${signal.id})", bareSum, zeroSum)
+      assertNotEquals("a 100 ms fade must change the output (${signal.id})", bareSum, fadedSum)
+      assertTrue("fade must soften the first 10 ms of ${signal.id}", fadedPeaks[0] < barePeaks[0] * 0.1)
+      sb.append("${signal.id} preview first-10/50/100/250ms dBFS: bare=${barePeaks.map { "%.1f".format(db(it)) }} fade100=${fadedPeaks.map { "%.1f".format(db(it)) }}\n")
+    }
+    println("PREVIEW\n$sb")
+    File("build/recognition-only-preview.txt").writeText(sb.toString())
   }
 }
