@@ -216,14 +216,6 @@
       }
     }
   </style>
-  <!-- Google tag (gtag.js) -->
-  <script async src="https://www.googletagmanager.com/gtag/js?id=G-FVC3JDRGRM"></script>
-  <script>
-    window.dataLayer = window.dataLayer || [];
-    function gtag(){dataLayer.push(arguments);} 
-    gtag('js', new Date());
-    gtag('config', 'G-FVC3JDRGRM');
-  </script>
 </head>
 <body>
   <div class="content">
@@ -240,7 +232,7 @@
         <img src="https://img.icons8.com/?size=100&id=30840&format=png&color=FFFFFF" alt="" />
         Download on iOS
       </a>
-      <a id="android" class="btn" href="https://play.google.com/store/apps/details?id=com.getinner.app">
+      <a id="android" class="btn" href="https://play.google.com/store/apps/details?id=com.getinner.app&amp;referrer=utm_source%3Dgetinner.app%26utm_medium%3Dwebsite%26utm_campaign%3Ddownload">
         <img src="https://img.icons8.com/?size=100&id=11138&format=png&color=FFFFFF" alt="" />
         Get it on Android
       </a>
@@ -251,7 +243,7 @@
 
   <script>
     const ios = "https://apps.apple.com/us/app/inner-official/id6755213270";
-    const android = "https://play.google.com/store/apps/details?id=com.getinner.app";
+    const android = "https://play.google.com/store/apps/details?id=com.getinner.app&referrer=utm_source%3Dgetinner.app%26utm_medium%3Dwebsite%26utm_campaign%3Ddownload";
     const ua = navigator.userAgent || navigator.vendor || window.opera || "";
 
     let platform = "desktop";
@@ -262,20 +254,10 @@
       platform = "ios";
     }
 
-    if (typeof gtag === 'function') {
-      gtag('event', 'download_page_view', { platform });
-    }
-
     setTimeout(() => {
       if (platform === "android") {
-        if (typeof gtag === 'function') {
-          gtag('event', 'redirect_android');
-        }
         window.location.href = android;
       } else if (platform === "ios") {
-        if (typeof gtag === 'function') {
-          gtag('event', 'redirect_ios');
-        }
         window.location.href = ios;
       }
     }, 450);
