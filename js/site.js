@@ -133,6 +133,29 @@
     revealEls.forEach(function (el) { io.observe(el); });
   }
 
+  /* Store-link measurement. One delegated listener reports a `store_click` GA4
+     event with only the store platform and the page path. It does nothing on
+     pages that do not load GA4 (gtag is undefined there), never calls
+     preventDefault, and never delays navigation. A click is interest, not an install. */
+  function initStoreClickTracking() {
+    document.addEventListener('click', function (e) {
+      try {
+        if (typeof window.gtag !== 'function') return;
+        var link = e.target && e.target.closest ? e.target.closest('a[href]') : null;
+        if (!link) return;
+        var url = new URL(link.getAttribute('href'), window.location.href);
+        var platform = null;
+        if (url.hostname === 'apps.apple.com') platform = 'ios';
+        else if (url.hostname === 'play.google.com' && url.pathname.indexOf('/store/') === 0) platform = 'android';
+        if (!platform) return;
+        // Report "/chambers" and "/chambers.html" (and "/index.html", trailing slashes) as one page.
+        var path = window.location.pathname.replace(/\/index\.html$/, '/').replace(/\.html$/, '').replace(/(.)\/+$/, '$1');
+        window.gtag('event', 'store_click', { platform: platform, link_location: path || '/' });
+      } catch (err) { /* analytics must never affect navigation */ }
+    });
+  }
+
+  initStoreClickTracking();
   initHamburgerNav();
   initNavDropdowns();
   initModals();

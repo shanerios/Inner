@@ -81,6 +81,20 @@
   margin: 0 auto;
 }
 
+/* Inline guide link inside the lead copy: same colour and weight, a quiet underline as the link cue */
+.ne-lead a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: rgba(161, 140, 255, 0.45);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  transition: color 0.3s ease, text-decoration-color 0.3s ease;
+}
+.ne-lead a:hover {
+  color: #fff;
+  text-decoration-color: rgba(200, 190, 255, 0.8);
+}
+
 /* ---------- Timeline: structural wrapper ---------- */
 
 .ne-timeline-wrap {
