@@ -4,7 +4,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const PRIMARY_GOAL_KEY = 'inner.onboarding.primaryGoal.v1';
 const DREAM_RECALL_KEY = 'inner.onboarding.dreamRecall.v1';
 const VALUE_CAPTURE_COMPLETE_KEY = 'inner.onboarding.valueCaptureComplete.v1';
-const VALUE_HOOK_SEEN_KEY = 'inner.onboarding.valueHookSeen.v1';
 const ACCOUNT_PROMPT_SEEN_KEY = 'inner.onboarding.accountPromptSeen.v1';
 
 export type PrimaryGoal = 'lucid_dreaming' | 'obe' | 'deep_focus';
@@ -33,14 +32,6 @@ export async function markValueCaptureComplete() {
 
 export async function hasCompletedValueCapture(): Promise<boolean> {
   try { return (await AsyncStorage.getItem(VALUE_CAPTURE_COMPLETE_KEY)) === 'true'; } catch { return false; }
-}
-
-export async function markValueHookSeen() {
-  try { await AsyncStorage.setItem(VALUE_HOOK_SEEN_KEY, 'true'); } catch {}
-}
-
-export async function hasSeenValueHook(): Promise<boolean> {
-  try { return (await AsyncStorage.getItem(VALUE_HOOK_SEEN_KEY)) === 'true'; } catch { return false; }
 }
 
 export async function hasSeenAccountPrompt(): Promise<boolean> {

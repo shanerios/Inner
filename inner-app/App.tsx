@@ -13,7 +13,6 @@ import { createStackNavigator, CardStyleInterpolators } from "@react-navigation/
 import SplashScreen from "./screens/SplashScreen";
 import IntroScreen from "./screens/IntroScreen";
 import ValueCaptureScreen from "./screens/onboarding/ValueCaptureScreen";
-import ValueHookScreen from "./screens/onboarding/ValueHookScreen";
 import AccountCreateScreen from "./screens/AccountCreateScreen";
 import IntentionScreen from "./screens/IntentionScreen";
 import EssenceScreen from "./screens/EssenceScreen";
@@ -136,7 +135,6 @@ type RootStackParamList = {
   Splash: undefined;
   Intro: undefined;
   ValueCapture: undefined;
-  ValueHook: undefined;
   Intention: undefined;
   EssenceScreen: undefined;
   Home: undefined;
@@ -525,7 +523,6 @@ export default Sentry.wrap(function App() {
                 <Stack.Screen name="Splash" component={SplashScreen} />
                 <Stack.Screen name="Intro" component={IntroScreen} />
                 <Stack.Screen name="ValueCapture" component={ValueCaptureScreen} />
-                <Stack.Screen name="ValueHook" component={ValueHookScreen} />
                 <Stack.Screen
                   name="Intention"
                   component={IntentionScreen}

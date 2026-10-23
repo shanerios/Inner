@@ -436,6 +436,7 @@ export default function SplashScreen() {
     if (navigating.current) return;
     navigating.current = true;
     if (showReturnHome) hideReturnHome();
+    if (!onboardingComplete) posthog?.capture('onboarding_splash_tapped');
     playEngulfThen(() => {
       if (!onboardingComplete) {
         // First run — full ritual.

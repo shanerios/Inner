@@ -17,7 +17,8 @@ import { useVideoPlayer, VideoView } from '../core/memorySafeVideo';
 
 import { Typography, Body as _Body } from '../core/typography';
 import { useScale } from '../utils/scale';
-import { hasCompletedValueCapture, hasSeenValueHook } from '../core/onboardingPrefs';
+import { usePostHog } from 'posthog-react-native';
+import { hasCompletedValueCapture } from '../core/onboardingPrefs';
 
 const Body = _Body ?? ({
   regular: { ...Typography.body },
@@ -37,8 +38,12 @@ const captions = [
   { time: 17.2, text: 'begin with clarity' },
 ];
 
+const CTA_REVEAL_MS = 2500;
+
 export default function IntroScreen() {
   const navigation = useNavigation();
+  const posthog = usePostHog();
+  const mountedAtRef = useRef(Date.now());
   const { width: windowWidth } = useWindowDimensions();
   const { scale, verticalScale } = useScale();
 
@@ -133,13 +138,9 @@ export default function IntroScreen() {
       await soundRef.current.unloadAsync();
       soundRef.current = null;
     }
-    // Survey and value-hook carousel are both first-use-only — returning
-    // users who've already been through them skip straight to Intention.
-    const [alreadyAnswered, alreadySeenHook] = await Promise.all([
-      hasCompletedValueCapture(),
-      hasSeenValueHook(),
-    ]);
-    const nextRoute = !alreadyAnswered ? 'ValueCapture' : !alreadySeenHook ? 'ValueHook' : 'Intention';
+    // The survey is first-use-only — returning users skip straight to Intention.
+    const alreadyAnswered = await hasCompletedValueCapture();
+    const nextRoute = alreadyAnswered ? 'Intention' : 'ValueCapture';
     (navigation as any).navigate(nextRoute);
   };
 
@@ -153,13 +154,6 @@ export default function IntroScreen() {
 
     sound.setOnPlaybackStatusUpdate((status) => {
       if (!status.isLoaded) return;
-      if ((status as any).didJustFinish) {
-        Animated.timing(ctaFadeAnim, {
-          toValue: 1,
-          duration: 1200,
-          useNativeDriver: true,
-        }).start();
-      }
     });
 
     const start = Date.now();
@@ -195,10 +189,17 @@ export default function IntroScreen() {
   };
 
   useEffect(() => {
+    posthog.capture('onboarding_intro_viewed');
+    // The CTA must not wait on the ~20 s voiceover — reveal it within a few seconds.
+    const ctaTimer = setTimeout(() => {
+      posthog.capture('onboarding_intro_cta_shown');
+      Animated.timing(ctaFadeAnim, { toValue: 1, duration: 800, useNativeDriver: true }).start();
+    }, CTA_REVEAL_MS);
     const voiceDelayMs = 3500;
     const voiceTimer = setTimeout(playVoice, voiceDelayMs);
 
     return () => {
+      clearTimeout(ctaTimer);
       clearTimeout(voiceTimer);
       if (intervalRef.current) clearInterval(intervalRef.current);
       if (soundRef.current) {
@@ -293,6 +294,7 @@ export default function IntroScreen() {
                     setCtaPressed(true);
                     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                     setCtaPressed(false);
+                    posthog.capture('onboarding_intro_cta_pressed', { elapsed_ms: Date.now() - mountedAtRef.current });
                     stopAudioAndNavigate();
                   }}
                   style={styles.primaryButton}
@@ -308,6 +310,7 @@ export default function IntroScreen() {
           <TouchableOpacity
             onPress={async () => {
               await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              posthog.capture('onboarding_intro_skipped', { elapsed_ms: Date.now() - mountedAtRef.current });
               stopAudioAndNavigate();
             }}
             accessibilityRole="button"

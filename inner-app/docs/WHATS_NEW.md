@@ -51,6 +51,13 @@ Inner now connects your nights with what you remember in the morning.
 
 ### Detailed product log
 
+#### Shorter first launch
+
+- The intro's "Move Inward" button now appears after a few seconds instead of waiting for the full voiceover.
+- Onboarding now asks one question (what brings you to Inner) and goes straight to Intention Tuning. The dream-recall question, summary screen, and three explainer slides were removed from first launch.
+- The name and wake-time prompts no longer appear before the paywall; both can still be set in Settings.
+- Not yet device-tested.
+
 #### Overnight reliability
 
 - Android now releases cached image memory when the app goes to the background, to lower the chance of the app process being removed during a long Overnight Journey. Not yet confirmed to prevent it.
@@ -209,6 +216,7 @@ Inner now connects your nights with what you remember in the morning.
 
 ### Privacy and analytics notes
 
+- New onboarding funnel events (`onboarding_splash_tapped`, `onboarding_intro_viewed`, `onboarding_intro_cta_shown`, `onboarding_intro_cta_pressed`, `onboarding_intro_skipped`) carry only timing, never survey answers. `onboarding_value_hook_completed` is no longer sent.
 - Practice Memory and personalized recommendations are designed to work locally on the device.
 - Structured dream outcomes can support aggregate event counts without sending freeform dream text.
 - Freeform journal content should remain outside analytics unless a future, explicit policy and consent flow says otherwise.

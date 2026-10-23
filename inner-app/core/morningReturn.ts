@@ -65,7 +65,6 @@ export const MORNING_RETURN_BLOCKED_ROUTES = new Set([
   'Splash',
   'Intro',
   'ValueCapture',
-  'ValueHook',
   'Intention',
   'EssenceScreen',
   'JourneyPlayer',
