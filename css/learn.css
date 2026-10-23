@@ -935,6 +935,12 @@ body.learn {
   color: rgba(210, 205, 240, 0.58);
 }
 
+/* Optional one-line pointer to related reading, above the next-guide link */
+.learn-further {
+  margin: 32px auto 0 auto !important;
+  text-align: center;
+}
+
 .learn-next {
   display: block;
   max-width: 560px;

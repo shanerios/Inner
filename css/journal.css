@@ -1,0 +1,180 @@
+/* ==========================================================================
+   Inner — Journal (editorial articles)
+
+   Extends the Learn reading system (learn.css): same title plate, reading
+   column, pull quotes, field notes and "next" link. This file only adds what
+   an essay needs that a field guide does not: inline links, a numbered
+   bibliography, a signal list and the author's note. Namespaced `.journal-*`.
+   ========================================================================== */
+
+/* The title plate reuses the homepage's stone corridor, dimmed and feathered. */
+.learn-open--journal .learn-open-art img {
+  object-position: 50% 50%;
+  opacity: 0.58;
+}
+
+/* Byline and date */
+.learn-meta .journal-byline {
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px solid rgba(161, 140, 255, 0.4);
+  transition: color 0.3s ease, border-color 0.3s ease;
+}
+.learn-meta .journal-byline:hover {
+  color: #fff;
+  border-bottom-color: rgba(200, 190, 255, 0.8);
+}
+.learn-meta time {
+  color: inherit;
+}
+
+/* The byline and date are real content: keep them clear of the art behind the plate */
+.learn-open--journal .learn-meta {
+  color: rgba(208, 198, 255, 0.82);
+}
+
+/* Section titles carry their numeral */
+.journal-h2 .journal-no {
+  margin-right: 0.4em;
+  color: rgba(200, 190, 255, 0.7);
+  font-weight: 600;
+}
+
+/* Links inside the prose: same colour as the text, a quiet underline as the cue */
+.journal-post .learn-prose a,
+.journal-post .journal-distinction a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: rgba(161, 140, 255, 0.5);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  transition: color 0.3s ease, text-decoration-color 0.3s ease;
+}
+.journal-post .learn-prose a:hover,
+.journal-post .journal-distinction a:hover {
+  color: #fff;
+  text-decoration-color: rgba(200, 190, 255, 0.85);
+}
+.journal-post a.journal-cite {
+  text-decoration-style: dotted;
+}
+
+/* Pull quotes: learn.css supplies the rule and type; the inner paragraph inherits it */
+.journal-pull p {
+  max-width: none;
+  margin: 0;
+  font: inherit;
+  letter-spacing: inherit;
+  line-height: inherit;
+  color: inherit;
+  text-wrap: balance;
+}
+
+/* A full-sentence pull quote runs a size smaller than the short phrase */
+.journal-pull--long {
+  font-size: clamp(1.2rem, 2.2vw, 1.5rem);
+  line-height: 1.4;
+  max-width: 36rem;
+}
+
+/* The two signals, set as ruled entries */
+.journal-signals {
+  list-style: none;
+  max-width: 66ch;
+  margin: 1.7em 0 0 0 !important;
+  padding: 0;
+  border-top: 1px solid rgba(161, 140, 255, 0.16);
+}
+.journal-signals li {
+  padding: 1.15em 0;
+  border-bottom: 1px solid rgba(161, 140, 255, 0.16);
+  font-size: 1.0625rem;
+  line-height: 1.75;
+  color: rgba(232, 229, 248, 0.84);
+  text-wrap: pretty;
+}
+.journal-signals strong {
+  display: block;
+  margin-bottom: 0.45em;
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 0.74rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(206, 197, 255, 0.92);
+}
+
+/* Important Distinction (a Learn field note) and the paragraph that resumes after it */
+.journal-distinction {
+  margin-top: 2em;
+}
+.journal-after-note {
+  margin-top: 2em;
+}
+
+/* Bibliography */
+.journal-refs {
+  padding-top: clamp(64px, 9vh, 100px);
+}
+.journal-ref-list {
+  max-width: 66ch;
+  margin: 0;
+  padding: 0 0 0 1.7em;
+}
+.journal-ref-list li {
+  padding-left: 0.35em;
+  font-size: 0.95rem;
+  line-height: 1.7;
+  color: rgba(218, 214, 240, 0.74);
+  overflow-wrap: anywhere;
+  scroll-margin-top: calc(var(--topbar-height, 58px) + 28px);
+}
+.journal-ref-list li + li {
+  margin-top: 1.15em;
+}
+.journal-ref-list li::marker {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 0.8em;
+  color: rgba(200, 190, 255, 0.7);
+}
+.journal-ref-list li:target {
+  color: rgba(240, 237, 252, 0.95);
+}
+.journal-ref-list a {
+  color: rgba(205, 196, 255, 0.94);
+  text-decoration: underline;
+  text-decoration-color: rgba(161, 140, 255, 0.5);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  overflow-wrap: anywhere;
+  transition: color 0.3s ease, text-decoration-color 0.3s ease;
+}
+.journal-ref-list a:hover {
+  color: #fff;
+  text-decoration-color: rgba(200, 190, 255, 0.85);
+}
+
+/* Author's note */
+.journal-footer {
+  grid-column: 2;
+  min-width: 0;
+  max-width: 66ch;
+  margin-top: clamp(48px, 7vh, 80px);
+  padding-top: 22px;
+  border-top: 1px solid rgba(161, 140, 255, 0.16);
+}
+.journal-note {
+  font-size: 0.92rem;
+  line-height: 1.7;
+  color: rgba(216, 212, 238, 0.66);
+}
+.journal-note strong {
+  font-weight: 500;
+  color: rgba(228, 224, 246, 0.84);
+}
+
+/* The one "next" link closes the essay without an advertisement */
+.journal-continue {
+  padding-top: clamp(56px, 9vh, 96px);
+}
