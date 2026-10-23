@@ -216,6 +216,7 @@ Inner now connects your nights with what you remember in the morning.
 
 ### Privacy and analytics notes
 
+- Intention Tuning sends `intention_screen_viewed` and `intentions_selected` with only the source (onboarding or re-tune), the number selected, and whether the selection was unchanged; the chosen intentions are never sent.
 - New onboarding funnel events (`onboarding_splash_tapped`, `onboarding_intro_viewed`, `onboarding_intro_cta_shown`, `onboarding_intro_cta_pressed`, `onboarding_intro_skipped`) carry only timing, never survey answers. `onboarding_value_hook_completed` is no longer sent.
 - Practice Memory and personalized recommendations are designed to work locally on the device.
 - Structured dream outcomes can support aggregate event counts without sending freeform dream text.

@@ -15,6 +15,7 @@ import { useIntention } from '../core/IntentionProvider';
 import { Typography, Body as _Body } from '../core/typography';
 import * as Haptics from 'expo-haptics';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import { usePostHog } from 'posthog-react-native';
 import { Asset } from 'expo-asset';
 import { getNudge } from '../src/core/language/nudgeLibrary';
 import { getIntentions, getIntentionSetAt, getLastNudgeShownAt, setLastNudgeShownAt, touchIntentionSetAt } from '../core/session';
@@ -62,8 +63,14 @@ export default function IntentionScreen() {
   const insets = useSafeAreaInsets();
 
   const route = useRoute<any>();
+  const posthog = usePostHog();
   const fromSettings = route?.params?.fromSettings === true;
   const returnTo = route?.params?.returnTo as 'Home' | undefined;
+  const analyticsSource = fromSettings ? 'retune' : 'onboarding';
+
+  useEffect(() => {
+    posthog.capture('intention_screen_viewed', { source: analyticsSource });
+  }, []);
 
   const [retuneNudge, setRetuneNudge] = useState<string | null>(null);
 
@@ -375,6 +382,12 @@ export default function IntentionScreen() {
     savedIntentionsSnapshot.every((id) => selectedIntentions.includes(id));
 
   const handleContinue = async () => {
+    // Count only — which intentions were chosen is user intent and stays out of analytics (CLAUDE.md).
+    posthog.capture('intentions_selected', {
+      source: analyticsSource,
+      count: selectedIntentions.length,
+      unchanged: isUnchangedFromSaved,
+    });
     await setIntentions(selectedIntentions);
     const tunedAt = Date.now();
     await recordPracticeActivity({
