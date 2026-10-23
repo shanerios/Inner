@@ -387,13 +387,16 @@ export default function IntentionScreen() {
     });
 
     // Returning users re-tuning a stale intention (see SplashScreen) land back
-    // on Home instead of re-entering the first-run Essence/paywall chain.
+    // on Home; first-run users also skip Essence and the paywall.
     if (returnTo === 'Home') {
       // setIntentions() only bumps the "set at" timestamp when the selection
       // actually changes — a plain "Keep" needs to restart the 48h clock too.
       await touchIntentionSetAt();
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      (navigation as any).reset({ index: 0, routes: [{ name: 'Home' }] });
+      (navigation as any).reset({
+        index: 0,
+        routes: [{ name: 'Home', params: fromSettings ? undefined : { fogStart: true } }],
+      });
       return;
     }
 

@@ -100,9 +100,9 @@ export default function ValueCaptureScreen() {
         ['inner.onboarding.completed.v1', 'true'],
       ]);
     } catch {}
-    // Home presents the daily Arrive screen on focus; the paywall is only
-    // opened from gated content.
-    (navigation as any).reset({ index: 0, routes: [{ name: 'Home', params: { fogStart: true } }] });
+    // First-run Intention Tuning, then Home (which presents the daily Arrive
+    // screen). The paywall is only opened from gated content.
+    (navigation as any).navigate('Intention', { returnTo: 'Home' });
   };
 
   return (
