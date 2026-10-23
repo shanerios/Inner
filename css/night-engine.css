@@ -95,6 +95,36 @@
   text-decoration-color: rgba(200, 190, 255, 0.8);
 }
 
+/* ---------- One quiet pointer to further reading, after the signal sequence ---------- */
+
+.ne-essay-link {
+  margin: clamp(36px, 6vw, 64px) 0 clamp(64px, 9vw, 104px) 0;
+  max-width: none;
+  padding: 0 24px;
+  text-align: center;
+}
+.ne-essay-link .ne-nowrap {
+  white-space: nowrap;
+}
+.ne-essay-link a {
+  display: inline-block;
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 0.74rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(205, 196, 255, 0.94);
+  text-decoration: none;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(161, 140, 255, 0.42);
+  text-wrap: balance;
+  transition: color 0.3s ease, border-color 0.3s ease;
+}
+.ne-essay-link a:hover {
+  color: #fff;
+  border-bottom-color: rgba(200, 190, 255, 0.8);
+}
+
 /* ---------- Timeline: structural wrapper ---------- */
 
 .ne-timeline-wrap {
