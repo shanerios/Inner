@@ -4,6 +4,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { usePostHog } from 'posthog-react-native';
 import { Typography } from '../../core/typography';
 import { useScale } from '../../utils/scale';
@@ -91,7 +92,17 @@ export default function ValueCaptureScreen() {
     // Funnel step only — the specific goal selection is a user intention and
     // is not sent to analytics (see CLAUDE.md).
     posthog.capture('onboarding_value_capture_completed');
-    (navigation as any).navigate('Intention');
+    // Mark onboarding complete so Splash routes returning users to Home. Both
+    // keys match what EssenceScreen used to write.
+    try {
+      await AsyncStorage.multiSet([
+        ['inner.onboarding.complete.v1', 'true'],
+        ['inner.onboarding.completed.v1', 'true'],
+      ]);
+    } catch {}
+    // Home presents the daily Arrive screen on focus; the paywall is only
+    // opened from gated content.
+    (navigation as any).reset({ index: 0, routes: [{ name: 'Home', params: { fogStart: true } }] });
   };
 
   return (

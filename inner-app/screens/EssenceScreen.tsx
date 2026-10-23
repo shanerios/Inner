@@ -29,7 +29,6 @@ import { useNavigation } from '@react-navigation/native';
 import { useBreath } from '../core/BreathProvider';
 import { Typography, Body as _Body } from '../core/typography';
 import { useScale } from '../utils/scale';
-import { openPaywall } from '../src/core/subscriptions/paywallController';
 
 // Safe fallback so hot reloads never break Body usage
 const Body = _Body ?? ({
@@ -321,10 +320,9 @@ export default function EssenceScreen() {
               (globalThis as any).__fog?.boost(0.12, 900);
             }, 950);
             setTimeout(() => {
-              console.log('[FOG] Essence: navigating → Paywall(onboarding)');
-              // The 7-day-trial paywall gates entry to the dashboard; PaywallScreen
-              // itself routes to Home (with fogStart) on purchase, restore, or skip.
-              openPaywall(undefined, undefined, 'onboarding');
+              console.log('[FOG] Essence: navigating → Home');
+              // The paywall no longer gates entry; it opens from gated content.
+              (navigation as any).reset({ index: 0, routes: [{ name: 'Home', params: { fogStart: true } }] });
             }, 1900);
           }}
           style={styles.primaryButton}

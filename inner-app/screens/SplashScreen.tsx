@@ -439,9 +439,10 @@ export default function SplashScreen() {
     if (!onboardingComplete) posthog?.capture('onboarding_splash_tapped');
     playEngulfThen(() => {
       if (!onboardingComplete) {
-        // First run — full ritual.
+        // First run — straight to the single-question survey. The cinematic
+        // Intro stays available via long-press replay.
         // @ts-ignore
-        navigation.navigate('Intro');
+        navigation.navigate('ValueCapture');
       } else if (intentionRecheckDue) {
         // Returning, but it's been 48+ hours — a quick re-tune before Home.
         // @ts-ignore

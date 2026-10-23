@@ -53,9 +53,9 @@ Inner now connects your nights with what you remember in the morning.
 
 #### Shorter first launch
 
-- The intro's "Move Inward" button now appears after a few seconds instead of waiting for the full voiceover.
-- Onboarding now asks one question (what brings you to Inner) and goes straight to Intention Tuning. The dream-recall question, summary screen, and three explainer slides were removed from first launch.
-- The name and wake-time prompts no longer appear before the paywall; both can still be set in Settings.
+- First launch is now: tap the orb, answer one question (what brings you to Inner), then arrive at Home through the daily Arrive screen. The cinematic intro, intention tuning, and Essence screens no longer run on first launch; the intro remains available by long-pressing the orb.
+- The subscription paywall no longer opens at the end of onboarding. It appears when you open locked content.
+- The name and wake-time prompts were removed from first launch; both can still be set in Settings.
 - Not yet device-tested.
 
 #### Overnight reliability
