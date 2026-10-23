@@ -14,8 +14,10 @@ import { useVideoPlayer, VideoView } from '../core/memorySafeVideo';
 import { useIntention } from '../core/IntentionProvider';
 import { Typography, Body as _Body } from '../core/typography';
 import * as Haptics from 'expo-haptics';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { usePostHog } from 'posthog-react-native';
+import { syncPrimaryGoalFromIntentions } from '../core/onboardingPrefs';
 import { Asset } from 'expo-asset';
 import { getNudge } from '../src/core/language/nudgeLibrary';
 import { getIntentions, getIntentionSetAt, getLastNudgeShownAt, setLastNudgeShownAt, touchIntentionSetAt } from '../core/session';
@@ -29,11 +31,12 @@ const Body = _Body ?? ({
 } as const);
 
 const intentions = [
+  // 'clarity' and 'reawakening' are stored keys presented as Focus and OBE.
   { id: 'lucidity',     title: 'Lucidity',     description: 'Enter the aware dream' },
-  { id: 'clarity',      title: 'Clarity',      description: 'Part the haze, let vision sharpen' },
+  { id: 'reawakening',  title: 'OBE',          description: 'Explore beyond the physical' },
+  { id: 'clarity',      title: 'Focus',        description: 'Sharpen the waking mind' },
   { id: 'grounding',    title: 'Grounding',    description: 'Root deep into the present' },
   { id: 'healing',      title: 'Healing',      description: 'Mend the unseen, restore balance' },
-  { id: 'reawakening',  title: 'Reawakening',  description: 'Stir the dormant self into light' },
   { id: 'expansion',    title: 'Expansion',    description: 'Open wide to growth and possibility' },
 ];
 
@@ -389,6 +392,18 @@ export default function IntentionScreen() {
       unchanged: isUnchangedFromSaved,
     });
     await setIntentions(selectedIntentions);
+    await syncPrimaryGoalFromIntentions(selectedIntentions);
+    if (!fromSettings) {
+      // First run: this screen is the onboarding question. Mark onboarding
+      // complete so Splash routes returning users to Home.
+      try {
+        await AsyncStorage.multiSet([
+          ['inner.onboarding.complete.v1', 'true'],
+          ['inner.onboarding.completed.v1', 'true'],
+        ]);
+      } catch {}
+      posthog.capture('onboarding_value_capture_completed');
+    }
     const tunedAt = Date.now();
     await recordPracticeActivity({
       id: createPracticeActivityId('tuning', tunedAt),

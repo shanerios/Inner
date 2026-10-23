@@ -4,10 +4,10 @@ import { useIntention } from '../core/IntentionProvider';
 import { useVideoPlayer, VideoView } from '../core/memorySafeVideo';
 const affirmationMap: { [key: string]: string } = {
   calm: 'You are embracing calm and inviting peace into your being.',
-  clarity: 'Clarity guides your every step as your path becomes illuminated.',
+  clarity: 'Focus gathers your attention as your path becomes clear.',
   grounding: 'You are rooted, steady, and supported by the earth beneath you.',
   healing: 'You are in a sacred space of healing and wholeness.',
-  reawakening: 'You are remembering your truth and awakening your inner light.',
+  reawakening: 'You are exploring beyond the physical, fully aware.',
   expansion: 'You are opening to new dimensions of growth and cosmic awareness.',
 };
 import {

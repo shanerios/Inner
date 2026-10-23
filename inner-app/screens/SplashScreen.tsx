@@ -439,10 +439,10 @@ export default function SplashScreen() {
     if (!onboardingComplete) posthog?.capture('onboarding_splash_tapped');
     playEngulfThen(() => {
       if (!onboardingComplete) {
-        // First run — straight to the single-question survey. The cinematic
-        // Intro stays available via long-press replay.
+        // First run — straight to Intention Tuning, which doubles as the
+        // onboarding question. The cinematic Intro stays available via long-press replay.
         // @ts-ignore
-        navigation.navigate('ValueCapture');
+        navigation.navigate('Intention', { returnTo: 'Home' });
       } else if (intentionRecheckDue) {
         // Returning, but it's been 48+ hours — a quick re-tune before Home.
         // @ts-ignore

@@ -1311,8 +1311,8 @@ const loop = Animated.loop(
       'You wake inside the dream, and the veil grows thin.',
     ],
     clarity: [
-      'Your inner sky clears—truth shines without distortion.',
-      'Every breath opens space for clear vision.',
+      'Your attention gathers to a single point.',
+      'The mind grows still, sharp, and clear.',
     ],
     grounding: [
       'Your roots sink deep into the eternal earth.',
@@ -1323,8 +1323,8 @@ const loop = Animated.loop(
       'Gentle currents wash away what no longer serves you.',
     ],
     reawakening: [
-      'The flame within rises again, radiant and unafraid.',
-      'You remember yourself beyond the noise of the world.',
+      'You are more than the body that rests.',
+      'Awareness slips free, steady and unafraid.',
     ],
     expansion: [
       'The horizon opens—your spirit moves without limit.',

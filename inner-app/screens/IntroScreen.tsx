@@ -18,7 +18,6 @@ import { useVideoPlayer, VideoView } from '../core/memorySafeVideo';
 import { Typography, Body as _Body } from '../core/typography';
 import { useScale } from '../utils/scale';
 import { usePostHog } from 'posthog-react-native';
-import { hasCompletedValueCapture } from '../core/onboardingPrefs';
 
 const Body = _Body ?? ({
   regular: { ...Typography.body },
@@ -138,10 +137,7 @@ export default function IntroScreen() {
       await soundRef.current.unloadAsync();
       soundRef.current = null;
     }
-    // The survey is first-use-only — returning users skip straight to Intention.
-    const alreadyAnswered = await hasCompletedValueCapture();
-    const nextRoute = alreadyAnswered ? 'Intention' : 'ValueCapture';
-    (navigation as any).navigate(nextRoute);
+    (navigation as any).navigate('Intention');
   };
 
   const playVoice = async () => {

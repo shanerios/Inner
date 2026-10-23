@@ -53,8 +53,9 @@ Inner now connects your nights with what you remember in the morning.
 
 #### Shorter first launch
 
-- First launch is now: tap the orb, answer one question (what brings you to Inner), set your intentions, then arrive at Home through the daily Arrive screen. The cinematic intro and Essence screens no longer run on first launch; the intro remains available by long-pressing the orb.
-- The subscription paywall no longer opens at the end of onboarding. It appears when you open locked content.
+- First launch is now: tap the orb, choose your path on the Intention screen, then arrive at Home through the daily Arrive screen. The separate questionnaire, cinematic intro, and Essence screens no longer run on first launch; the intro remains available by long-pressing the orb.
+- Intention options now read Lucidity, OBE, Focus, Grounding, Healing, and Expansion. Existing selections carry over (earlier Clarity choices now read as Focus and Reawakening choices as OBE), and Home affirmations and nudge wording were updated to match.
+- The subscription paywall no longer opens at the end of onboarding. It appears when you open locked content, and its headline follows your first intention (Lucidity, OBE, or Focus).
 - The name and wake-time prompts were removed from first launch; both can still be set in Settings.
 - Not yet device-tested.
 
