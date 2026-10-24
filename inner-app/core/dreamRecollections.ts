@@ -47,37 +47,61 @@ export function normalizeBaseline(value: unknown): DreamBaseline | undefined {
   }
   const source = baselineSources.find(item => item === raw.source);
   if (!source) return undefined;
+  // Spread first so fields added by a newer version survive a rewrite.
   const baseline: DreamBaseline = {
+    ...(raw as object),
     text: raw.text,
     capturedAt: raw.capturedAt,
     source,
     preservedAt: raw.preservedAt,
-  };
+  } as DreamBaseline;
   if (typeof raw.title === 'string' && raw.title) baseline.title = raw.title;
   return baseline;
 }
 
-/** Drops malformed items and duplicate IDs; keeps stored order. */
-export function normalizeAdditions(value: unknown): DreamAddition[] | undefined {
-  if (!Array.isArray(value)) return undefined;
+/**
+ * Splits stored additions into usable ones and rejects (malformed items or duplicate
+ * IDs). Rejects are returned untouched so callers can keep them instead of losing them.
+ * Keeps stored order and any fields a newer version added to a valid item.
+ */
+export function splitAdditions(value: unknown): { valid: DreamAddition[]; rejected: unknown[] } {
+  const valid: DreamAddition[] = [];
+  const rejected: unknown[] = [];
+  if (!Array.isArray(value)) return { valid, rejected };
   const seen = new Set<string>();
-  const out: DreamAddition[] = [];
   for (const item of value) {
-    if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
-    const raw = item as Record<string, unknown>;
-    const kind = additionKinds.find(k => k === raw.kind);
+    const raw = item && typeof item === 'object' && !Array.isArray(item)
+      ? item as Record<string, unknown>
+      : null;
+    const kind = raw ? additionKinds.find(k => k === raw.kind) : undefined;
     if (
-      typeof raw.id !== 'string' || !raw.id || seen.has(raw.id)
+      !raw
+      || typeof raw.id !== 'string' || !raw.id || seen.has(raw.id)
       || !kind
       || typeof raw.text !== 'string' || !raw.text.trim()
       || !finiteNumber(raw.createdAt)
-    ) continue;
+    ) {
+      rejected.push(item);
+      continue;
+    }
     seen.add(raw.id);
-    const addition: DreamAddition = { id: raw.id, kind, text: raw.text, createdAt: raw.createdAt };
+    const addition: DreamAddition = {
+      ...(raw as object),
+      id: raw.id,
+      kind,
+      text: raw.text,
+      createdAt: raw.createdAt,
+    } as DreamAddition;
     if (finiteNumber(raw.editedAt)) addition.editedAt = raw.editedAt;
-    out.push(addition);
+    else delete addition.editedAt;
+    valid.push(addition);
   }
-  return out.length ? out : undefined;
+  return { valid, rejected };
+}
+
+export function normalizeAdditions(value: unknown): DreamAddition[] | undefined {
+  const { valid } = splitAdditions(value);
+  return valid.length ? valid : undefined;
 }
 
 function comparable(text: string): string {

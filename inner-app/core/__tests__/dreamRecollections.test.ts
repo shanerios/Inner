@@ -6,6 +6,7 @@ import {
   buildDreamTimeline,
   normalizeAdditions,
   normalizeBaseline,
+  splitAdditions,
   type DreamBaseline,
 } from '../dreamRecollections';
 
@@ -70,5 +71,17 @@ describe('dream recollections', () => {
     expect(timeline[0]).toMatchObject({ kind: 'baseline', timestamp: 1_000, edited: false });
     expect(timeline[1].edited).toBe(true);
     expect(buildDreamTimeline(undefined, undefined)).toEqual([]);
+  });
+
+  it('returns rejected items untouched so they can be kept', () => {
+    const bad = { id: 'c', kind: 'opinion', text: 'x', createdAt: 1 };
+    const { valid, rejected } = splitAdditions([
+      { id: 'a', kind: 'reflection', text: 'ok', createdAt: 1, future: true },
+      bad,
+      'junk',
+    ]);
+    expect(valid).toEqual([{ id: 'a', kind: 'reflection', text: 'ok', createdAt: 1, future: true }]);
+    expect(rejected).toEqual([bad, 'junk']);
+    expect(splitAdditions('nope')).toEqual({ valid: [], rejected: [] });
   });
 });

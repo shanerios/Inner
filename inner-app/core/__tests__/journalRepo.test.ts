@@ -13,7 +13,7 @@ import {
   preserveBaseline,
   saveEntry,
 } from '../journalRepo';
-import { secureSetItem } from '../secureStorage';
+import { secureGetItem, secureSetItem } from '../secureStorage';
 
 jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock')
@@ -283,6 +283,85 @@ describe('journalRepo', () => {
       const [reloaded] = await listEntries();
       expect(reloaded.baseline?.text).toBe('A corridor.');
       expect(reloaded.additions?.[0].text).toBe('Remembered later.');
+    });
+  });
+
+  describe('malformed stored data is preserved, not discarded', () => {
+    const goodBaseline = { text: 'A corridor.', capturedAt: 10, source: 'original', preservedAt: 11 };
+    const validA = { id: 'a', kind: 'recollection', text: 'A staircase.', createdAt: 20, links: [{ to: 'other-dream' }] };
+    const validB = { id: 'b', kind: 'reflection', text: 'An older dream.', createdAt: 30 };
+    const bad = [{ id: 'x' }, 'not an object', { ...validA, text: 'duplicate id' }, { id: 'y', kind: 'opinion', text: 't', createdAt: 1 }];
+
+    const storedJson = async (id: string) => JSON.parse((await secureGetItem(`journal:${id}`))!);
+
+    async function seedMalformed() {
+      await seedRecord('m', {
+        createdAt: 1, updatedAt: 1, body: 'A corridor.', kind: 'dream',
+        baseline: goodBaseline,
+        additions: [validA, bad[0], bad[1], validB, bad[2], bad[3]],
+      });
+    }
+
+    it('keeps unreadable additions through unrelated saves, without duplicating them', async () => {
+      await seedMalformed();
+      for (let i = 0; i < 3; i += 1) {
+        await saveEntry({ ...(await getEntry('m'))!, body: `Edit ${i}` });
+      }
+      const stored = await storedJson('m');
+      expect(stored.additions.map((a: any) => a.id)).toEqual(['a', 'b']);
+      expect(stored.unreadableAdditions).toEqual(bad);
+    });
+
+    it('shows only readable additions but exposes the unreadable ones for export', async () => {
+      await seedMalformed();
+      const entry = (await getEntry('m'))!;
+      expect(entry.additions?.map(a => a.id)).toEqual(['a', 'b']);
+      expect(entry.unreadableAdditions).toEqual(bad);
+    });
+
+    it('keeps fields a newer version added to a readable addition and to the baseline', async () => {
+      await seedRecord('f', {
+        createdAt: 1, body: 'A corridor.',
+        baseline: { ...goodBaseline, futureNote: 'keep' },
+        additions: [validA],
+      });
+      await saveEntry({ ...(await getEntry('f'))!, title: 'Named' });
+      const stored = await storedJson('f');
+      expect(stored.additions[0].links).toEqual([{ to: 'other-dream' }]);
+      expect(stored.baseline.futureNote).toBe('keep');
+    });
+
+    it('keeps unreadable additions when adding, editing, or deleting others', async () => {
+      await seedMalformed();
+      const { addition } = await addAddition('m', { kind: 'reflection', text: 'New thought.' });
+      await editAddition('m', addition.id, 'Revised thought.');
+      await deleteAddition('m', 'b');
+      await deleteAddition('m', addition.id);
+      const stored = await storedJson('m');
+      expect(stored.additions.map((a: any) => a.id)).toEqual(['a']);
+      expect(stored.unreadableAdditions).toEqual(bad);
+    });
+
+    it('moves an unreadable baseline aside when a new one is preserved, and keeps it after that', async () => {
+      await seedRecord('bb', { createdAt: 5, body: 'Old text.', baseline: { text: 42, capturedAt: 'x' } });
+      expect(await preserveBaseline('bb', 'legacy_only')).toBe('sealed');
+      let stored = await storedJson('bb');
+      expect(stored.baseline).toMatchObject({ text: 'Old text.', source: 'legacy_snapshot' });
+      expect(stored.unreadableBaseline).toEqual({ text: 42, capturedAt: 'x' });
+
+      await saveEntry({ ...(await getEntry('bb'))!, body: 'Edited.' });
+      expect(await preserveBaseline('bb', 'legacy_only')).toBe('already_preserved');
+      stored = await storedJson('bb');
+      expect(stored.baseline.text).toBe('Old text.');
+      expect(stored.unreadableBaseline).toEqual({ text: 42, capturedAt: 'x' });
+    });
+
+    it('keeps an unreadable baseline through saves made before a new one exists', async () => {
+      await seedRecord('bc', { createdAt: 5, baselinePending: true, body: 'Draft', baseline: 'garbled' });
+      await saveEntry({ ...(await getEntry('bc'))!, body: 'Draft, longer' });
+      const stored = await storedJson('bc');
+      expect(stored.unreadableBaseline).toBe('garbled');
+      expect(stored.body).toBe('Draft, longer');
     });
   });
 });

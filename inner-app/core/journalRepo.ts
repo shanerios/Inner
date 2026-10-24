@@ -7,8 +7,8 @@ import {
   DreamAdditionKind,
   DreamBaseline,
   MAX_RECOLLECTION_LENGTH,
-  normalizeAdditions,
   normalizeBaseline,
+  splitAdditions,
 } from './dreamRecollections';
 import type { PracticeContextSnapshot } from './practiceContext';
 
@@ -60,6 +60,10 @@ export type JournalEntry = {
   baselinePending?: boolean;
   /** First time non-empty text was saved to this entry. */
   contentStartedAt?: number;
+  /** Stored additions this version could not read, kept as found (never shown, never dropped). */
+  unreadableAdditions?: unknown[];
+  /** A stored baseline this version could not read, kept as found when a new one is written. */
+  unreadableBaseline?: unknown;
 };
 
 const INDEX_KEY = 'journal:index';
@@ -135,6 +139,11 @@ export function normalizeJournalEntry(value: unknown): JournalEntry | null {
   const raw = value as Record<string, unknown>;
   if (typeof raw.id !== 'string' || typeof raw.createdAt !== 'number') return null;
 
+  const { valid: validAdditions, rejected } = splitAdditions(raw.additions);
+  const previouslyRejected = Array.isArray(raw.unreadableAdditions) ? raw.unreadableAdditions : [];
+  const unreadableAdditions = [...previouslyRejected, ...rejected];
+  const baseline = normalizeBaseline(raw.baseline);
+
   const normalized = {
     ...raw,
     schemaVersion: 2,
@@ -144,8 +153,12 @@ export function normalizeJournalEntry(value: unknown): JournalEntry | null {
     title: typeof raw.title === 'string' ? raw.title : '',
     body: typeof raw.body === 'string' ? raw.body : '',
     dreamDetails: normalizeDreamDetails(raw.dreamDetails),
-    baseline: normalizeBaseline(raw.baseline),
-    additions: normalizeAdditions(raw.additions),
+    baseline,
+    additions: validAdditions.length ? validAdditions : undefined,
+    unreadableAdditions: unreadableAdditions.length ? unreadableAdditions : undefined,
+    unreadableBaseline: raw.unreadableBaseline !== undefined
+      ? raw.unreadableBaseline
+      : (!baseline && raw.baseline !== undefined && raw.baseline !== null ? raw.baseline : undefined),
     baselinePending: raw.baselinePending === true ? true : undefined,
     contentStartedAt: typeof raw.contentStartedAt === 'number' ? raw.contentStartedAt : undefined,
   } as JournalEntry;
@@ -283,6 +296,8 @@ export async function saveEntry(entry: JournalEntry): Promise<void> {
       baseline: prior?.baseline,
       additions: prior?.additions,
       baselinePending: prior?.baselinePending,
+      unreadableAdditions: prior?.unreadableAdditions,
+      unreadableBaseline: prior?.unreadableBaseline,
       contentStartedAt: prior?.contentStartedAt
         ?? (incoming.body.trim() ? now : undefined),
     };
@@ -346,7 +361,13 @@ export function preserveBaseline(id: string, mode: SealMode): Promise<SealOutcom
     // know about) by layering onto the raw JSON, not the normalized copy.
     let rawBase: Record<string, unknown>;
     try { rawBase = JSON.parse(plaintext); } catch { return 'unreadable'; }
-    const written = { ...rawBase, baseline, baselinePending: undefined };
+    // An unreadable baseline already on the record is moved aside, not overwritten.
+    const written = {
+      ...rawBase,
+      baseline,
+      baselinePending: undefined,
+      ...(entry.unreadableBaseline !== undefined ? { unreadableBaseline: entry.unreadableBaseline } : {}),
+    };
     try {
       await writeStoredPlaintext(id, JSON.stringify(written));
       const check = await readStoredRecord(id);

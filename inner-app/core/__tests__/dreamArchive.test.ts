@@ -126,6 +126,14 @@ describe('Dream Archive', () => {
       ],
     };
 
+    it('includes unreadable stored additions in the JSON export so nothing is lost', () => {
+      const withRejects = { ...base, unreadableAdditions: [{ id: 'x' }, 'junk'] };
+      const parsed = JSON.parse(serializeDreamArchive(buildDreamArchiveExport([withRejects], 'all', now)));
+      expect(parsed.entries[0].unreadableAdditions).toEqual([{ id: 'x' }, 'junk']);
+      const html = buildDreamArchiveHtml(buildDreamArchiveExport([withRejects], 'all', now));
+      expect(html).not.toContain('junk');
+    });
+
     it('carries the baseline and additions through the JSON export', () => {
       const parsed = JSON.parse(serializeDreamArchive(buildDreamArchiveExport([base], 'all', now)));
       expect(parsed.entries[0].baseline.text).toBe('A stone corridor toward a blue light.');
