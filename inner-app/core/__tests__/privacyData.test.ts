@@ -22,6 +22,8 @@ describe('clearPrivateUserData', () => {
       ['journal:index', JSON.stringify(['one', 'two'])],
       ['journal:one', 'encrypted-one'],
       ['journal:two', 'encrypted-two'],
+      ['journal:index:backup', '["old"]'],
+      ['journal:migration:baseline.v1', '{"status":"complete"}'],
       ['aerisHistory', 'encrypted-history'],
       ['aerisHistoryDate', '2026-07-13'],
       ['inner.lucid-signal.learning.v1', '{"schemaVersion":1,"nights":[]}'],
@@ -42,6 +44,8 @@ describe('clearPrivateUserData', () => {
 
     await expect(AsyncStorage.getItem('journal:index')).resolves.toBeNull();
     await expect(AsyncStorage.getItem('journal:one')).resolves.toBeNull();
+    await expect(AsyncStorage.getItem('journal:index:backup')).resolves.toBeNull();
+    await expect(AsyncStorage.getItem('journal:migration:baseline.v1')).resolves.toBeNull();
     await expect(AsyncStorage.getItem('aerisHistory')).resolves.toBeNull();
     await expect(AsyncStorage.getItem('inner.lucid-signal.learning.v1')).resolves.toBeNull();
     await expect(AsyncStorage.getItem('inner.lucid-signal.plan.v1')).resolves.toBeNull();
