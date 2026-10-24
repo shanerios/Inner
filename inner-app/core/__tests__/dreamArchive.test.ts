@@ -36,7 +36,7 @@ describe('Dream Archive', () => {
   it('serializes a versioned, portable JSON document', () => {
     const archive = buildDreamArchiveExport([entry('one', now)], 'all', now);
     expect(JSON.parse(serializeDreamArchive(archive))).toEqual(expect.objectContaining({
-      schemaVersion: 3,
+      schemaVersion: 4,
       generatedAt: now,
       range: 'all',
       entryCount: 1,
@@ -114,5 +114,52 @@ describe('Dream Archive', () => {
     expect(html).toContain('The night before this dream');
     expect(html).toContain('Ocean Night');
     expect(html).toContain('Recognition signal: Droplets');
+  });
+
+  describe('recollections and reflections', () => {
+    const base = {
+      ...entry('rec', now, 'A stone corridor toward a blue light, and stairs.'),
+      baseline: { text: 'A stone corridor toward a blue light.', capturedAt: now - 2 * 60 * 60_000, source: 'original' as const, preservedAt: now - 2 * 60 * 60_000 },
+      additions: [
+        { id: 'b', kind: 'reflection' as const, text: 'Reminds me of <another> dream.', createdAt: now - 60_000 },
+        { id: 'a', kind: 'recollection' as const, text: 'A staircase to the left.', createdAt: now - 3_600_000, editedAt: now - 3_000_000 },
+      ],
+    };
+
+    it('carries the baseline and additions through the JSON export', () => {
+      const parsed = JSON.parse(serializeDreamArchive(buildDreamArchiveExport([base], 'all', now)));
+      expect(parsed.entries[0].baseline.text).toBe('A stone corridor toward a blue light.');
+      expect(parsed.entries[0].additions).toHaveLength(2);
+    });
+
+    it('labels the current account and shows the original separately, oldest addition first', () => {
+      const html = buildDreamArchiveHtml(buildDreamArchiveExport([base], 'all', now));
+      expect(html).toContain('Current account &middot; edited since');
+      expect(html).toContain('Original recollection');
+      expect(html).toContain('A stone corridor toward a blue light.</p>');
+      expect(html.indexOf('Additional recollection')).toBeLessThan(html.indexOf('Reflection &middot;'));
+      expect(html).toContain('&middot; Edited');
+      expect(html).toContain('Reminds me of &lt;another&gt; dream.');
+      expect(html).not.toContain('<another>');
+    });
+
+    it('calls an unchanged baseline the original and a legacy snapshot the first saved version', () => {
+      const unchanged = { ...base, body: base.baseline.text, additions: undefined };
+      const unchangedHtml = buildDreamArchiveHtml(buildDreamArchiveExport([unchanged], 'all', now));
+      expect(unchangedHtml).toContain('Original recollection &middot;');
+      expect(unchangedHtml).not.toContain('edited since');
+
+      const legacy = { ...base, baseline: { ...base.baseline, source: 'legacy_snapshot' as const, preservedAt: now } };
+      const legacyHtml = buildDreamArchiveHtml(buildDreamArchiveExport([legacy], 'all', now));
+      expect(legacyHtml).toContain('First saved version');
+      expect(legacyHtml).not.toContain('Original recollection');
+      expect(legacyHtml).toContain('may have been edited before then');
+    });
+
+    it('leaves entries without a baseline exactly as they were', () => {
+      const html = buildDreamArchiveHtml(buildDreamArchiveExport([entry('plain', now)], 'all', now));
+      expect(html).not.toContain('account-label">');
+      expect(html).not.toContain('class="addition');
+    });
   });
 });
