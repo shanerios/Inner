@@ -359,19 +359,29 @@ index 0000000..f05ef4c
 +## License
 +
 +MIT, see [the LICENSE file](LICENSE).
-diff --git a/node_modules/react-native-spotlight-tour/dist/lib/components/tour-overlay/TourOverlay.component.js b/node_modules/react-native-spotlight-tour/dist/lib/components/tour-overlay/TourOverlay.component.js
-index 0fbbd87..5a8760e 100644
---- a/node_modules/react-native-spotlight-tour/dist/lib/components/tour-overlay/TourOverlay.component.js
-+++ b/node_modules/react-native-spotlight-tour/dist/lib/components/tour-overlay/TourOverlay.component.js
-@@ -93,7 +93,7 @@ export const TourOverlay = forwardRef((props, ref) => {
+diff --git a/node_modules/react-native-spotlight-tour/dist/lib/components/attach-step/AttachStep.component.js b/node_modules/react-native-spotlight-tour/dist/lib/components/attach-step/AttachStep.component.js
+index 8615023..2ef8da6 100644
+--- a/node_modules/react-native-spotlight-tour/dist/lib/components/attach-step/AttachStep.component.js
++++ b/node_modules/react-native-spotlight-tour/dist/lib/components/attach-step/AttachStep.component.js
+@@ -1,6 +1,6 @@
+ import { jsx as _jsx } from "react/jsx-runtime";
+ import { cloneElement, useCallback, useContext, useEffect, useRef, } from "react";
+-import { View } from "react-native";
++import { Platform, StatusBar, View } from "react-native";
+ import { SpotlightTourContext } from "../../SpotlightTour.context";
+ /**
+  * React functional component used to attach and step to another component by
+@@ -16,7 +16,9 @@ export function AttachStep({ children, fill = false, index, style }) {
+         const indexes = typeof index === "number" ? [index] : index;
+         if (current !== undefined && indexes.includes(current)) {
+             ref.current?.measureInWindow((x, y, width, height) => {
+-                changeSpot({ height, width, x, y });
++                // Android edge-to-edge: measureInWindow omits the status bar height the overlay draws under.
++                const statusBarOffset = Platform.OS === "android" ? (StatusBar.currentHeight ?? 0) : 0;
++                changeSpot({ height, width, x, y: y + statusBarOffset });
              });
-         },
-     }), [current, useNativeDriver]);
--    return (_jsx(Modal, { animationType: "fade", presentationStyle: "overFullScreen", supportedOrientations: ["portrait", "landscape", "landscape-left", "landscape-right", "portrait-upside-down"], transparent: true, visible: current !== undefined, children: _jsxs(View, { testID: "Overlay View", style: Css.overlayView, children: [_jsxs(Svg, { testID: "Spot Svg", height: vh(100), width: vw(100), viewBox: `0 0 ${vw(100)} ${vh(100)}`, onPress: handleBackdropPress, shouldRasterizeIOS: true, renderToHardwareTextureAndroid: true, children: [_jsx(Defs, { children: _jsxs(Mask, { id: "mask", x: 0, y: 0, height: "100%", width: "100%", children: [_jsx(Rect, { height: vh(100), width: vw(100), fill: "#fff" }), _jsx(ShapeMask, { spot: spot, setReference: refs.setReference, motion: stepMotion, padding: shapeOptions.padding, useNativeDriver: useNativeDriver })] }) }), _jsx(Rect, { height: vh(100), width: vw(100), fill: color, mask: "url(#mask)", opacity: backdropOpacity })] }), current !== undefined && (_jsxs(Animated.View, { ref: refs.setFloating, testID: "Tooltip View", style: { ...floatingStyles, opacity: tooltipOpacity.current }, children: [_jsx(tourStep.render, { current: current, isFirst: current === 0, isLast: current === steps.length - 1, next: next, previous: previous, stop: stop, pause: pause, resume: resume, goTo: goTo }), floating.arrow !== false && (_jsx(View, { style: [
-+    return (_jsx(Modal, { animationType: "fade", presentationStyle: "overFullScreen", supportedOrientations: ["portrait", "landscape", "landscape-left", "landscape-right", "portrait-upside-down"], statusBarTranslucent: true, transparent: true, visible: current !== undefined, children: _jsxs(View, { testID: "Overlay View", style: Css.overlayView, children: [_jsxs(Svg, { testID: "Spot Svg", height: vh(100), width: vw(100), viewBox: `0 0 ${vw(100)} ${vh(100)}`, onPress: handleBackdropPress, shouldRasterizeIOS: true, renderToHardwareTextureAndroid: true, children: [_jsx(Defs, { children: _jsxs(Mask, { id: "mask", x: 0, y: 0, height: "100%", width: "100%", children: [_jsx(Rect, { height: vh(100), width: vw(100), fill: "#fff" }), _jsx(ShapeMask, { spot: spot, setReference: refs.setReference, motion: stepMotion, padding: shapeOptions.padding, useNativeDriver: useNativeDriver })] }) }), _jsx(Rect, { height: vh(100), width: vw(100), fill: color, mask: "url(#mask)", opacity: backdropOpacity })] }), current !== undefined && (_jsxs(Animated.View, { ref: refs.setFloating, testID: "Tooltip View", style: { ...floatingStyles, opacity: tooltipOpacity.current }, children: [_jsx(tourStep.render, { current: current, isFirst: current === 0, isLast: current === steps.length - 1, next: next, previous: previous, stop: stop, pause: pause, resume: resume, goTo: goTo }), floating.arrow !== false && (_jsx(View, { style: [
-                                 Css.tooltipArrow,
-                                 arrowCss({
-                                     arrow: typeof floating.arrow !== "boolean"
+         }
+     }, [changeSpot, current, JSON.stringify(index)]);
 diff --git a/node_modules/react-native-spotlight-tour/package 2.json b/node_modules/react-native-spotlight-tour/package 2.json
 new file mode 100644
 index 0000000..3f8fd57
@@ -472,15 +482,27 @@ index 0000000..3f8fd57
 +  }
 +}
 \ No newline at end of file
-diff --git a/node_modules/react-native-spotlight-tour/src/lib/components/tour-overlay/TourOverlay.component.tsx b/node_modules/react-native-spotlight-tour/src/lib/components/tour-overlay/TourOverlay.component.tsx
-index 127c1d6..d602523 100644
---- a/node_modules/react-native-spotlight-tour/src/lib/components/tour-overlay/TourOverlay.component.tsx
-+++ b/node_modules/react-native-spotlight-tour/src/lib/components/tour-overlay/TourOverlay.component.tsx
-@@ -185,6 +185,7 @@ export const TourOverlay = forwardRef<TourOverlayRef, TourOverlayProps>((props,
-       animationType="fade"
-       presentationStyle="overFullScreen"
-       supportedOrientations={["portrait", "landscape", "landscape-left", "landscape-right", "portrait-upside-down"]}
-+      statusBarTranslucent={true}
-       transparent={true}
-       visible={current !== undefined}
-     >
+diff --git a/node_modules/react-native-spotlight-tour/src/lib/components/attach-step/AttachStep.component.tsx b/node_modules/react-native-spotlight-tour/src/lib/components/attach-step/AttachStep.component.tsx
+index 8b47644..77c82b7 100644
+--- a/node_modules/react-native-spotlight-tour/src/lib/components/attach-step/AttachStep.component.tsx
++++ b/node_modules/react-native-spotlight-tour/src/lib/components/attach-step/AttachStep.component.tsx
+@@ -8,7 +8,7 @@ import {
+   useEffect,
+   useRef,
+ } from "react";
+-import { type LayoutChangeEvent, type StyleProp, View, type ViewStyle } from "react-native";
++import { Platform, StatusBar, type LayoutChangeEvent, type StyleProp, View, type ViewStyle } from "react-native";
+ 
+ import { SpotlightTourContext } from "../../SpotlightTour.context";
+ 
+@@ -77,7 +77,9 @@ export function AttachStep({ children, fill = false, index, style }: AttachStepP
+ 
+     if (current !== undefined && indexes.includes(current)) {
+       ref.current?.measureInWindow((x, y, width, height) => {
+-        changeSpot({ height, width, x, y });
++        // Android edge-to-edge: measureInWindow omits the status bar height the overlay draws under.
++        const statusBarOffset = Platform.OS === "android" ? (StatusBar.currentHeight ?? 0) : 0;
++        changeSpot({ height, width, x, y: y + statusBarOffset });
+       });
+     }
+   }, [changeSpot, current, JSON.stringify(index)]);
