@@ -59,10 +59,6 @@ Inner now connects your nights with what you remember in the morning.
 - The name and wake-time prompts were removed from first launch; both can still be set in Settings.
 - Not yet device-tested.
 
-#### Android walkthrough alignment
-
-- The Home walkthrough's highlights now line up with the orb, sigils, and side doors on Android; they had been drawn about one status-bar height too high. Confirmed on a Pixel 8 Pro and an iPhone 12 Pro (iOS was already correct).
-
 #### Overnight reliability
 
 - Android now releases cached image memory when the app goes to the background, to lower the chance of the app process being removed during a long Overnight Journey. Not yet confirmed to prevent it.
