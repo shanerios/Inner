@@ -1,6 +1,6 @@
 # Access gating: physical-device checks (internal)
 
-Status: PARTLY RUN (see the results log at the end). Still to run: Dream Incubation, recurring-signal journey and Morning Return as a non-member, restore success, the lapsed member state, and the unknown-membership path on a device. Run on a physical iPhone and a physical Android device with a release-like build before submitting. Simulators and emulators do not cover RevenueCat sandbox or store behavior.
+Status: PARTLY RUN (see the results log at the end). Still to run: Dream Incubation, recurring-signal journey and Morning Return as a non-member on Android, a successful Restore Purchases, the unknown-membership path on a device, and a fresh-install first launch. Run on a physical iPhone and a physical Android device with a release-like build before submitting.
 
 Use three states: a member, a non-member, and a lapsed member (has saved journeys, membership ended).
 
@@ -104,9 +104,31 @@ Findings:
 - A swipe-away while the night was still playing did not produce a Continue card. The same swipe after pausing did. The resume and checkpoint code is identical to the shipped iOS release, so this is not part of the gating. It is unexplained.
 - The "Resume - Chamber" shortcut on Home is the existing last-session shortcut. The gating change does not touch it.
 
-### Not covered by any device check
-- The unknown-membership path (no cached customer info, SDK error, or timeout) on a device. Unit tests only.
-- Android paywall offerings and prices on a store build.
-- Aeris conversation limits, which are server-side.
-- `main` as a whole. The builds above predate the onboarding and intention rewrite, the Dream Log recollections work and the Android text fix. A build from `main` needs a short regression pass: first launch and onboarding, the Intention screen, Overnight, and a Dream Log entry.
+### iPhone 12 Pro, iOS, TestFlight 3.4 (buildNumber 2083), built from merged `main` at `ef10634`, 2026-10-25
 
+Non-member (after the earlier sandbox subscription expired):
+
+| Check | Result |
+| --- | --- |
+| Intention screen shows Lucidity, OBE and Focus (and the other options) | Pass |
+| Overnight in Ocean starts | Pass |
+| Temple shows the paywall | Pass |
+| A Recognition Only night starts with no paywall and plays only the signal | Pass |
+| A Dream Log entry saves and shows its original recollection | Pass |
+
+Lapsed member (supersedes the "not observed" lapse row in the earlier iPhone section; Apple's sandbox did expire the subscription later):
+
+| Check | Result |
+| --- | --- |
+| Journey Creator gated again | Pass |
+| The saved journey with a premium stage ("Temple Experience") still opens and plays | Pass |
+| Dream Log opens | Pass |
+| Restore Purchases finds nothing and unlocks nothing | Pass. A restore that succeeds is still untested |
+
+### Not covered by any device check
+- A Restore Purchases that finds a live purchase. It needs a fresh install with a purchase on the account, which would wipe a journal.
+- The unknown-membership path (no cached customer info, SDK error, or timeout) on a device. Unit tests only.
+- First launch and onboarding on a fresh install, and an old pre-update Dream Log entry showing "First saved version". Unit tests only for the migration.
+- Android paywall offerings and prices on a store build, and the merged build on Android generally (the Pixel account is a member).
+- PostHog events arriving from a store build, with no dream or intention text.
+- Aeris conversation limits, which are server-side.
