@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Alert, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Slider from '@react-native-community/slider';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
-import ScreenTopFade, { TOP_FADE_OVERLAP } from '../components/ScreenTopFade';
+import ScreenTopFade, { TITLE_CONTENT_GAP, TOP_FADE_OVERLAP } from '../components/ScreenTopFade';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useVideoPlayer, VideoView } from '../core/memorySafeVideo';
 import {
@@ -661,7 +661,9 @@ export default function OvernightJourneyScreen() {
     </View>
   );
 
-  const overnightTop = insets.top + (Platform.OS === 'android' ? 270 : 240);
+  // The title block is two lines, about 82 tall, starting at 126 (plus the Android offset).
+  const overnightTitleBottom = insets.top + 126 + 82 + (Platform.OS === 'android' ? 30 : 0);
+  const overnightTop = overnightTitleBottom + TITLE_CONTENT_GAP;
 
   return (
     <View style={styles.root}>
@@ -857,7 +859,7 @@ export default function OvernightJourneyScreen() {
           <Text style={styles.returnText}>RETURN</Text>
         </Pressable>
       </ScrollView>
-      <ScreenTopFade height={overnightTop + TOP_FADE_OVERLAP} />
+      <ScreenTopFade solid={overnightTitleBottom} end={overnightTop + TOP_FADE_OVERLAP} />
       {INNER_LAB_BUILD ? (
         <Modal visible={inspectorVisible} transparent animationType="fade" onRequestClose={() => setInspectorVisible(false)}>
           <View style={styles.inspectorBackdrop}>

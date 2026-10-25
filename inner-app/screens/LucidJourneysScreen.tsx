@@ -752,7 +752,7 @@ export default function LucidJourneysScreen() {
           <Text style={styles.returnText}>RETURN</Text>
         </Pressable>
       </ScrollView>
-      <ScreenTopFade height={listTop + TOP_FADE_OVERLAP} zIndex={1} />
+      <ScreenTopFade solid={insets.top + INTRO_TOP + introHeight + (Platform.OS === 'android' ? 30 : 0)} end={listTop + TOP_FADE_OVERLAP} zIndex={1} />
 
       <Modal
         visible={Boolean(pendingReflection) && morningReflectionVisible}
