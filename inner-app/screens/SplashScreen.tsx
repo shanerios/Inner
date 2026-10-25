@@ -13,6 +13,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getOrCreateAnalyticsUserId } from '../core/analyticsIdentity';
 import { usePostHog } from 'posthog-react-native';
 import { isIntentionRecheckDue } from '../core/session';
+import { trackOnboardingStarted } from '../core/onboardingAnalytics';
 
 const Body = _Body ?? ({
   regular: { ...Typography.body },
@@ -431,7 +432,11 @@ export default function SplashScreen() {
     if (navigating.current) return;
     navigating.current = true;
     if (showReturnHome) hideReturnHome();
-    if (!onboardingComplete) posthog?.capture('onboarding_splash_tapped');
+    if (!onboardingComplete) {
+      posthog?.capture('onboarding_splash_tapped');
+      // The first-run flow goes straight from here to Intention, so this tap is where onboarding starts.
+      void trackOnboardingStarted();
+    }
     playEngulfThen(() => {
       if (!onboardingComplete) {
         // First run — straight to Intention Tuning, which doubles as the
