@@ -36,6 +36,8 @@ import { INNER_LAB_BUILD } from '../core/innerLab';
 import { startBedsideMotionRecording } from '../core/bedsideMotionSensor';
 import { resolveVoiceClips } from '../core/audio/voiceClips';
 import { markRecurringSignalPracticeCompleted } from '../core/recurringDreamSignals';
+import { openPaywall } from '../src/core/subscriptions/paywallController';
+import { checkStartAccess, playerStartFromRoute, type PlaybackStartKind } from '../src/core/subscriptions/playbackPolicy';
 
 const LUCIDITY_CUE_TRAINING_JOURNEY_ID = 'lucid-signal';
 /** How long a requested start may take before it is treated as stalled. */
@@ -51,6 +53,8 @@ type Params = {
   nightPlanId?: string;
   resumeSessionId?: string;
   resumePositionMs?: number;
+  /** Set by each entry screen so the start can be classified without guessing. */
+  playbackKind?: PlaybackStartKind;
 };
 
 export default function LucidJourneyPlayerScreen() {
@@ -58,7 +62,7 @@ export default function LucidJourneyPlayerScreen() {
   const route = useRoute();
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
-  const { journeyId, journey: suppliedJourney, nightPlanId, resumeSessionId, resumePositionMs } = (route.params || {}) as Params;
+  const { journeyId, journey: suppliedJourney, nightPlanId, resumeSessionId, resumePositionMs, playbackKind } = (route.params || {}) as Params;
   const journey = useMemo(
     () => suppliedJourney ?? FACTORY_AUDIO_JOURNEYS.find(item => item.id === journeyId),
     [journeyId, suppliedJourney],
@@ -212,6 +216,23 @@ export default function LucidJourneyPlayerScreen() {
 
     const start = async () => {
       try {
+        // Access is resolved before any audio begins. Resumes never check membership.
+        const access = await checkStartAccess(
+          playerStartFromRoute({ resumeSessionId, nightPlanId, playbackKind }, journey.timeline),
+        );
+        if (!mounted) return;
+        if (!access.allowed) {
+          if (access.reason === 'membership_required') {
+            openPaywall(undefined, undefined, access.trigger);
+          } else {
+            Alert.alert(
+              'Membership not confirmed',
+              'Inner could not confirm Full Experience just now. Check your connection and try again.',
+            );
+          }
+          try { navigation.goBack(); } catch {}
+          return;
+        }
         if (!session.isAvailable()) throw new Error('Procedural audio is unavailable in this build.');
         const timeline = compileAudioJourneyTimeline(journey.timeline, DEFAULT_PROCEDURAL_AUDIO_CONFIG);
         let playbackTimeline = timeline;
@@ -560,7 +581,7 @@ export default function LucidJourneyPlayerScreen() {
       // checkpoint alone for the reconstructed UI or next cold launch.
       if (explicitEffectRestartRef.current && !resumeSessionId) closeForExplicitExit(false);
     };
-  }, [journey, attempt, nightPlanId, resumePositionMs, resumeSessionId]);
+  }, [journey, attempt, nightPlanId, resumePositionMs, resumeSessionId, playbackKind]);
 
   const retryStart = () => {
     setError(null);

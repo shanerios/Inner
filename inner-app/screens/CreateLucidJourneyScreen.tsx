@@ -1,10 +1,13 @@
-import React, { useMemo, useState } from 'react';
-import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useVideoPlayer, VideoView } from '../core/memorySafeVideo';
 import { createJourneyPreview, createPersonalizedLucidJourney, PersonalizedLucidJourneyAnswers, savePersonalizedJourney } from '../core/audio';
+import { openPaywall } from '../src/core/subscriptions/paywallController';
+import { resolveMembership } from '../src/core/subscriptions/membership';
+import { checkStartAccess } from '../src/core/subscriptions/playbackPolicy';
 import { Typography } from '../core/typography';
 
 const OPTIONS = {
@@ -38,6 +41,25 @@ export default function CreateLucidJourneyScreen() {
     player.loop = true; player.muted = true; player.audioMixingMode = 'mixWithOthers'; player.play();
   });
 
+  // Membership is required to build a journey. Leave at once when it is not confirmed.
+  useEffect(() => {
+    let active = true;
+    void resolveMembership().then(status => {
+      if (!active || status === 'member') return;
+      if (status === 'unknown') {
+        Alert.alert(
+          'Membership not confirmed',
+          'Inner could not confirm Full Experience just now. Check your connection and try again.',
+          [{ text: 'OK', onPress: () => navigation.goBack() }],
+        );
+        return;
+      }
+      openPaywall(undefined, undefined, 'journey_creator');
+      navigation.goBack();
+    });
+    return () => { active = false; };
+  }, [navigation]);
+
   const choice = <K extends keyof PersonalizedLucidJourneyAnswers>(key: K, value: PersonalizedLucidJourneyAnswers[K]) => {
     setAnswers(current => ({ ...current, [key]: value }));
     setSaveState('idle');
@@ -45,6 +67,16 @@ export default function CreateLucidJourneyScreen() {
 
   const saveJourney = async () => {
     if (!journeyName.trim() || saveState === 'saving') return;
+    // Saving is a creation, so membership is checked again here, not only at entry.
+    const access = await checkStartAccess({ kind: 'custom_new' });
+    if (!access.allowed) {
+      if (access.reason === 'membership_required') {
+        openPaywall(undefined, undefined, access.trigger);
+      } else {
+        Alert.alert('Membership not confirmed', 'Inner could not confirm Full Experience just now. Check your connection and try again.');
+      }
+      return;
+    }
     setSaveState('saving');
     await savePersonalizedJourney(journeyName, journey);
     setSaveState('saved');
@@ -101,10 +133,10 @@ export default function CreateLucidJourneyScreen() {
         >
           <Text style={styles.variationText}>ANOTHER VARIATION</Text>
         </Pressable>
-        <Pressable onPress={() => navigation.navigate('LucidJourneyPlayer', { journey })} style={styles.begin} accessibilityRole="button">
+        <Pressable onPress={() => navigation.navigate('LucidJourneyPlayer', { journey, playbackKind: 'custom_new' })} style={styles.begin} accessibilityRole="button">
           <Text style={styles.beginText}>BEGIN JOURNEY</Text>
         </Pressable>
-        <Pressable onPress={() => navigation.navigate('LucidJourneyPlayer', { journey: previewJourney })} style={styles.preview} accessibilityRole="button">
+        <Pressable onPress={() => navigation.navigate('LucidJourneyPlayer', { journey: previewJourney, playbackKind: 'custom_new' })} style={styles.preview} accessibilityRole="button">
           <Text style={styles.previewText}>PREVIEW 56S</Text>
         </Pressable>
         <Pressable onPress={() => setNameModalVisible(true)} style={styles.save} accessibilityRole="button">

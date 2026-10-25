@@ -1117,6 +1117,7 @@ const loop = Animated.loop(
         nightPlanId: continuation.session.nightPlanId,
         resumeSessionId: continuation.session.id,
         resumePositionMs: continuation.checkpoint.positionMs,
+        playbackKind: 'resume',
       });
     } catch {
       Alert.alert('Journey unavailable', 'Inner could not reopen the preserved journey. Please try again.');
@@ -1260,6 +1261,7 @@ const loop = Animated.loop(
           await saveRecurringSignalFocus(signal);
           navigation.navigate('LucidJourneyPlayer', {
             journey: createRecurringSignalJourney(baseJourney, tonightRecommendation.sign),
+            playbackKind: 'factory',
           });
         } else {
           navigation.navigate('LucidJourneys');

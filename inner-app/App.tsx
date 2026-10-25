@@ -161,8 +161,10 @@ type RootStackParamList = {
   LucidJourneyPlayer: {
     journeyId?: string;
     journey?: import('./core/audio').FactoryAudioJourney;
+    nightPlanId?: string;
     resumeSessionId?: string;
     resumePositionMs?: number;
+    playbackKind?: import('./src/core/subscriptions/playbackPolicy').PlaybackStartKind;
   };
   JourneyPlayer: { trackId?: string; chamber?: string; proceduralJourneyId?: string; openLiveMix?: boolean } | undefined;
   Glossary: { trackId: 'lucid' | 'obe' };

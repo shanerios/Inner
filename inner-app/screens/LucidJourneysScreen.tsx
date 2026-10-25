@@ -17,6 +17,8 @@ import {
   startFailureMessage,
 } from '../core/audio';
 import { Typography } from '../core/typography';
+import { openPaywall } from '../src/core/subscriptions/paywallController';
+import { resolveMembership } from '../src/core/subscriptions/membership';
 import {
   cancelLucidityCueNotifications,
   hasLucidityCueNotificationsScheduled,
@@ -127,9 +129,24 @@ export default function LucidJourneysScreen() {
 
   const begin = async (journeyId: string) => {
     if (previewingSignal) await stopSignalPreview();
-    navigation.navigate('LucidJourneyPlayer', { journeyId });
+    navigation.navigate('LucidJourneyPlayer', { journeyId, playbackKind: 'factory' });
   };
-  const beginSaved = (journey: SavedPersonalizedJourney) => navigation.navigate('LucidJourneyPlayer', { journey });
+  const beginSaved = (journey: SavedPersonalizedJourney) =>
+    navigation.navigate('LucidJourneyPlayer', { journey, playbackKind: 'saved_custom' });
+
+  // Membership is shown before any building begins. Saved journeys remain playable without it.
+  const openCreator = async () => {
+    const status = await resolveMembership();
+    if (status === 'member') {
+      navigation.navigate('CreateLucidJourney');
+      return;
+    }
+    if (status === 'unknown') {
+      Alert.alert('Membership not confirmed', 'Inner could not confirm Full Experience just now. Check your connection and try again.');
+      return;
+    }
+    openPaywall(undefined, undefined, 'journey_creator');
+  };
 
   const previewSignal = useCallback(async () => {
     try {
@@ -399,7 +416,7 @@ export default function LucidJourneysScreen() {
     if (!dreamSeed) return;
     const journey = createDreamIncubationJourney(dreamSeed.text);
     setInnerReflectionsVisible(false);
-    navigation.navigate('LucidJourneyPlayer', { journey });
+    navigation.navigate('LucidJourneyPlayer', { journey, playbackKind: 'factory' });
   };
 
   return (
@@ -653,7 +670,7 @@ export default function LucidJourneysScreen() {
             <Text style={styles.createJourneyHint}>INNER CONSTRUCTS THE NIGHT</Text>
           </Pressable>
           <Pressable
-            onPress={() => navigation.navigate('CreateLucidJourney')}
+            onPress={() => { void openCreator(); }}
             accessibilityRole="button"
             accessibilityLabel="Create a personalized lucid journey"
             style={styles.createJourney}
