@@ -2,11 +2,123 @@
 
 This is the working release-notes ledger for Inner. Add user-visible improvements to the **Unreleased** section as they land. At release time, replace `Unreleased` with the shipped version, build numbers, and date; preserve the detailed notes; then create a fresh Unreleased section.
 
-## Unreleased — next release after 3.3
+## Unreleased — Inner 3.4
 
 Current production baseline: Inner 3.3 · iOS build 2080 · Android version code 66
 
+### Store-ready draft (3.4)
+
+Recognition Only is a new Overnight option that turns off every continuous layer, so only your recognition signal plays, at the planned times, with silence between.
+
+Temple, Abyssal Glass, Cosmic, and Fire are now Overnight environments in Full Experience, together with the Journey Creator. Ocean, Forest, and Quiet remain free, and factory journeys stay free.
+
+The Dream Log now keeps the original recollection of each dream separate from later additions and dated reflections, and exports all three. First launch is shorter, with the Intention screen as the one onboarding question (Lucidity, OBE, Focus, Grounding, Healing, Expansion).
+
+#### Google Play release notes (limit 500 characters)
+
+```
+What's new in 3.4
+• Recognition Only: an Overnight option with no background sound, just your signal at the planned times.
+• Full Experience now includes Temple, Abyssal Glass, Cosmic and Fire for Overnight, plus Journey Creator. Ocean, Forest and Quiet stay free.
+• Dream Log keeps your original recollection, with dated additions and reflections.
+• A shorter first launch.
+• Your app version now shows in Settings.
+```
+
+#### App Store "What's New" (limit 4,000 characters)
+
+```
+What's new in Inner 3.4
+
+• Recognition Only: a new Overnight option with no background sound. You hear only your recognition signal, at the times your night planned, with silence between.
+• Full Experience: Temple, Abyssal Glass, Cosmic and Fire are now Overnight environments included in Full Experience, and so is the Journey Creator. Ocean, Forest and Quiet stay free.
+• Dream Log: each entry now keeps your first account of the dream separate from later changes. Add a remembered detail or a reflection, each with its own date, and export the original, details and reflections in your Dream Archive.
+• A shorter first launch: tap the orb, choose your path on the Intention screen, and arrive at Home. Intentions now read Lucidity, OBE, Focus, Grounding, Healing and Expansion, and your earlier choices carry over.
+• Your app version and build number now show at the bottom of Settings.
+• Polish: text is no longer clipped on some Android screens.
+```
+
+### Detailed product log (3.4)
+
 - Settings now shows the app version and build number at the bottom, which makes it easier to confirm which version you are running when reporting an issue.
+
+#### Shorter first launch
+
+- First launch is now: tap the orb, choose your path on the Intention screen, then arrive at Home through the daily Arrive screen. The separate questionnaire, cinematic intro, and Essence screens no longer run on first launch; the intro remains available by long-pressing the orb.
+- Intention options now read Lucidity, OBE, Focus, Grounding, Healing, and Expansion. Existing selections carry over (earlier Clarity choices now read as Focus and Reawakening choices as OBE), and Home affirmations and nudge wording were updated to match.
+- The subscription paywall no longer opens at the end of onboarding. It appears when you open locked content, and its headline follows your first intention (Lucidity, OBE, or Focus).
+- The name and wake-time prompts were removed from first launch; both can still be set in Settings.
+- Not yet device-tested.
+
+#### Access and Full Experience
+
+- Temple, Abyssal Glass, Cosmic, and Fire are now Overnight environments included in Full Experience. Ocean, Forest, and Quiet remain free.
+- Temple comparison nights (Ocean and Temple) require Full Experience. Non-members are told before the night starts.
+- Journey Creator requires Full Experience to open and to save a new journey. Saved journeys stay playable if Full Experience ends. Deleting them stays free.
+- Factory journeys, Dream Log, Morning Return, and essential playback controls stay free.
+- Access is checked before a new session starts. An active session is never interrupted, and a session that is resumed is not blocked by a membership check.
+- If membership cannot be verified, Inner says so and offers to retry. It does not treat you as a non-member.
+
+
+#### Dream Log: original recollections and dated reflections
+
+- Each journal entry now keeps its first account separate from later changes. Open an entry and use "Return to this dream" to add a remembered detail or a reflection, each with its own date, or to view history. Your original recollection is labelled as such and is never rewritten by later notes.
+- Entries saved before this update keep their current text as a "First saved version", since it may already have been edited.
+- Dream Archive exports (JSON, PDF) include the preserved original, remembered details, and reflections.
+- Not yet device-tested.
+
+#### Recognition Only
+
+- A new switch on the Overnight screen turns off every continuous layer (preparation, descent, sleep windows, return). Only the scheduled recognition cues play, with silence between. Preparation is also silent. When it is on, the environment and feel choices are hidden.
+- A cue fades in over about 100 ms, so a bell or chime does not start with a sharp attack. Signal volume starts at a capped level (0.8) that never overwrites the level saved for full journeys.
+- Recognition Only nights are kept as labeled records and are excluded from environment and signal-level learning.
+- It has no access gate of its own. It plays no premium environment, so it is free under the current access rules.
+- Checked on Inner Lab builds before this release's merges: full 7.1-hour Recognition Only nights on a Pixel 8 Pro and an iPhone 12 Pro delivered all 10 signals on schedule with no drift, and only the cues were heard. The merged build has not been re-run on a device.
+
+#### Interface polish (3.4)
+
+- Fixed text being clipped on some Android screens by removing a small letter spacing that made shrink-to-fit text overflow. Verified on a Pixel 8 Pro.
+- Fixed the Android first-run walkthrough highlight sitting too high since the SDK 54 update. Verified on a Pixel 8 Pro.
+
+### Privacy and analytics notes (3.4)
+
+- Intention Tuning sends `intention_screen_viewed` and `intentions_selected` with only the source (onboarding or re-tune), the number selected, and whether the selection was unchanged; the chosen intentions are never sent.
+- New onboarding funnel events (`onboarding_splash_tapped`, `onboarding_intro_viewed`, `onboarding_intro_cta_shown`, `onboarding_intro_cta_pressed`, `onboarding_intro_skipped`) carry only timing, never survey answers. `onboarding_value_hook_completed` is no longer sent.
+- Analytics captures lifecycle events only (Overnight started, resumed and interrupted, Morning Return, Dream Log entry created and revisited, Guardian practice, Practice Memory opened). Properties are short values such as a kind, a capture method, a count or a timing. The shared helper drops free-text-style keys (text, title, body, note, intention, sign, name, email and similar) and any string over 64 characters before anything is sent, so dream text and intention text cannot ride along.
+- Builds are tagged as production, beta, internal, lab or dev so team and test traffic can be excluded from public metrics.
+- RevenueCat is now configured when the app starts, so a subscriber's entitlement is read correctly on a cold start, and customers are linked to the analytics person through a random analytics id.
+
+### Verification for 3.4
+
+- Access gating, on physical devices, from a build of the merged gating:
+  - Pixel 8 Pro (Inner Lab, non-member): free Overnight worlds start, premium worlds and Journey Creator show the paywall, an interrupted night resumes from Home with no prompt, and a factory journey and Dream Log work.
+  - iPhone 12 Pro (TestFlight 3.4, sandbox): the same non-member checks pass, the paywall shows correct prices and the 7-day trial, a sandbox purchase unlocks every Overnight world and Journey Creator, and a journey with a premium stage saved.
+  - Pixel 8 Pro (Play internal build, member): Temple starts with no paywall.
+- Not observed on a device: the lapsed-member state (Apple's sandbox kept the subscription active), Restore Purchases succeeding, and the unknown-membership message with no cached data. The saved-journey rule is covered by automated tests.
+- Automated checks, in a clean environment (fresh checkout, `npm ci` from the lockfile): `tsc --noEmit` exits 0 and the full jest suite passes (95 suites, 839 tests, 1 skipped) on the branch that combines gating, analytics and Recognition Only.
+- The merged analytics and Recognition Only builds have not yet been run on a device.
+
+### Before publishing
+
+- Version numbers: `app.json` is set to 3.4 with `versionCode` 67 and `buildNumber` 2082. Both production profiles use `autoIncrement`, so the next build becomes Android 68 and iOS 2083. Play's internal track already holds 67 and TestFlight already holds 3.4 / 2082, so do not lower these.
+- Build from the merged `main` (after the gating, analytics and Recognition Only PRs land), then run a short device pass: first launch and onboarding, the Intention screen, an Overnight, a Recognition Only night, a Dream Log entry, and a premium gate as a non-member.
+- Confirm analytics events arrive in PostHog from a build with the production channel, and enable the RevenueCat PostHog integration (dashboard step).
+- Confirm the App Store privacy answers and Google Play Data safety form cover the analytics events and the random analytics id linked to RevenueCat.
+- Note for App Review: Recognition Only nights are intentionally silent between signals.
+- Confirm RevenueCat offerings, prices and the 7-day trial on Android. They were confirmed on iOS only.
+- Still unobserved on a device: the lapsed-member state and Restore Purchases succeeding.
+- Free users who used Temple, Abyssal Glass, Cosmic or Fire before this release will meet the paywall for them. The store notes say so; decide whether to add an in-app message.
+- Sentry 8.15.1 now runs source map upload during builds. The production EAS environment has `SENTRY_AUTH_TOKEN`; the Inner Lab and development profiles skip the upload. Check the first production build uploads cleanly.
+- Run `pod install` before the next iOS build, since the Sentry update moves the Cocoa SDK from 9.16.1 to 9.18.0.
+- Confirm the voice pack and manifest in `OvernightVoice` still match the final clips (they were verified on devices on 2026-10-12).
+- Voice-pack format is decided: retain the current 44.1 kHz set of 33 clips at about 21 MB to preserve the smooth, subtle quality of the spoken preparation.
+- Run a full overnight on a production-flavor build; the completed physical-device overnight tests used Inner Lab builds. Full-night earbuds remain an optional additional check once earbuds that last through the night are available.
+- Recheck the store-ready draft against the exact contents of the release branch.
+- Complete any remaining physical-device smoke checks for Dream Log edit/export; Morning Return, voice capture, Overnight playback, signal delivery, and journey recovery have already been exercised on devices across Android and iOS.
+- Recheck the six adjusted Lucid screen headers on representative small and large devices.
+- Confirm microphone permission copy and store privacy disclosures include speech-to-text behavior.
+- Replace this section heading with the shipped version and release date, then create a new Unreleased section above it.
+
 
 ## Inner 3.3 — iOS build 2080 · Android version code 66 · October 18, 2026
 
@@ -56,31 +168,6 @@ Inner now connects your nights with what you remember in the morning.
 ```
 
 ### Detailed product log
-
-#### Shorter first launch
-
-- First launch is now: tap the orb, choose your path on the Intention screen, then arrive at Home through the daily Arrive screen. The separate questionnaire, cinematic intro, and Essence screens no longer run on first launch; the intro remains available by long-pressing the orb.
-- Intention options now read Lucidity, OBE, Focus, Grounding, Healing, and Expansion. Existing selections carry over (earlier Clarity choices now read as Focus and Reawakening choices as OBE), and Home affirmations and nudge wording were updated to match.
-- The subscription paywall no longer opens at the end of onboarding. It appears when you open locked content, and its headline follows your first intention (Lucidity, OBE, or Focus).
-- The name and wake-time prompts were removed from first launch; both can still be set in Settings.
-- Not yet device-tested.
-
-#### Access and Full Experience
-
-- Temple, Abyssal Glass, Cosmic, and Fire are now Overnight environments included in Full Experience. Ocean, Forest, and Quiet remain free.
-- Temple comparison nights (Ocean and Temple) require Full Experience. Non-members are told before the night starts.
-- Journey Creator requires Full Experience to open and to save a new journey. Saved journeys stay playable if Full Experience ends. Deleting them stays free.
-- Factory journeys, Dream Log, Morning Return, and essential playback controls stay free.
-- Access is checked before a new session starts. An active session is never interrupted, and a session that is resumed is not blocked by a membership check.
-- If membership cannot be verified, Inner says so and offers to retry. It does not treat you as a non-member.
-
-
-#### Dream Log: original recollections and dated reflections
-
-- Each journal entry now keeps its first account separate from later changes. Open an entry and use "Return to this dream" to add a remembered detail or a reflection, each with its own date, or to view history. Your original recollection is labelled as such and is never rewritten by later notes.
-- Entries saved before this update keep their current text as a "First saved version", since it may already have been edited.
-- Dream Archive exports (JSON, PDF) include the preserved original, remembered details, and reflections.
-- Not yet device-tested.
 
 #### Overnight reliability
 
@@ -240,8 +327,6 @@ Inner now connects your nights with what you remember in the morning.
 
 ### Privacy and analytics notes
 
-- Intention Tuning sends `intention_screen_viewed` and `intentions_selected` with only the source (onboarding or re-tune), the number selected, and whether the selection was unchanged; the chosen intentions are never sent.
-- New onboarding funnel events (`onboarding_splash_tapped`, `onboarding_intro_viewed`, `onboarding_intro_cta_shown`, `onboarding_intro_cta_pressed`, `onboarding_intro_skipped`) carry only timing, never survey answers. `onboarding_value_hook_completed` is no longer sent.
 - Practice Memory and personalized recommendations are designed to work locally on the device.
 - Structured dream outcomes can support aggregate event counts without sending freeform dream text.
 - Freeform journal content should remain outside analytics unless a future, explicit policy and consent flow says otherwise.
@@ -270,17 +355,3 @@ Inner now connects your nights with what you remember in the morning.
 - A first overnight test on the Pixel ran 3 hours 37 minutes before the Bluetooth earbuds' battery ended it; Android's records show the app itself was not terminated.
 - After the Android audio buffer was enlarged to 1 second, two consecutive full 7.1-hour nights on the Pixel completed with zero underruns, all 10 signals firing on schedule, and no interruptions. Both ran on the phone speaker.
 - Physical-device overnight validation now includes two successful post-buffer Android nights and one successful iOS night, with every planned recognition signal delivered correctly.
-
-### Before publishing
-
-- Confirm the final marketing version and iOS/Android build numbers.
-- Sentry 8.15.1 now runs source map upload during builds. The production EAS environment has `SENTRY_AUTH_TOKEN`; the Inner Lab and development profiles skip the upload. Check the first production build uploads cleanly.
-- Run `pod install` before the next iOS build, since the Sentry update moves the Cocoa SDK from 9.16.1 to 9.18.0.
-- Confirm the voice pack and manifest in `OvernightVoice` still match the final clips (they were verified on devices on 2026-10-12).
-- Voice-pack format is decided: retain the current 44.1 kHz set of 33 clips at about 21 MB to preserve the smooth, subtle quality of the spoken preparation.
-- Run a full overnight on a production-flavor build; the completed physical-device overnight tests used Inner Lab builds. Full-night earbuds remain an optional additional check once earbuds that last through the night are available.
-- Recheck the store-ready draft against the exact contents of the release branch.
-- Complete any remaining physical-device smoke checks for Dream Log edit/export; Morning Return, voice capture, Overnight playback, signal delivery, and journey recovery have already been exercised on devices across Android and iOS.
-- Recheck the six adjusted Lucid screen headers on representative small and large devices.
-- Confirm microphone permission copy and store privacy disclosures include speech-to-text behavior.
-- Replace this section heading with the shipped version and release date, then create a new Unreleased section above it.
