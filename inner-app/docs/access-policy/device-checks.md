@@ -17,9 +17,11 @@ Use three states: a member, a non-member, and a lapsed member (has saved journey
 - Dream Log, Morning Return, and essential playback controls work in every state.
 - An active session is not interrupted when membership expires or is refreshed mid-play.
 
-## Origin validation (route label vs content)
-- Each entry into the journey player behaves as above: factory list, saved list, recurring-signal card, Dream Incubation, Home continue, Overnight, Creator begin and preview.
-- A saved journey whose storage cannot be read is gated by its content. Note what a non-member sees.
+## Origin validation (records decide, labels do not)
+- Each entry into the journey player behaves as above: factory list, saved list, recurring-signal card, Dream Incubation (with a real Dream Seed), Home continue, Overnight, Creator begin and preview.
+- A saved journey plays as a lapsed member. After deleting it, a stale route to it is gated by content rather than treated as saved.
+- Storage failure UI (screen code, not unit-tested): force an unreadable saved-journeys or Journey Memory record and confirm the player shows "Try again" and "Back", never the paywall, and that Try again re-runs the start.
+- A resume whose session has ended shows "The paused journey is no longer available", never the paywall.
 
 ## Unknown membership
 - Airplane mode, cold start, non-member: a premium start shows "Membership not confirmed" with a way to retry, never "not a member".

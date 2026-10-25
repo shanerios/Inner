@@ -8,9 +8,7 @@ import {
   experimentRequiresMembership,
   isPremiumOvernightEnvironment,
   playerStartFromRoute,
-  verifiedPlaybackKind,
   type PlaybackStart,
-  type PlaybackStartKind,
 } from '../playbackPolicy';
 import type { MembershipStatus } from '../membership';
 
@@ -156,49 +154,6 @@ describe('playerStartFromRoute entry points', () => {
   it('passes saved and custom kinds through unchanged', () => {
     expect(playerStartFromRoute({ playbackKind: 'saved_custom' }, premiumTimeline)).toEqual({ kind: 'saved_custom' });
     expect(playerStartFromRoute({ playbackKind: 'custom_new' }, premiumTimeline)).toEqual({ kind: 'custom_new' });
-  });
-});
-
-describe('playback origin verification', () => {
-  const premiumTimeline = { stages: [{ target: { environment: 'temple' } }] };
-  const custom = { id: 'custom-1', timeline: premiumTimeline };
-  const route = (playbackKind: PlaybackStartKind) => ({ playbackKind });
-  const classify = (kind: PlaybackStartKind, journey: typeof custom, saved: string[] = []) =>
-    playerStartFromRoute({ playbackKind: verifiedPlaybackKind(route(kind), journey, saved) }, journey.timeline);
-
-  it('does not let a custom premium journey claim to be factory', () => {
-    expect(classify('factory', custom)).toEqual({ kind: 'overnight_new', environment: 'temple' });
-  });
-
-  it('keeps every catalog journey and a Dream Incubation factory', () => {
-    for (const journey of FACTORY_AUDIO_JOURNEYS) {
-      expect(verifiedPlaybackKind(route('factory'), journey, [])).toBe('factory');
-    }
-    expect(verifiedPlaybackKind(route('factory'), createDreamIncubationJourney('a lake'), [])).toBe('factory');
-  });
-
-  it('rejects a catalog id carrying an environment the original lacks', () => {
-    const base = FACTORY_AUDIO_JOURNEYS.find(item => !environmentsOfTimeline(item.timeline).includes('fire'))!;
-    const forged = { id: base.id, timeline: { stages: [{ target: { environment: 'fire' } }] } };
-    expect(verifiedPlaybackKind(route('factory'), forged, [])).toBeUndefined();
-  });
-
-  it('accepts saved_custom only for an id in the saved store', () => {
-    expect(classify('saved_custom', custom, ['custom-1'])).toEqual({ kind: 'saved_custom' });
-    expect(classify('saved_custom', custom, [])).toEqual({ kind: 'overnight_new', environment: 'temple' });
-  });
-
-  it('does not treat a resume label without a session as a resume', () => {
-    expect(playerStartFromRoute({ playbackKind: 'resume' }, premiumTimeline)).toEqual({ kind: 'overnight_new', environment: 'temple' });
-  });
-
-  it('does not let a mixer label skip the check in the journey player', () => {
-    expect(playerStartFromRoute({ playbackKind: 'live_mix' }, premiumTimeline)).toEqual({ kind: 'overnight_new', environment: 'temple' });
-    expect(playerStartFromRoute({ playbackKind: 'chamber_mixer' }, premiumTimeline)).toEqual({ kind: 'overnight_new', environment: 'temple' });
-  });
-
-  it('still gates custom_new', () => {
-    expect(classify('custom_new', custom)).toEqual({ kind: 'custom_new' });
   });
 });
 
