@@ -102,9 +102,22 @@ import { navigationRef } from './src/navigation/navigationRef';
 import * as Sentry from '@sentry/react-native';
 import { initializeMemoryTelemetry } from './core/memorySafeVideo';
 import { PostHogProvider, usePostHog } from 'posthog-react-native';
+import * as Application from 'expo-application';
+import { classifyBuild, initAnalytics, resolvePostHogConfig } from './core/analytics';
+import { initRevenueCatOnce } from './utils/revenueCat';
 import { sanitizeSentryEvent, scrubBreadcrumb } from './core/sentrySanitizer';
 
+// One classification for the whole app: production, beta, internal, lab or dev. It tags every PostHog
+// event (build_channel) and the Sentry environment, so Lab and dev crashes never read as production.
+const BUILD_CHANNEL = classifyBuild({
+  applicationId: Application.applicationId,
+  labEnv: process.env.EXPO_PUBLIC_INNER_LAB,
+  channelEnv: process.env.EXPO_PUBLIC_INNER_CHANNEL,
+  isDev: __DEV__,
+});
+
 Sentry.init({
+  environment: BUILD_CHANNEL,
   dsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
 
   // Adds more context data to events (IP address, cookies, user, etc.)
@@ -271,13 +284,22 @@ function JourneyPicker() {
 
 
 
-function PostHogBootTracker() {
+// Lab and dev builds use EXPO_PUBLIC_POSTHOG_KEY_LAB when set; otherwise they share the production
+// project and every event carries build_channel. Literal process.env.EXPO_PUBLIC_* references are
+// required so Expo can inline them.
+const POSTHOG_CONFIG = resolvePostHogConfig(BUILD_CHANNEL, {
+  prodKey: process.env.EXPO_PUBLIC_POSTHOG_KEY,
+  labKey: process.env.EXPO_PUBLIC_POSTHOG_KEY_LAB,
+  host: process.env.EXPO_PUBLIC_POSTHOG_HOST,
+});
+
+/** Hands the client to the shared analytics helper and registers channel/internal super properties. */
+function AnalyticsBoot() {
   const posthog = usePostHog();
 
   React.useEffect(() => {
-    posthog.capture('app_opened', {
-      platform: Platform.OS,
-    });
+    if (!posthog) return;
+    initAnalytics(posthog, BUILD_CHANNEL).catch(() => {});
   }, [posthog]);
 
   return null;
@@ -308,6 +330,13 @@ export default Sentry.wrap(function App() {
     return () => { (globalThis as any).__fog = undefined; };
   }, []);
 
+
+  // Configure RevenueCat once at startup so entitlement checks work on a cold start without a paywall
+  // visit. Not awaited: it never blocks navigation or audio, and readers configure on demand if they
+  // get there first.
+  useEffect(() => {
+    initRevenueCatOnce().catch(() => {});
+  }, []);
 
   // Start deferred deep-link resolution after React's first render instead of
   // during module evaluation. Paywall entry points initialize RevenueCat when needed.
@@ -489,14 +518,15 @@ export default Sentry.wrap(function App() {
 
   return (
     <PostHogProvider
-      apiKey={process.env.EXPO_PUBLIC_POSTHOG_KEY ?? ''}
+      apiKey={POSTHOG_CONFIG.apiKey}
       autocapture={false}
       options={{
-        host: process.env.EXPO_PUBLIC_POSTHOG_HOST ?? 'https://us.i.posthog.com',
+        host: POSTHOG_CONFIG.host,
         captureAppLifecycleEvents: true,
+        disabled: POSTHOG_CONFIG.disabled,
       }}
     >
-      <PostHogBootTracker />
+      <AnalyticsBoot />
       <SafeAreaProvider>
         <BreathProvider>
           <IntentionProvider>

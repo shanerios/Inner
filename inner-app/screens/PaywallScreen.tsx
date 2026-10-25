@@ -110,7 +110,7 @@ export default function PaywallScreen() {
 
   // Read stashed callbacks from paywallController on mount
   const callbacksRef = useRef(consumePendingCallbacks());
-  const { onSuccess: onPurchaseSuccess, onDismiss, trigger } = callbacksRef.current;
+  const { onSuccess: onPurchaseSuccess, onDismiss, trigger, source: analyticsSource } = callbacksRef.current;
 
   const [packages, setPackages] = useState<PackageOption[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -244,7 +244,10 @@ export default function PaywallScreen() {
     purchaseRetryRef.current = 0;
 
     if (!paywallViewTrackedRef.current) {
-      posthog.capture('paywall_viewed', { source: trigger ?? 'unspecified' });
+      posthog.capture('paywall_viewed', {
+        source: analyticsSource ?? trigger ?? 'unspecified',
+        trigger: trigger ?? 'unspecified',
+      });
       paywallViewTrackedRef.current = true;
     }
 

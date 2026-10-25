@@ -217,7 +217,7 @@ export default function SoundscapeCardList({
                 if (hasMembership != null) {
                   const pseudoTrack = { id: 'category:deeper', category: cat.key };
                   if (isLockedTrack(pseudoTrack, effectiveHasMembership)) {
-                    await safePresentPaywall();
+                    await safePresentPaywall(undefined, 'garden', 'soundscape_deeper');
                     return;
                   }
                 }
@@ -226,7 +226,7 @@ export default function SoundscapeCardList({
                 onDeeperLockedPress?.();
                 // If no legacy handler provided, still present paywall
                 if (!onDeeperLockedPress) {
-                  await safePresentPaywall();
+                  await safePresentPaywall(undefined, 'garden', 'soundscape_deeper');
                 }
                 return;
               }

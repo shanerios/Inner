@@ -2,9 +2,15 @@
 
 This is the working release-notes ledger for Inner. Add user-visible improvements to the **Unreleased** section as they land. At release time, replace `Unreleased` with the shipped version, build numbers, and date; preserve the detailed notes; then create a fresh Unreleased section.
 
-## Unreleased — next release after 3.1
+## Unreleased — next release after 3.3
 
-Current production baseline: Inner 3.1 · iOS build 2076 · Android version code 63
+Current production baseline: Inner 3.3 · iOS build 2080 · Android version code 66
+
+- Settings now shows the app version and build number at the bottom, which makes it easier to confirm which version you are running when reporting an issue.
+
+## Inner 3.3 — iOS build 2080 · Android version code 66 · October 18, 2026
+
+Released to the App Store and Google Play. This release also moved Inner to Expo SDK 54.
 
 ### Store-ready draft
 

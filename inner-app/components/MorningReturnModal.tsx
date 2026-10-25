@@ -20,6 +20,8 @@ import type { PendingMorningReturn } from '../core/morningReturn';
 import VoiceCaptureButton, { type VoiceRecognitionMode } from './VoiceCaptureButton';
 import { buildPracticeContext } from '../core/practiceLinking';
 import { saveNightRecord } from '../core/nightRecords';
+import { track, trackOnce } from '../core/analytics';
+import { nightEligibilityExclusion, nightExecutionFor } from '../core/nightEligibility';
 import { clearSelectedRecommendation } from '../core/recommendationMemory';
 import { recordPracticeExperimentOutcome } from '../core/practiceExperiments';
 import { suggestDreamSigns, type DreamSign } from '../core/dreamSigns';
@@ -63,6 +65,32 @@ export default function MorningReturnModal({ pending, visible, onRequestClose, o
     setFocusAppeared(null);
     setFocusRecognized(null);
   }, [pending?.id, pending?.morningCaptureEntryId]);
+
+  // Previews (Lab tests of the screen itself) are not real nights and are never reported.
+  const analyticsSessionId = pending ? (pending.journeySessionId ?? pending.id) : undefined;
+  const analyticsKind = pending?.journeySessionId ? 'overnight_journey' : 'scheduled_signal';
+
+  useEffect(() => {
+    if (!pending || pending.preview || !visible || !analyticsSessionId) return;
+    trackOnce(`${analyticsSessionId}:morning_return_presented`, 'morning_return_presented', {
+      session_id: analyticsSessionId,
+      kind: analyticsKind,
+      test_session: !!pending.testSession,
+      has_recognition_focus: !!pending.recognitionIntention,
+    });
+  }, [pending?.id, visible]);
+
+  // Closing keeps Morning Return available to reopen, so this is "skipped for now", not final.
+  const handleRequestClose = useCallback(() => {
+    if (pending && !pending.preview && analyticsSessionId) {
+      trackOnce(`${analyticsSessionId}:morning_return_skipped`, 'morning_return_skipped', {
+        session_id: analyticsSessionId,
+        kind: analyticsKind,
+        step,
+      });
+    }
+    onRequestClose();
+  }, [analyticsKind, analyticsSessionId, onRequestClose, pending, step]);
 
   useEffect(() => {
     setConfirmedDreamSigns(current => current.filter(sign => suggestedDreamSigns.includes(sign)));
@@ -146,6 +174,7 @@ export default function MorningReturnModal({ pending, visible, onRequestClose, o
       sleepImpact: sleepImpact ?? undefined,
     };
     setSavingReflection(true);
+    let savedNightRecord: Awaited<ReturnType<typeof saveNightRecord>> | undefined;
     try {
       const linkedEntryId = captureEntryId ?? pending.morningCaptureEntryId;
       const reflectedAt = Date.now();
@@ -187,6 +216,7 @@ export default function MorningReturnModal({ pending, visible, onRequestClose, o
             sleepImpact: sleepImpact ?? undefined,
           },
         });
+        savedNightRecord = nightRecord;
         await recordPracticeExperimentOutcome(nightRecord);
       }
       if (pending.journeySessionId) {
@@ -203,21 +233,53 @@ export default function MorningReturnModal({ pending, visible, onRequestClose, o
       return;
     }
     setSavingReflection(false);
+    if (!pending.preview) {
+      const sessionId = pending.journeySessionId ?? pending.id;
+      let learningExclusion: string | undefined;
+      if (savedNightRecord) {
+        try {
+          learningExclusion = nightEligibilityExclusion(
+            savedNightRecord,
+            nightExecutionFor(savedNightRecord),
+            Boolean(savedNightRecord.practiceContext?.nightPlan?.recipe),
+          );
+        } catch {}
+      }
+      trackOnce(`${sessionId}:morning_return_reflection_saved`, 'morning_return_reflection_saved', {
+        session_id: sessionId,
+        kind: pending.journeySessionId ? 'overnight_journey' : 'scheduled_signal',
+        recall: dreamRecall,
+        signal_noticed: reflection.noticed ?? undefined,
+        sleep_impact: sleepImpact ?? undefined,
+        wrote_dream: !!(captureEntryId ?? pending.morningCaptureEntryId),
+        voice_used: !!voiceRecognitionMode,
+        test_session: !!pending.testSession,
+        learning_eligible: learningExclusion === undefined,
+        learning_exclusion: learningExclusion,
+      });
+      if (pending.recognitionIntention && focusAppeared) {
+        trackOnce(`${sessionId}:recognition_practice_completed`, 'recognition_practice_completed', {
+          session_id: sessionId,
+          focus_appeared: focusAppeared,
+          focus_recognized: focusAppeared === 'yes' ? focusRecognized ?? undefined : undefined,
+        });
+      }
+    }
     onResolved();
   }, [captureEntryId, dreamDetails, dreamRecall, focusAppeared, focusRecognized, onResolved, pending, savingReflection, signalExperience, sleepImpact]);
 
   return (
-    <Modal visible={Boolean(pending) && visible} transparent animationType="fade" onRequestClose={onRequestClose}>
+    <Modal visible={Boolean(pending) && visible} transparent animationType="fade" onRequestClose={handleRequestClose}>
       <View style={styles.root}>
         <Pressable
           style={StyleSheet.absoluteFill}
-          onPress={onRequestClose}
+          onPress={handleRequestClose}
           accessibilityRole="button"
           accessibilityLabel="Close morning reflection"
         />
         <View style={[styles.panel, { paddingBottom: insets.bottom + 18 }]}>
           <Pressable
-            onPress={onRequestClose}
+            onPress={handleRequestClose}
             accessibilityRole="button"
             accessibilityLabel="Close morning reflection"
             style={styles.close}

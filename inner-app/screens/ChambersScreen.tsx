@@ -1,3 +1,4 @@
+import { getCustomerInfoReady } from '../utils/revenueCat';
 import React, {
   useEffect,
   useMemo,
@@ -24,7 +25,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 import { usePostHog } from 'posthog-react-native';
-import Purchases, { CustomerInfo } from 'react-native-purchases';
+import type { CustomerInfo } from 'react-native-purchases';
 
 import { setLastSession } from '../core/session';
 import { useOfflineAsset } from '../core/useOfflineAsset';
@@ -635,7 +636,7 @@ export default function ChambersScreen() {
   const refreshEntitlement = useCallback(async () => {
     try {
       setCheckingEntitlement(true);
-      const info: CustomerInfo = await Purchases.getCustomerInfo();
+      const info: CustomerInfo = await getCustomerInfoReady();
       const active = Boolean(info?.entitlements?.active?.[ENTITLEMENT_ID]);
       setHasContinuing(active);
     } catch {
@@ -670,7 +671,7 @@ export default function ChambersScreen() {
     setTimeout(() => {
       safePresentPaywall(() => {
         refreshEntitlement();
-      }, 'chamber').finally(() => setPresentingPaywall(false));
+      }, 'chamber', 'chamber_locked').finally(() => setPresentingPaywall(false));
     }, Platform.OS === 'ios' ? 400 : 200);
   }, [presentingPaywall, refreshEntitlement]);
 

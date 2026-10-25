@@ -1,4 +1,5 @@
 // core/journalRepo.ts
+import { trackEntryContent } from './journalAnalytics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { secureGetItem, secureRemoveItem, secureSetItem } from './secureStorage';
 import { DreamDetails, normalizeDreamDetails } from './dreamDetails';
@@ -276,11 +277,12 @@ export async function createEntry(partial?: Partial<JournalEntry>): Promise<Jour
     await writeEntry(entry);
     await updateIndex(ids => [entry.id, ...ids.filter(id => id !== entry.id)]); // prepend newest
   });
+  void trackEntryContent(entry);
   return entry;
 }
 
 export async function saveEntry(entry: JournalEntry): Promise<void> {
-  await withEntryLock(entry.id, async () => {
+  const saved = await withEntryLock(entry.id, async () => {
     const stored = await readStoredRecord(entry.id);
     // A record that exists but cannot be read is never replaced by a blind write.
     if (stored.status === 'unreadable') throw new JournalRecordUnreadableError(entry.id);
@@ -304,7 +306,9 @@ export async function saveEntry(entry: JournalEntry): Promise<void> {
     await writeEntry(merged);
     // ensure it's in index (in case it was created elsewhere)
     await updateIndex(ids => (ids.includes(entry.id) ? null : [entry.id, ...ids]));
+    return merged;
   });
+  void trackEntryContent(saved);
 }
 
 export async function deleteEntry(id: string): Promise<void> {

@@ -1,5 +1,5 @@
+import { getAppUserIdReady } from '../../../utils/revenueCat';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import Purchases from 'react-native-purchases';
 
 // Free users get FREE_AERIS_DAYS distinct calendar days of Aeris conversation
 // before being asked to subscribe. A "day" (not a message count) matches how
@@ -55,7 +55,7 @@ export async function recordAerisUsageToday(): Promise<void> {
  */
 export async function getAerisUserId(): Promise<string | null> {
   try {
-    return await Purchases.getAppUserID();
+    return await getAppUserIdReady();
   } catch {
     return null;
   }
