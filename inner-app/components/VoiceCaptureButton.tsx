@@ -1,3 +1,4 @@
+import { track } from '../core/analytics';
 import { Ionicons } from '@expo/vector-icons';
 import { getLocales } from 'expo-localization';
 import {
@@ -100,6 +101,8 @@ export default function VoiceCaptureButton({
     if (!voiceReportedRef.current) {
       voiceReportedRef.current = true;
       onVoiceUsedRef.current?.(modeRef.current);
+      // Which recognizer was used, never what was said.
+      track('voice_capture_used', { mode: modeRef.current ?? undefined });
     }
   });
 

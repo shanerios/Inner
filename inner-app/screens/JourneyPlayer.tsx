@@ -1,3 +1,4 @@
+import { getCustomerInfoReady } from '../utils/revenueCat';
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, BackHandler, Pressable, PanResponder, Animated, Easing, InteractionManager, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -5,7 +6,6 @@ import SleepIcon from '../assets/images/sleep.svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Slider from '@react-native-community/slider';
 import TrackPlayer, { RepeatMode, State, Event, Capability, IOSCategory } from 'react-native-track-player';
-import Purchases from 'react-native-purchases';
 import { Asset } from 'expo-asset';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -172,7 +172,7 @@ export default function JourneyPlayer() {
     try {
       const cached = entitlementCacheRef.current;
       if (cached && (Date.now() - cached.ts) < 10_000) return cached.has;
-      const info = await Purchases.getCustomerInfo();
+      const info = await getCustomerInfoReady();
       const has = Boolean(info?.entitlements?.active?.[ENTITLEMENT_ID]);
       entitlementCacheRef.current = { ts: Date.now(), has };
       return has;
@@ -201,7 +201,7 @@ export default function JourneyPlayer() {
     if (isLockedTrack(policyTrack, hasMembership)) {
       if (presentingGateRef.current) return false;
       presentingGateRef.current = true;
-      safePresentPaywall(); // modal renders at App level; goBack immediately
+      safePresentPaywall(undefined, 'chamber', 'locked_track_player'); // modal renders at App level; goBack immediately
       try { navigation.goBack(); } catch {}
       presentingGateRef.current = false;
       return false;

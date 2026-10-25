@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { trackOnboardingStarted } from '../core/onboardingAnalytics';
 import {
   View,
   Text,
@@ -45,6 +46,8 @@ export default function IntroScreen() {
   const mountedAtRef = useRef(Date.now());
   const { width: windowWidth } = useWindowDimensions();
   const { scale, verticalScale } = useScale();
+
+  useEffect(() => { void trackOnboardingStarted(); }, []);
 
   const captionFontSize = useMemo(
     () => Math.round(Math.min(scale(17), windowWidth * 0.045)),

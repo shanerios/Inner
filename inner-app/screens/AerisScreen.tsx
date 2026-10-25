@@ -1,3 +1,4 @@
+import { getCustomerInfoReady } from '../utils/revenueCat';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
@@ -18,7 +19,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 import { usePostHog } from 'posthog-react-native';
-import Purchases from 'react-native-purchases';
 import { safePresentPaywall } from '../src/core/subscriptions/safePresentPaywall';
 import { hasInnerAccess } from '../src/core/subscriptions/revenueCat';
 import {
@@ -380,8 +380,8 @@ export default function AerisScreen({ route }: { route: any }) {
   }, []);
 
   // Analytics stub: journal entry analyzed — no UI trigger yet, ready for journal integration
-  const captureJournalEntryAnalyzed = useCallback((entryId: string) => {
-    posthog.capture('aeris_journal_entry_analyzed', { entry_id: entryId });
+  const captureJournalEntryAnalyzed = useCallback((_entryId: string) => {
+    posthog.capture('aeris_journal_entry_analyzed');
   }, [posthog]);
 
   // Load or reset daily conversation history, then auto-send dream context if present
@@ -483,7 +483,7 @@ export default function AerisScreen({ route }: { route: any }) {
         });
       } catch (e) {
         if (e instanceof AerisGateError) {
-          safePresentPaywall(undefined, 'aeris');
+          safePresentPaywall(undefined, 'aeris', 'aeris_gate');
           return;
         }
         const errId = (Date.now() + 1).toString();
@@ -535,7 +535,7 @@ export default function AerisScreen({ route }: { route: any }) {
 
     let isSubscribed = false;
     try {
-      const info = await Purchases.getCustomerInfo();
+      const info = await getCustomerInfoReady();
       isSubscribed = !!info?.entitlements?.active?.['continuing_with_inner'];
     } catch {}
 
@@ -553,7 +553,7 @@ export default function AerisScreen({ route }: { route: any }) {
     };
 
     if (PREMIUM_CHAMBERS.has(num) && !isSubscribed) {
-      safePresentPaywall(() => navigateToChamber());
+      safePresentPaywall(() => navigateToChamber(), 'chamber', 'aeris_chamber_link');
     } else {
       navigateToChamber();
     }
@@ -601,7 +601,7 @@ export default function AerisScreen({ route }: { route: any }) {
     // if the app was left open past midnight).
     const [hasAccess, limitReached] = await Promise.all([hasInnerAccess(), isAerisLimitReached()]);
     if (!hasAccess && limitReached) {
-      safePresentPaywall(undefined, 'aeris');
+      safePresentPaywall(undefined, 'aeris', 'aeris_gate');
       return;
     }
 
@@ -678,7 +678,7 @@ export default function AerisScreen({ route }: { route: any }) {
         // input has already been cleared, so give it back rather than making
         // the user retype it if they subscribe and come back to send it.
         setInput(text);
-        safePresentPaywall(undefined, 'aeris');
+        safePresentPaywall(undefined, 'aeris', 'aeris_gate');
         return;
       }
       const errId = (Date.now() + 1).toString();

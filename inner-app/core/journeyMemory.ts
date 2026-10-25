@@ -1,5 +1,6 @@
 import { normalizeLucidSignalReflection, type LucidSignalReflection } from './lucidSignalLearning';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { trackOvernightFinished, trackOvernightInterrupted, trackOvernightResumed, trackOvernightStarted } from './journeyAnalytics';
 import type {
   CompiledAudioJourneyTimeline,
   NativeAudioDiagnosticEvent,
@@ -312,6 +313,7 @@ export function beginJourneyMemorySession(
       schemaVersion: JOURNEY_MEMORY_SCHEMA_VERSION,
       sessions: [session, ...state.sessions].slice(0, MAX_SESSIONS),
     }));
+    trackOvernightStarted(session);
     return session;
   });
 }
@@ -374,6 +376,9 @@ export function recordJourneyMemoryEvent(
         }
       : session);
     await storage.setItem(JOURNEY_MEMORY_KEY, JSON.stringify({ ...state, sessions }));
+    if (event.type === 'playback_resumed' && event.reason?.startsWith('continued_')) {
+      trackOvernightResumed(sessions.find(session => session.id === sessionId), event.positionMs);
+    }
   });
 }
 
@@ -425,11 +430,14 @@ export function finishJourneyMemorySession(
     const state = await loadJourneyMemory(storage, true);
     if (!state.sessions.some(session => session.id === sessionId)) throw new Error('Journey Memory session is unavailable');
     const endedAt = now();
+    let finished: JourneyMemorySession | undefined;
     const sessions = state.sessions.map(session => {
       if (session.id !== sessionId || session.endedAt) return session;
-      return completedMemorySession(session, outcome, positionMs, endedAt, message);
+      finished = completedMemorySession(session, outcome, positionMs, endedAt, message);
+      return finished;
     });
     await storage.setItem(JOURNEY_MEMORY_KEY, JSON.stringify({ ...state, sessions }));
+    trackOvernightFinished(finished);
   });
 }
 
@@ -705,6 +713,7 @@ export async function preserveJourneyContinuationEvidence(
       ...state,
       sessions: state.sessions.map(item => item.id === session.id ? updated : item),
     }));
+    trackOvernightInterrupted(updated, { phase: 'continuable' });
     return true;
   });
 }
@@ -803,6 +812,7 @@ export async function reconcileInterruptedJourneyMemorySession(
     await storage.setItem(JOURNEY_MEMORY_KEY, JSON.stringify({
       ...state, sessions: state.sessions.map(item => item.id === session.id ? completed : item),
     }));
+    trackOvernightFinished(completed);
     return outcome;
   });
 }

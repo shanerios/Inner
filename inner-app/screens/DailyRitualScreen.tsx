@@ -346,7 +346,8 @@ export default function DailyRitualScreen({ navigation }: any) {
   };
 
   const handleContinue = async () => {
-    posthog.capture('daily_ritual_started');
+    // Not a ritual start: the real start is captured by the ritual screen itself with a ritual_id.
+    posthog.capture('daily_checkin_continued');
 
     // Mark today as complete and remember the selected emotion (if any)
     await markDailyMicroRitualComplete(selected || undefined);

@@ -1,3 +1,4 @@
+import { trackGuardianStarted, trackGuardianEnded } from '../core/practiceAnalytics';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
@@ -65,6 +66,8 @@ export default function GuardianPlayerScreen({ route, navigation }: any) {
   const saveIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastSavedMsRef  = useRef(-1);
   const practiceActivityIdRef = useRef<string | null>(null);
+  // Furthest position heard; analytics-only, used to decide whether a session counts as completed.
+  const listenedMsRef = useRef(0);
 
   const savePosition = async (ms: number) => {
     if (ms === lastSavedMsRef.current) return;
@@ -155,6 +158,7 @@ export default function GuardianPlayerScreen({ route, navigation }: any) {
           contentTitle: track.title,
           startedAt,
         });
+        trackGuardianStarted(activityId, track.id);
         setupDoneRef.current = true;
         setIsPlaying(true);
 
@@ -169,6 +173,7 @@ export default function GuardianPlayerScreen({ route, navigation }: any) {
               durationRef.current = Math.floor(dur * 1000);
               setDuration(Math.floor(dur * 1000));
             }
+            if (isFinite(pos) && pos >= 0) listenedMsRef.current = Math.max(listenedMsRef.current, Math.floor(pos * 1000));
           } catch {}
         }, 500);
 
@@ -192,7 +197,10 @@ export default function GuardianPlayerScreen({ route, navigation }: any) {
       TrackPlayer.pause().catch(() => {});
       const practiceActivityId = practiceActivityIdRef.current;
       practiceActivityIdRef.current = null;
-      if (practiceActivityId) void finishPracticeActivity(practiceActivityId);
+      if (practiceActivityId) {
+        trackGuardianEnded(practiceActivityId, track.id, listenedMsRef.current, durationRef.current);
+        void finishPracticeActivity(practiceActivityId);
+      }
     };
   }, [track]);
 
@@ -300,7 +308,10 @@ export default function GuardianPlayerScreen({ route, navigation }: any) {
     } catch {}
     const practiceActivityId = practiceActivityIdRef.current;
     practiceActivityIdRef.current = null;
-    if (practiceActivityId) await finishPracticeActivity(practiceActivityId);
+    if (practiceActivityId) {
+      if (track) trackGuardianEnded(practiceActivityId, track.id, listenedMsRef.current, durationRef.current);
+      await finishPracticeActivity(practiceActivityId);
+    }
     navigation.goBack();
   };
 

@@ -23,6 +23,8 @@ import { setWakeTime } from '../utils/notifications';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { clearPrivateUserData } from '../core/privacyData';
 import { reportError } from '../core/logger';
+import * as Application from 'expo-application';
+import { isInternalUser, setInternalUser } from '../core/analytics';
 
 const Body = _Body ?? ({ regular: { ..._Typography.body }, subtle: { ..._Typography.caption } } as const);
 
@@ -82,6 +84,7 @@ export default function SettingsModal({
   // ── Local state ──────────────────────────────────────────────────────────
 
   const [tempName, setTempName] = useState('');
+  const [internalTagged, setInternalTagged] = useState(() => isInternalUser());
   const [tempWakeTime, setTempWakeTime] = useState('');
   const [savedWakeTime, setSavedWakeTime] = useState<string | null>(null);
   const [audioQuality, setAudioQuality] = useState<'low' | 'high'>('high');
@@ -647,6 +650,23 @@ export default function SettingsModal({
                   <Text style={{ color: 'rgba(210,170,90,0.95)', fontSize: 13, letterSpacing: 0.5 }}>Privacy &amp; Data</Text>
                 </TouchableOpacity>
               </View>
+
+              {/* Version. A long press marks this install as internal so it is excluded from public analytics. */}
+              <Pressable
+                onLongPress={async () => {
+                  const next = !isInternalUser();
+                  await setInternalUser(next);
+                  setInternalTagged(next);
+                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+                }}
+                delayLongPress={1500}
+                accessibilityRole="text"
+                style={{ paddingVertical: 10, alignItems: 'center' }}
+              >
+                <Text style={{ color: 'rgba(255,255,255,0.35)', fontSize: 11, letterSpacing: 0.4 }}>
+                  {`Inner ${Application.nativeApplicationVersion ?? ''} (${Application.nativeBuildVersion ?? ''})${internalTagged ? ' · internal' : ''}`}
+                </Text>
+              </Pressable>
             </ScrollView>
 
             {/* Footer: Save button row */}

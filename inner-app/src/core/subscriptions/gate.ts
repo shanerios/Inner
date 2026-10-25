@@ -7,7 +7,7 @@ export async function gateOrRun(
   run: () => void | Promise<void>
 ) {
   if (isLockedTrack(track, hasMembership)) {
-    await safePresentPaywall(); // crash-safe
+    await safePresentPaywall(undefined, 'chamber', 'access_gate'); // crash-safe
     return;
   }
   await run();
