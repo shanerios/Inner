@@ -14,6 +14,7 @@ import {
 } from '../core/audio';
 import type { ProceduralAudioConfig, ProceduralAudioPatch } from '../core/audio';
 import { Typography } from '../core/typography';
+import ScreenTopFade, { TITLE_CONTENT_GAP, TOP_FADE_OVERLAP } from '../components/ScreenTopFade';
 
 const LAST_MIX_KEY = 'inner.audio.live-mix.last.v1';
 const MIX_NOT_BEGUN_MESSAGE = 'The mix did not begin. Try again in a moment.';
@@ -113,11 +114,16 @@ export default function LiveMixScreen() {
     navigation.goBack();
   };
 
+  // The header holds the title, subtitle and Play button. Its measured bottom is where the fade must still be solid.
+  const [headerBottom, setHeaderBottom] = useState(0);
+  const titleBottom = headerBottom > 0 ? headerBottom : insets.top + 214 - TITLE_CONTENT_GAP + (Platform.OS === 'android' ? 30 : 0);
+  const mixerTop = titleBottom + TITLE_CONTENT_GAP;
+
   return (
     <View style={styles.root}>
       <VideoView player={background} contentFit="cover" style={StyleSheet.absoluteFill} nativeControls={false} allowsFullscreen={false} allowsPictureInPicture={false} />
       <View style={styles.veil} pointerEvents="none" />
-      <View style={[styles.header, { paddingTop: insets.top + 126 + (Platform.OS === 'android' ? 30 : 0) }]}>
+      <View onLayout={event => setHeaderBottom(event.nativeEvent.layout.height)} style={[styles.header, { paddingTop: insets.top + 126 + (Platform.OS === 'android' ? 30 : 0) }]}>
         <Text style={[Typography.display, styles.title]}>Live Mix</Text>
         <Text style={[Typography.body, styles.subtitle]}>Shape sound in real time.</Text>
         <Pressable onPress={() => void togglePlayback()} accessibilityRole="button" accessibilityLabel={isPlaying ? 'Pause live mix' : 'Play live mix'} style={styles.playButton}>
@@ -132,9 +138,10 @@ export default function LiveMixScreen() {
           isPlaying={isPlaying}
           onClose={() => {}}
           standalone
-          contentTopInset={insets.top + 214 + (Platform.OS === 'android' ? 30 : 0)}
+          contentTopInset={mixerTop}
         />
       </View>
+      <ScreenTopFade solid={titleBottom} end={mixerTop + TOP_FADE_OVERLAP} zIndex={1} />
       <Pressable onPress={() => void returnToJourneys()} accessibilityRole="button" accessibilityLabel="Return to Lucid Journeys" style={[styles.returnButton, { bottom: insets.bottom + 16 }]}>
         <Text style={styles.returnText}>RETURN</Text>
       </Pressable>
