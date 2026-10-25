@@ -14,7 +14,7 @@ import { playerStartFromRoute, type PlaybackStart, type PlaybackStartKind } from
 
 type JourneyLike = {
   id: string;
-  timeline: { id?: string; stages?: unknown[]; guidance?: unknown } & Record<string, unknown>;
+  timeline: { id?: string; stages?: Array<{ target?: { environment?: string } }>; guidance?: unknown } & Record<string, unknown>;
 } & Record<string, unknown>;
 
 type RouteParams = {

@@ -1,4 +1,4 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it, jest } from '@jest/globals';
 import { FACTORY_AUDIO_JOURNEYS } from '../factoryJourneys';
 import { readPersonalizedJourneys, savePersonalizedJourney } from '../personalizedJourneyStore';
 
