@@ -12,6 +12,11 @@ import {
 } from '../playbackPolicy';
 import type { MembershipStatus } from '../membership';
 
+jest.mock('@react-native-async-storage/async-storage', () => ({
+  __esModule: true,
+  default: { getItem: jest.fn(), setItem: jest.fn(), removeItem: jest.fn() },
+}));
+
 jest.mock('react-native-purchases', () => ({
   __esModule: true,
   default: { getCustomerInfo: jest.fn() },

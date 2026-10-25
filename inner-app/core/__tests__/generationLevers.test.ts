@@ -135,7 +135,7 @@ describe('the Overnight screen', () => {
     expect(screen).toContain('recipe.recognition.intention?.sign');
     expect(screen.match(/withPreparationFocus\(/g)).toHaveLength(1);
     expect(screen).toContain('generation: buildGenerationNotes({');
-    expect(screen).toMatch(/withPreparationFocus\(\s*overnightJourney\(environment, feel, compiledNight,/);
+    expect(screen).toMatch(/withPreparationFocus\(\s*overnightJourney\(nightEnvironment, feel, compiledNight,/);
   });
 
   it('only speaks the preparation when allowed, and not on a Quiet Night or an accelerated test', () => {

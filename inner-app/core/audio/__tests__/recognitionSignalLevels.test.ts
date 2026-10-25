@@ -210,8 +210,8 @@ describe('native cue constants', () => {
   });
 
   it('apply the same playback factor to WAV signals on both platforms, to each channel independently', () => {
-    expect(kotlin).toMatch(/left \* 1\.45 \* activeCueGain, right \* 1\.45 \* activeCueGain/);
-    expect(swift).toMatch(/left \* 1\.45 \* activeCueGain, right \* 1\.45 \* activeCueGain/);
+    expect(kotlin).toMatch(/left \* 1\.45 \* activeCueGain( \* fade)?, right \* 1\.45 \* activeCueGain( \* fade)?/);
+    expect(swift).toMatch(/left \* 1\.45 \* activeCueGain( \* fade)?, right \* 1\.45 \* activeCueGain( \* fade)?/);
   });
 
   it('accept mono or stereo WAV signals on both platforms, and duplicate a mono channel into both ears', () => {

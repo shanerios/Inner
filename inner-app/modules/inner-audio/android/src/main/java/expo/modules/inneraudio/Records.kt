@@ -48,6 +48,7 @@ class SpatialEventRecord : Record {
   @Field var recognitionSpace: Boolean = false
   @Field var signalGainScale: Double = 1.0
   @Field var recoverySeconds: Double = 30.0
+  @Field var cueFadeInMs: Double = 0.0
   @Field var clipId: String = ""
 }
 

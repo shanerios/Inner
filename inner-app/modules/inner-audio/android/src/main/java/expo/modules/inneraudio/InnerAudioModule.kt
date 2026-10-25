@@ -79,8 +79,8 @@ class InnerAudioModule : Module() {
       ProceduralAudioEngine.setVoiceClips(clips)
     }
 
-    AsyncFunction("triggerCue") {
-      ProceduralAudioEngine.triggerCue()
+    AsyncFunction("triggerCue") { fadeInMs: Double? ->
+      ProceduralAudioEngine.triggerCue(fadeInMs ?: 0.0)
     }
 
     AsyncFunction("setCheckpointSessionId") { sessionId: String? ->
