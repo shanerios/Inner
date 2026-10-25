@@ -33,3 +33,33 @@ Use three states: a member, a non-member, and a lapsed member (has saved journey
 - RevenueCat offerings, prices and trials are confirmed in the dashboard and stores, not assumed.
 
 Record device, OS, build number, account state and result for each line.
+
+---
+
+## Results log
+
+### Pixel 8 Pro, Android, Inner Lab build (`com.getinner.app.proceduraldev`), non-member, 2026-10-24
+
+Build: `access-gating-release`. Lab's RevenueCat returned customer info (a definite "no entitlement"), so it can check non-member gates. It cannot check purchase, restore, offerings, or member and lapsed states.
+
+| Check | Result |
+| --- | --- |
+| Free Overnight worlds (Ocean, Forest, Quiet) start | Pass |
+| Premium Overnight worlds show the paywall before audio | Pass |
+| Journey Creator gated | Pass |
+| Resume through the Home Continue card after the app was swiped away | Pass, no prompt |
+| Factory journey plays | Pass |
+| Dream Log opens | Pass |
+| Ocean and Temple comparison: notice shown, Temple night paywalled at start | Pass |
+| Offline, non-member, Temple | Paywall (not the unknown message), see below |
+| Offline, Ocean starts | Pass |
+| Back online, Temple | Paywall |
+| Dream Incubation, recurring-signal journey | Not run |
+| Morning Return | Not run |
+
+Findings:
+- A first on-device run showed "Membership not confirmed" for every premium start. That was a bug (RevenueCat was not configured when the gate ran) and is fixed in `ce711d9`. The run did show the unknown-membership dialog and its wording on a real device.
+- Offline, the gate resolved to the paywall rather than the unknown message. The RevenueCat SDK serves its cached customer info offline, so the check returns a cached "not a member". The unknown path (no cache, SDK error, or timeout) was not reproduced on a device. It is covered by unit tests only.
+- Pause then background then foreground returns to the same player screen. That is ordinary playback, not a resume start, and does not exercise the gate.
+
+Still open: purchase, restore, member and lapsed states, the iPhone, and the rest of the "not run" rows.
