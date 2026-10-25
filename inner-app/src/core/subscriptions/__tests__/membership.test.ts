@@ -1,6 +1,12 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { ENTITLEMENT_ID } from '../constants';
+import Purchases from 'react-native-purchases';
+import { initRevenueCatOnce } from '../../../../utils/revenueCat';
 import { clearMembershipCache, resolveMembership } from '../membership';
+
+jest.mock('../../../../utils/revenueCat', () => ({
+  initRevenueCatOnce: jest.fn<() => Promise<boolean>>(),
+}));
 
 jest.mock('react-native-purchases', () => ({
   __esModule: true,
@@ -64,5 +70,27 @@ describe('resolveMembership', () => {
     await resolveMembership({ fetchInfo, now, cacheMs: 1_000 });
     clock = 5_000;
     await expect(resolveMembership({ fetchInfo, now, cacheMs: 1_000 })).resolves.toBe('not_member');
+  });
+
+  describe('default SDK path', () => {
+    const order: string[] = [];
+    beforeEach(() => {
+      order.length = 0;
+      (initRevenueCatOnce as jest.Mock<() => Promise<boolean>>).mockReset();
+      (Purchases.getCustomerInfo as jest.Mock<() => Promise<any>>).mockReset();
+    });
+
+    it('configures RevenueCat before asking for customer info', async () => {
+      (initRevenueCatOnce as jest.Mock<() => Promise<boolean>>).mockImplementation(async () => { order.push('init'); return true; });
+      (Purchases.getCustomerInfo as jest.Mock<() => Promise<any>>).mockImplementation(async () => { order.push('info'); return active; });
+      await expect(resolveMembership()).resolves.toBe('member');
+      expect(order).toEqual(['init', 'info']);
+    });
+
+    it('reports unknown, without querying the SDK, when RevenueCat cannot be configured', async () => {
+      (initRevenueCatOnce as jest.Mock<() => Promise<boolean>>).mockResolvedValue(false);
+      await expect(resolveMembership()).resolves.toBe('unknown');
+      expect(Purchases.getCustomerInfo).not.toHaveBeenCalled();
+    });
   });
 });
