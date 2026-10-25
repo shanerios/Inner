@@ -20,7 +20,7 @@ import { ACCOUNT_REGISTRATION_AVAILABLE } from '../core/accountAvailability';
 import { hasInnerAccess } from '../src/core/subscriptions/revenueCat';
 import { safePresentPaywall } from '../src/core/subscriptions/safePresentPaywall';
 import { isAerisLimitReached } from '../src/core/aeris/aerisUsage';
-import { Typography, Body as _Body } from '../core/typography';
+import { Typography, Body as _Body, tracking } from '../core/typography';
 import VoiceCaptureButton, { type VoiceRecognitionMode } from '../components/VoiceCaptureButton';
 import { practiceContextSections } from '../core/practiceContext';
 import { DREAM_SIGNS } from '../core/dreamSigns';
@@ -776,10 +776,10 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
   },
-  chipLabel: { ...Typography.caption, letterSpacing: 0.2 },
+  chipLabel: { ...Typography.caption, letterSpacing: tracking(0.2) },
   askAerisLabel: {
     ...Typography.caption,
     color: '#7B5EA7',
-    letterSpacing: 0.3,
+    letterSpacing: tracking(0.3),
   },
 });
