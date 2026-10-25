@@ -37,6 +37,7 @@ const FEATURE_LINES = [
 const TRIGGER_NOTES: Partial<Record<PaywallTrigger, string>> = {
   overnight: 'Full Experience adds Temple, Abyssal Glass, Cosmic, and Fire to Overnight Journeys. Ocean, Forest, and Quiet stay free.',
   journey_creator: 'Full Experience lets you create and save your own journeys. Saved journeys stay playable, and you can delete them at any time.',
+  mixer: 'Your 5-minute preview has ended. Full Experience keeps Temple, Abyssal Glass, Cosmic, and Fire open in Live Mix and the chamber mixer.',
 };
 
 // Goal-aware overrides — set during onboarding's Value & Intent Capture step.
@@ -99,6 +100,7 @@ const HEADLINES: Record<PaywallTrigger, string> = {
   aeris: 'Keep the conversation going.',
   overnight: 'Other worlds for the night.',
   journey_creator: 'Build your own descent.',
+  mixer: 'Other worlds, unlocked.',
 };
 
 // ─── Component ────────────────────────────────────────────────────────────────

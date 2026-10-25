@@ -59,6 +59,7 @@ Inner now connects your nights with what you remember in the morning.
 - Factory journeys, Dream Log, Morning Return, and essential playback controls stay free.
 - Access is checked before a new session starts. An active session is never interrupted, and a session that is resumed is not blocked by a membership check.
 - If membership cannot be verified, Inner says so and offers to retry. It does not treat you as a non-member.
+- Live Mix and the chamber mixer let you try Temple, Abyssal Glass, Cosmic, and Fire for 5 minutes in total, shared between them. Ocean, Forest, and Quiet stay free. Full Experience removes the limit. Clearing app data resets the preview time.
 
 #### Overnight reliability
 

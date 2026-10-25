@@ -12,7 +12,8 @@ Each claim below matches shipped app behavior on the `access-policy-proposal` br
 - Factory Lucid Journeys, including their premium-environment stages.
 - Dream Log, including Morning Return and basic reflection.
 - Essential playback and comfort controls.
-- Live Mix and the chamber mixer.
+- Live Mix and the chamber mixer, with Ocean, Forest, and Quiet unrestricted.
+- A 5-minute shared preview of Temple, Abyssal Glass, Cosmic, and Fire in Live Mix and the chamber mixer. Full Experience removes the limit.
 
 ## Full Experience
 
@@ -20,7 +21,7 @@ Each claim below matches shipped app behavior on the `access-policy-proposal` br
 - Temple comparison nights in Practice Memory.
 - Building and saving your own Lucid Journeys in the Journey Creator.
 
-Full Experience does not change the sounds of Live Mix. It adds Overnight environments.
+Full Experience adds Overnight environments and removes the 5-minute preview limit in the mixers.
 
 ## Keeping what you made
 

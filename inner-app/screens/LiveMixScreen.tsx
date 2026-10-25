@@ -6,6 +6,16 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useVideoPlayer, VideoView } from '../core/memorySafeVideo';
 import ProceduralMixerPanel from '../components/ProceduralMixerPanel';
 import {
+  noticeFor,
+  presentPreview,
+  previewHostFor,
+  previewService,
+  retryPreviewMembership,
+  usePreviewSnapshot,
+  type PreviewNotice,
+} from '../core/audio/premiumPreviewRuntime';
+import { safePresentPaywall } from '../src/core/subscriptions/safePresentPaywall';
+import {
   DEFAULT_PROCEDURAL_AUDIO_CONFIG,
   normalizeProceduralAudioConfig,
   proceduralAudioEngine,
@@ -36,6 +46,10 @@ export default function LiveMixScreen() {
   const [config, setConfig] = useState(FIRST_LIVE_MIX);
   const [isPlaying, setIsPlaying] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<PreviewNotice | null>(null);
+  const previewSnapshot = usePreviewSnapshot();
+  const presentation = presentPreview(previewSnapshot);
+  const previewHost = previewHostFor(sessionRef.current);
 
   const background = useVideoPlayer(require('../assets/videos/lucidscreen.mp4'), player => {
     player.loop = true;
@@ -50,12 +64,18 @@ export default function LiveMixScreen() {
     const start = async () => {
       try {
         const raw = await AsyncStorage.getItem(LAST_MIX_KEY);
-        const initial = raw ? normalizeProceduralAudioConfig(JSON.parse(raw)) : FIRST_LIVE_MIX;
+        const restored = raw ? normalizeProceduralAudioConfig(JSON.parse(raw)) : FIRST_LIVE_MIX;
         if (!active) return;
-        setConfig(initial);
         if (!session.isAvailable()) throw new Error('Live Mix is unavailable in this build.');
-        await session.start(initial, 'Inner Live Mix');
-        if (active) setIsPlaying(true);
+        // A restored premium world is an explicit selection: it must be granted again.
+        const review = await previewService.reviewStart(previewHostFor(session), restored);
+        if (!active) return;
+        setConfig(review.config);
+        setNotice(noticeFor(review));
+        await session.start(review.config, 'Inner Live Mix');
+        if (!active) return;
+        previewService.sync();
+        setIsPlaying(true);
       } catch (startError) {
         if (__DEV__) console.log('[LIVEMIX] start failed', startError);
         if (active) setError(startFailureMessage(startError, MIX_NOT_BEGUN_MESSAGE));
@@ -64,17 +84,24 @@ export default function LiveMixScreen() {
     void start();
     return () => {
       active = false;
-      void session.stop();
+      void session.stop().finally(() => previewService.detach(previewHostFor(session)));
     };
   }, []);
 
   useEffect(() => {
     let active = true;
     const subscription = AppState.addEventListener('change', nextState => {
-      if (nextState !== 'active') return;
+      if (nextState !== 'active') {
+        // Persist the open segment before the process can be suspended or killed.
+        previewService.checkpoint();
+        return;
+      }
+      // The JS clock may have been suspended. Expire and reconcile now, not later.
+      void previewService.refreshMembership();
       void sessionRef.current.reconcilePlaybackState()
         .then(nativeState => {
           if (active) setIsPlaying(nativeState === 'playing');
+          previewService.sync();
         })
         .catch(() => {});
     });
@@ -86,8 +113,12 @@ export default function LiveMixScreen() {
 
   const applyPatch = useCallback(async (patch: ProceduralAudioPatch) => {
     try {
-      await sessionRef.current.update(patch);
-      const next = sessionRef.current.getConfig();
+      const session = sessionRef.current;
+      const review = await previewService.review(previewHostFor(session), patch);
+      setNotice(noticeFor(review));
+      await session.update(review.patch);
+      previewService.sync();
+      const next = session.getConfig();
       if (!next) return;
       setConfig(next);
       void AsyncStorage.setItem(LAST_MIX_KEY, JSON.stringify(next));
@@ -96,11 +127,24 @@ export default function LiveMixScreen() {
     }
   }, []);
 
+  const onNoticeAction = useCallback((kind: 'membership' | 'retry') => {
+    if (kind === 'membership') {
+      void safePresentPaywall(() => previewService.sync(), 'mixer');
+      return;
+    }
+    void retryPreviewMembership().then(() => setNotice(null));
+  }, []);
+
   const togglePlayback = async () => {
     try {
       const nativeState = await sessionRef.current.reconcilePlaybackState();
-      if (nativeState === 'playing') await sessionRef.current.pause();
-      else await sessionRef.current.play();
+      if (nativeState === 'playing') {
+        await sessionRef.current.pause();
+        previewService.checkpoint();
+      } else {
+        await sessionRef.current.play();
+        previewService.sync();
+      }
       setIsPlaying(sessionRef.current.isPlaying());
     } catch (playbackError) {
       if (__DEV__) console.log('[LIVEMIX] playback failed', playbackError);
@@ -133,6 +177,12 @@ export default function LiveMixScreen() {
           onClose={() => {}}
           standalone
           contentTopInset={insets.top + 214 + (Platform.OS === 'android' ? 30 : 0)}
+          preview={{
+            labelFor: presentation.labelFor as (world: string) => string | null,
+            note: presentation.note,
+            notice,
+            onNoticeAction,
+          }}
         />
       </View>
       <Pressable onPress={() => void returnToJourneys()} accessibilityRole="button" accessibilityLabel="Return to Lucid Journeys" style={[styles.returnButton, { bottom: insets.bottom + 16 }]}>

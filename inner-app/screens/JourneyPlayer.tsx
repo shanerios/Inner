@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, BackHandler, Pressable, PanResponder, Animated, Easing, InteractionManager, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, BackHandler, Pressable, PanResponder, Animated, Easing, InteractionManager, Platform, AppState } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import SleepIcon from '../assets/images/sleep.svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -28,6 +28,15 @@ import { ThreadMood } from '../src/core/threading/threadTypes';
 import { maybeQueueThreshold } from '../src/core/thresholds/ThresholdEngine';
 import { isLockedTrack } from '../src/core/subscriptions/accessPolicy';
 import { safePresentPaywall } from '../src/core/subscriptions/safePresentPaywall';
+import {
+  noticeFor,
+  presentPreview,
+  previewHostFor,
+  previewService,
+  retryPreviewMembership,
+  usePreviewSnapshot,
+  type PreviewNotice,
+} from '../core/audio/premiumPreviewRuntime';
 import { ENTITLEMENT_ID } from '../src/core/subscriptions/constants';
 
 import { useSleepTimer } from '../hooks/useSleepTimer';
@@ -223,15 +232,44 @@ export default function JourneyPlayer() {
   const proceduralSessionRef = useRef(new ProceduralPlaybackSession(proceduralAudioEngine));
   const proceduralActiveRef = useRef(false);
 
+  // Mixer previews of premium worlds. Timeline stages are never charged here:
+  // only worlds the user selects in this mixer are metered.
+  const [procedurePreviewNotice, setProcedurePreviewNotice] = useState<PreviewNotice | null>(null);
+  const procedurePreviewSnapshot = usePreviewSnapshot();
+  const procedurePresentation = presentPreview(procedurePreviewSnapshot);
+
   const applyProceduralPatch = useCallback(async (patch: ProceduralAudioPatch) => {
     if (!proceduralActiveRef.current) return;
     try {
-      await proceduralSessionRef.current.update(patch);
-      const next = proceduralSessionRef.current.getConfig();
+      const session = proceduralSessionRef.current;
+      const review = await previewService.review(previewHostFor(session), patch);
+      setProcedurePreviewNotice(noticeFor(review));
+      await session.update(review.patch);
+      previewService.sync();
+      const next = session.getConfig();
       if (next) setProceduralConfig(next);
     } catch (error) {
       console.log('[AUDIO][PROC] mixer update error', error);
     }
+  }, []);
+
+  const onProcedurePreviewAction = useCallback((kind: 'membership' | 'retry') => {
+    if (kind === 'membership') {
+      void safePresentPaywall(() => previewService.sync(), 'mixer');
+      return;
+    }
+    void retryPreviewMembership().then(() => setProcedurePreviewNotice(null));
+  }, []);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', nextState => {
+      if (nextState !== 'active') {
+        previewService.checkpoint();
+        return;
+      }
+      void previewService.refreshMembership();
+    });
+    return () => subscription.remove();
   }, []);
 
   const auditionJourneyTimeline = useCallback(async (definition: AudioJourneyTimeline) => {
@@ -2251,6 +2289,12 @@ const STORAGE_KEY = `playback:${selectedTrack?.id || legacyId || 'default'}`;
                     playbackPositionMs={position}
                     isPlaying={isPlayingUI}
                     onClose={() => setShowProceduralMixer(false)}
+                    preview={{
+                      labelFor: procedurePresentation.labelFor as (world: string) => string | null,
+                      note: procedurePresentation.note,
+                      notice: procedurePreviewNotice,
+                      onNoticeAction: onProcedurePreviewAction,
+                    }}
                   />
                 </View>
               ) : (
