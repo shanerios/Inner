@@ -1,7 +1,7 @@
 jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock'));
 
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it, jest } from '@jest/globals';
 import * as fs from 'fs';
 import * as path from 'path';
 import { classifyBuild, LAB_APPLICATION_ID } from '../analytics';

@@ -245,7 +245,7 @@ export default function OvernightJourneyScreen() {
   const [recognitionOnly, setRecognitionOnly] = useState(false);
   // The saved full-journey level, restored when Recognition Only is switched off.
   const fullJourneyGainRef = useRef<number | null>(null);
-  const nightEnvironment: OvernightEnvironment = recognitionOnly ? 'none' : environment;
+  const nightEnvironment: OvernightEnvironment | 'none' = recognitionOnly ? 'none' : environment;
   const nightMode = recognitionOnly ? 'recognition_only' as const : 'full' as const;
   const [voiceGuidance, setVoiceGuidance] = useState(true);
   const [voicePack, setVoicePack] = useState<VoicePackProgress | null>(null);
