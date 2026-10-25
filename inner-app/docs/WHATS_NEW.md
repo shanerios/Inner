@@ -100,7 +100,7 @@ What's new in Inner 3.4
 
 ### Before publishing
 
-- Version numbers: `app.json` is set to 3.4 with `versionCode` 67 and `buildNumber` 2082. Both production profiles use `autoIncrement`, so the next build becomes Android 68 and iOS 2083. Play's internal track already holds 67 and TestFlight already holds 3.4 / 2082, so do not lower these.
+- Version numbers: `app.json` is set to 3.4 with `versionCode` 68 and `buildNumber` 2083, which are the test builds already on Play's internal track and TestFlight. Both production profiles use `autoIncrement`, so the next build becomes Android 69 and iOS 2084. Do not lower these.
 - Build from the merged `main` (after the gating, analytics and Recognition Only PRs land), then run a short device pass: first launch and onboarding, the Intention screen, an Overnight, a Recognition Only night, a Dream Log entry, and a premium gate as a non-member.
 - Confirm analytics events arrive in PostHog from a build with the production channel, and enable the RevenueCat PostHog integration (dashboard step).
 - Confirm the App Store privacy answers and Google Play Data safety form cover the analytics events and the random analytics id linked to RevenueCat.
