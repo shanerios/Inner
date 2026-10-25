@@ -14,6 +14,7 @@ import {
 } from '../core/audio';
 import type { ProceduralAudioConfig, ProceduralAudioPatch } from '../core/audio';
 import { Typography } from '../core/typography';
+import ScreenTopFade, { TOP_FADE_OVERLAP } from '../components/ScreenTopFade';
 
 const LAST_MIX_KEY = 'inner.audio.live-mix.last.v1';
 const MIX_NOT_BEGUN_MESSAGE = 'The mix did not begin. Try again in a moment.';
@@ -113,6 +114,8 @@ export default function LiveMixScreen() {
     navigation.goBack();
   };
 
+  const mixerTop = insets.top + 214 + (Platform.OS === 'android' ? 30 : 0);
+
   return (
     <View style={styles.root}>
       <VideoView player={background} contentFit="cover" style={StyleSheet.absoluteFill} nativeControls={false} allowsFullscreen={false} allowsPictureInPicture={false} />
@@ -132,9 +135,10 @@ export default function LiveMixScreen() {
           isPlaying={isPlaying}
           onClose={() => {}}
           standalone
-          contentTopInset={insets.top + 214 + (Platform.OS === 'android' ? 30 : 0)}
+          contentTopInset={mixerTop}
         />
       </View>
+      <ScreenTopFade height={mixerTop + TOP_FADE_OVERLAP} zIndex={1} />
       <Pressable onPress={() => void returnToJourneys()} accessibilityRole="button" accessibilityLabel="Return to Lucid Journeys" style={[styles.returnButton, { bottom: insets.bottom + 16 }]}>
         <Text style={styles.returnText}>RETURN</Text>
       </Pressable>

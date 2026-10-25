@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import ScreenTopFade, { TOP_FADE_OVERLAP } from '../components/ScreenTopFade';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useVideoPlayer, VideoView } from '../core/memorySafeVideo';
@@ -419,6 +420,8 @@ export default function LucidJourneysScreen() {
     navigation.navigate('LucidJourneyPlayer', { journey, playbackKind: 'factory' });
   };
 
+  const listTop = insets.top + (Platform.OS === 'android' ? 236 : Math.max(206, INTRO_TOP + introHeight + INTRO_GAP));
+
   return (
     <View style={styles.root}>
       <VideoView
@@ -463,7 +466,7 @@ export default function LucidJourneysScreen() {
 
       <ScrollView
         style={styles.scrollViewport}
-        contentContainerStyle={[styles.content, { paddingTop: insets.top + (Platform.OS === 'android' ? 236 : Math.max(206, INTRO_TOP + introHeight + INTRO_GAP)), paddingBottom: insets.bottom + 28 }]}
+        contentContainerStyle={[styles.content, { paddingTop: listTop, paddingBottom: insets.bottom + 28 }]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
@@ -749,6 +752,7 @@ export default function LucidJourneysScreen() {
           <Text style={styles.returnText}>RETURN</Text>
         </Pressable>
       </ScrollView>
+      <ScreenTopFade height={listTop + TOP_FADE_OVERLAP} zIndex={1} />
 
       <Modal
         visible={Boolean(pendingReflection) && morningReflectionVisible}
