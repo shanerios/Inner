@@ -79,7 +79,7 @@ What's new in Inner 3.4
 
 - Fixed text being clipped on some Android screens by removing a small letter spacing that made shrink-to-fit text overflow. Verified on a Pixel 8 Pro.
 - Fixed the Android first-run walkthrough highlight sitting too high since the SDK 54 update. Verified on a Pixel 8 Pro.
-- Lucid Journeys and Live Mix now fade their scrolling content as it passes behind the title and subtitle, the way Overnight Journey does, so the two no longer clash and become hard to read. Overnight Journey's title now sits at the same height as the other two. Not yet device-tested.
+- Lucid Journeys and Live Mix now fade their scrolling content as it passes behind the title and subtitle, the way Overnight Journey does, so the two no longer clash and become hard to read. Overnight Journey's title now sits at the same height as the other two. Checked on an iPhone 12 Pro and a Pixel 8 Pro.
 
 ### Privacy and analytics notes (3.4)
 
