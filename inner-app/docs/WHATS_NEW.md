@@ -68,6 +68,14 @@ Inner now connects your nights with what you remember in the morning.
 - Access is checked before a new session starts. An active session is never interrupted, and a session that is resumed is not blocked by a membership check.
 - If membership cannot be verified, Inner says so and offers to retry. It does not treat you as a non-member.
 
+
+#### Dream Log: original recollections and dated reflections
+
+- Each journal entry now keeps its first account separate from later changes. Open an entry and use "Return to this dream" to add a remembered detail or a reflection, each with its own date, or to view history. Your original recollection is labelled as such and is never rewritten by later notes.
+- Entries saved before this update keep their current text as a "First saved version", since it may already have been edited.
+- Dream Archive exports (JSON, PDF) include the preserved original, remembered details, and reflections.
+- Not yet device-tested.
+
 #### Overnight reliability
 
 - Android now releases cached image memory when the app goes to the background, to lower the chance of the app process being removed during a long Overnight Journey. Not yet confirmed to prevent it.

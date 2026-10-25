@@ -59,6 +59,7 @@ import {
 } from './core/journeyMemory';
 import { cancelLucidityCueNotifications, LUCIDITY_CUE_NOTIFICATION_TYPE, scheduleReengagementNotification } from './utils/notifications';
 import { createEntry } from './core/journalRepo';
+import { migrateJournalBaselines } from './core/journalMigration';
 import { initChottuLinkOnce } from './src/core/deeplinking/chottuLink';
 // import { TRACKS, getTrackUrl } from './data/tracks';
 // import { cacheRemoteOnce } from './utils/audioCache';
@@ -450,6 +451,25 @@ export default Sentry.wrap(function App() {
       cleanAudioCache().catch(() => {});
     });
 
+    // Preserve baselines for older journal entries, a few at a time and only once
+    // startup has settled. Counts only are reported; never journal content.
+    const baselineTimer = setTimeout(() => {
+      InteractionManager.runAfterInteractions(() => {
+        migrateJournalBaselines()
+          .then((result) => {
+            if (result.failed > 0) {
+              Sentry.addBreadcrumb({
+                category: 'journal.migration',
+                level: 'warning',
+                message: 'baseline migration incomplete',
+                data: { failed: result.failed, total: result.total },
+              });
+            }
+          })
+          .catch(() => {});
+      });
+    }, 4000);
+
     // Every open/foreground pushes the "come back" reminder further out —
     // an active user keeps deferring it forever; a lapsed one leaves the
     // last-scheduled one to actually fire. No-ops if permission was never
@@ -462,7 +482,7 @@ export default Sentry.wrap(function App() {
         scheduleReengagementNotification().catch(() => {});
       }
     });
-    return () => { sub.remove(); };
+    return () => { clearTimeout(baselineTimer); sub.remove(); };
   }, []);
 
   if (!fontsLoaded) return null;
