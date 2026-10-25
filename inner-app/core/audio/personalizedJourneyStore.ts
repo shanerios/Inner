@@ -38,6 +38,31 @@ function parseSavedJourney(value: unknown): SavedPersonalizedJourney | null {
   }
 }
 
+/**
+ * Like `loadPersonalizedJourneys`, but a storage failure or an unparseable list
+ * is reported as `unreadable` instead of an empty list, so a caller deciding
+ * access can tell "not saved" from "could not check".
+ */
+export async function readPersonalizedJourneys(
+  storage: Storage = AsyncStorage,
+): Promise<{ status: 'ok'; value: SavedPersonalizedJourney[] } | { status: 'unreadable' }> {
+  try {
+    const raw = await storage.getItem(STORAGE_KEY);
+    if (!raw) return { status: 'ok', value: [] };
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return { status: 'unreadable' };
+    return {
+      status: 'ok',
+      value: parsed
+        .map(parseSavedJourney)
+        .filter((journey): journey is SavedPersonalizedJourney => journey !== null)
+        .slice(0, MAX_SAVED_JOURNEYS),
+    };
+  } catch {
+    return { status: 'unreadable' };
+  }
+}
+
 export async function loadPersonalizedJourneys(
   storage: Storage = AsyncStorage,
 ): Promise<SavedPersonalizedJourney[]> {

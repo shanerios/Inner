@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Slider from '@react-native-community/slider';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useVideoPlayer, VideoView } from '../core/memorySafeVideo';
@@ -54,6 +54,9 @@ import {
 } from '../core/recurringDreamSignals';
 import { loadNightRecords } from '../core/nightRecords';
 import { derivePracticeState, type PracticeStateV1 } from '../core/practiceState';
+import { openPaywall } from '../src/core/subscriptions/paywallController';
+import { resolveMembership, type MembershipStatus } from '../src/core/subscriptions/membership';
+import { checkStartAccess, isPremiumOvernightEnvironment } from '../src/core/subscriptions/playbackPolicy';
 
 type OvernightEnvironment = Exclude<ProceduralEnvironment, 'none' | 'wind'>;
 type OvernightFeel = 'gentle' | 'deep' | 'immersive';
@@ -175,6 +178,55 @@ export default function OvernightJourneyScreen() {
     ? suggestedEnvironment as OvernightEnvironment
     : 'ocean';
   const [environment, setEnvironment] = useState<OvernightEnvironment>(initialEnvironment);
+  const environmentRef = useRef(environment);
+  environmentRef.current = environment;
+  const isExperimentNight = !!route.params?.experimentId;
+  const [membership, setMembership] = useState<MembershipStatus>('unknown');
+  const [environmentNotice, setEnvironmentNotice] = useState<string | null>(null);
+  const environmentLabel = (id: string) => ENVIRONMENTS.find(item => item.id === id)?.label ?? id;
+
+  // Resolve membership whenever this screen gains focus, including after the paywall.
+  // An experiment night is never silently swapped, because that would change its results.
+  useFocusEffect(useCallback(() => {
+    let active = true;
+    void resolveMembership().then(status => {
+      if (!active) return;
+      setMembership(status);
+      const current = environmentRef.current;
+      if (status === 'member' || status === 'unknown' || !isPremiumOvernightEnvironment(current)) {
+        if (status === 'member') setEnvironmentNotice(null);
+        return;
+      }
+      if (isExperimentNight) {
+        setEnvironmentNotice(`This night belongs to an Ocean and Temple comparison. ${environmentLabel(current)} needs Full Experience, so Inner has not started it.`);
+        return;
+      }
+      setEnvironment('ocean');
+      setEnvironmentNotice(`${environmentLabel(current)} is part of Full Experience, so Ocean is selected.`);
+    });
+    return () => { active = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isExperimentNight]));
+
+  const selectEnvironment = async (id: OvernightEnvironment) => {
+    if (!isPremiumOvernightEnvironment(id)) {
+      setEnvironment(id);
+      setEnvironmentNotice(null);
+      return;
+    }
+    const status = await resolveMembership();
+    setMembership(status);
+    if (status === 'member') {
+      setEnvironment(id);
+      setEnvironmentNotice(null);
+      return;
+    }
+    if (status === 'unknown') {
+      Alert.alert('Membership not confirmed', 'Inner could not confirm Full Experience just now. Check your connection and try again.');
+      return;
+    }
+    openPaywall(undefined, undefined, 'overnight');
+  };
   const [feel, setFeel] = useState<OvernightFeel>(adaptiveProposal?.proposedConfiguration.feel ?? suggestedConfiguration?.feel ?? 'gentle');
   const [signalId, setSignalId] = useState<RecognitionSignalId>('ascending');
   const [cuePlan, setCuePlan] = useState<LucidSignalCuePlan>(
@@ -374,6 +426,15 @@ export default function OvernightJourneyScreen() {
 
   const begin = async () => {
     try {
+      const access = await checkStartAccess({ kind: 'overnight_new', environment });
+      if (!access.allowed) {
+        if (access.reason === 'membership_required') {
+          openPaywall(undefined, undefined, access.trigger);
+        } else {
+          Alert.alert('Membership not confirmed', 'Inner could not confirm Full Experience just now. Check your connection and try again.');
+        }
+        return;
+      }
       await stopSignalPreview();
       await setRecognitionSignalId(signalId);
       await setRecognitionSignalGainScale(signalId, signalGainScale);
@@ -482,6 +543,7 @@ export default function OvernightJourneyScreen() {
           ? withPreparationVoice(preparedJourney, voicePlan)
           : voiceWillPlay ? { ...preparedJourney, voiceSkipped: 'pack_not_on_device' } : preparedJourney,
         nightPlanId: plan.id,
+        playbackKind: 'overnight_new',
       });
     } catch {
       Alert.alert('Night not started', 'Inner could not preserve tonight’s plan. Please try again.');
@@ -606,7 +668,18 @@ export default function OvernightJourneyScreen() {
           </View>
         )}
 
-        {choiceGroup('WHERE WOULD YOU LIKE TO GO?', ENVIRONMENTS, environment, setEnvironment)}
+        {choiceGroup(
+          'WHERE WOULD YOU LIKE TO GO?',
+          ENVIRONMENTS.map(item => ({
+            id: item.id,
+            label: isPremiumOvernightEnvironment(item.id) && membership !== 'member'
+              ? `${item.label} · Full Experience`
+              : item.label,
+          })),
+          environment,
+          selectEnvironment,
+        )}
+        {environmentNotice ? <Text style={styles.environmentNotice}>{environmentNotice}</Text> : null}
         {choiceGroup('HOW LONG WILL YOU BE AWAY?', DURATIONS.map(id => ({ id, label: durationLabel(id) })), durationMinutes, setDurationMinutes)}
         {choiceGroup('HOW SHOULD IT FEEL?', FEELS, feel, setFeel)}
         {choiceGroup('YOUR SIGNAL', RECOGNITION_SIGNALS.map(signal => ({ id: signal.id, label: signal.name })), signalId, value => { void chooseSignal(value); })}
@@ -796,6 +869,7 @@ export default function OvernightJourneyScreen() {
 }
 
 const styles = StyleSheet.create({
+  environmentNotice: { marginTop: 8, marginHorizontal: 20, fontSize: 13, lineHeight: 19, color: '#CFC5F2' },
   root: { flex: 1, backgroundColor: '#02040B' },
   veil: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.61)' },
   content: { paddingHorizontal: 24 },

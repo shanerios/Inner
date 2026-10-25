@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useHeaderHeight } from '@react-navigation/elements';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
@@ -17,6 +17,7 @@ import {
   stopPracticeExperiment,
   type PracticeExperiment,
 } from '../core/practiceExperiments';
+import { resolveMembership } from '../src/core/subscriptions/membership';
 import {
   createRecurringSignalJourney,
   deriveRecurringDreamSignal,
@@ -207,7 +208,26 @@ export default function PracticeMemoryScreen({ navigation }: Props) {
         <View style={styles.section}>
           <PracticeExperimentCard
             view={experimentView}
-            onStart={() => { void (async () => { try { await Haptics.selectionAsync(); } catch {} setExperiment(await startEnvironmentComparisonExperiment()); })(); }}
+            onStart={() => { void (async () => {
+              try { await Haptics.selectionAsync(); } catch {}
+              const begin = async () => setExperiment(await startEnvironmentComparisonExperiment());
+              // The comparison alternates Ocean and Temple. Temple nights need Full Experience,
+              // so this is explained before the experiment starts. Results are never altered.
+              const status = await resolveMembership();
+              if (status === 'member') { await begin(); return; }
+              if (status === 'unknown') {
+                Alert.alert('Membership not confirmed', 'Inner could not confirm Full Experience just now. Check your connection and try again.');
+                return;
+              }
+              Alert.alert(
+                'Temple nights need Full Experience',
+                'This comparison alternates Ocean and Temple. Ocean nights are free. Temple nights start only with Full Experience. Your results are kept either way.',
+                [
+                  { text: 'Not now', style: 'cancel' },
+                  { text: 'Start comparison', onPress: () => { void begin(); } },
+                ],
+              );
+            })(); }}
             onContinue={() => {
               if (!experiment || !experimentView?.nextCondition) return;
               void (async () => {
@@ -261,7 +281,7 @@ export default function PracticeMemoryScreen({ navigation }: Props) {
                 if (!base) return;
                 try { await Haptics.selectionAsync(); } catch {}
                 await saveRecurringSignalFocus(signal);
-                navigation.navigate('LucidJourneyPlayer', { journey: createRecurringSignalJourney(base, signal.sign) });
+                navigation.navigate('LucidJourneyPlayer', { journey: createRecurringSignalJourney(base, signal.sign), playbackKind: 'factory' });
               }}
               style={styles.button}
             >

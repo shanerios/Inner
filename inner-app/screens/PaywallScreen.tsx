@@ -29,9 +29,15 @@ const ENTITLEMENT_ID = 'continuing_with_inner';
 const FEATURE_LINES = [
   'Nine chambers of guided descent',
   'Root Deep: Lucid Dream thresholds',
-  'Aeris with full pattern recognition',
-  'Guardian journeys as they unfold',
+  'Aeris conversations beyond the free allowance',
+  'Temple, Abyssal Glass, Cosmic, and Fire overnight worlds',
 ];
+
+// States exactly what the trigger unlocks. Free items are named so nothing is implied.
+const TRIGGER_NOTES: Partial<Record<PaywallTrigger, string>> = {
+  overnight: 'Full Experience adds Temple, Abyssal Glass, Cosmic, and Fire to Overnight Journeys. Ocean, Forest, and Quiet stay free.',
+  journey_creator: 'Full Experience lets you create and save your own journeys. Saved journeys stay playable, and you can delete them at any time.',
+};
 
 // Goal-aware overrides — set during onboarding's Value & Intent Capture step.
 // Only the middle feature line and headline are personalized; the outer two
@@ -90,7 +96,9 @@ const HEADLINES: Record<PaywallTrigger, string> = {
   garden:  'The field goes further.',
   settings: 'Continue with Inner',
   onboarding: 'Your first descent awaits.',
-  aeris: 'Aeris, unlimited.',
+  aeris: 'Keep the conversation going.',
+  overnight: 'Other worlds for the night.',
+  journey_creator: 'Build your own descent.',
 };
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -401,6 +409,9 @@ export default function PaywallScreen() {
             ) : (
               <Text style={styles.headline}>{headline}</Text>
             )}
+            {TRIGGER_NOTES[trigger] ? (
+              <Text style={styles.subtext}>{TRIGGER_NOTES[trigger]}</Text>
+            ) : null}
           </View>
 
           <View style={styles.features}>
