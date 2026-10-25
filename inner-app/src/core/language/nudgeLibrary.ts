@@ -11,23 +11,23 @@ export const NUDGE_LIBRARY: NudgeLibrary = {
       'The noise has stayed quiet longer than usual.',
     ],
     invite: [
-      'When stillness holds long enough, clarity sometimes follows.',
+      'When stillness holds long enough, focus sometimes follows.',
       'Calm often becomes the ground from which something sharper can emerge.',
     ],
   },
 
   clarity: {
     acknowledge: [
-      'Clarity has been present recently.',
-      'Your inner lens has been focused.',
+      'Focus has been present recently.',
+      'Your attention has been gathering.',
     ],
     reflect: [
-      'You’ve been moving with Clarity for some time.',
-      'Patterns may be easier to see right now.',
+      'You’ve been moving with Focus for some time.',
+      'Distractions may be easier to set down right now.',
     ],
     invite: [
-      'After clarity comes grounding, if you feel the need to root what you see.',
-      'Some choose to return to Calm once vision sharpens.',
+      'After focus comes grounding, if you feel the need to root what you’ve gathered.',
+      'Some choose to return to Calm once attention settles.',
     ],
   },
 
@@ -42,7 +42,7 @@ export const NUDGE_LIBRARY: NudgeLibrary = {
     ],
     invite: [
       'From strong roots, expansion becomes safer.',
-      'Grounding sometimes prepares the way for reawakening.',
+      'Grounding sometimes prepares the way for going beyond the body.',
     ],
   },
 
@@ -57,22 +57,22 @@ export const NUDGE_LIBRARY: NudgeLibrary = {
     ],
     invite: [
       'When healing settles, grounding can help integrate what’s changed.',
-      'Some find reawakening follows long periods of repair.',
+      'Some find the body is easier to leave after long periods of repair.',
     ],
   },
 
   reawakening: {
     acknowledge: [
-      'Reawakening energy has been present.',
-      'Something has been stirring.',
+      'Out-of-body intention has been present.',
+      'Something beyond the body has been calling.',
     ],
     reflect: [
-      'You’ve been in a state of reawakening for a while.',
-      'Momentum has been quietly building.',
+      'You’ve been reaching beyond the body for a while.',
+      'Practice has been quietly building.',
     ],
     invite: [
-      'After reawakening, clarity can help shape what’s returning.',
-      'Expansion often follows renewed energy.',
+      'Focus can steady the mind before the next attempt.',
+      'Grounding helps you return and integrate what you found.',
     ],
   },
 

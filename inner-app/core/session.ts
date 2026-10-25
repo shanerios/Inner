@@ -175,8 +175,15 @@ export async function clearIntentions() {
 /** ------------------ UI & convenience helpers ------------------ */
 
 /** Format intentions for UI labels, e.g., "Calm & Expansion" */
+// Stored keys stay stable (lessons, nudges and themes are keyed on them); these
+// are the names people see. 'clarity' is presented as Focus, 'reawakening' as OBE.
+const INTENTION_LABEL: Partial<Record<IntentionKey, string>> = {
+  clarity: 'Focus',
+  reawakening: 'OBE',
+};
+
 export function formatIntentions(keys: Intentions): string {
-  const titled = keys.map(k => k[0].toUpperCase() + k.slice(1));
+  const titled = keys.map(k => INTENTION_LABEL[k] ?? k[0].toUpperCase() + k.slice(1));
   if (titled.length === 0) return '';
   if (titled.length === 1) return titled[0];
   return `${titled[0]} & ${titled[1]}`;

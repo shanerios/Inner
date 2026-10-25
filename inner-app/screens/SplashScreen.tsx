@@ -436,11 +436,13 @@ export default function SplashScreen() {
     if (navigating.current) return;
     navigating.current = true;
     if (showReturnHome) hideReturnHome();
+    if (!onboardingComplete) posthog?.capture('onboarding_splash_tapped');
     playEngulfThen(() => {
       if (!onboardingComplete) {
-        // First run — full ritual.
+        // First run — straight to Intention Tuning, which doubles as the
+        // onboarding question. The cinematic Intro stays available via long-press replay.
         // @ts-ignore
-        navigation.navigate('Intro');
+        navigation.navigate('Intention', { returnTo: 'Home' });
       } else if (intentionRecheckDue) {
         // Returning, but it's been 48+ hours — a quick re-tune before Home.
         // @ts-ignore

@@ -51,6 +51,14 @@ Inner now connects your nights with what you remember in the morning.
 
 ### Detailed product log
 
+#### Shorter first launch
+
+- First launch is now: tap the orb, choose your path on the Intention screen, then arrive at Home through the daily Arrive screen. The separate questionnaire, cinematic intro, and Essence screens no longer run on first launch; the intro remains available by long-pressing the orb.
+- Intention options now read Lucidity, OBE, Focus, Grounding, Healing, and Expansion. Existing selections carry over (earlier Clarity choices now read as Focus and Reawakening choices as OBE), and Home affirmations and nudge wording were updated to match.
+- The subscription paywall no longer opens at the end of onboarding. It appears when you open locked content, and its headline follows your first intention (Lucidity, OBE, or Focus).
+- The name and wake-time prompts were removed from first launch; both can still be set in Settings.
+- Not yet device-tested.
+
 #### Overnight reliability
 
 - Android now releases cached image memory when the app goes to the background, to lower the chance of the app process being removed during a long Overnight Journey. Not yet confirmed to prevent it.
@@ -209,6 +217,8 @@ Inner now connects your nights with what you remember in the morning.
 
 ### Privacy and analytics notes
 
+- Intention Tuning sends `intention_screen_viewed` and `intentions_selected` with only the source (onboarding or re-tune), the number selected, and whether the selection was unchanged; the chosen intentions are never sent.
+- New onboarding funnel events (`onboarding_splash_tapped`, `onboarding_intro_viewed`, `onboarding_intro_cta_shown`, `onboarding_intro_cta_pressed`, `onboarding_intro_skipped`) carry only timing, never survey answers. `onboarding_value_hook_completed` is no longer sent.
 - Practice Memory and personalized recommendations are designed to work locally on the device.
 - Structured dream outcomes can support aggregate event counts without sending freeform dream text.
 - Freeform journal content should remain outside analytics unless a future, explicit policy and consent flow says otherwise.

@@ -6,10 +6,10 @@ This file defines guardrails, context, and security rules for AI agents working 
 
 ## Project context
 
-Inner is a React Native / Expo SDK 53 app for lucid dreaming, consciousness exploration, psychoacoustic soundscapes, and meditation. It is a solo-founded, production app available on iOS and Android.
+Inner is a React Native / Expo SDK 54 app for lucid dreaming, consciousness exploration, psychoacoustic soundscapes, and meditation. It is a solo-founded, production app available on iOS and Android.
 
 **Stack:**
-- React Native + Expo SDK 53
+- React Native + Expo SDK 54
 - TypeScript
 - react-native-track-player (audio)
 - RevenueCat (subscriptions — monthly, yearly, lifetime)
