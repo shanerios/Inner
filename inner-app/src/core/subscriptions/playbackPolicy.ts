@@ -1,3 +1,4 @@
+import { createDreamIncubationJourney, FACTORY_AUDIO_JOURNEYS } from '../../../core/audio/factoryJourneys';
 import { PREMIUM_OVERNIGHT_ENVIRONMENTS } from './constants';
 import { resolveMembership, type MembershipStatus } from './membership';
 import type { PaywallTrigger } from './paywallController';
@@ -93,9 +94,8 @@ export function playerStartFromRoute(
   if (params.playbackKind === 'custom_new') return { kind: 'custom_new' };
   if (params.playbackKind === 'saved_custom') return { kind: 'saved_custom' };
   if (params.playbackKind === 'factory') return { kind: 'factory' };
-  if (params.playbackKind === 'live_mix') return { kind: 'live_mix' };
-  if (params.playbackKind === 'chamber_mixer') return { kind: 'chamber_mixer' };
-  if (params.playbackKind === 'resume') return { kind: 'resume' };
+  // A resume needs a session id, and the mixers never route through the journey
+  // player, so neither label can be trusted here. Content decides below.
   if (params.nightPlanId || premium) return { kind: 'overnight_new', environment: primary };
   return { kind: 'factory' };
 }
@@ -106,4 +106,38 @@ export function playerStartFromRoute(
  */
 export function experimentRequiresMembership(experiment: { sequence?: string[] }): boolean {
   return (experiment.sequence ?? []).some(condition => isPremiumOvernightEnvironment(condition));
+}
+
+const INCUBATION_ID = /^dream-incubation-\d+$/;
+
+function isSubset(found: string[], allowed: string[]): boolean {
+  return found.every(environment => allowed.includes(environment));
+}
+
+/**
+ * Checks a route's claimed origin against the journey it carries. A label is a
+ * hint from the entry screen, never proof: "factory" holds only for a catalog
+ * journey (or a Dream Incubation) that adds no environment the original lacks,
+ * and "saved_custom" only for an id in the saved-journey store. A claim that
+ * fails is dropped, so the journey is classified by what it plays.
+ */
+export function verifiedPlaybackKind(
+  params: RouteStart,
+  journey: { id: string; timeline: TimelineLike } | null | undefined,
+  savedJourneyIds: readonly string[],
+): PlaybackStartKind | undefined {
+  const claimed = params.playbackKind;
+  if (!journey) return claimed === 'custom_new' ? claimed : undefined;
+  const environments = environmentsOfTimeline(journey.timeline);
+  if (claimed === 'factory') {
+    const catalog = FACTORY_AUDIO_JOURNEYS.find(item => item.id === journey.id);
+    if (catalog) return isSubset(environments, environmentsOfTimeline(catalog.timeline)) ? 'factory' : undefined;
+    if (INCUBATION_ID.test(journey.id)) {
+      const template = createDreamIncubationJourney('template');
+      return isSubset(environments, environmentsOfTimeline(template.timeline)) ? 'factory' : undefined;
+    }
+    return undefined;
+  }
+  if (claimed === 'saved_custom') return savedJourneyIds.includes(journey.id) ? 'saved_custom' : undefined;
+  return claimed;
 }

@@ -36,8 +36,9 @@ import { INNER_LAB_BUILD } from '../core/innerLab';
 import { startBedsideMotionRecording } from '../core/bedsideMotionSensor';
 import { resolveVoiceClips } from '../core/audio/voiceClips';
 import { markRecurringSignalPracticeCompleted } from '../core/recurringDreamSignals';
+import { loadPersonalizedJourneys } from '../core/audio/personalizedJourneyStore';
 import { openPaywall } from '../src/core/subscriptions/paywallController';
-import { checkStartAccess, playerStartFromRoute, type PlaybackStartKind } from '../src/core/subscriptions/playbackPolicy';
+import { checkStartAccess, playerStartFromRoute, verifiedPlaybackKind, type PlaybackStartKind } from '../src/core/subscriptions/playbackPolicy';
 
 const LUCIDITY_CUE_TRAINING_JOURNEY_ID = 'lucid-signal';
 /** How long a requested start may take before it is treated as stalled. */
@@ -217,8 +218,15 @@ export default function LucidJourneyPlayerScreen() {
     const start = async () => {
       try {
         // Access is resolved before any audio begins. Resumes never check membership.
+        const savedIds = playbackKind === 'saved_custom'
+          ? (await loadPersonalizedJourneys()).map(item => item.id)
+          : [];
         const access = await checkStartAccess(
-          playerStartFromRoute({ resumeSessionId, nightPlanId, playbackKind }, journey.timeline),
+          playerStartFromRoute({
+            resumeSessionId,
+            nightPlanId,
+            playbackKind: verifiedPlaybackKind({ resumeSessionId, nightPlanId, playbackKind }, journey, savedIds),
+          }, journey.timeline),
         );
         if (!mounted) return;
         if (!access.allowed) {
