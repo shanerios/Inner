@@ -2,10 +2,12 @@ import { FACTORY_AUDIO_JOURNEYS, type FactoryAudioJourney } from './factoryJourn
 import { identityPatch } from './identityArc';
 import { binauralForWorld, noiseForWorld } from './worldProfiles';
 import { toneGainForEnvironment } from './config';
-import type { CompiledOvernightProtocol } from './overnightProtocol';
+import { SILENT_BED, type CompiledOvernightProtocol } from './overnightProtocol';
+import { RECOGNITION_ONLY_CUE_FADE_IN_MS } from '../overnightMode';
 import type { ProceduralEnvironment } from './types';
 
-export type OvernightEnvironment = Exclude<ProceduralEnvironment, 'none' | 'wind'>;
+/** `none` selects Recognition Only: the full night's timing and cues with no continuous audio. */
+export type OvernightEnvironment = Exclude<ProceduralEnvironment, 'wind'>;
 export type OvernightFeel = 'gentle' | 'deep' | 'immersive';
 
 function durationLabel(minutes: number): string {
@@ -22,6 +24,7 @@ export function overnightJourney(
   accelerated: boolean,
   seed: number,
 ): FactoryAudioJourney {
+  const recognitionOnly = environment === 'none';
   const base = FACTORY_AUDIO_JOURNEYS.find(journey => journey.id === 'lucid-signal')!;
   const gain = feel === 'immersive' ? 0.2 : feel === 'deep' ? 0.16 : 0.12;
   const preparationDurationMs = base.timeline.stages.reduce((total, stage) => total + stage.durationMs, 0);
@@ -58,6 +61,7 @@ export function overnightJourney(
                 recognitionSpace: true,
                 signalGainScale: presentation?.kind === 'playRecognitionSignal' ? presentation.gainScale : undefined,
                 recoverySeconds: presentation?.kind === 'playRecognitionSignal' ? presentation.recoverySeconds : undefined,
+                ...(recognitionOnly ? { cueFadeInMs: RECOGNITION_ONLY_CUE_FADE_IN_MS } : {}),
               };
             }),
         };
@@ -85,20 +89,31 @@ export function overnightJourney(
     // Keep overnight playback distinct from the standalone Lucid Signal
     // trainer; all of its cue events belong to the native overnight timeline.
     id: protocol.id,
-    title: 'Overnight Recognition',
-    summary: `Recognition practice shaped around the ${environment} before later signals return during sleep.`,
+    title: recognitionOnly ? 'Recognition Only' : 'Overnight Recognition',
+    summary: recognitionOnly
+      ? 'Recognition practice with no background sound, then your signal alone at the planned times during sleep.'
+      : `Recognition practice shaped around the ${environment} before later signals return during sleep.`,
     durationLabel: `${durationLabel(Math.round(protocol.totalDurationMs / 60_000))} · Overnight`,
     overnight: { sleepOnsetDelayMs: scaledPreparationDurationMs, recognitionSignalId: protocol.signalId },
     timeline: {
       ...base.timeline,
       id: protocol.id,
-      title: 'Overnight Recognition',
+      title: recognitionOnly ? 'Recognition Only' : 'Overnight Recognition',
       endPolicy: 'protocolControlled',
       protocolVersion: protocol.schemaVersion,
       // Fresh each night: without a seed the engine reuses one derived from the journey id.
       seed,
       stages: [
-        ...preparationStages.map(stage => ({
+        ...preparationStages.map((stage, index) => recognitionOnly ? {
+          // Keeps each stage's master level and its cue events; every continuous layer is off. The
+          // engine blends the first stage from the default config (which carries a tone), so it must not fade.
+          ...stage,
+          transitionMs: index === 0 ? 0 : stage.transitionMs,
+          spatialEvents: stage.spatialEvents?.map(event => (
+            event.type === 'cue' ? { ...event, cueFadeInMs: RECOGNITION_ONLY_CUE_FADE_IN_MS } : event
+          )),
+          target: { ...stage.target, ...SILENT_BED },
+        } : {
           ...stage,
           target: {
             ...stage.target,
@@ -114,7 +129,7 @@ export function overnightJourney(
               ? noiseForWorld(environment, { noiseColor: stage.target.noiseColor ?? null, noiseGain: stage.target.noiseGain })
               : {}),
           },
-        })),
+        }),
         ...overnightStages,
       ],
     },

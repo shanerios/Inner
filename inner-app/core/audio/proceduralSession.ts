@@ -266,10 +266,10 @@ export class ProceduralPlaybackSession {
     });
   }
 
-  async triggerCue() {
+  async triggerCue(fadeInMs?: number) {
     await this.exclusive(async () => {
       this.assertOwner();
-      await this.engine.triggerCue();
+      await (fadeInMs && fadeInMs > 0 ? this.engine.triggerCue(fadeInMs) : this.engine.triggerCue());
     });
   }
 

@@ -120,6 +120,8 @@ private data class CueEventState(
   val recognitionSpace: Boolean,
   val signalGainScale: Double,
   val recoverySeconds: Double,
+  /** Raised-cosine fade-in over the start of the signal; 0 leaves the signal's own attack untouched. */
+  val cueFadeInMs: Double,
 )
 
 private data class VoiceEventState(
@@ -395,6 +397,7 @@ object ProceduralAudioEngine {
   private val templeAmps = DoubleArray(4)
   private val templeFreqs = DoubleArray(4)
   @Volatile private var cuePending = false
+  @Volatile private var cuePendingFadeInMs = 0.0
   private var cueActive = false
   private var cueTimelineThresholdMs = -1.0
   @Volatile private var voiceBank: Map<String, VoiceClip> = emptyMap()
@@ -427,6 +430,7 @@ object ProceduralAudioEngine {
   private var activeCueSamplesLeft = FloatArray(0)
   private var activeCueSamplesRight = FloatArray(0)
   private var activeCueGain = 1.0
+  private var activeCueFadeFrames = 0.0
   private var activeCueSampleRate = 0.0
   private var orbitMix = 0.0
   private var orbitNoiseFilter = 0.0
@@ -611,6 +615,7 @@ object ProceduralAudioEngine {
               recognitionSpace = event.recognitionSpace,
               signalGainScale = clamp(event.signalGainScale, 0.1, 2.0),
               recoverySeconds = clamp(event.recoverySeconds, 10.0, 120.0),
+              cueFadeInMs = clamp(event.cueFadeInMs, 0.0, 500.0),
             )
           },
           voiceEvents = stage.spatialEvents.take(16).mapNotNull { event ->
@@ -715,7 +720,8 @@ object ProceduralAudioEngine {
 
   /** Fires the fixed lucidity cue once. Safe to call at any time; a call while
    * the cue is already ringing restarts it cleanly rather than layering. */
-  fun triggerCue() {
+  fun triggerCue(fadeInMs: Double = 0.0) {
+    cuePendingFadeInMs = if (fadeInMs.isFinite()) clamp(fadeInMs, 0.0, 500.0) else 0.0
     cuePending = true
   }
 
@@ -926,7 +932,7 @@ object ProceduralAudioEngine {
     if (settleCues) cueHoldUntilMs = timelineStartFrame * 1_000.0 / sampleRate + CUE_SETTLE_MS
     if (cuePending) {
       cuePending = false
-      startCue()
+      startCue(fadeInMs = cuePendingFadeInMs)
     }
     val tau = Math.PI * 2
     val bufferStartMs = wallClockMs().toDouble()
@@ -950,7 +956,7 @@ object ProceduralAudioEngine {
         if (cueFireMs != null) {
           cueTimelineThresholdMs = cueFireMs
           val cueEvent = cueEventAt(activeTimeline, cueFireMs)
-          startCue(cueEvent?.signalGainScale ?: 1.0)
+          startCue(cueEvent?.signalGainScale ?: 1.0, cueEvent?.cueFadeInMs ?: 0.0)
           val firedSignalId = recognitionSignalId ?: "ascending"
           val cueId = cueIdAt(activeTimeline, cueFireMs)
           firedSignalLock.withLock {
@@ -1492,12 +1498,13 @@ object ProceduralAudioEngine {
     return bounded * bounded * (3.0 - 2.0 * bounded)
   }
 
-  private fun startCue(gainScale: Double = 1.0) {
+  private fun startCue(gainScale: Double = 1.0, fadeInMs: Double = 0.0) {
     lock.withLock {
       activeCueSamplesLeft = recognitionSignalSamplesLeft
       activeCueSamplesRight = recognitionSignalSamplesRight
       activeCueSampleRate = recognitionSignalSampleRate
       activeCueGain = recognitionSignalGain * clamp(gainScale, 0.1, 2.0)
+      activeCueFadeFrames = fadeInMs / 1_000.0 * sampleRate
     }
     cueActive = true
     cueElapsedFrames = 0.0
@@ -1695,9 +1702,10 @@ object ProceduralAudioEngine {
       val fraction = sourcePosition - lower
       val left = activeCueSamplesLeft[lower] * (1 - fraction) + activeCueSamplesLeft[upper] * fraction
       val right = activeCueSamplesRight[lower] * (1 - fraction) + activeCueSamplesRight[upper] * fraction
+      val fade = cueFadeGain()
       cueElapsedFrames += 1
       if (cueElapsedFrames >= cueTotalFrames) cueActive = false
-      return cueSample.set(left * 1.45 * activeCueGain, right * 1.45 * activeCueGain)
+      return cueSample.set(left * 1.45 * activeCueGain * fade, right * 1.45 * activeCueGain * fade)
     }
     val t = cueElapsedFrames / sampleRate
     var dry = 0.0
@@ -1712,9 +1720,16 @@ object ProceduralAudioEngine {
     val mixedRight = dry * CUE_DRY_GAIN + rightWet * CUE_WET_GAIN
     val mid = (mixedLeft + mixedRight) / 2
     val side = (mixedLeft - mixedRight) / 2 * CUE_STEREO_WIDTH
+    val fade = cueFadeGain()
     cueElapsedFrames += 1
     if (cueElapsedFrames >= cueTotalFrames) cueActive = false
-    return cueSample.set((mid + side) * CUE_OUTPUT_GAIN * activeCueGain, (mid - side) * CUE_OUTPUT_GAIN * activeCueGain)
+    return cueSample.set((mid + side) * CUE_OUTPUT_GAIN * activeCueGain * fade, (mid - side) * CUE_OUTPUT_GAIN * activeCueGain * fade)
+  }
+
+  /** Exactly 1.0 unless the cue asked for a fade-in, so cues without one render bit-for-bit as before. */
+  private fun cueFadeGain(): Double {
+    if (activeCueFadeFrames <= 0.0 || cueElapsedFrames >= activeCueFadeFrames) return 1.0
+    return 0.5 - 0.5 * cos(Math.PI * cueElapsedFrames / activeCueFadeFrames)
   }
 
   private fun cueNoteEnvelope(t: Double): Double {

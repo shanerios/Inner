@@ -57,6 +57,7 @@ struct SpatialEventRecord: Record {
   @Field var recognitionSpace = false
   @Field var signalGainScale = 1.0
   @Field var recoverySeconds = 30.0
+  @Field var cueFadeInMs = 0.0
   @Field var clipId = ""
 }
 
@@ -98,7 +99,7 @@ public final class InnerAudioModule: Module {
     Function("drainDiagnosticEvents") { self.engine.drainDiagnosticEvents() }
     AsyncFunction("setRecognitionSignal") { (signalId: String?, uri: String?, gain: Double?) in try self.engine.setRecognitionSignal(signalId, uri, gain ?? 1) }
     AsyncFunction("setVoiceClips") { (clips: [VoiceClipRecord]) in self.engine.setVoiceClips(clips) }
-    AsyncFunction("triggerCue") { self.engine.triggerCue() }
+    AsyncFunction("triggerCue") { (fadeInMs: Double?) in self.engine.triggerCue(fadeInMs: fadeInMs ?? 0) }
     AsyncFunction("play") { try self.engine.play() }
     AsyncFunction("pause") { self.engine.pause() }
     AsyncFunction("stop") { self.engine.stop() }
@@ -176,6 +177,8 @@ private struct CueEvent {
   let recognitionSpace: Bool
   let signalGainScale: Double
   let recoverySeconds: Double
+  /// Raised-cosine fade-in over the start of the signal; 0 leaves the signal's own attack untouched.
+  let cueFadeInMs: Double
 }
 
 private struct SpatialEvent {
@@ -379,6 +382,7 @@ final class ProceduralAudioEngine: NSObject {
   private var templeAmps = [Double](repeating: 0, count: 4)
   private var templeFreqs = [Double](repeating: 0, count: 4)
   private var cuePending = false
+  private var cuePendingFadeInMs = 0.0
   private var cueTimelineThresholdMs = -1.0
   private var voiceBank: [String: VoiceClip] = [:]
   private var voiceTimelineThresholdMs = -1.0
@@ -417,6 +421,7 @@ final class ProceduralAudioEngine: NSObject {
   private var activeCueSamplesLeft: [Float] = []
   private var activeCueSamplesRight: [Float] = []
   private var activeCueGain = 1.0
+  private var activeCueFadeFrames = 0.0
   private var activeCueSampleRate = 0.0
   private var orbitMix = 0.0
   private var orbitNoiseFilter = 0.0
@@ -627,7 +632,8 @@ final class ProceduralAudioEngine: NSObject {
             atMs: event.atMs,
             recognitionSpace: event.recognitionSpace,
             signalGainScale: clamp(event.signalGainScale, 0.1, 2),
-            recoverySeconds: clamp(event.recoverySeconds, 10, 120)
+            recoverySeconds: clamp(event.recoverySeconds, 10, 120),
+            cueFadeInMs: clamp(event.cueFadeInMs, 0, 500)
           )
         },
         voiceEvents: stage.spatialEvents.prefix(16).compactMap { event in
@@ -1154,7 +1160,8 @@ final class ProceduralAudioEngine: NSObject {
   /// Fires the fixed lucidity cue once. Safe to call at any time; a call
   /// while the cue is already ringing restarts it cleanly rather than
   /// layering.
-  func triggerCue() {
+  func triggerCue(fadeInMs: Double = 0) {
+    cuePendingFadeInMs = fadeInMs.isFinite ? clamp(fadeInMs, 0, 500) : 0
     cuePending = true
   }
 
@@ -1242,7 +1249,7 @@ final class ProceduralAudioEngine: NSObject {
     if settleCues { cueHoldUntilMs = timelineStartFrame * 1_000 / sampleRate + Self.cueSettleMs }
     if cuePending {
       cuePending = false
-      startCue()
+      startCue(fadeInMs: cuePendingFadeInMs)
     }
     let buffers = UnsafeMutableAudioBufferListPointer(list)
     guard buffers.count >= 2,
@@ -1269,7 +1276,7 @@ final class ProceduralAudioEngine: NSObject {
          !holdCue(activeTimeline, cueFireMs: cueFireMs, elapsedMs: timelineElapsedMs) {
         cueTimelineThresholdMs = cueFireMs
         let cueEvent = cueEventAt(activeTimeline, atMs: cueFireMs)
-        startCue(gainScale: cueEvent?.signalGainScale ?? 1)
+        startCue(gainScale: cueEvent?.signalGainScale ?? 1, fadeInMs: cueEvent?.cueFadeInMs ?? 0)
         let cueId = cueIdAt(activeTimeline, atMs: cueFireMs)
         diagnosticLock.lock()
         if firedSignalIds.count < 240 { firedSignalIds.append(recognitionSignalId ?? "ascending") }
@@ -1785,12 +1792,13 @@ final class ProceduralAudioEngine: NSObject {
     return bounded * bounded * (3 - 2 * bounded)
   }
 
-  private func startCue(gainScale: Double = 1) {
+  private func startCue(gainScale: Double = 1, fadeInMs: Double = 0) {
     lock.lock()
     activeCueSamplesLeft = recognitionSignalSamplesLeft
     activeCueSamplesRight = recognitionSignalSamplesRight
     activeCueSampleRate = recognitionSignalSampleRate
     activeCueGain = recognitionSignalGain * clamp(gainScale, 0.1, 2)
+    activeCueFadeFrames = fadeInMs / 1_000 * sampleRate
     lock.unlock()
     cueActive = true
     cueElapsedFrames = 0
@@ -2028,9 +2036,10 @@ final class ProceduralAudioEngine: NSObject {
       let fraction = sourcePosition - Double(lower)
       let left = Double(activeCueSamplesLeft[lower]) * (1 - fraction) + Double(activeCueSamplesLeft[upper]) * fraction
       let right = Double(activeCueSamplesRight[lower]) * (1 - fraction) + Double(activeCueSamplesRight[upper]) * fraction
+      let fade = cueFadeGain()
       cueElapsedFrames += 1
       if cueElapsedFrames >= cueTotalFrames { cueActive = false }
-      return (left * 1.45 * activeCueGain, right * 1.45 * activeCueGain)
+      return (left * 1.45 * activeCueGain * fade, right * 1.45 * activeCueGain * fade)
     }
     let t = cueElapsedFrames / sampleRate
     var dry = 0.0
@@ -2045,9 +2054,16 @@ final class ProceduralAudioEngine: NSObject {
     let mixedRight = dry * Self.cueDryGain + rightWet * Self.cueWetGain
     let mid = (mixedLeft + mixedRight) / 2
     let side = (mixedLeft - mixedRight) / 2 * Self.cueStereoWidth
+    let fade = cueFadeGain()
     cueElapsedFrames += 1
     if cueElapsedFrames >= cueTotalFrames { cueActive = false }
-    return ((mid + side) * Self.cueOutputGain * activeCueGain, (mid - side) * Self.cueOutputGain * activeCueGain)
+    return ((mid + side) * Self.cueOutputGain * activeCueGain * fade, (mid - side) * Self.cueOutputGain * activeCueGain * fade)
+  }
+
+  /// Exactly 1 unless the cue asked for a fade-in, so cues without one render exactly as before.
+  private func cueFadeGain() -> Double {
+    if activeCueFadeFrames <= 0 || cueElapsedFrames >= activeCueFadeFrames { return 1 }
+    return 0.5 - 0.5 * cos(Double.pi * cueElapsedFrames / activeCueFadeFrames)
   }
 
   private func cueNoteEnvelope(_ t: Double) -> Double {

@@ -161,7 +161,7 @@ export default function PracticeMemoryScreen({ navigation }: Props) {
                     {fullyComparable ? 'COMPARABLE NIGHT' : partlyComparable ? 'PARTIAL EVIDENCE' : 'NOT USED FOR ADAPTATION'}
                   </Text>
                   <Text style={styles.body}>
-                    {new Date(record.reflectedAt).toLocaleDateString()} · {recipe?.environment ?? 'Unknown environment'} · {recipe?.recognition.signalId ?? 'Unknown signal'}
+                    {new Date(record.reflectedAt).toLocaleDateString()} · {recipe?.mode === 'recognition_only' ? 'Recognition Only' : recipe?.environment ?? 'Unknown environment'} · {recipe?.recognition.signalId ?? 'Unknown signal'}
                   </Text>
                   <Text style={styles.evidence}>
                     Recall: {record.outcome.recall} · {signalExperienceLabel(record)} · Sleep: {record.outcome.sleepImpact ?? 'unanswered'}

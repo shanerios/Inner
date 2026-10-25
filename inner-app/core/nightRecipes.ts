@@ -7,7 +7,9 @@ import type { GenerationNotesV1 } from './generationLevers';
 
 export const NIGHT_RECIPE_SCHEMA_VERSION = 2 as const;
 
-export type NightRecipeEnvironment = Exclude<ProceduralEnvironment, 'none' | 'wind'>;
+/** `none` is used only by Recognition Only nights, which have no environment. */
+export type NightRecipeEnvironment = Exclude<ProceduralEnvironment, 'wind'>;
+export type OvernightMode = 'full' | 'recognition_only';
 export type NightRecipeFeel = 'gentle' | 'deep' | 'immersive';
 
 export type NightRecipeRecognitionWindow = {
@@ -63,6 +65,8 @@ export type NightRecipeV2 = {
     intention?: NightRecipeRecognitionIntention;
   };
   environmentArc: 'protected_standard';
+  /** Absent on recipes created before Recognition Only; those are full journeys. */
+  mode?: OvernightMode;
   /** Which generator levers this night used and where each value came from. */
   generation?: GenerationNotesV1;
 };
@@ -77,6 +81,7 @@ export type CreateNightRecipeInput = {
   signalGainScale?: number;
   recognitionIntention?: NightRecipeRecognitionIntention;
   learningObjective?: NightRecipeV2['learningObjective'];
+  mode?: OvernightMode;
   seed: number;
   createdAt?: number;
 };
@@ -113,6 +118,7 @@ export function createNightRecipeV2(input: CreateNightRecipeInput): NightRecipeV
         : {}),
     },
     environmentArc: 'protected_standard',
+    ...(input.mode === 'recognition_only' ? { mode: input.mode } : {}),
   };
 }
 

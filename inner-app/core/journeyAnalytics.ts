@@ -1,5 +1,6 @@
 import { track, trackOnce } from './analytics';
 import { nightExecutionForSession } from './nightExecution';
+import { overnightModeForJourneyId } from './overnightMode';
 import type { JourneyMemoryOutcome, JourneyMemorySession } from './journeyMemory';
 
 /**
@@ -20,6 +21,7 @@ function evidenceProps(session: JourneyMemorySession) {
   const execution = nightExecutionForSession(session);
   return {
     session_id: session.id,
+    mode: overnightModeForJourneyId(session.journeyId),
     planned_min: minutes(session.plannedDurationMs),
     actual_min: minutes(session.actualDurationMs),
     progress: typeof session.progress === 'number' ? Math.round(session.progress * 100) / 100 : undefined,
@@ -37,6 +39,7 @@ export function trackOvernightStarted(session: JourneyMemorySession) {
   if (!isOvernightSession(session)) return;
   trackOnce(`${session.id}:started`, 'overnight_started', {
     session_id: session.id,
+    mode: overnightModeForJourneyId(session.journeyId),
     planned_min: minutes(session.plannedDurationMs),
   });
 }
@@ -46,6 +49,7 @@ export function trackOvernightResumed(session: JourneyMemorySession | undefined,
   if (!session || !isOvernightSession(session)) return;
   track('overnight_resumed', {
     session_id: session.id,
+    mode: overnightModeForJourneyId(session.journeyId),
     position_min: minutes(positionMs),
   });
 }
@@ -85,6 +89,7 @@ export function trackOvernightConfigured(props: {
   voiceGuidance: boolean;
   planSource: string;
   accelerated: boolean;
+  mode: 'full' | 'recognition_only';
 }) {
   track('overnight_configured', {
     duration_min: props.durationMinutes,
@@ -92,5 +97,6 @@ export function trackOvernightConfigured(props: {
     voice_guidance: props.voiceGuidance,
     plan_source: props.planSource,
     accelerated_test: props.accelerated,
+    mode: props.mode,
   });
 }

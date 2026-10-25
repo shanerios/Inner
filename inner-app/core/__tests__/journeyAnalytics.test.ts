@@ -30,6 +30,18 @@ beforeEach(() => {
 });
 
 describe('overnight lifecycle analytics', () => {
+  it('labels the mode on lifecycle events and sends nothing else about it', async () => {
+    const storage = memoryStorage() as any;
+    const only = await beginJourneyMemorySession('overnight-recognition-only-standard', timeline, DEFAULT_PROCEDURAL_AUDIO_CONFIG, storage, () => 100);
+    await finishJourneyMemorySession(only.id, 'completed', 60_000, undefined, storage, () => 200);
+    const full = await beginJourneyMemorySession('overnight-recognition-ocean-standard', timeline, DEFAULT_PROCEDURAL_AUDIO_CONFIG, storage, () => 300);
+    await finishJourneyMemorySession(full.id, 'completed', 60_000, undefined, storage, () => 400);
+    const modeOf = (sessionId: string) => captured.filter(([, props]) => props.session_id === sessionId).map(([, props]) => props.mode);
+    expect(modeOf(only.id)).toEqual(['recognition_only', 'recognition_only']);
+    expect(modeOf(full.id)).toEqual(['full', 'full']);
+    expect(JSON.stringify(captured)).not.toContain('Private Night Title');
+  });
+
   it('reports start and completion once each, with the same session id and no titles', async () => {
     const storage = memoryStorage() as any;
     const session = await beginJourneyMemorySession('overnight-recognition-x', timeline, DEFAULT_PROCEDURAL_AUDIO_CONFIG, storage, () => 100);

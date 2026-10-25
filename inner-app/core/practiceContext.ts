@@ -3,6 +3,7 @@ import { nightExecutionForSession, type NightExecutionRecord } from './nightExec
 import type { SelectedRecommendation } from './recommendationMemory';
 import type { ExperimentContextSnapshot } from './practiceExperiments';
 import type { NightPlanContextSnapshot } from './nightPlans';
+import { overnightModeForJourneyId } from './overnightMode';
 
 export type PracticeType = 'chamber' | 'soundscape' | 'overnight_journey' | 'recognition_signal' | 'guardian' | 'tuning';
 
@@ -17,6 +18,8 @@ export type PracticeLinkSnapshot = {
   linkReason: 'exact_overnight_session' | 'exact_signal_night' | 'completed_recognition_practice' | 'recent_practice';
   audioRoute?: 'private' | 'speaker' | 'unknown';
   environment?: string;
+  /** Absent means a full Overnight Journey. */
+  mode?: 'recognition_only';
   signalId?: string;
   stageIds?: string[];
   firedCueIds?: string[];
@@ -64,6 +67,7 @@ export function practiceLinkFromOvernightSession(session: JourneyMemorySession):
     linkReason: 'exact_overnight_session',
     audioRoute: session.nativeCheckpoint?.audioRoute ?? (routeEvent?.route as PracticeLinkSnapshot['audioRoute']),
     environment: dominantEnvironment(session),
+    ...(overnightModeForJourneyId(session.journeyId) === 'recognition_only' ? { mode: 'recognition_only' as const } : {}),
     signalId: signalEvent?.signalId ?? session.nativeCheckpoint?.firedSignalIds?.[0],
     stageIds: unique(session.stages.map(stage => stage.id)),
     firedCueIds: unique([
@@ -99,7 +103,9 @@ export function practiceContextSummary(context?: PracticeContextSnapshot): strin
 export function practiceContextSections(context?: PracticeContextSnapshot): string[][] {
   const nightPlan = context?.nightPlan
     ? [[
-        `Tonight's plan · ${context.nightPlan.configuration.environment.charAt(0).toUpperCase()}${context.nightPlan.configuration.environment.slice(1)}`,
+        context.nightPlan.configuration.mode === 'recognition_only'
+          ? "Tonight's plan · Recognition Only"
+          : `Tonight's plan · ${context.nightPlan.configuration.environment.charAt(0).toUpperCase()}${context.nightPlan.configuration.environment.slice(1)}`,
         `${context.nightPlan.configuration.durationMinutes} min · ${context.nightPlan.configuration.feel} · ${context.nightPlan.configuration.recognitionWindowCount} recognition ${context.nightPlan.configuration.recognitionWindowCount === 1 ? 'window' : 'windows'}`,
         ...(context.nightPlan.configuration.signalGainScale !== undefined && context.nightPlan.configuration.signalGainScale !== 1
           ? [`Signal level: ${Math.round(context.nightPlan.configuration.signalGainScale * 100)}% of calibrated level`]

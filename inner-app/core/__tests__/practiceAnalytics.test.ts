@@ -2,7 +2,7 @@ jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock'));
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { beforeEach, describe, expect, it } from '@jest/globals';
+import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { resetAnalyticsForTests, setAnalyticsClient } from '../analytics';
 import { resetJournalAnalyticsForTests, trackEntryContent, trackEntryRevisited } from '../journalAnalytics';
 import { trackGuardianEnded, trackGuardianStarted } from '../practiceAnalytics';
