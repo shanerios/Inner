@@ -102,12 +102,12 @@ What's new in Inner 3.4
 
 ### Before publishing
 
-- Version numbers: `app.json` is set to 3.4 with `versionCode` 68 and `buildNumber` 2084, which are the test builds already on Play's internal track and TestFlight. Both production profiles use `autoIncrement`, so the next build becomes Android 69 and iOS 2085. Do not lower these.
+- Version numbers: `app.json` is set to 3.4 with `versionCode` 69 and `buildNumber` 2085, which are the test builds already on Play's internal track and TestFlight (built from `main` at `f4ae749`). Both production profiles use `autoIncrement`, so the next build becomes Android 70 and iOS 2086. Do not lower these.
 - Build from the merged `main` (after the gating, analytics and Recognition Only PRs land), then run a short device pass: first launch and onboarding, the Intention screen, an Overnight, a Recognition Only night, a Dream Log entry, and a premium gate as a non-member.
 - Confirm analytics events arrive in PostHog from a build with the production channel, and enable the RevenueCat PostHog integration (dashboard step).
 - Confirm the App Store privacy answers and Google Play Data safety form cover the analytics events and the random analytics id linked to RevenueCat.
 - Note for App Review: Recognition Only nights are intentionally silent between signals.
-- Confirm RevenueCat offerings, prices and the 7-day trial on Android. They were confirmed on iOS only.
+- RevenueCat offerings, prices and the 7-day trial: confirmed on iOS (TestFlight) and on Android (store build) by the owner.
 - Still unobserved on a device: the lapsed-member state and Restore Purchases succeeding.
 - Free users who used Temple, Abyssal Glass, Cosmic or Fire before this release will meet the paywall for them. The store notes say so; decide whether to add an in-app message.
 - Sentry 8.15.1 now runs source map upload during builds. The production EAS environment has `SENTRY_AUTH_TOKEN`; the Inner Lab and development profiles skip the upload. Check the first production build uploads cleanly.
