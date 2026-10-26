@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Alert, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Slider from '@react-native-community/slider';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
-import { LinearGradient } from 'expo-linear-gradient';
+import ScreenTopFade, { TITLE_CONTENT_GAP, TOP_FADE_OVERLAP } from '../components/ScreenTopFade';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useVideoPlayer, VideoView } from '../core/memorySafeVideo';
 import {
@@ -661,18 +661,22 @@ export default function OvernightJourneyScreen() {
     </View>
   );
 
+  // The title block is two lines, about 82 tall, starting at 126 (plus the Android offset).
+  const overnightTitleBottom = insets.top + 126 + 82 + (Platform.OS === 'android' ? 30 : 0);
+  const overnightTop = overnightTitleBottom + TITLE_CONTENT_GAP;
+
   return (
     <View style={styles.root}>
       <VideoView player={background} contentFit="cover" style={StyleSheet.absoluteFill} nativeControls={false} allowsFullscreen={false} allowsPictureInPicture={false} />
       <View style={styles.veil} pointerEvents="none" />
       <View
         pointerEvents="none"
-        style={[styles.fixedHeader, { top: insets.top + 66 }, Platform.OS === 'android' && styles.androidFixedHeader]}
+        style={[styles.fixedHeader, { top: insets.top + 126 }, Platform.OS === 'android' && styles.androidFixedHeader]}
       >
         <Text style={[Typography.display, styles.title]}>Overnight Journey</Text>
         <Text style={[Typography.body, styles.subtitle]}>Tell Inner where you’d like to go.</Text>
       </View>
-      <ScrollView contentContainerStyle={[styles.content, { paddingTop: insets.top + (Platform.OS === 'android' ? 210 : 180), paddingBottom: insets.bottom + 34 }]} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingTop: overnightTop, paddingBottom: insets.bottom + 34 }]} showsVerticalScrollIndicator={false}>
         <View style={styles.intention}>
           <Text style={styles.label}>WHAT ARE YOU SEEKING TONIGHT?</Text>
           <Text style={[Typography.display, styles.intentionValue]}>Become Lucid</Text>
@@ -855,12 +859,7 @@ export default function OvernightJourneyScreen() {
           <Text style={styles.returnText}>RETURN</Text>
         </Pressable>
       </ScrollView>
-      <LinearGradient
-        colors={['rgba(2,4,11,0.98)', 'rgba(2,4,11,0.9)', 'rgba(2,4,11,0)']}
-        locations={[0, 0.72, 1]}
-        pointerEvents="none"
-        style={[styles.headerFade, { height: insets.top + (Platform.OS === 'android' ? 230 : 205) }]}
-      />
+      <ScreenTopFade solid={overnightTitleBottom} end={overnightTop + TOP_FADE_OVERLAP} />
       {INNER_LAB_BUILD ? (
         <Modal visible={inspectorVisible} transparent animationType="fade" onRequestClose={() => setInspectorVisible(false)}>
           <View style={styles.inspectorBackdrop}>
@@ -925,7 +924,6 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#02040B' },
   veil: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.61)' },
   content: { paddingHorizontal: 24 },
-  headerFade: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 2 },
   fixedHeader: { position: 'absolute', left: 24, right: 24, zIndex: 3, alignItems: 'center' },
   androidFixedHeader: { transform: [{ translateY: 30 }] },
   title: { color: '#F4F1FA', fontSize: 24, textAlign: 'center' },

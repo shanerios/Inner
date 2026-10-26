@@ -146,6 +146,6 @@ PostHog (internal channel, builds 2085 and 69): Overnight configured, started, e
 - A Restore Purchases that finds a live purchase. It needs a fresh install with a purchase on the account, which would wipe a journal.
 - The unknown-membership path (no cached customer info, SDK error, or timeout) on a device. Unit tests only.
 - First launch and onboarding on a fresh install, and an old pre-update Dream Log entry showing "First saved version". Unit tests only for the migration.
-- Android paywall offerings and prices on a store build, and the merged build on Android generally (the Pixel account is a member).
+- Android paywall offerings and prices were confirmed correct on a store build by the owner on 2026-10-25. The merged build on Android is otherwise covered only with a member account (the Pixel).
 - PostHog events arriving from a store build, with no dream or intention text.
 - Aeris conversation limits, which are server-side.

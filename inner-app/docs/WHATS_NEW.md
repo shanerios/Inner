@@ -79,12 +79,14 @@ What's new in Inner 3.4
 
 - Fixed text being clipped on some Android screens by removing a small letter spacing that made shrink-to-fit text overflow. Verified on a Pixel 8 Pro.
 - Fixed the Android first-run walkthrough highlight sitting too high since the SDK 54 update. Verified on a Pixel 8 Pro.
+- Lucid Journeys and Live Mix now fade their scrolling content as it passes behind the title and subtitle, the way Overnight Journey does, so the two no longer clash and become hard to read. Overnight Journey's title now sits at the same height as the other two. Checked on an iPhone 12 Pro and a Pixel 8 Pro.
 
 ### Privacy and analytics notes (3.4)
 
 - Intention Tuning sends `intention_screen_viewed` and `intentions_selected` with only the source (onboarding or re-tune), the number selected, and whether the selection was unchanged; the chosen intentions are never sent.
 - New onboarding funnel events (`onboarding_splash_tapped`, `onboarding_intro_viewed`, `onboarding_intro_cta_shown`, `onboarding_intro_cta_pressed`, `onboarding_intro_skipped`) carry only timing, never survey answers. `onboarding_value_hook_completed` is no longer sent.
 - Analytics captures lifecycle events only (Overnight started, resumed and interrupted, Morning Return, Dream Log entry created and revisited, Guardian practice, Practice Memory opened). Properties are short values such as a kind, a capture method, a count or a timing. The shared helper drops free-text-style keys (text, title, body, note, intention, sign, name, email and similar) and any string over 64 characters before anything is sent, so dream text and intention text cannot ride along.
+- `onboarding_started` is recorded when a new install taps the splash orb, and `onboarding_completed` when that install first reaches Home (with only the elapsed seconds). Before this, the start was recorded on the Intro screen, which the new first launch skips, so neither event fired for new users.
 - Builds are tagged as production, beta, internal, lab or dev so team and test traffic can be excluded from public metrics.
 - RevenueCat is now configured when the app starts, so a subscriber's entitlement is read correctly on a cold start, and customers are linked to the analytics person through a random analytics id.
 
@@ -103,12 +105,12 @@ What's new in Inner 3.4
 
 ### Before publishing
 
-- Version numbers: `app.json` is set to 3.4 with `versionCode` 67 and `buildNumber` 2082. Both production profiles use `autoIncrement`, so the next build becomes Android 68 and iOS 2083. Play's internal track already holds 67 and TestFlight already holds 3.4 / 2082, so do not lower these.
+- Version numbers: `app.json` is set to 3.4 with `versionCode` 69 and `buildNumber` 2085, which are the test builds already on Play's internal track and TestFlight (built from `main` at `f4ae749`). Both production profiles use `autoIncrement`, so the next build becomes Android 70 and iOS 2086. Do not lower these.
 - Build from the merged `main` (after the gating, analytics and Recognition Only PRs land), then run a short device pass: first launch and onboarding, the Intention screen, an Overnight, a Recognition Only night, a Dream Log entry, and a premium gate as a non-member.
 - Confirm analytics events arrive in PostHog from a build with the production channel, and enable the RevenueCat PostHog integration (dashboard step).
 - Confirm the App Store privacy answers and Google Play Data safety form cover the analytics events and the random analytics id linked to RevenueCat.
 - Note for App Review: Recognition Only nights are intentionally silent between signals.
-- Confirm RevenueCat offerings, prices and the 7-day trial on Android. They were confirmed on iOS only.
+- RevenueCat offerings, prices and the 7-day trial: confirmed on iOS (TestFlight) and on Android (store build) by the owner.
 - Still unobserved on a device: a Restore Purchases that finds a live purchase.
 - Free users who used Temple, Abyssal Glass, Cosmic or Fire before this release will meet the paywall for them. The store notes say so; decide whether to add an in-app message.
 - Sentry 8.15.1 now runs source map upload during builds. The production EAS environment has `SENTRY_AUTH_TOKEN`; the Inner Lab and development profiles skip the upload. Check the first production build uploads cleanly.
