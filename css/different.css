@@ -72,20 +72,30 @@
 
 /* ---------- App screens ---------- */
 
+/* Every screen is shown at the same width, so the phone UI is the same scale
+   throughout. Three across; the last two sit centred beneath. */
 .different-shots {
+  --shot-gap: clamp(20px, 3vw, 40px);
+  display: flex;
+  flex-direction: column;
+  gap: 52px;
+  margin-top: 72px;
+}
+
+.different-row {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 48px clamp(20px, 3vw, 40px);
-  margin-top: 72px;
   align-items: start;
+  gap: var(--shot-gap);
+}
+
+.different-row--pair {
+  grid-template-columns: repeat(2, minmax(0, calc((100% - 2 * var(--shot-gap)) / 3)));
+  justify-content: center;
 }
 
 .different-shot {
   margin: 0;
-}
-
-.different-shot--wide {
-  grid-column: span 2;
 }
 
 .different-shot img {
@@ -107,8 +117,8 @@
 }
 
 @media (max-width: 760px) {
-  .different-shots { grid-template-columns: minmax(0, 1fr); gap: 36px; margin-top: 48px; }
-  .different-shot--wide { grid-column: auto; }
+  .different-shots { gap: 36px; margin-top: 48px; }
+  .different-row, .different-row--pair { grid-template-columns: minmax(0, 1fr); gap: 36px; }
   .different-shot img { max-width: 420px; margin: 0 auto; }
   .different-shot figcaption { max-width: 420px; margin-left: auto; margin-right: auto; }
 }
