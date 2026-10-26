@@ -1,0 +1,199 @@
+/* ==========================================================================
+   Inner — homepage "Why Inner" section
+
+   Three short editorial stories (Prepare, Experience, Remember), each pairing
+   a few lines of copy with the real app screen it describes. Sits between the
+   Chambers and the closing sequence. Open and typographic like the Trust
+   section, with a soft violet glow behind each screen so the dark interface
+   separates from the dark page. Reuses .closing-eyebrow / .closing-title from
+   closing.css and the shared .reveal mechanism (which already handles
+   reduced motion and no-JavaScript). Scoped to index.html.
+   ========================================================================== */
+
+.why {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: clamp(64px, 7vw, 80px) clamp(20px, 6vw, 64px) 8px clamp(20px, 6vw, 64px);
+}
+
+/* ---------- Opening ---------- */
+
+.why-head {
+  text-align: center;
+}
+
+.why-lead {
+  font-family: var(--font-body);
+  font-weight: 300;
+  font-size: 1.08rem;
+  line-height: 1.7;
+  color: var(--color-text-soft);
+  text-align: center;
+  max-width: 46ch;
+  margin: 22px auto 0 auto;
+}
+
+/* ---------- A story: copy beside its screen ---------- */
+
+.why-story {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 440px);
+  align-items: center;
+  gap: clamp(32px, 6vw, 88px);
+  margin-top: clamp(48px, 5vw, 64px);
+}
+
+.why-story--flip {
+  grid-template-columns: minmax(0, 440px) minmax(0, 1fr);
+}
+
+.why-story--flip .why-copy {
+  order: 2;
+}
+
+.why-kicker {
+  font-family: var(--font-heading);
+  font-size: 0.76rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(200, 190, 255, 0.72);
+  margin: 0 0 16px 0;
+  max-width: none;
+  text-align: left;
+}
+
+.why-title {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: clamp(1.55rem, 2.6vw, 2.15rem);
+  line-height: 1.16;
+  letter-spacing: 0.005em;
+  color: var(--color-text-primary);
+  margin: 0 0 18px 0;
+  text-align: left;
+}
+
+.why-text {
+  font-family: var(--font-body);
+  font-weight: 300;
+  font-size: 1.08rem;
+  line-height: 1.7;
+  color: var(--color-text-soft);
+  max-width: 36ch;
+  margin: 0;
+  text-align: left;
+}
+
+.why-note {
+  font-family: var(--font-body);
+  font-weight: 300;
+  font-size: 0.95rem;
+  line-height: 1.65;
+  color: var(--color-text-muted);
+  max-width: 38ch;
+  margin: 22px 0 0 0;
+  padding-left: 16px;
+  border-left: 1px solid rgba(161, 140, 255, 0.3);
+  text-align: left;
+}
+
+.why-note a {
+  color: rgba(214, 205, 255, 0.95);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: rgba(161, 140, 255, 0.45);
+}
+
+/* ---------- The screen, lit from behind ---------- */
+
+.why-visual {
+  position: relative;
+  isolation: isolate;
+}
+
+.why-visual::before {
+  content: "";
+  position: absolute;
+  inset: -14% -10%;
+  z-index: -1;
+  background: radial-gradient(closest-side, rgba(128, 98, 255, 0.24), rgba(128, 98, 255, 0.08) 55%, transparent 100%);
+  pointer-events: none;
+}
+
+.why-visual img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 18px;
+  border: 1px solid rgba(161, 140, 255, 0.28);
+  background: #06050f;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.7), 0 0 70px rgba(120, 92, 255, 0.16);
+}
+
+/* Remember: the Morning Return prompt leads; the journal detail overlaps it. */
+.why-visual--pair {
+  padding-bottom: 10%;
+}
+
+.why-visual--pair .why-pair-main {
+  width: 62%;
+}
+
+.why-visual--pair .why-pair-sub {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 62%;
+}
+
+/* ---------- Closing line ---------- */
+
+.why-loop {
+  text-align: center;
+  margin-top: clamp(48px, 5vw, 64px);
+}
+
+.why-loop-line {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: clamp(1.15rem, 2vw, 1.5rem);
+  letter-spacing: 0.02em;
+  line-height: 1.3;
+  color: var(--color-text-primary);
+  max-width: none;
+  margin: 0;
+  text-align: center;
+  text-wrap: balance;
+}
+
+.why-loop-sub {
+  font-family: var(--font-body);
+  font-weight: 300;
+  font-size: 1rem;
+  line-height: 1.65;
+  color: var(--color-text-muted);
+  max-width: 44ch;
+  margin: 12px auto 0 auto;
+  text-align: center;
+}
+
+/* ---------- Narrow screens: copy first, then the screen ---------- */
+
+@media (max-width: 860px) {
+  .why-story,
+  .why-story--flip {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 36px;
+  }
+  .why-story--flip .why-copy { order: 0; }
+  .why-visual { width: 100%; max-width: 520px; margin: 0 auto; }
+  .why-text, .why-note { max-width: none; }
+}
+
+@media (max-width: 480px) {
+  .why { padding-top: 72px; }
+  .why-story { margin-top: 64px; }
+  .why-visual--pair { padding-bottom: 20%; }
+  .why-visual--pair .why-pair-main { width: 76%; }
+  .why-visual--pair .why-pair-sub { width: 68%; }
+}
