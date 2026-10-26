@@ -1,0 +1,141 @@
+/* ==========================================================================
+   Inner — homepage "Free and Full Experience" section
+
+   Two open panels sharing one design: Free first, Full Experience slightly
+   more illuminated. Sits between Trust and Download inside .closing. No
+   pricing, no checkmarks, no purchase action. Reuses .closing-eyebrow /
+   .closing-title and the shared .reveal (reduced motion and no-JS handled
+   in base.css). Scoped to index.html.
+   ========================================================================== */
+
+.plans {
+  max-width: 940px;
+  margin: 0 auto;
+  padding: clamp(80px, 8vw, 104px) clamp(20px, 6vw, 64px) 0 clamp(20px, 6vw, 64px);
+}
+
+.plans-lead {
+  font-family: var(--font-body);
+  font-weight: 300;
+  font-size: 1.08rem;
+  line-height: 1.7;
+  color: var(--color-text-soft);
+  text-align: center;
+  max-width: 44ch;
+  margin: 20px auto 0 auto;
+}
+
+.plans-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(20px, 3vw, 32px);
+  margin-top: clamp(40px, 5vw, 56px);
+}
+
+.plan {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: clamp(26px, 3.4vw, 40px);
+  border: 1px solid rgba(161, 140, 255, 0.2);
+  border-radius: 20px;
+  background: linear-gradient(180deg, rgba(128, 98, 255, 0.05), rgba(8, 6, 20, 0.4));
+}
+
+.plan--full {
+  border-color: rgba(161, 140, 255, 0.38);
+  background:
+    radial-gradient(ellipse 90% 60% at 50% 0%, rgba(128, 98, 255, 0.2), transparent 70%),
+    linear-gradient(180deg, rgba(128, 98, 255, 0.07), rgba(8, 6, 20, 0.4));
+  box-shadow: 0 0 70px rgba(120, 92, 255, 0.12);
+}
+
+.plan-label {
+  font-family: var(--font-heading);
+  font-size: 0.76rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(200, 190, 255, 0.78);
+  margin: 0 0 14px 0;
+  max-width: none;
+  text-align: left;
+}
+
+.plan-title {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: clamp(1.4rem, 2.4vw, 1.8rem);
+  line-height: 1.2;
+  color: var(--color-text-primary);
+  margin: 0;
+  text-align: left;
+}
+
+.plan-sub {
+  font-family: var(--font-body);
+  font-weight: 300;
+  font-size: 0.98rem;
+  line-height: 1.55;
+  color: var(--color-text-muted);
+  margin: 8px 0 0 0;
+  max-width: none;
+  text-align: left;
+}
+
+.plan-list {
+  list-style: none;
+  margin: 28px 0 0 0;
+  padding: 0;
+}
+
+.plan-list li {
+  position: relative;
+  padding: 14px 0 14px 20px;
+  border-top: 1px solid rgba(161, 140, 255, 0.14);
+  font-family: var(--font-body);
+  font-weight: 300;
+  font-size: 1.02rem;
+  line-height: 1.5;
+  color: var(--color-text-soft);
+  text-align: left;
+}
+
+.plan-list li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 1.35em;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(161, 140, 255, 0.5);
+}
+
+.plan--full .plan-list li::before {
+  background: #a18cff;
+  box-shadow: 0 0 10px rgba(161, 140, 255, 0.7);
+}
+
+.plan-foot {
+  margin: auto 0 0 0;
+  padding-top: 26px;
+  font-family: var(--font-heading);
+  font-size: 0.76rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(200, 190, 255, 0.78);
+  max-width: none;
+  text-align: left;
+}
+
+.plan-foot--link {
+  text-decoration: none;
+  color: rgba(214, 205, 255, 0.95);
+}
+.plan-foot--link::after { content: " \2193"; }
+.plan-foot--link:hover,
+.plan-foot--link:focus-visible { text-decoration: underline; text-underline-offset: 4px; }
+
+@media (max-width: 760px) {
+  .plans-grid { grid-template-columns: minmax(0, 1fr); max-width: 480px; margin-left: auto; margin-right: auto; }
+}
