@@ -31,7 +31,7 @@ What's new in 3.4
 What's new in Inner 3.4
 
 • Recognition Only: a new Overnight option with no background sound. You hear only your recognition signal, at the times your night planned, with silence between.
-• Full Experience: Temple, Abyssal Glass, Cosmic and Fire are now Overnight environments included in Full Experience, and so is the Journey Creator. Ocean, Forest and Quiet stay free.
+• Full Experience: Temple, Abyssal Glass, Cosmic and Fire are now Overnight environments included in Full Experience, and so is the Journey Creator. Ocean, Forest and Quiet stay free. Journeys you have already saved stay playable if Full Experience ends.
 • Dream Log: each entry now keeps your first account of the dream separate from later changes. Add a remembered detail or a reflection, each with its own date, and export the original, details and reflections in your Dream Archive.
 • A shorter first launch: tap the orb, choose your path on the Intention screen, and arrive at Home. Intentions now read Lucidity, OBE, Focus, Grounding, Healing and Expansion, and your earlier choices carry over.
 • Your app version and build number now show at the bottom of Settings.
@@ -96,9 +96,12 @@ What's new in Inner 3.4
   - Pixel 8 Pro (Inner Lab, non-member): free Overnight worlds start, premium worlds and Journey Creator show the paywall, an interrupted night resumes from Home with no prompt, and a factory journey and Dream Log work.
   - iPhone 12 Pro (TestFlight 3.4, sandbox): the same non-member checks pass, the paywall shows correct prices and the 7-day trial, a sandbox purchase unlocks every Overnight world and Journey Creator, and a journey with a premium stage saved.
   - Pixel 8 Pro (Play internal build, member): Temple starts with no paywall.
-- Not observed on a device: the lapsed-member state (Apple's sandbox kept the subscription active), Restore Purchases succeeding, and the unknown-membership message with no cached data. The saved-journey rule is covered by automated tests.
+- Not observed on a device: a Restore Purchases that finds a live purchase, and the unknown-membership message with no cached data. The saved-journey rule is also covered by automated tests.
 - Automated checks, in a clean environment (fresh checkout, `npm ci` from the lockfile): `tsc --noEmit` exits 0 and the full jest suite passes (95 suites, 839 tests, 1 skipped) on the branch that combines gating, analytics and Recognition Only.
-- The merged analytics and Recognition Only builds have not yet been run on a device.
+- Merged `main` as TestFlight 3.4 (build 2083) on an iPhone 12 Pro: the Intention screen shows Lucidity, OBE and Focus; as a non-member, an Ocean Overnight starts, Temple shows the paywall, a Recognition Only night starts with no paywall and plays only the signal, and a Dream Log entry saves with its original recollection. After the sandbox subscription expired, Journey Creator was gated again, the saved journey with a premium stage still played, Dream Log still opened, and Restore Purchases found nothing and unlocked nothing.
+- Final test builds from merged `main` (`f4ae749`): TestFlight 3.4 build 2085 on an iPhone 12 Pro (non-member) and Play internal 3.4 `versionCode` 69 on a Pixel 8 Pro (member). Reported as passing by the owner: the Intention screen, Lucid Journeys, Live Mix and Overnight title fade, an Ocean Overnight, the Temple paywall, a Recognition Only night, Journey Creator gated, the saved journey playing, Dream Log entries, and resuming an interrupted night from Home. On the Pixel: Temple, Abyssal Glass and Fire Overnights open without a paywall as a member.
+- PostHog received the matching events from both builds (Overnight configured, started, ended, interrupted and resumed, with `mode` full or recognition_only; paywall views from the Overnight and Journey Creator gates; Morning Return; Dream Log entry created; voice capture). A property audit found only structural properties: counts, durations, kinds, booleans, random session ids and enumerated answers, with no free text. An Android internal build also recorded `onboarding_splash_tapped`, `onboarding_started`, the intention events and `onboarding_completed` in order, which shows the first-launch events firing.
+- Not yet observed: an old pre-update Dream Log entry showing "First saved version" (not explicitly confirmed on a device), RevenueCat `rc_*` events in PostHog (the integration is active but no subscription activity has happened since), and a Restore Purchases that finds a live purchase.
 
 ### Before publishing
 
@@ -108,7 +111,7 @@ What's new in Inner 3.4
 - Confirm the App Store privacy answers and Google Play Data safety form cover the analytics events and the random analytics id linked to RevenueCat.
 - Note for App Review: Recognition Only nights are intentionally silent between signals.
 - RevenueCat offerings, prices and the 7-day trial: confirmed on iOS (TestFlight) and on Android (store build) by the owner.
-- Still unobserved on a device: the lapsed-member state and Restore Purchases succeeding.
+- Still unobserved on a device: a Restore Purchases that finds a live purchase.
 - Free users who used Temple, Abyssal Glass, Cosmic or Fire before this release will meet the paywall for them. The store notes say so; decide whether to add an in-app message.
 - Sentry 8.15.1 now runs source map upload during builds. The production EAS environment has `SENTRY_AUTH_TOKEN`; the Inner Lab and development profiles skip the upload. Check the first production build uploads cleanly.
 - Run `pod install` before the next iOS build, since the Sentry update moves the Cocoa SDK from 9.16.1 to 9.18.0.
