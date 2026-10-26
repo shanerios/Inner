@@ -106,7 +106,7 @@ Findings:
 
 ### Not covered by any device check
 - The unknown-membership path (no cached customer info, SDK error, or timeout) on a device. Unit tests only.
-- Android paywall offerings and prices on a store build.
+- The merged build on Android generally (the Pixel account is a member). Android paywall prices were confirmed correct on a store build by the owner on 2026-10-25.
 - Aeris conversation limits, which are server-side.
 - `main` as a whole. The builds above predate the onboarding and intention rewrite, the Dream Log recollections work and the Android text fix. A build from `main` needs a short regression pass: first launch and onboarding, the Intention screen, Overnight, and a Dream Log entry.
 
