@@ -125,6 +125,23 @@ Lapsed member (supersedes the "not observed" lapse row in the earlier iPhone sec
 | Dream Log opens | Pass |
 | Restore Purchases finds nothing and unlocks nothing | Pass. A restore that succeeds is still untested |
 
+### Final test builds from merged `main` (`f4ae749`), 2026-10-25
+
+iPhone 12 Pro, TestFlight 3.4 build 2085, non-member, reported as passing:
+
+| Check | Result |
+| --- | --- |
+| Settings shows 3.4 (2085); splash and Intention screen; Lucid Journeys, Live Mix and Overnight title fade | Pass |
+| Ocean Overnight starts; Temple shows the paywall with the right prices and trial | Pass |
+| Recognition Only night starts with no paywall and plays only the signal | Pass |
+| Journey Creator gated; saved journey with a premium stage plays | Pass |
+| Dream Log entry saves and shows its original recollection | Pass |
+| Interrupted night resumes from Home with no paywall | Pass |
+
+Pixel 8 Pro, Play internal 3.4 `versionCode` 69, member: Temple, Abyssal Glass and Fire Overnights open with no paywall, Journey Creator opens, Recognition Only, the title screens, a Dream Log entry and resuming an interrupted night all reported as passing.
+
+PostHog (internal channel, builds 2085 and 69): Overnight configured, started, ended, interrupted and resumed with `mode`, paywall views from both gates, Morning Return, Dream Log entry created and voice capture all arrived. A property audit found no free-text properties. An Android internal build recorded the first-launch events in order (`onboarding_splash_tapped`, `onboarding_started`, intention events, `onboarding_completed`).
+
 ### Not covered by any device check
 - A Restore Purchases that finds a live purchase. It needs a fresh install with a purchase on the account, which would wipe a journal.
 - The unknown-membership path (no cached customer info, SDK error, or timeout) on a device. Unit tests only.
