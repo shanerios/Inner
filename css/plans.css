@@ -128,16 +128,8 @@
   text-align: left;
 }
 
-.plan-note {
-  margin: auto 0 0 0;
-  padding-top: 22px;
-  font-family: var(--font-body);
-  font-weight: 300;
-  font-size: 0.95rem;
-  line-height: 1.5;
+.plan-foot--quiet {
   color: var(--color-text-muted);
-  max-width: none;
-  text-align: left;
 }
 
 .plan-foot--link {
