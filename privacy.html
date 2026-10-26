@@ -187,11 +187,12 @@
     <p>Inner collects minimal data, and only what is necessary to provide and improve the experience.</p>
     <ul>
       <li><strong>On-device data:</strong> Your intentions, preferences, journal entries, downloaded audio, and display name are stored locally on your device. This data is not transmitted to external servers, except as described under Aeris below.</li>
-      <li><strong>Usage analytics (pseudonymous):</strong> We collect limited information about how the app is used (such as feature interactions, screen views, and how your Overnight Journeys run), never what you write or say. This information is tied to a random identifier created for your installation, not to your name or email. Our analytics provider may also derive an approximate location (such as country or region) from your IP address.</li>
+      <li><strong>Usage analytics (pseudonymous):</strong> We collect limited information about how the app is used (such as feature interactions, screen views, and how your Overnight Journeys run), never what you write or say. This information is tied to a random identifier created for your installation, not to your name or email. Our analytics provider also derives an approximate location (such as country and city) from your IP address.</li>
       <li><strong>Error reporting:</strong> In the event of a crash or malfunction, technical information may be collected to help diagnose and fix issues.</li>
       <li><strong>Purchases:</strong> Subscriptions and one-time purchases are processed by Apple or Google. We use RevenueCat to confirm your purchase status. It receives your purchase details and a customer identifier, not your payment card information.</li>
-      <li><strong>Aeris (optional):</strong> If you use Aeris, the messages you send, any dream entry you choose to share with Aeris, and your display name (if you have set one) are sent to our Aeris server to generate a reply. Our server does not keep a log of your conversations. Your conversation history is stored on your device.</li>
+      <li><strong>Aeris (optional):</strong> If you use Aeris, the messages you send, any dream entry you choose to share with Aeris, and your display name (if you have set one) are sent to our Aeris server, which passes them to Anthropic to generate a reply. Our server does not keep a log of your conversations, and Anthropic handles what it receives under its own privacy policy. Your conversation history is stored on your device.</li>
       <li><strong>Voice capture (optional):</strong> If you dictate a dream, your speech is converted to text by your device&rsquo;s speech recognition service, provided by Apple or Google. We do not receive the recording.</li>
+      <li><strong>Install source:</strong> When you first open the app, a device fingerprint is used to recognise whether the install came from the QR code in our Littlest Explorer book.</li>
     </ul>
 
     <h2>2. What We Do Not Collect</h2>
@@ -215,7 +216,6 @@
     <h2>5. Analytics</h2>
     <p>We use privacy-conscious analytics tools to understand general usage patterns within the app. This data is tied to a random identifier for your installation rather than your name or email, and we do not use it to identify you.</p>
     <p>Analytics may include interactions such as screen views, feature usage, and session behavior.</p>
-    <p>The app does not currently include a setting to turn analytics off. If you have questions about this, contact us at <a href="mailto:support@getinner.app">support@getinner.app</a>.</p>
 
     <h2>6. Third-Party Services</h2>
     <p>Inner uses third-party services to run and improve the app. They handle the information described in section 1 under their own privacy policies:</p>
@@ -225,9 +225,10 @@
       <li><strong>RevenueCat:</strong> purchase and subscription status.</li>
       <li><strong>Apple and Google:</strong> the app stores, payment processing, and speech recognition for voice capture.</li>
       <li><strong>Backblaze:</strong> hosts the audio files the app downloads.</li>
-      <li><strong>ChottuLink:</strong> link handling for install campaign links.</li>
+      <li><strong>ChottuLink:</strong> recognises installs that came from the QR code in our Littlest Explorer book, using a device fingerprint.</li>
+      <li><strong>Anthropic:</strong> generates Aeris replies from the messages you send to Aeris.</li>
     </ul>
-    <p>These services do not receive your journal entries or your display name. The exception is Aeris, which is our own server and is described in section 1.</p>
+    <p>With one exception, these services do not receive your journal entries or your display name. The exception is Aeris: the messages you choose to send, and your display name if you have set one, pass through our own Aeris server to Anthropic, as described in section 1.</p>
 
     <h2>7. Your Control</h2>
     <p>You remain in control of your experience. You may:</p>
@@ -256,7 +257,7 @@
     </ul>
 
     <h2>12. Changes to This Policy</h2>
-    <p>This policy may evolve as Inner evolves. If changes are significant, you will be notified within the app. Changes to the website section will be posted on this page with an updated effective date.</p>
+    <p>This policy may evolve as Inner evolves. If changes are significant, we will update the effective date at the top of this page and may also mention them in the app&rsquo;s release notes. Changes to the website section will be posted on this page with an updated effective date.</p>
 
     <h2>13. Contact</h2>
     <p>If you have any questions, you can reach us at:</p>
