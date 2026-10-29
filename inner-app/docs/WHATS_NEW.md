@@ -174,6 +174,16 @@ Inner now connects your nights with what you remember in the morning.
 
 ### Detailed product log
 
+#### Access and Full Experience
+
+- Temple, Abyssal Glass, Cosmic, and Fire are now Overnight environments included in Full Experience. Ocean, Forest, and Quiet remain free.
+- Temple comparison nights (Ocean and Temple) require Full Experience. Non-members are told before the night starts.
+- Journey Creator requires Full Experience to open and to save a new journey. Saved journeys stay playable if Full Experience ends. Deleting them stays free.
+- Factory journeys, Dream Log, Morning Return, and essential playback controls stay free.
+- Access is checked before a new session starts. An active session is never interrupted, and a session that is resumed is not blocked by a membership check.
+- If membership cannot be verified, Inner says so and offers to retry. It does not treat you as a non-member.
+- Live Mix and the chamber mixer let you try Temple, Abyssal Glass, Cosmic, and Fire for 5 minutes in total, shared between them. Ocean, Forest, and Quiet stay free. Full Experience removes the limit. Clearing app data resets the preview time.
+
 #### Overnight reliability
 
 - Android now releases cached image memory when the app goes to the background, to lower the chance of the app process being removed during a long Overnight Journey. Not yet confirmed to prevent it.

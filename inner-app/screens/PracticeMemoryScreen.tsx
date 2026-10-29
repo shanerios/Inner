@@ -218,12 +218,12 @@ export default function PracticeMemoryScreen({ navigation }: Props) {
               const status = await resolveMembership();
               if (status === 'member') { await begin(); return; }
               if (status === 'unknown') {
-                Alert.alert('Membership not confirmed', 'Inner could not confirm Full Experience just now. Check your connection and try again.');
+                Alert.alert('Membership not confirmed', 'Inner could not confirm your Inner: Deeper membership just now. Check your connection and try again.');
                 return;
               }
               Alert.alert(
-                'Temple nights need Full Experience',
-                'This comparison alternates Ocean and Temple. Ocean nights are free. Temple nights start only with Full Experience. Your results are kept either way.',
+                'Temple nights need Inner: Deeper',
+                'This comparison alternates Ocean and Temple. Ocean nights are free. Temple nights start only with Inner: Deeper. Your results are kept either way.',
                 [
                   { text: 'Not now', style: 'cancel' },
                   { text: 'Start comparison', onPress: () => { void begin(); } },
