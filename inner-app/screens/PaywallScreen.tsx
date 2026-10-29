@@ -35,9 +35,9 @@ const FEATURE_LINES = [
 
 // States exactly what the trigger unlocks. Free items are named so nothing is implied.
 const TRIGGER_NOTES: Partial<Record<PaywallTrigger, string>> = {
-  overnight: 'Full Experience adds Temple, Abyssal Glass, Cosmic, and Fire to Overnight Journeys. Ocean, Forest, and Quiet stay free.',
-  journey_creator: 'Full Experience lets you create and save your own journeys. Saved journeys stay playable, and you can delete them at any time.',
-  mixer: 'Your 5-minute preview has ended. Full Experience keeps Temple, Abyssal Glass, Cosmic, and Fire open in Live Mix and the chamber mixer.',
+  overnight: 'Inner: Deeper adds Temple, Abyssal Glass, Cosmic, and Fire to Overnight Journeys. Ocean, Forest, and Quiet stay free.',
+  journey_creator: 'Inner: Deeper lets you create and save your own journeys. Saved journeys stay playable, and you can delete them at any time.',
+  mixer: 'Your 5-minute preview has ended. Inner: Deeper keeps Temple, Abyssal Glass, Cosmic, and Fire open in Live Mix and the chamber mixer.',
 };
 
 // Goal-aware overrides — set during onboarding's Value & Intent Capture step.
@@ -95,7 +95,7 @@ function trialDaysFor(pkg: PurchasesPackage): number | null {
 const HEADLINES: Record<PaywallTrigger, string> = {
   chamber: 'Turn the key.',
   garden:  'The field goes further.',
-  settings: 'Continue with Inner',
+  settings: 'Inner: Deeper',
   onboarding: 'Your first descent awaits.',
   aeris: 'Keep the conversation going.',
   overnight: 'Other worlds for the night.',
@@ -356,10 +356,10 @@ export default function PaywallScreen() {
     : FEATURE_LINES;
   const isCtaDisabled = purchasing || loading || packages.length === 0;
   const selectedTrialDays = packages[selectedIndex]?.trialDays ?? null;
-  const continueLabel = selectedTrialDays ? `Start ${selectedTrialDays}-Day Free Trial` : 'Continue';
+  const continueLabel = selectedTrialDays ? `Start ${selectedTrialDays}-Day Free Trial` : 'Move Deeper';
   const legalCopy = selectedTrialDays
     ? `Try free for ${selectedTrialDays} days, then ${packages[selectedIndex]?.priceLabel ?? 'the plan price'} unless canceled at least 24 hours before the trial ends. Cancel anytime in your App Store or Google Play account settings.`
-    : 'Continuing with Inner is an auto-renewable subscription. Subscriptions will renew until canceled. Cancel anytime.';
+    : 'Inner: Deeper is an auto-renewable subscription. Subscriptions will renew until canceled. Cancel anytime.';
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -405,8 +405,8 @@ export default function PaywallScreen() {
             <Text style={styles.subtext}>{"What you've felt is only the surface."}</Text>
             {trigger === 'settings' ? (
               <View style={{ alignItems: 'center', marginBottom: 10 }}>
-                <Text style={styles.headlineSubtle}>Continue with</Text>
-                <Text style={styles.headlineLarge}>Inner</Text>
+                <Text style={styles.headlineSubtle}>Inner:</Text>
+                <Text style={styles.headlineLarge}>Deeper</Text>
               </View>
             ) : (
               <Text style={styles.headline}>{headline}</Text>

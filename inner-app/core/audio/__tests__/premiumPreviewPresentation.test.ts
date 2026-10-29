@@ -39,7 +39,7 @@ describe('preview presentation', () => {
       usedMs: { temple: 0, abyssal: 0, cosmic: 210_000, fire: 0 },
     }));
     expect(view.labelFor('cosmic')).toBe('Preview · 1:30 left');
-    expect(view.labelFor('temple')).toBe('Full Experience');
+    expect(view.labelFor('temple')).toBe('Inner: Deeper');
   });
 
   it('shows no preview labels to members', () => {
@@ -63,11 +63,11 @@ describe('preview notices', () => {
   it('offers a retry for a verification failure and never claims non-membership', () => {
     const notice = noticeFor({ patch: {}, denied: ['fire'], reason: 'verification_failed' });
     expect(notice?.action.kind).toBe('retry');
-    expect(notice?.text).toMatch(/couldn't confirm Full Experience/);
+    expect(notice?.text).toMatch(/couldn't confirm your Inner: Deeper membership/);
     expect(notice?.text).not.toMatch(/not a member|not subscribed|no subscription/i);
   });
 
-  it('offers Full Experience when a preview has been used up', () => {
+  it('offers Inner: Deeper when a preview has been used up', () => {
     const notice = noticeFor({ patch: {}, denied: ['cosmic'], reason: 'exhausted' });
     expect(notice?.action.kind).toBe('membership');
     expect(notice?.text).toMatch(/5-minute preview of Cosmic has ended/);

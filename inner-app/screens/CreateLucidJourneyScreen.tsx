@@ -49,7 +49,7 @@ export default function CreateLucidJourneyScreen() {
       if (status === 'unknown') {
         Alert.alert(
           'Membership not confirmed',
-          'Inner could not confirm Full Experience just now. Check your connection and try again.',
+          'Inner could not confirm your Inner: Deeper membership just now. Check your connection and try again.',
           [{ text: 'OK', onPress: () => navigation.goBack() }],
         );
         return;
@@ -73,7 +73,7 @@ export default function CreateLucidJourneyScreen() {
       if (access.reason === 'membership_required') {
         openPaywall(undefined, undefined, access.trigger);
       } else {
-        Alert.alert('Membership not confirmed', 'Inner could not confirm Full Experience just now. Check your connection and try again.');
+        Alert.alert('Membership not confirmed', 'Inner could not confirm your Inner: Deeper membership just now. Check your connection and try again.');
       }
       return;
     }

@@ -142,7 +142,7 @@ export default function LucidJourneysScreen() {
       return;
     }
     if (status === 'unknown') {
-      Alert.alert('Membership not confirmed', 'Inner could not confirm Full Experience just now. Check your connection and try again.');
+      Alert.alert('Membership not confirmed', 'Inner could not confirm your Inner: Deeper membership just now. Check your connection and try again.');
       return;
     }
     openPaywall(undefined, undefined, 'journey_creator');

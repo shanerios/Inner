@@ -508,7 +508,7 @@ const ChamberPage = React.memo(function ChamberPage({ item, isActive, screenFocu
               <Pressable
                 onPress={handlePaywall}
                 accessibilityRole="button"
-                accessibilityLabel="Continue with Inner"
+                accessibilityLabel="Move Deeper"
                 style={({ pressed }) => ({
                   paddingVertical: 14,
                   paddingHorizontal: 32,
@@ -530,7 +530,7 @@ const ChamberPage = React.memo(function ChamberPage({ item, isActive, screenFocu
                     letterSpacing: 0.3,
                   }}
                 >
-                  Continue with Inner
+                  Move Deeper
                 </Text>
               </Pressable>
             )}

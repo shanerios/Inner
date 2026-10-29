@@ -170,7 +170,7 @@ const GardenTrackRow = React.memo(function GardenTrackRow({
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={isLocked ? `${item.title} is locked` : `Play ${item.title}`}
-        accessibilityHint={isLocked ? 'Requires Continuing with Inner' : `Plays ${item.title}`}
+        accessibilityHint={isLocked ? 'Requires Inner: Deeper' : `Plays ${item.title}`}
         style={({ pressed }) => ({
           flexDirection: 'row',
           alignItems: 'center',
@@ -299,7 +299,7 @@ export default function SoundscapesScreen() {
       console.log('[PAYWALL] Failed to present paywall', e);
     }
     Alert.alert(
-      'Continuing with Inner',
+      'Inner: Deeper',
       'Membership is not available to display right now. Please try again in a moment.',
       [{ text: 'OK' }]
     );

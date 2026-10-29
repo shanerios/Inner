@@ -65,7 +65,7 @@ export function presentPreview(snapshot: PreviewSnapshot): PreviewPresentation {
   const labelFor = (world: PreviewWorld): string | null => {
     if (member || !snapshot.loaded) return null;
     const remaining = snapshot.remainingMs[world];
-    if (remaining <= 0) return 'Full Experience';
+    if (remaining <= 0) return 'Inner: Deeper';
     if (snapshot.usedMs[world] === 0 && !snapshot.charging.includes(world)) return 'Preview · 5 minutes';
     return `Preview · ${formatPreviewTime(remaining)} left`;
   };
@@ -89,13 +89,13 @@ export function noticeFor(review: PreviewReview): PreviewNotice | null {
   const name = world ? WORLD_NAMES[world] : 'This world';
   if (review.reason === 'verification_failed') {
     return {
-      text: `We couldn't confirm Full Experience just now, so ${name} can't start. Check your connection and try again.`,
+      text: `We couldn't confirm your Inner: Deeper membership just now, so ${name} can't start. Check your connection and try again.`,
       action: { label: 'Try again', kind: 'retry' },
     };
   }
   return {
-    text: `Your 5-minute preview of ${name} has ended. Full Experience keeps every world open.`,
-    action: { label: 'Full Experience', kind: 'membership' },
+    text: `Your 5-minute preview of ${name} has ended. Inner: Deeper keeps every world open.`,
+    action: { label: 'Move Deeper', kind: 'membership' },
   };
 }
 

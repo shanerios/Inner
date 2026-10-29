@@ -198,11 +198,11 @@ export default function OvernightJourneyScreen() {
         return;
       }
       if (isExperimentNight) {
-        setEnvironmentNotice(`This night belongs to an Ocean and Temple comparison. ${environmentLabel(current)} needs Full Experience, so Inner has not started it.`);
+        setEnvironmentNotice(`This night belongs to an Ocean and Temple comparison. ${environmentLabel(current)} needs Inner: Deeper, so Inner has not started it.`);
         return;
       }
       setEnvironment('ocean');
-      setEnvironmentNotice(`${environmentLabel(current)} is part of Full Experience, so Ocean is selected.`);
+      setEnvironmentNotice(`${environmentLabel(current)} is part of Inner: Deeper, so Ocean is selected.`);
     });
     return () => { active = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -222,7 +222,7 @@ export default function OvernightJourneyScreen() {
       return;
     }
     if (status === 'unknown') {
-      Alert.alert('Membership not confirmed', 'Inner could not confirm Full Experience just now. Check your connection and try again.');
+      Alert.alert('Membership not confirmed', 'Inner could not confirm your Inner: Deeper membership just now. Check your connection and try again.');
       return;
     }
     openPaywall(undefined, undefined, 'overnight');
@@ -431,7 +431,7 @@ export default function OvernightJourneyScreen() {
         if (access.reason === 'membership_required') {
           openPaywall(undefined, undefined, access.trigger);
         } else {
-          Alert.alert('Membership not confirmed', 'Inner could not confirm Full Experience just now. Check your connection and try again.');
+          Alert.alert('Membership not confirmed', 'Inner could not confirm your Inner: Deeper membership just now. Check your connection and try again.');
         }
         return;
       }
@@ -673,7 +673,7 @@ export default function OvernightJourneyScreen() {
           ENVIRONMENTS.map(item => ({
             id: item.id,
             label: isPremiumOvernightEnvironment(item.id) && membership !== 'member'
-              ? `${item.label} · Full Experience`
+              ? `${item.label} · Inner: Deeper`
               : item.label,
           })),
           environment,

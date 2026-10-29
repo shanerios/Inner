@@ -227,7 +227,7 @@ export default function LucidJourneyPlayerScreen() {
           } else {
             Alert.alert(
               'Membership not confirmed',
-              'Inner could not confirm Full Experience just now. Check your connection and try again.',
+              'Inner could not confirm your Inner: Deeper membership just now. Check your connection and try again.',
             );
           }
           try { navigation.goBack(); } catch {}
