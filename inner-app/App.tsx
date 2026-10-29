@@ -12,8 +12,6 @@ import { createStackNavigator, CardStyleInterpolators } from "@react-navigation/
 
 import SplashScreen from "./screens/SplashScreen";
 import IntroScreen from "./screens/IntroScreen";
-import ValueCaptureScreen from "./screens/onboarding/ValueCaptureScreen";
-import ValueHookScreen from "./screens/onboarding/ValueHookScreen";
 import AccountCreateScreen from "./screens/AccountCreateScreen";
 import IntentionScreen from "./screens/IntentionScreen";
 import EssenceScreen from "./screens/EssenceScreen";
@@ -61,6 +59,7 @@ import {
 } from './core/journeyMemory';
 import { cancelLucidityCueNotifications, LUCIDITY_CUE_NOTIFICATION_TYPE, scheduleReengagementNotification } from './utils/notifications';
 import { createEntry } from './core/journalRepo';
+import { migrateJournalBaselines } from './core/journalMigration';
 import { initChottuLinkOnce } from './src/core/deeplinking/chottuLink';
 // import { TRACKS, getTrackUrl } from './data/tracks';
 // import { cacheRemoteOnce } from './utils/audioCache';
@@ -103,9 +102,22 @@ import { navigationRef } from './src/navigation/navigationRef';
 import * as Sentry from '@sentry/react-native';
 import { initializeMemoryTelemetry } from './core/memorySafeVideo';
 import { PostHogProvider, usePostHog } from 'posthog-react-native';
+import * as Application from 'expo-application';
+import { classifyBuild, initAnalytics, resolvePostHogConfig } from './core/analytics';
+import { initRevenueCatOnce } from './utils/revenueCat';
 import { sanitizeSentryEvent, scrubBreadcrumb } from './core/sentrySanitizer';
 
+// One classification for the whole app: production, beta, internal, lab or dev. It tags every PostHog
+// event (build_channel) and the Sentry environment, so Lab and dev crashes never read as production.
+const BUILD_CHANNEL = classifyBuild({
+  applicationId: Application.applicationId,
+  labEnv: process.env.EXPO_PUBLIC_INNER_LAB,
+  channelEnv: process.env.EXPO_PUBLIC_INNER_CHANNEL,
+  isDev: __DEV__,
+});
+
 Sentry.init({
+  environment: BUILD_CHANNEL,
   dsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
 
   // Adds more context data to events (IP address, cookies, user, etc.)
@@ -135,8 +147,6 @@ initializeMemoryTelemetry();
 type RootStackParamList = {
   Splash: undefined;
   Intro: undefined;
-  ValueCapture: undefined;
-  ValueHook: undefined;
   Intention: undefined;
   EssenceScreen: undefined;
   Home: undefined;
@@ -274,13 +284,22 @@ function JourneyPicker() {
 
 
 
-function PostHogBootTracker() {
+// Lab and dev builds use EXPO_PUBLIC_POSTHOG_KEY_LAB when set; otherwise they share the production
+// project and every event carries build_channel. Literal process.env.EXPO_PUBLIC_* references are
+// required so Expo can inline them.
+const POSTHOG_CONFIG = resolvePostHogConfig(BUILD_CHANNEL, {
+  prodKey: process.env.EXPO_PUBLIC_POSTHOG_KEY,
+  labKey: process.env.EXPO_PUBLIC_POSTHOG_KEY_LAB,
+  host: process.env.EXPO_PUBLIC_POSTHOG_HOST,
+});
+
+/** Hands the client to the shared analytics helper and registers channel/internal super properties. */
+function AnalyticsBoot() {
   const posthog = usePostHog();
 
   React.useEffect(() => {
-    posthog.capture('app_opened', {
-      platform: Platform.OS,
-    });
+    if (!posthog) return;
+    initAnalytics(posthog, BUILD_CHANNEL).catch(() => {});
   }, [posthog]);
 
   return null;
@@ -311,6 +330,13 @@ export default Sentry.wrap(function App() {
     return () => { (globalThis as any).__fog = undefined; };
   }, []);
 
+
+  // Configure RevenueCat once at startup so entitlement checks work on a cold start without a paywall
+  // visit. Not awaited: it never blocks navigation or audio, and readers configure on demand if they
+  // get there first.
+  useEffect(() => {
+    initRevenueCatOnce().catch(() => {});
+  }, []);
 
   // Start deferred deep-link resolution after React's first render instead of
   // during module evaluation. Paywall entry points initialize RevenueCat when needed.
@@ -454,6 +480,25 @@ export default Sentry.wrap(function App() {
       cleanAudioCache().catch(() => {});
     });
 
+    // Preserve baselines for older journal entries, a few at a time and only once
+    // startup has settled. Counts only are reported; never journal content.
+    const baselineTimer = setTimeout(() => {
+      InteractionManager.runAfterInteractions(() => {
+        migrateJournalBaselines()
+          .then((result) => {
+            if (result.failed > 0) {
+              Sentry.addBreadcrumb({
+                category: 'journal.migration',
+                level: 'warning',
+                message: 'baseline migration incomplete',
+                data: { failed: result.failed, total: result.total },
+              });
+            }
+          })
+          .catch(() => {});
+      });
+    }, 4000);
+
     // Every open/foreground pushes the "come back" reminder further out —
     // an active user keeps deferring it forever; a lapsed one leaves the
     // last-scheduled one to actually fire. No-ops if permission was never
@@ -466,21 +511,22 @@ export default Sentry.wrap(function App() {
         scheduleReengagementNotification().catch(() => {});
       }
     });
-    return () => { sub.remove(); };
+    return () => { clearTimeout(baselineTimer); sub.remove(); };
   }, []);
 
   if (!fontsLoaded) return null;
 
   return (
     <PostHogProvider
-      apiKey={process.env.EXPO_PUBLIC_POSTHOG_KEY ?? ''}
+      apiKey={POSTHOG_CONFIG.apiKey}
       autocapture={false}
       options={{
-        host: process.env.EXPO_PUBLIC_POSTHOG_HOST ?? 'https://us.i.posthog.com',
+        host: POSTHOG_CONFIG.host,
         captureAppLifecycleEvents: true,
+        disabled: POSTHOG_CONFIG.disabled,
       }}
     >
-      <PostHogBootTracker />
+      <AnalyticsBoot />
       <SafeAreaProvider>
         <BreathProvider>
           <IntentionProvider>
@@ -526,8 +572,6 @@ export default Sentry.wrap(function App() {
               >
                 <Stack.Screen name="Splash" component={SplashScreen} />
                 <Stack.Screen name="Intro" component={IntroScreen} />
-                <Stack.Screen name="ValueCapture" component={ValueCaptureScreen} />
-                <Stack.Screen name="ValueHook" component={ValueHookScreen} />
                 <Stack.Screen
                   name="Intention"
                   component={IntentionScreen}

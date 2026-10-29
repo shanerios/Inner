@@ -1,3 +1,4 @@
+import { trackPracticeMemoryOpened } from '../core/practiceAnalytics';
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Alert, Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useHeaderHeight } from '@react-navigation/elements';
@@ -81,6 +82,7 @@ export default function PracticeMemoryScreen({ navigation }: Props) {
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => { trackPracticeMemoryOpened(); }, []);
   useEffect(() => navigation.addListener('focus', load), [navigation, load]);
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -159,7 +161,7 @@ export default function PracticeMemoryScreen({ navigation }: Props) {
                     {fullyComparable ? 'COMPARABLE NIGHT' : partlyComparable ? 'PARTIAL EVIDENCE' : 'NOT USED FOR ADAPTATION'}
                   </Text>
                   <Text style={styles.body}>
-                    {new Date(record.reflectedAt).toLocaleDateString()} · {recipe?.environment ?? 'Unknown environment'} · {recipe?.recognition.signalId ?? 'Unknown signal'}
+                    {new Date(record.reflectedAt).toLocaleDateString()} · {recipe?.mode === 'recognition_only' ? 'Recognition Only' : recipe?.environment ?? 'Unknown environment'} · {recipe?.recognition.signalId ?? 'Unknown signal'}
                   </Text>
                   <Text style={styles.evidence}>
                     Recall: {record.outcome.recall} · {signalExperienceLabel(record)} · Sleep: {record.outcome.sleepImpact ?? 'unanswered'}

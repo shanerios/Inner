@@ -5,6 +5,7 @@ let presenting = false;
 export async function safePresentPaywall(
   onSuccess?: () => void,
   trigger: PaywallTrigger = 'chamber',
+  source?: string,
 ): Promise<void> {
   if (presenting) return;
   presenting = true;
@@ -14,6 +15,7 @@ export async function safePresentPaywall(
       onSuccess,
       () => { presenting = false; }, // release exactly on dismiss
       trigger,
+      source,
     );
   } catch (e) {
     presenting = false;

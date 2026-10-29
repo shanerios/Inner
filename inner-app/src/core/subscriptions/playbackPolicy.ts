@@ -77,9 +77,10 @@ type RouteStart = {
 };
 
 /**
- * Maps player route params to a start classification. An explicit kind from the
- * entry screen always wins. Without one, a journey with a premium environment is
- * treated as a new overnight start, so an unlabelled entry cannot bypass the gate.
+ * Maps player route params to a start classification. The kind must already be
+ * proven from its authoritative record (see `resolvePlaybackStart`); this function
+ * does not verify anything. Without a kind, a journey with a premium environment
+ * is treated as a new overnight start, so an unlabelled entry cannot bypass the gate.
  */
 export function playerStartFromRoute(
   params: RouteStart,
@@ -93,9 +94,8 @@ export function playerStartFromRoute(
   if (params.playbackKind === 'custom_new') return { kind: 'custom_new' };
   if (params.playbackKind === 'saved_custom') return { kind: 'saved_custom' };
   if (params.playbackKind === 'factory') return { kind: 'factory' };
-  if (params.playbackKind === 'live_mix') return { kind: 'live_mix' };
-  if (params.playbackKind === 'chamber_mixer') return { kind: 'chamber_mixer' };
-  if (params.playbackKind === 'resume') return { kind: 'resume' };
+  // A resume needs a session id, and the mixers never route through the journey
+  // player, so neither label can be trusted here. Content decides below.
   if (params.nightPlanId || premium) return { kind: 'overnight_new', environment: primary };
   return { kind: 'factory' };
 }

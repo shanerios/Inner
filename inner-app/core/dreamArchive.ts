@@ -2,11 +2,18 @@ import type { JournalEntry } from './journalRepo';
 import { dreamDetailsSummary } from './dreamDetails';
 import { practiceContextSummary } from './practiceContext';
 import type { NightRecord } from './nightRecords';
+import {
+  additionHeading,
+  baselineHeading,
+  bodyDiffersFromBaseline,
+  buildDreamTimeline,
+} from './dreamRecollections';
 
 export type DreamArchiveRange = 'all' | 'year' | '30days';
 
 export type DreamArchiveExport = {
-  schemaVersion: 3;
+  /** v4 adds per-entry baseline and additions (all optional). v3 readers can ignore them. */
+  schemaVersion: 4;
   generatedAt: number;
   range: DreamArchiveRange;
   entryCount: number;
@@ -56,7 +63,7 @@ export function buildDreamArchiveExport(
   nightRecords: NightRecord[] = [],
 ): DreamArchiveExport {
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     generatedAt,
     range,
     entryCount: entries.length,
@@ -105,6 +112,36 @@ function bodyHtml(body: string): string {
     .join('');
 }
 
+// What the account text is, so revised text is never presented as the untouched original.
+function accountLabelHtml(entry: JournalEntry): string {
+  const baseline = entry.baseline;
+  if (!baseline) return '';
+  const label = bodyDiffersFromBaseline(baseline, entry.body)
+    ? 'Current account &middot; edited since'
+    : `${escapeHtml(baselineHeading(baseline))} &middot; ${escapeHtml(formatDate(baseline.capturedAt))}`;
+  return `<div class="account-label">${label}</div>`;
+}
+
+// Preserved original (when it differs from the current account) and dated additions.
+function recollectionsHtml(entry: JournalEntry): string {
+  const baseline = entry.baseline;
+  const timeline = buildDreamTimeline(baseline, entry.additions);
+  const blocks: string[] = [];
+  for (const item of timeline) {
+    if (item.kind === 'baseline') {
+      if (!baseline || !bodyDiffersFromBaseline(baseline, entry.body)) continue;
+      const note = baseline.source === 'legacy_snapshot'
+        ? `<div class="note">Preserved ${escapeHtml(formatDate(baseline.preservedAt))}; it may have been edited before then.</div>`
+        : '';
+      blocks.push(`<section class="addition preserved"><div class="addition-label">${escapeHtml(item.heading)} &middot; ${escapeHtml(formatDate(item.timestamp))}</div>${note}${bodyHtml(item.text)}</section>`);
+      continue;
+    }
+    const kind = additionHeading(item.kind);
+    blocks.push(`<section class="addition"><div class="addition-label">${escapeHtml(kind)} &middot; ${escapeHtml(formatDate(item.timestamp))}${item.edited ? ' &middot; Edited' : ''}</div>${bodyHtml(item.text)}</section>`);
+  }
+  return blocks.join('');
+}
+
 export function buildDreamArchiveHtml(archive: DreamArchiveExport): string {
   const entries = archive.entries.map((entry, index) => {
     const title = entry.title?.trim() || 'Untitled memory';
@@ -118,7 +155,9 @@ export function buildDreamArchiveHtml(archive: DreamArchiveExport): string {
         <div class="entry-date">${escapeHtml(formatDate(entry.createdAt))}</div>
         <h2>${escapeHtml(title)}</h2>
         ${metadata.length ? `<div class="metadata">${metadata.map(escapeHtml).join(' &middot; ')}</div>` : ''}
+        ${accountLabelHtml(entry)}
         <div class="body">${bodyHtml(entry.body)}</div>
+        ${recollectionsHtml(entry)}
         ${practice.length ? `<div class="details"><strong>The night before this dream</strong>${practice.map(line => `<div>${escapeHtml(line)}</div>`).join('')}</div>` : ''}
         ${details.length ? `<div class="details"><strong>Dream details</strong>${details.map(line => `<div>${escapeHtml(line)}</div>`).join('')}</div>` : ''}
         ${signs.length ? `<div class="tags"><strong>Dream signs</strong>${signs.map(sign => `<span>${escapeHtml(sign)}</span>`).join('')}</div>` : ''}
@@ -147,6 +186,11 @@ export function buildDreamArchiveHtml(archive: DreamArchiveExport): string {
     .body p { margin: 0 0 10px; white-space: normal; }
     .body p:last-child { margin-bottom: 0; }
     .empty { color: #918a96; font-style: italic; }
+    .account-label { break-after: avoid; color: #86799a; font-family: Arial, sans-serif; font-size: 8px; font-weight: 700; letter-spacing: 1.1px; text-transform: uppercase; margin-bottom: 6px; }
+    .addition { margin-top: 16px; padding-left: 11px; border-left: 2px solid #ddd5e6; }
+    .addition.preserved { border-left-color: #b7a9cc; }
+    .addition-label { break-after: avoid; color: #86799a; font-family: Arial, sans-serif; font-size: 8px; font-weight: 700; letter-spacing: 1.1px; text-transform: uppercase; margin-bottom: 4px; }
+    .addition .note { color: #918a96; font-family: Arial, sans-serif; font-size: 8px; margin-bottom: 6px; }
     .details { margin-top: 14px; color: #5f5668; background: #f6f3f8; border-radius: 8px; padding: 9px 11px; font-family: Arial, sans-serif; font-size: 8px; line-height: 1.7; }
     .details strong { display: block; color: #6f637e; letter-spacing: 0.5px; margin-bottom: 2px; }
     .tags { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-top: 14px; font-family: Arial, sans-serif; font-size: 8px; }

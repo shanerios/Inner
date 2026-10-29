@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Alert, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Slider from '@react-native-community/slider';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
-import { LinearGradient } from 'expo-linear-gradient';
+import ScreenTopFade, { TITLE_CONTENT_GAP, TOP_FADE_OVERLAP } from '../components/ScreenTopFade';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useVideoPlayer, VideoView } from '../core/memorySafeVideo';
 import {
@@ -33,6 +33,7 @@ import {
 import { Typography } from '../core/typography';
 import { INNER_LAB_BUILD } from '../core/innerLab';
 import { loadBedsideMotion, summarizeBedsideMotion } from '../core/bedsideMotion';
+import { trackOvernightConfigured } from '../core/journeyAnalytics';
 import { attachNightPlanToJourneyMemory, createMorningReturnTestSession, interruptedBeforeRelaunchLabel, loadJourneyMemory, type JourneyMemorySession } from '../core/journeyMemory';
 import { changedFields, createNightPlan, type NightPlanConfiguration, type NightPlanSource } from '../core/nightPlans';
 import { buildGenerationNotes } from '../core/generationLevers';
@@ -41,6 +42,7 @@ import { withPreparationVoice } from '../core/audio/voiceGuidance';
 import { cachedVoicePlan, prefetchVoicePack, type VoicePackProgress } from '../core/audio/voiceClips';
 import { getVoiceGuidanceEnabled, setVoiceGuidanceEnabled } from '../core/voiceGuidancePrefs';
 import { createNightRecipeV2, nightRecipeCueSummary } from '../core/nightRecipes';
+import { RECOGNITION_ONLY_CUE_FADE_IN_MS, RECOGNITION_ONLY_SIGNAL_GAIN_CAP } from '../core/overnightMode';
 import type { NightRecipeRecognitionIntention } from '../core/nightRecipes';
 import { experimentContextForPractice, loadCurrentPracticeExperiment } from '../core/practiceExperiments';
 import { loadSelectedRecommendation, recommendationForPracticeContext } from '../core/recommendationMemory';
@@ -240,6 +242,11 @@ export default function OvernightJourneyScreen() {
   const [previewingSignal, setPreviewingSignal] = useState(false);
   const [accelerated, setAccelerated] = useState(false);
   const [quietNight, setQuietNight] = useState(false);
+  const [recognitionOnly, setRecognitionOnly] = useState(false);
+  // The saved full-journey level, restored when Recognition Only is switched off.
+  const fullJourneyGainRef = useRef<number | null>(null);
+  const nightEnvironment: OvernightEnvironment | 'none' = recognitionOnly ? 'none' : environment;
+  const nightMode = recognitionOnly ? 'recognition_only' as const : 'full' as const;
   const [voiceGuidance, setVoiceGuidance] = useState(true);
   const [voicePack, setVoicePack] = useState<VoicePackProgress | null>(null);
   const [recognitionFocus, setRecognitionFocus] = useState<RecurringSignalFocus | null>(null);
@@ -326,7 +333,8 @@ export default function OvernightJourneyScreen() {
 
   const previewRecipe = useMemo(() => createNightRecipeV2({
     durationMinutes,
-    environment,
+    environment: nightEnvironment,
+    mode: nightMode,
     feel,
     signalId,
     cuePlan,
@@ -340,11 +348,12 @@ export default function OvernightJourneyScreen() {
     } : undefined,
     seed: 1,
     createdAt: 0,
-  }), [cuePlan, durationMinutes, environment, feel, practiceState, recognitionFocus, signalGainScale, signalId]);
+  }), [cuePlan, durationMinutes, feel, nightEnvironment, nightMode, practiceState, recognitionFocus, signalGainScale, signalId]);
   const compiled = useMemo(() => {
     const realProtocol = createRecognitionOvernightProtocol({
       sleepDurationMinutes: durationMinutes,
-      environment,
+      environment: nightEnvironment,
+      mode: nightMode,
       signalId,
       cuePlan,
       feel,
@@ -354,7 +363,7 @@ export default function OvernightJourneyScreen() {
       accelerated && INNER_LAB_BUILD ? createAcceleratedOvernightProtocol(realProtocol) : realProtocol,
       DEFAULT_PROCEDURAL_AUDIO_CONFIG,
     );
-  }, [accelerated, cuePlan, durationMinutes, environment, feel, previewRecipe, signalId]);
+  }, [accelerated, cuePlan, durationMinutes, feel, nightEnvironment, nightMode, previewRecipe, signalId]);
   const recognitionWindows = previewRecipe.recognition.windows.length;
 
   const stopSignalPreview = useCallback(async () => {
@@ -391,7 +400,8 @@ export default function OvernightJourneyScreen() {
         playback.uri,
         playback.gain * previewGainScale,
       );
-      await previewSessionRef.current.triggerCue();
+      // The same fade a Recognition Only night applies to every signal; a full journey previews unchanged.
+      await previewSessionRef.current.triggerCue(recognitionOnly ? RECOGNITION_ONLY_CUE_FADE_IN_MS : undefined);
       setPreviewingSignal(true);
       previewStopTimerRef.current = setTimeout(() => {
         if (request === previewRequestRef.current) void stopSignalPreview();
@@ -401,7 +411,7 @@ export default function OvernightJourneyScreen() {
       setPreviewingSignal(false);
       Alert.alert('Preview unavailable', 'The signal preview did not begin. Try again in a moment.');
     }
-  }, [signalGainScale, signalId, stopSignalPreview]);
+  }, [recognitionOnly, signalGainScale, signalId, stopSignalPreview]);
 
   useEffect(() => () => {
     previewRequestRef.current += 1;
@@ -410,7 +420,9 @@ export default function OvernightJourneyScreen() {
   }, []);
 
   const chooseSignal = async (nextSignalId: RecognitionSignalId) => {
-    const savedLevel = await getRecognitionSignalGainScale(nextSignalId);
+    const fullLevel = await getRecognitionSignalGainScale(nextSignalId);
+    const savedLevel = recognitionOnly ? Math.min(fullLevel, RECOGNITION_ONLY_SIGNAL_GAIN_CAP) : fullLevel;
+    if (recognitionOnly) fullJourneyGainRef.current = fullLevel;
     setSignalId(nextSignalId);
     setSignalGainScale(savedLevel);
     await setRecognitionSignalId(nextSignalId);
@@ -420,13 +432,24 @@ export default function OvernightJourneyScreen() {
   const finishSignalLevelChange = async (value: number) => {
     const nextLevel = roundedSignalLevel(value);
     setSignalGainScale(nextLevel);
-    await setRecognitionSignalGainScale(signalId, nextLevel);
+    // A Recognition Only level is local to tonight; the saved full-journey level stays as the user set it.
+    if (!recognitionOnly) await setRecognitionSignalGainScale(signalId, nextLevel);
     void previewSignal(signalId, nextLevel);
+  };
+
+  const toggleRecognitionOnly = () => {
+    if (!recognitionOnly) {
+      fullJourneyGainRef.current = signalGainScale;
+      setSignalGainScale(Math.min(signalGainScale, RECOGNITION_ONLY_SIGNAL_GAIN_CAP));
+    } else if (fullJourneyGainRef.current !== null) {
+      setSignalGainScale(fullJourneyGainRef.current);
+    }
+    setRecognitionOnly(!recognitionOnly);
   };
 
   const begin = async () => {
     try {
-      const access = await checkStartAccess({ kind: 'overnight_new', environment });
+      const access = await checkStartAccess({ kind: 'overnight_new', environment: nightEnvironment });
       if (!access.allowed) {
         if (access.reason === 'membership_required') {
           openPaywall(undefined, undefined, access.trigger);
@@ -437,12 +460,13 @@ export default function OvernightJourneyScreen() {
       }
       await stopSignalPreview();
       await setRecognitionSignalId(signalId);
-      await setRecognitionSignalGainScale(signalId, signalGainScale);
+      if (!recognitionOnly) await setRecognitionSignalGainScale(signalId, signalGainScale);
       const plannedAt = Date.now();
       const seed = createNightSeed();
       const recipe = createNightRecipeV2({
         durationMinutes,
-        environment,
+        environment: nightEnvironment,
+        mode: nightMode,
         feel,
         signalId,
         cuePlan,
@@ -460,6 +484,7 @@ export default function OvernightJourneyScreen() {
       const protocol = createRecognitionOvernightProtocol({
         sleepDurationMinutes: recipe.durationMinutes,
         environment: recipe.environment,
+        mode: nightMode,
         signalId: recipe.recognition.signalId,
         cuePlan: recipe.recognition.cuePlan,
         feel: recipe.feel,
@@ -496,7 +521,8 @@ export default function OvernightJourneyScreen() {
       const planReason = experiment?.question ?? adaptiveProposal?.reason ?? recommendation?.reason;
       const planConfiguration: NightPlanConfiguration = {
         durationMinutes,
-        environment,
+        environment: nightEnvironment,
+        ...(recognitionOnly ? { mode: nightMode } : {}),
         feel,
         signalId,
         cuePlan,
@@ -535,9 +561,17 @@ export default function OvernightJourneyScreen() {
       });
       // The frozen recipe's sign names the waking preparation only; sleep audio is unchanged.
       const preparedJourney = withPreparationFocus(
-        overnightJourney(environment, feel, compiledNight, accelerated && INNER_LAB_BUILD, seed),
+        overnightJourney(nightEnvironment, feel, compiledNight, accelerated && INNER_LAB_BUILD, seed),
         recipe.recognition.intention?.sign,
       );
+      trackOvernightConfigured({
+        durationMinutes,
+        recognitionWindows,
+        voiceGuidance: !!voicePlan,
+        planSource: source,
+        accelerated: accelerated && INNER_LAB_BUILD,
+        mode: nightMode,
+      });
       navigation.navigate('LucidJourneyPlayer', {
         journey: voicePlan
           ? withPreparationVoice(preparedJourney, voicePlan)
@@ -627,18 +661,22 @@ export default function OvernightJourneyScreen() {
     </View>
   );
 
+  // The title block is two lines, about 82 tall, starting at 126 (plus the Android offset).
+  const overnightTitleBottom = insets.top + 126 + 82 + (Platform.OS === 'android' ? 30 : 0);
+  const overnightTop = overnightTitleBottom + TITLE_CONTENT_GAP;
+
   return (
     <View style={styles.root}>
       <VideoView player={background} contentFit="cover" style={StyleSheet.absoluteFill} nativeControls={false} allowsFullscreen={false} allowsPictureInPicture={false} />
       <View style={styles.veil} pointerEvents="none" />
       <View
         pointerEvents="none"
-        style={[styles.fixedHeader, { top: insets.top + 66 }, Platform.OS === 'android' && styles.androidFixedHeader]}
+        style={[styles.fixedHeader, { top: insets.top + 126 }, Platform.OS === 'android' && styles.androidFixedHeader]}
       >
         <Text style={[Typography.display, styles.title]}>Overnight Journey</Text>
         <Text style={[Typography.body, styles.subtitle]}>Tell Inner where you’d like to go.</Text>
       </View>
-      <ScrollView contentContainerStyle={[styles.content, { paddingTop: insets.top + (Platform.OS === 'android' ? 210 : 180), paddingBottom: insets.bottom + 34 }]} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingTop: overnightTop, paddingBottom: insets.bottom + 34 }]} showsVerticalScrollIndicator={false}>
         <View style={styles.intention}>
           <Text style={styles.label}>WHAT ARE YOU SEEKING TONIGHT?</Text>
           <Text style={[Typography.display, styles.intentionValue]}>Become Lucid</Text>
@@ -668,7 +706,21 @@ export default function OvernightJourneyScreen() {
           </View>
         )}
 
-        {choiceGroup(
+        <Pressable
+          onPress={toggleRecognitionOnly}
+          style={[styles.testMode, recognitionOnly && styles.testModeSelected]}
+          accessibilityRole="switch"
+          accessibilityState={{ checked: recognitionOnly }}
+        >
+          <Text style={styles.testModeTitle}>RECOGNITION ONLY</Text>
+          <Text style={styles.testModeCopy}>
+            {recognitionOnly
+              ? 'ON · No background sound. Only your signal, at the planned times'
+              : 'OFF · Turn on to hear only your signal, with silence between'}
+          </Text>
+        </Pressable>
+
+        {!recognitionOnly && choiceGroup(
           'WHERE WOULD YOU LIKE TO GO?',
           ENVIRONMENTS.map(item => ({
             id: item.id,
@@ -679,9 +731,9 @@ export default function OvernightJourneyScreen() {
           environment,
           selectEnvironment,
         )}
-        {environmentNotice ? <Text style={styles.environmentNotice}>{environmentNotice}</Text> : null}
+        {!recognitionOnly && environmentNotice ? <Text style={styles.environmentNotice}>{environmentNotice}</Text> : null}
         {choiceGroup('HOW LONG WILL YOU BE AWAY?', DURATIONS.map(id => ({ id, label: durationLabel(id) })), durationMinutes, setDurationMinutes)}
-        {choiceGroup('HOW SHOULD IT FEEL?', FEELS, feel, setFeel)}
+        {!recognitionOnly && choiceGroup('HOW SHOULD IT FEEL?', FEELS, feel, setFeel)}
         {choiceGroup('YOUR SIGNAL', RECOGNITION_SIGNALS.map(signal => ({ id: signal.id, label: signal.name })), signalId, value => { void chooseSignal(value); })}
         <View style={styles.signalLevelCard}>
           <View style={styles.signalLevelHeading}>
@@ -716,7 +768,7 @@ export default function OvernightJourneyScreen() {
             <Text style={styles.previewSignalText}>{previewingSignal ? 'PLAYING SIGNAL…' : 'PREVIEW SIGNAL'}</Text>
           </Pressable>
           <Text style={styles.signalLevelNote}>Slide and release to hear this level. Your device media volume also affects what you hear.</Text>
-          {suggestedSignalGainScale !== undefined && (
+          {suggestedSignalGainScale !== undefined && !recognitionOnly && (
             <Text style={styles.signalLevelSuggestion}>Inner suggested {signalLevelLabel(suggestedSignalGainScale).toLowerCase()} from your comparable nights.</Text>
           )}
         </View>
@@ -760,16 +812,20 @@ export default function OvernightJourneyScreen() {
         <View style={styles.readyCard}>
           <Text style={styles.readyEyebrow}>YOUR NIGHT</Text>
           <Text style={styles.readySource}>{planExplanation.source}</Text>
-          <Text style={[Typography.display, styles.readyTitle]}>Recognition · {environment.charAt(0).toUpperCase() + environment.slice(1)}</Text>
+          <Text style={[Typography.display, styles.readyTitle]}>{recognitionOnly ? 'Recognition Only' : `Recognition · ${environment.charAt(0).toUpperCase()}${environment.slice(1)}`}</Text>
           <Text style={styles.readyLine}>{durationLabel(durationMinutes)} · {recognitionWindows} later recognition windows</Text>
           <Text style={styles.readySchedule}>Signals near {nightRecipeCueSummary(previewRecipe)}</Text>
-          <Text style={styles.readyLine}>{recognitionSignalById(signalId).name} · {feel}</Text>
+          <Text style={styles.readyLine}>{recognitionOnly ? recognitionSignalById(signalId).name : `${recognitionSignalById(signalId).name} · ${feel}`}</Text>
           {recognitionFocus && <Text style={styles.readyLine}>Recognition focus · {recognitionFocus.sign}</Text>}
           {recognitionFocus && <Text style={styles.readyLine}>Preparation names it · sleep audio unchanged</Text>}
           {practiceState && <Text style={styles.readyLine}>Learning objective · {practiceState.objective.title}</Text>}
           {quietNight && <Text style={styles.readyLine}>Quiet night · not used for signal-level learning</Text>}
           <Text style={styles.readyLine}>Signal volume · {signalLevelLabel(signalGainScale)}</Text>
-          <Text style={styles.readyCopy}>Your journey begins with a seven-minute waking preparation, then continues quietly through descent, protected sleep, recognition windows, and return.</Text>
+          <Text style={styles.readyCopy}>
+            {recognitionOnly
+              ? 'Your journey begins with a seven-minute waking preparation, then stays silent through descent and sleep. Only your signal sounds, at the planned times.'
+              : 'Your journey begins with a seven-minute waking preparation, then continues quietly through descent, protected sleep, recognition windows, and return.'}
+          </Text>
           {!!planExplanation.reason && <Text style={styles.readyReason}>{planExplanation.reason}</Text>}
           <Text style={styles.readyReview}>You can change any setting. Inner records the plan you begin.</Text>
         </View>
@@ -803,12 +859,7 @@ export default function OvernightJourneyScreen() {
           <Text style={styles.returnText}>RETURN</Text>
         </Pressable>
       </ScrollView>
-      <LinearGradient
-        colors={['rgba(2,4,11,0.98)', 'rgba(2,4,11,0.9)', 'rgba(2,4,11,0)']}
-        locations={[0, 0.72, 1]}
-        pointerEvents="none"
-        style={[styles.headerFade, { height: insets.top + (Platform.OS === 'android' ? 230 : 205) }]}
-      />
+      <ScreenTopFade solid={overnightTitleBottom} end={overnightTop + TOP_FADE_OVERLAP} />
       {INNER_LAB_BUILD ? (
         <Modal visible={inspectorVisible} transparent animationType="fade" onRequestClose={() => setInspectorVisible(false)}>
           <View style={styles.inspectorBackdrop}>
@@ -873,7 +924,6 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#02040B' },
   veil: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.61)' },
   content: { paddingHorizontal: 24 },
-  headerFade: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 2 },
   fixedHeader: { position: 'absolute', left: 24, right: 24, zIndex: 3, alignItems: 'center' },
   androidFixedHeader: { transform: [{ translateY: 30 }] },
   title: { color: '#F4F1FA', fontSize: 24, textAlign: 'center' },

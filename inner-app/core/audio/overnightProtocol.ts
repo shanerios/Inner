@@ -148,7 +148,10 @@ export function compileOvernightProtocol(
 
 export type RecognitionOvernightOptions = {
   sleepDurationMinutes: number;
-  environment: Exclude<ProceduralEnvironment, 'none' | 'wind'>;
+  /** `none` is only valid with `mode: 'recognition_only'`. */
+  environment: Exclude<ProceduralEnvironment, 'wind'>;
+  /** Recognition Only keeps the full night's timing, levels and cues but plays no bed. */
+  mode?: 'full' | 'recognition_only';
   signalId: RecognitionSignalId;
   cuePlan: LucidSignalCuePlan;
   /** Exact signal presentation times from the end of waking preparation. */
@@ -157,6 +160,25 @@ export type RecognitionOvernightOptions = {
   recognitionWindows?: NightRecipeRecognitionWindow[];
   feel?: 'gentle' | 'deep' | 'immersive';
 };
+
+/** Every continuous layer off. Applied to each phase so the config cascade can never carry a bed forward. */
+export const SILENT_BED: ProceduralAudioPatch = {
+  environment: 'none',
+  environmentGain: 0,
+  toneGain: 0,
+  binauralGain: 0,
+  noiseColor: null,
+  noiseGain: 0,
+  templeGain: 0,
+  thresholdShift: 0,
+  harmonicTranslation: 0,
+};
+
+/** Keeps a phase's master level, which scales the signal, and drops everything else audible. */
+function silenceBed(phase: OvernightProtocolPhase): OvernightProtocolPhase {
+  const masterGain = phase.audio?.masterGain;
+  return { ...phase, audio: { ...SILENT_BED, ...(masterGain === undefined ? {} : { masterGain }) } };
+}
 
 export function createRecognitionOvernightProtocol(options: RecognitionOvernightOptions): OvernightProtocol {
   const sleepDurationMs = Math.min(10 * 60 * 60_000, Math.max(6 * 60 * 60_000, options.sleepDurationMinutes * 60_000));
@@ -184,19 +206,22 @@ export function createRecognitionOvernightProtocol(options: RecognitionOvernight
     return window.cueAtMs >= descentMs + 15_000
       && lastPresentationMs + window.recoverySeconds * 1_000 < sleepDurationMs - returnMs;
   });
+  const recognitionOnly = options.mode === 'recognition_only';
+  // Recognition Only has no bed; the profile only keeps the shared builder below valid, and its output is replaced with silence.
+  const profileEnvironment = options.environment === 'none' ? 'forest' : options.environment;
   const feel = options.feel ?? 'gentle';
   const environmentGain = options.feel === 'immersive' ? 0.2 : options.feel === 'deep' ? 0.16 : 0.12;
-  const bed = worldBed(options.environment);
-  const field = worldBinaural(options.environment);
+  const bed = worldBed(profileEnvironment);
+  const field = worldBinaural(profileEnvironment);
   const binauralWorldScale = bed.binauralGainScale * 10 ** ((field.trimDb + field.levelDb) / 20);
-  const harmonicTranslation = options.environment === 'ocean' || options.environment === 'cosmic'
+  const harmonicTranslation = profileEnvironment === 'ocean' || profileEnvironment === 'cosmic'
     ? 0.72
-    : options.environment === 'abyssal' ? 0.6 : 0;
+    : profileEnvironment === 'abyssal' ? 0.6 : 0;
   const phases: OvernightProtocolPhase[] = [
     {
       id: 'preparation', label: 'Recognition Practice', kind: 'preparation', durationMs: preparationMs,
       audio: {
-        environment: options.environment,
+        environment: profileEnvironment,
         environmentGain,
         harmonicTranslation,
         thresholdShift: 0,
@@ -212,13 +237,13 @@ export function createRecognitionOvernightProtocol(options: RecognitionOvernight
         binauralBreathVariation: field.breath.variation,
         masterGain: 0.58,
         toneGain: 0.01,
-        ...identityPatch(options.environment, 'preparation', feel),
+        ...identityPatch(profileEnvironment, 'preparation', feel),
       },
       events: [{ id: 'journey-begins', trigger: { kind: 'phaseStart' }, actions: [{ kind: 'markEvent', name: 'overnight_started' }] }],
     },
     {
       id: 'descent', label: 'Descent', kind: 'descent', durationMs: descentMs,
-      audio: { binauralCarrierHz: field.carrierHz, binauralDeltaHz: field.beatHz.descent, binauralBreathDb: field.breath.depthDb.descent, binauralGain: 0.18 * binauralWorldScale, environmentGain, noiseGain: 0.13 * bed.noiseGainScale, masterGain: 0.48, thresholdShift: 1, ...identityPatch(options.environment, 'descent', feel) },
+      audio: { binauralCarrierHz: field.carrierHz, binauralDeltaHz: field.beatHz.descent, binauralBreathDb: field.breath.depthDb.descent, binauralGain: 0.18 * binauralWorldScale, environmentGain, noiseGain: 0.13 * bed.noiseGainScale, masterGain: 0.48, thresholdShift: 1, ...identityPatch(profileEnvironment, 'descent', feel) },
     },
   ];
 
@@ -234,12 +259,12 @@ export function createRecognitionOvernightProtocol(options: RecognitionOvernight
     if (protectionMs >= 1_000) {
       phases.push({
         id: `sleep-protection-${index + 1}`, label: 'Sleep Protection', kind: 'sleepProtection', durationMs: protectionMs,
-        audio: { toneGain: 0, binauralDeltaHz: index === 0 ? field.beatHz.earlySleep : field.beatHz.remSleep, binauralBreathDb: index === 0 ? field.breath.depthDb.earlySleep : field.breath.depthDb.remSleep, binauralGain: 0.08 * binauralWorldScale, noiseGain: 0.1 * bed.noiseGainScale * (index === 0 ? 1 : bed.remNoiseTaper), environmentGain: environmentGain * 0.75, masterGain: 0.35, ...identityPatch(options.environment, index === 0 ? 'earlySleep' : 'remSleep', feel) },
+        audio: { toneGain: 0, binauralDeltaHz: index === 0 ? field.beatHz.earlySleep : field.beatHz.remSleep, binauralBreathDb: index === 0 ? field.breath.depthDb.earlySleep : field.breath.depthDb.remSleep, binauralGain: 0.08 * binauralWorldScale, noiseGain: 0.1 * bed.noiseGainScale * (index === 0 ? 1 : bed.remNoiseTaper), environmentGain: environmentGain * 0.75, masterGain: 0.35, ...identityPatch(profileEnvironment, index === 0 ? 'earlySleep' : 'remSleep', feel) },
       });
     }
     phases.push({
       id: `recognition-window-${index + 1}`, label: 'Recognition Window', kind: 'recognitionWindow', durationMs: recognitionWindowDurationMs,
-      audio: identityPatch(options.environment, 'recognitionWindow', feel),
+      audio: identityPatch(profileEnvironment, 'recognitionWindow', feel),
       events: [
         { id: `duck-${index + 1}`, trigger: { kind: 'phaseStart' }, actions: [{ kind: 'duckAudio', gain: window.backgroundDuckGain, rampMs: 5_000 }] },
         ...Array.from({ length: window.presentations }, (_, presentationIndex) => ({
@@ -261,7 +286,7 @@ export function createRecognitionOvernightProtocol(options: RecognitionOvernight
   if (remainingSleepMs >= 1_000) {
     phases.push({
       id: 'sleep-protection-final', label: 'Sleep Protection', kind: 'sleepProtection', durationMs: remainingSleepMs,
-      audio: { toneGain: 0, binauralDeltaHz: recognitionWindows.length ? field.beatHz.remSleep : field.beatHz.earlySleep, binauralBreathDb: recognitionWindows.length ? field.breath.depthDb.remSleep : field.breath.depthDb.earlySleep, binauralGain: 0.05 * binauralWorldScale, noiseGain: 0.08 * bed.noiseGainScale * (recognitionWindows.length ? bed.remNoiseTaper : 1), environmentGain: environmentGain * 0.6, masterGain: 0.3, ...identityPatch(options.environment, recognitionWindows.length ? 'remSleep' : 'earlySleep', feel) },
+      audio: { toneGain: 0, binauralDeltaHz: recognitionWindows.length ? field.beatHz.remSleep : field.beatHz.earlySleep, binauralBreathDb: recognitionWindows.length ? field.breath.depthDb.remSleep : field.breath.depthDb.earlySleep, binauralGain: 0.05 * binauralWorldScale, noiseGain: 0.08 * bed.noiseGainScale * (recognitionWindows.length ? bed.remNoiseTaper : 1), environmentGain: environmentGain * 0.6, masterGain: 0.3, ...identityPatch(profileEnvironment, recognitionWindows.length ? 'remSleep' : 'earlySleep', feel) },
     });
   }
   phases.push({
@@ -272,13 +297,15 @@ export function createRecognitionOvernightProtocol(options: RecognitionOvernight
 
   return {
     schemaVersion: 2,
-    id: `overnight-recognition-${options.environment}-${options.cuePlan}`,
-    title: 'Lucid Journey · Recognition',
+    id: recognitionOnly
+      ? `overnight-recognition-only-${options.cuePlan}`
+      : `overnight-recognition-${options.environment}-${options.cuePlan}`,
+    title: recognitionOnly ? 'Lucid Journey · Recognition Only' : 'Lucid Journey · Recognition',
     intention: 'lucidity',
-    environment: options.environment,
+    environment: recognitionOnly ? 'none' : options.environment,
     signalId: options.signalId,
     cuePlan: options.cuePlan,
-    phases,
+    phases: recognitionOnly ? phases.map(silenceBed) : phases,
   };
 }
 

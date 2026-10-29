@@ -1,4 +1,5 @@
 import Purchases from 'react-native-purchases';
+import { initRevenueCatOnce } from '../../../utils/revenueCat';
 import { ENTITLEMENT_ID } from './constants';
 
 /**
@@ -32,8 +33,12 @@ export async function resolveMembership(options: ResolveOptions = {}): Promise<M
   const now = options.now ?? Date.now;
   const cacheMs = options.cacheMs ?? MEMBERSHIP_CACHE_MS;
   const timeoutMs = options.timeoutMs ?? MEMBERSHIP_TIMEOUT_MS;
-  const fetchInfo = options.fetchInfo
-    ?? (() => Purchases.getCustomerInfo() as unknown as Promise<ActiveInfo>);
+  // RevenueCat is configured lazily (paywall entry points). A gate can run first,
+  // so it must make sure the SDK exists, or every check reads as `unknown`.
+  const fetchInfo = options.fetchInfo ?? (async () => {
+    if (!(await initRevenueCatOnce())) throw new Error('RevenueCat is not configured');
+    return Purchases.getCustomerInfo() as unknown as Promise<ActiveInfo>;
+  });
 
   if (confirmed && now() - confirmed.at < cacheMs) return confirmed.status;
 

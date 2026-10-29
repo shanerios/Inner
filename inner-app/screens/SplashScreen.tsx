@@ -10,9 +10,10 @@ import { StatusBar } from 'expo-status-bar';
 import { Audio } from 'expo-av';
 import { initAudioOnce } from '../core/initAudio';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Crypto from 'expo-crypto';
+import { getOrCreateAnalyticsUserId } from '../core/analyticsIdentity';
 import { usePostHog } from 'posthog-react-native';
 import { isIntentionRecheckDue } from '../core/session';
+import { trackOnboardingStarted } from '../core/onboardingAnalytics';
 
 const Body = _Body ?? ({
   regular: { ...Typography.body },
@@ -23,7 +24,6 @@ const Body = _Body ?? ({
 const INTRO_END_WATCHDOG_MS = 10_500;
 const SPLASH_TIMESTAMP_KEY = 'inner.splash.lastOpenTimestamp';
 const SPLASH_SKIPPED_TIMESTAMP_KEY = 'inner.splash.lastSkippedTimestamp';
-const USER_ID_KEY = 'inner.user.id';
 const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
 const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
 
@@ -173,12 +173,8 @@ export default function SplashScreen() {
 
       // User ID init
       try {
-        let userId = await AsyncStorage.getItem(USER_ID_KEY);
-        if (!userId) {
-          userId = Crypto.randomUUID();
-          await AsyncStorage.setItem(USER_ID_KEY, userId);
-        }
-        posthog?.identify(userId);
+        const userId = await getOrCreateAnalyticsUserId();
+        if (userId) posthog?.identify(userId);
       } catch {}
 
       // Timestamp check
@@ -436,11 +432,17 @@ export default function SplashScreen() {
     if (navigating.current) return;
     navigating.current = true;
     if (showReturnHome) hideReturnHome();
+    if (!onboardingComplete) {
+      posthog?.capture('onboarding_splash_tapped');
+      // The first-run flow goes straight from here to Intention, so this tap is where onboarding starts.
+      void trackOnboardingStarted();
+    }
     playEngulfThen(() => {
       if (!onboardingComplete) {
-        // First run — full ritual.
+        // First run — straight to Intention Tuning, which doubles as the
+        // onboarding question. The cinematic Intro stays available via long-press replay.
         // @ts-ignore
-        navigation.navigate('Intro');
+        navigation.navigate('Intention', { returnTo: 'Home' });
       } else if (intentionRecheckDue) {
         // Returning, but it's been 48+ hours — a quick re-tune before Home.
         // @ts-ignore

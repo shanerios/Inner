@@ -1,4 +1,5 @@
 // screens/JournalEntryScreen.tsx
+import { trackEntryRevisited } from '../core/journalAnalytics';
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, Pressable, Alert, KeyboardAvoidingView, Platform, ScrollView, Animated, Easing } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -7,9 +8,10 @@ import { useHeaderHeight } from '@react-navigation/elements';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { usePostHog } from 'posthog-react-native';
-import { getEntry, saveEntry, deleteEntry, JournalEntry } from '../core/journalRepo';
+import { getEntry, saveEntry, deleteEntry, preserveBaseline, JournalEntry } from '../core/journalRepo';
 import type { DreamDetails } from '../core/dreamDetails';
 import DreamDetailsEditor from '../components/DreamDetailsEditor';
+import DreamRecollectionPanel, { BaselineLabel, DreamHistoryModal } from '../components/DreamRecollections';
 import { requestNotificationPermission, scheduleDailyWakeNotification, hasWakeNotificationScheduled, WAKE_TIME_KEY, parseWakeTime } from '../utils/notifications';
 import { addReviewScore, REVIEW_SCORE_THRESHOLD } from '../hooks/useReviewScore';
 import { useBreath } from '../core/BreathProvider';
@@ -19,7 +21,7 @@ import { ACCOUNT_REGISTRATION_AVAILABLE } from '../core/accountAvailability';
 import { hasInnerAccess } from '../src/core/subscriptions/revenueCat';
 import { safePresentPaywall } from '../src/core/subscriptions/safePresentPaywall';
 import { isAerisLimitReached } from '../src/core/aeris/aerisUsage';
-import { Typography, Body as _Body } from '../core/typography';
+import { Typography, Body as _Body, tracking } from '../core/typography';
 import VoiceCaptureButton, { type VoiceRecognitionMode } from '../components/VoiceCaptureButton';
 import { practiceContextSections } from '../core/practiceContext';
 import { DREAM_SIGNS } from '../core/dreamSigns';
@@ -110,6 +112,9 @@ export default function JournalEntryScreen({ route, navigation }: Props) {
   const [chamberTitle, setChamberTitle] = useState<string | undefined>(undefined);
   const [voiceRecognitionMode, setVoiceRecognitionMode] = useState<VoiceRecognitionMode | null>(null);
   const [practiceContextExpanded, setPracticeContextExpanded] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  // Set when this entry is deleted from the screen, so the unmount save cannot bring it back.
+  const deletedRef = useRef(false);
 
   // Tracks whether the body currently shows a prefill placeholder
   const isPrefillActiveRef = useRef(false);
@@ -165,9 +170,17 @@ export default function JournalEntryScreen({ route, navigation }: Props) {
     }).start();
   }, [enterVeil]);
 
+  const revisitTrackedRef = useRef(false);
   const load = useCallback(async () => {
+    // An older entry gets its first-saved snapshot before any edit can change it.
+    // Entries still being drafted are left alone.
+    try { await preserveBaseline(id, 'legacy_only'); } catch {}
     const e = await getEntry(id);
     if (e) {
+      if (!revisitTrackedRef.current) {
+        revisitTrackedRef.current = true;
+        trackEntryRevisited(e.createdAt);
+      }
       let hydrated = e as JournalEntry & {
         dreamSigns?: string[];
         captureMinutesFromWake?: number | null;
@@ -250,8 +263,15 @@ export default function JournalEntryScreen({ route, navigation }: Props) {
         .then(async () => {
           await saveEntry(updated);
           savedRevisionRef.current = Math.max(savedRevisionRef.current, revision);
-          entryRef.current = updated;
-          setEntry(updated);
+          // An addition may have landed while this save was in flight; keep the newer copy.
+          const latest = entryRef.current;
+          const settled: JournalEntry = {
+            ...updated,
+            baseline: latest?.baseline ?? updated.baseline,
+            additions: latest?.additions ?? updated.additions,
+          };
+          entryRef.current = settled;
+          setEntry(settled);
           setSaveState('saved');
           setTimeout(() => setSaveState('idle'), 1200);
           if (!reviewScoreAwardedRef.current) {
@@ -293,14 +313,14 @@ export default function JournalEntryScreen({ route, navigation }: Props) {
     }, 1000);
   }, []);
 
+  // Leaving the editor is the capture boundary: save the last draft, then preserve it
+  // as the original recollection. A killed app never reaches this, so an unfinished
+  // capture is not sealed.
   useEffect(() => () => {
     if (saveTimer.current) clearTimeout(saveTimer.current);
     const base = entryRef.current;
-    if (
-      !base
-      || isPrefillActiveRef.current
-      || savedRevisionRef.current >= editRevisionRef.current
-    ) return;
+    if (!base || deletedRef.current) return;
+    const needsSave = !isPrefillActiveRef.current && savedRevisionRef.current < editRevisionRef.current;
     const updated: JournalEntry = {
       ...base,
       ...latestDraftRef.current,
@@ -308,7 +328,11 @@ export default function JournalEntryScreen({ route, navigation }: Props) {
     };
     saveChainRef.current = saveChainRef.current
       .catch(() => {})
-      .then(() => saveEntry(updated));
+      .then(async () => {
+        if (needsSave) await saveEntry(updated);
+        await preserveBaseline(base.id, 'capture_complete');
+      })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -377,6 +401,9 @@ export default function JournalEntryScreen({ route, navigation }: Props) {
               {
                 text: 'Delete', style: 'destructive', onPress: async () => {
                   try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
+                  deletedRef.current = true;
+                  if (saveTimer.current) clearTimeout(saveTimer.current);
+                  await saveChainRef.current.catch(() => {});
                   await deleteEntry(id);
                   navigation.goBack();
                 }
@@ -390,6 +417,20 @@ export default function JournalEntryScreen({ route, navigation }: Props) {
       ),
     });
   }, [navigation, entry, id]);
+
+  // Additions and the baseline are owned by the repository; take its copy.
+  const handleRecollectionsChanged = useCallback((next: JournalEntry) => {
+    const current = entryRef.current;
+    if (!current) return;
+    const merged: JournalEntry = {
+      ...current,
+      baseline: next.baseline,
+      additions: next.additions,
+      updatedAt: next.updatedAt,
+    };
+    entryRef.current = merged;
+    setEntry(merged);
+  }, []);
 
   function toggleDreamSign(sign: string) {
     setDreamSigns(prev => {
@@ -503,6 +544,11 @@ export default function JournalEntryScreen({ route, navigation }: Props) {
           <Text style={[Typography.caption, { color: '#8E88D8' }]}>Suggest title</Text>
         </TouchableOpacity>
 
+        <BaselineLabel
+          baseline={entry?.baseline}
+          body={body}
+          onViewOriginal={() => setHistoryOpen(true)}
+        />
         <VoiceCaptureButton
           value={prefillActive ? '' : body}
           onBeforeStart={() => {
@@ -553,9 +599,8 @@ export default function JournalEntryScreen({ route, navigation }: Props) {
                 parts.push(`Dream Signs: ${dreamSigns.join(', ')}`);
               }
               const dreamContext = parts.join('\n\n');
-              posthog.capture('aeris_journal_entry_analyzed', {
-                entry_id: entry?.id ?? id,
-              });
+              // No entry id: analytics must not link events to a specific journal record.
+              posthog.capture('aeris_journal_entry_analyzed');
 
               const [hasAccess, limitReached] = await Promise.all([
                 hasInnerAccess(),
@@ -564,7 +609,7 @@ export default function JournalEntryScreen({ route, navigation }: Props) {
               if (!hasAccess && limitReached) {
                 safePresentPaywall(() => {
                   navigation.navigate('Aeris', { dreamContext });
-                }, 'aeris');
+                }, 'aeris', 'aeris_limit_journal');
                 return;
               }
               navigation.navigate('Aeris', { dreamContext });
@@ -578,6 +623,15 @@ export default function JournalEntryScreen({ route, navigation }: Props) {
                 : 'Ask Aeris about your dream.'}
             </Text>
           </TouchableOpacity>
+        )}
+
+        {entry && (
+          <DreamRecollectionPanel
+            entry={entry}
+            noun={(entry.kind ?? routeKind) === 'dream' ? 'dream' : 'entry'}
+            onChanged={handleRecollectionsChanged}
+            onViewHistory={() => setHistoryOpen(true)}
+          />
         )}
 
         {/* Dream Signs */}
@@ -644,6 +698,13 @@ export default function JournalEntryScreen({ route, navigation }: Props) {
           </View>
         )}
       </ScrollView>
+
+      <DreamHistoryModal
+        visible={historyOpen}
+        entry={entry}
+        body={body}
+        onClose={() => setHistoryOpen(false)}
+      />
 
       <SoftAccountPrompt
         visible={showAccountPrompt}
@@ -720,10 +781,10 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
   },
-  chipLabel: { ...Typography.caption, letterSpacing: 0.2 },
+  chipLabel: { ...Typography.caption, letterSpacing: tracking(0.2) },
   askAerisLabel: {
     ...Typography.caption,
     color: '#7B5EA7',
-    letterSpacing: 0.3,
+    letterSpacing: tracking(0.3),
   },
 });

@@ -1,3 +1,4 @@
+import { getCustomerInfoReady } from '../utils/revenueCat';
 import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { usePostHog } from 'posthog-react-native';
 import { StyleSheet, View, Text, Pressable, ScrollView, Animated, Easing, TextInput, Alert, Platform, Modal, Dimensions, KeyboardAvoidingView } from 'react-native';
@@ -279,7 +280,7 @@ export default function SoundscapesScreen() {
     let unsub: any;
     const sync = async () => {
       try {
-        const info = await Purchases.getCustomerInfo();
+        const info = await getCustomerInfoReady();
         const active = (info?.entitlements?.active ?? {}) as Record<string, any>;
         setHasContinuing(!!active[CONTINUING_ENTITLEMENT_ID]);
       } catch { setHasContinuing(false); }
@@ -295,7 +296,7 @@ export default function SoundscapesScreen() {
 
   const openPaywall = React.useCallback(async () => {
     try { await Haptics.selectionAsync(); } catch {}
-    try { await safePresentPaywall(undefined, 'garden'); return; } catch (e) {
+    try { await safePresentPaywall(undefined, 'garden', 'garden_locked'); return; } catch (e) {
       console.log('[PAYWALL] Failed to present paywall', e);
     }
     Alert.alert(

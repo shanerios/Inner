@@ -2,7 +2,7 @@
 
 Status: draft only. Do not copy into the website root (`index.html`, `download.html`, `privacy.html`, `sitemap.xml`) or deploy until the matching app release is live in the App Store and Google Play. Prices, trial terms, and store offerings are unverified and must not be added here until confirmed in RevenueCat and the stores.
 
-Each claim below matches shipped app behavior on the `access-policy-proposal` branch. Remove any line that does not match the release build.
+Each claim below matches shipped app behavior in this release. Remove any line that does not match the release build.
 
 ---
 

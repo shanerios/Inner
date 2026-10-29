@@ -178,3 +178,23 @@
 .journal-continue {
   padding-top: clamp(56px, 9vh, 96px);
 }
+
+/* Dated update after the author's note */
+.journal-update {
+  margin-top: 34px;
+}
+.journal-update .learn-fieldnote-label time {
+  color: inherit;
+}
+.journal-post .journal-update a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: rgba(161, 140, 255, 0.5);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  transition: color 0.3s ease, text-decoration-color 0.3s ease;
+}
+.journal-post .journal-update a:hover {
+  color: #fff;
+  text-decoration-color: rgba(200, 190, 255, 0.85);
+}

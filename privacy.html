@@ -176,7 +176,7 @@
 <body>
   <main class="wrap">
     <h1>Privacy Policy for Inner</h1>
-    <p class="eyebrow"><strong>Effective Date:</strong> October 21, 2026</p>
+    <p class="eyebrow"><strong>Effective Date:</strong> October 25, 2026</p>
 
     <div class="intro">
       <p>Inner is designed as a quiet space. Your privacy is not just respected — it is foundational to the experience. This policy explains what is collected, what is not, and how your data is handled.</p>
@@ -186,9 +186,13 @@
     <h2>1. What We Collect</h2>
     <p>Inner collects minimal data, and only what is necessary to provide and improve the experience.</p>
     <ul>
-      <li><strong>On-device data:</strong> Your intentions, preferences, journal entries, downloaded audio, and display name are stored locally on your device. This data is not transmitted to external servers.</li>
-      <li><strong>Usage analytics (anonymous):</strong> We collect limited, non-identifying information about how the app is used (such as feature interactions and navigation patterns) to understand what is working and how to improve Inner.</li>
+      <li><strong>On-device data:</strong> Your intentions, preferences, journal entries, downloaded audio, and display name are stored locally on your device. This data is not transmitted to external servers, except as described under Aeris below.</li>
+      <li><strong>Usage analytics (pseudonymous):</strong> We collect limited information about how the app is used (such as feature interactions, screen views, and how your Overnight Journeys run), never what you write or say. This information is tied to a random identifier created for your installation, not to your name or email. Our analytics provider also derives an approximate location (such as country and city) from your IP address.</li>
       <li><strong>Error reporting:</strong> In the event of a crash or malfunction, technical information may be collected to help diagnose and fix issues.</li>
+      <li><strong>Purchases:</strong> Subscriptions and one-time purchases are processed by Apple or Google. We use RevenueCat to confirm your purchase status. It receives your purchase details and a customer identifier, not your payment card information.</li>
+      <li><strong>Aeris (optional):</strong> If you use Aeris, the messages you send, any dream entry you choose to share with Aeris, your display name (if you have set one), and your anonymous customer ID (used to check your access) are sent to our Aeris server, which passes the conversation to Anthropic to generate a reply. Our server does not keep a log of your conversations. Anthropic handles what it receives under its own privacy policy, and under our agreement with Anthropic this content is not used to train its models and is kept for 30 days or less. Your conversation history is stored on your device.</li>
+      <li><strong>Voice capture (optional):</strong> If you dictate a dream, your speech is converted to text by your device&rsquo;s speech recognition service, provided by Apple or Google. We do not receive the recording.</li>
+      <li><strong>Install source:</strong> When you first open the app, a device fingerprint is used to recognise whether the install came from the QR code in our Littlest Explorer book.</li>
     </ul>
 
     <h2>2. What We Do Not Collect</h2>
@@ -210,27 +214,35 @@
     <p>Inner is designed to function primarily offline. This reduces reliance on external services and helps maintain your privacy.</p>
 
     <h2>5. Analytics</h2>
-    <p>We use privacy-conscious analytics tools to understand general usage patterns within the app. This data is anonymous and cannot be used to identify you.</p>
+    <p>We use privacy-conscious analytics tools to understand general usage patterns within the app. This data is tied to a random identifier for your installation rather than your name or email, and we do not use it to identify you.</p>
     <p>Analytics may include interactions such as screen views, feature usage, and session behavior.</p>
-    <p>Where possible, you may opt out of analytics through app settings.</p>
 
     <h2>6. Third-Party Services</h2>
-    <p>Inner uses trusted third-party services for analytics and error monitoring. These services may process anonymous usage and technical data to help improve the app.</p>
-    <p>These services do not receive personally identifiable information and are used strictly for functionality and improvement.</p>
+    <p>Inner uses third-party services to run and improve the app. They handle the information described in section 1 under their own privacy policies:</p>
+    <ul>
+      <li><strong>PostHog:</strong> product analytics.</li>
+      <li><strong>Sentry:</strong> crash and error reports. We filter these so they do not contain what you write or say.</li>
+      <li><strong>RevenueCat:</strong> purchase and subscription status.</li>
+      <li><strong>Apple and Google:</strong> the app stores, payment processing, and speech recognition for voice capture.</li>
+      <li><strong>Backblaze:</strong> hosts the audio files the app downloads.</li>
+      <li><strong>ChottuLink:</strong> recognises installs that came from the QR code in our Littlest Explorer book, using a device fingerprint.</li>
+      <li><strong>Anthropic:</strong> generates Aeris replies from the messages you send to Aeris.</li>
+    </ul>
+    <p>With one exception, these services do not receive your journal entries or your display name. The exception is Aeris: the messages you choose to send, and your display name if you have set one, pass through our own Aeris server to Anthropic, as described in section 1.</p>
 
     <h2>7. Your Control</h2>
     <p>You remain in control of your experience. You may:</p>
     <ul>
       <li>Clear or reset your local data within the app (if available)</li>
       <li>Choose whether to engage with optional features</li>
-      <li>Opt out of analytics where applicable</li>
+      <li>Choose whether to use Aeris, the only feature that sends what you write to our server</li>
     </ul>
 
     <h2>8. Data Security</h2>
-    <p>Your data is protected by your device’s built-in security. We do not maintain external databases of your personal information.</p>
+    <p>Your journal entries and other on-device data are protected by your device’s built-in security. We do not keep your journal or your display name on our servers. The services listed in section 6 keep the technical, usage, and purchase records described above.</p>
 
     <h2>9. Data Retention</h2>
-    <p>Data stored locally remains on your device until you choose to remove it. We do not retain personal data externally.</p>
+    <p>Data stored locally remains on your device until you choose to remove it. Analytics, crash, and purchase records are kept by the services listed in section 6 under their own retention settings, and are not tied to your name or email. Messages sent to Aeris are held by Anthropic for up to 30 days.</p>
 
     <h2>10. Future Features</h2>
     <p>If Inner introduces features such as accounts, cloud sync, or expanded data functionality, you will be clearly informed and asked for consent before any data is collected or used.</p>
@@ -245,7 +257,7 @@
     </ul>
 
     <h2>12. Changes to This Policy</h2>
-    <p>This policy may evolve as Inner evolves. If changes are significant, you will be notified within the app. Changes to the website section will be posted on this page with an updated effective date.</p>
+    <p>This policy may evolve as Inner evolves. If changes are significant, we will update the effective date at the top of this page and may also mention them in the app&rsquo;s release notes. Changes to the website section will be posted on this page with an updated effective date.</p>
 
     <h2>13. Contact</h2>
     <p>If you have any questions, you can reach us at:</p>

@@ -50,6 +50,20 @@ describe('dream practice context', () => {
     }));
   });
 
+  it('marks a Recognition Only night and reports no environment', () => {
+    const silent = {
+      ...session,
+      journeyId: 'overnight-recognition-only-standard',
+      title: 'Recognition Only',
+      stages: [{ ...session.stages[0], config: { ...session.stages[0].config, environment: 'none' as const, environmentGain: 0 } }],
+    };
+    const link = practiceLinkFromOvernightSession(silent as any);
+    expect(link.mode).toBe('recognition_only');
+    expect(link.environment).toBeUndefined();
+    expect(link.type).toBe('overnight_journey');
+    expect(practiceLinkFromOvernightSession(session as any).mode).toBeUndefined();
+  });
+
   it('carries the native planned-versus-delivered receipt into dream context', () => {
     const withRecipeCues = {
       ...session,

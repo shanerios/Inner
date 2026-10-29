@@ -1,0 +1,47 @@
+diff --git a/node_modules/react-native-spotlight-tour/dist/lib/components/attach-step/AttachStep.component.js b/node_modules/react-native-spotlight-tour/dist/lib/components/attach-step/AttachStep.component.js
+index 8615023..2ef8da6 100644
+--- a/node_modules/react-native-spotlight-tour/dist/lib/components/attach-step/AttachStep.component.js
++++ b/node_modules/react-native-spotlight-tour/dist/lib/components/attach-step/AttachStep.component.js
+@@ -1,6 +1,6 @@
+ import { jsx as _jsx } from "react/jsx-runtime";
+ import { cloneElement, useCallback, useContext, useEffect, useRef, } from "react";
+-import { View } from "react-native";
++import { Platform, StatusBar, View } from "react-native";
+ import { SpotlightTourContext } from "../../SpotlightTour.context";
+ /**
+  * React functional component used to attach and step to another component by
+@@ -16,7 +16,9 @@ export function AttachStep({ children, fill = false, index, style }) {
+         const indexes = typeof index === "number" ? [index] : index;
+         if (current !== undefined && indexes.includes(current)) {
+             ref.current?.measureInWindow((x, y, width, height) => {
+-                changeSpot({ height, width, x, y });
++                // Android edge-to-edge: measureInWindow omits the status bar height the overlay draws under.
++                const statusBarOffset = Platform.OS === "android" ? (StatusBar.currentHeight ?? 0) : 0;
++                changeSpot({ height, width, x, y: y + statusBarOffset });
+             });
+         }
+     }, [changeSpot, current, JSON.stringify(index)]);
+diff --git a/node_modules/react-native-spotlight-tour/src/lib/components/attach-step/AttachStep.component.tsx b/node_modules/react-native-spotlight-tour/src/lib/components/attach-step/AttachStep.component.tsx
+index 8b47644..77c82b7 100644
+--- a/node_modules/react-native-spotlight-tour/src/lib/components/attach-step/AttachStep.component.tsx
++++ b/node_modules/react-native-spotlight-tour/src/lib/components/attach-step/AttachStep.component.tsx
+@@ -8,7 +8,7 @@ import {
+   useEffect,
+   useRef,
+ } from "react";
+-import { type LayoutChangeEvent, type StyleProp, View, type ViewStyle } from "react-native";
++import { Platform, StatusBar, type LayoutChangeEvent, type StyleProp, View, type ViewStyle } from "react-native";
+ 
+ import { SpotlightTourContext } from "../../SpotlightTour.context";
+ 
+@@ -77,7 +77,9 @@ export function AttachStep({ children, fill = false, index, style }: AttachStepP
+ 
+     if (current !== undefined && indexes.includes(current)) {
+       ref.current?.measureInWindow((x, y, width, height) => {
+-        changeSpot({ height, width, x, y });
++        // Android edge-to-edge: measureInWindow omits the status bar height the overlay draws under.
++        const statusBarOffset = Platform.OS === "android" ? (StatusBar.currentHeight ?? 0) : 0;
++        changeSpot({ height, width, x, y: y + statusBarOffset });
+       });
+     }
+   }, [changeSpot, current, JSON.stringify(index)]);

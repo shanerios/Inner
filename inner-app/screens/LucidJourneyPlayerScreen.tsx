@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, AppState, PanResponder, Platform, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -36,8 +37,10 @@ import { INNER_LAB_BUILD } from '../core/innerLab';
 import { startBedsideMotionRecording } from '../core/bedsideMotionSensor';
 import { resolveVoiceClips } from '../core/audio/voiceClips';
 import { markRecurringSignalPracticeCompleted } from '../core/recurringDreamSignals';
+import { readPersonalizedJourneys } from '../core/audio/personalizedJourneyStore';
 import { openPaywall } from '../src/core/subscriptions/paywallController';
-import { checkStartAccess, playerStartFromRoute, type PlaybackStartKind } from '../src/core/subscriptions/playbackPolicy';
+import { checkStartAccess, type PlaybackStartKind } from '../src/core/subscriptions/playbackPolicy';
+import { resolvePlaybackStart } from '../src/core/subscriptions/playbackOrigin';
 
 const LUCIDITY_CUE_TRAINING_JOURNEY_ID = 'lucid-signal';
 /** How long a requested start may take before it is treated as stalled. */
@@ -217,9 +220,39 @@ export default function LucidJourneyPlayerScreen() {
     const start = async () => {
       try {
         // Access is resolved before any audio begins. Resumes never check membership.
-        const access = await checkStartAccess(
-          playerStartFromRoute({ resumeSessionId, nightPlanId, playbackKind }, journey.timeline),
+        const origin = await resolvePlaybackStart(
+          { resumeSessionId, nightPlanId, playbackKind },
+          journey,
+          {
+            loadSavedJourneys: () => readPersonalizedJourneys(),
+            loadSession: async id => {
+              try {
+                const memory = await loadJourneyMemory(AsyncStorage, true);
+                return { status: 'ok', value: memory.sessions.find(item => item.id === id) };
+              } catch {
+                return { status: 'unreadable' };
+              }
+            },
+          },
         );
+        if (!mounted) return;
+        if (origin.status === 'session_missing') {
+          setError('The paused journey is no longer available.');
+          return;
+        }
+        if (origin.status === 'unreadable') {
+          // A record could not be read, which says nothing about membership: offer retry, not the paywall.
+          Alert.alert(
+            origin.source === 'saved_journeys' ? 'Saved journeys unavailable' : 'Paused journey unavailable',
+            'Inner could not read this journey just now. Try again.',
+            [
+              { text: 'Try again', onPress: () => setAttempt(value => value + 1) },
+              { text: 'Back', style: 'cancel', onPress: () => { try { navigation.goBack(); } catch {} } },
+            ],
+          );
+          return;
+        }
+        const access = await checkStartAccess(origin.start);
         if (!mounted) return;
         if (!access.allowed) {
           if (access.reason === 'membership_required') {

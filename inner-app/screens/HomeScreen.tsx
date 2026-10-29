@@ -1,16 +1,17 @@
+import { getCustomerInfoReady } from '../utils/revenueCat';
 import { Asset } from 'expo-asset';
 import { useVideoPlayer, VideoView } from '../core/memorySafeVideo';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useMemo, useRef } from 'react';
 import { Alert, Animated, AppState, Easing, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Directions, Gesture, GestureDetector } from 'react-native-gesture-handler';
-import Purchases from 'react-native-purchases';
 import { safePresentPaywall } from '../src/core/subscriptions/safePresentPaywall';
 import { hasInnerAccess } from '../src/core/subscriptions/revenueCat';
 import { isAerisLimitReached } from '../src/core/aeris/aerisUsage';
 import FogPulse from '../components/FogPulse';
 import HomeAuraContinuity from '../components/HomeAuraContinuity';
 import SettingsModal from '../components/SettingsModal';
+import { trackOnboardingCompletedIfStarted } from '../core/onboardingAnalytics';
 import * as ThresholdEngine from '../src/core/thresholds/ThresholdEngine';
 
 import { useFocusEffect, useIsFocused } from '@react-navigation/native';
@@ -561,7 +562,7 @@ const ENTITLEMENT_ID = 'continuing_with_inner';
 const logEntitlementState = useCallback(
   async (tag: string) => {
     try {
-      const info = await Purchases.getCustomerInfo();
+      const info = await getCustomerInfoReady();
       const active = Object.keys(info?.entitlements?.active ?? {});
       const has = Boolean(info?.entitlements?.active?.[ENTITLEMENT_ID]);
 
@@ -585,7 +586,7 @@ const presentPaywall = React.useCallback(() => {
   safePresentPaywall(() => {
     // Runs only on successful purchase/restore
     __DEV__ && logEntitlementState('presentPaywall_success');
-  }, 'settings').finally(() => setPresentingPaywall(false));
+  }, 'settings', 'settings_menu').finally(() => setPresentingPaywall(false));
 }, [presentingPaywall, logEntitlementState]);
 
 // Paywall from Settings: close Settings first, present paywall AFTER Modal fully dismisses.
@@ -615,6 +616,9 @@ const handleSettingsModalDismissed = useCallback(async () => {
     await presentPaywall();
   }
 }, [presentPaywall]);
+
+  // First arrival on Home after onboarding on this install (no-op for everyone else)
+  React.useEffect(() => { void trackOnboardingCompletedIfStarted(); }, []);
 
   // Load Ember state once when Home mounts
   React.useEffect(() => {
@@ -1313,8 +1317,8 @@ const loop = Animated.loop(
       'You wake inside the dream, and the veil grows thin.',
     ],
     clarity: [
-      'Your inner sky clears—truth shines without distortion.',
-      'Every breath opens space for clear vision.',
+      'Your attention gathers to a single point.',
+      'The mind grows still, sharp, and clear.',
     ],
     grounding: [
       'Your roots sink deep into the eternal earth.',
@@ -1325,8 +1329,8 @@ const loop = Animated.loop(
       'Gentle currents wash away what no longer serves you.',
     ],
     reawakening: [
-      'The flame within rises again, radiant and unafraid.',
-      'You remember yourself beyond the noise of the world.',
+      'You are more than the body that rests.',
+      'Awareness slips free, steady and unafraid.',
     ],
     expansion: [
       'The horizon opens—your spirit moves without limit.',
@@ -3373,7 +3377,7 @@ const openInnerFlame = useCallback(async () => {
                 if (!hasAccess && limitReached) {
                   safePresentPaywall(() => {
                     try { navigation.navigate('Aeris'); } catch {}
-                  }, 'aeris');
+                  }, 'aeris', 'aeris_limit_home');
                   return;
                 }
                 try { navigation.navigate('Aeris'); } catch {}

@@ -28,7 +28,7 @@ type NativeInnerAudio = {
   getEngineDebugState?(): NativeEngineDebugState;
   setRecognitionSignal(signalId: string | null, uri: string | null, gain: number): Promise<void>;
   setVoiceClips?(clips: Array<{ id: string; uri: string; gain: number }>): Promise<void>;
-  triggerCue(): Promise<void>;
+  triggerCue(fadeInMs?: number): Promise<void>;
   setCheckpointSessionId?(sessionId: string | null): Promise<void>;
   getCheckpoint?(): NativeCheckpoint | null;
   getCheckpoints?(): NativeCheckpoint[];
@@ -120,8 +120,10 @@ class NativeProceduralAudioEngine implements InnerAudioEngine {
     await this.getNativeModule().setVoiceClips?.(clips);
   }
 
-  async triggerCue() {
-    await this.getNativeModule().triggerCue();
+  async triggerCue(fadeInMs?: number) {
+    // Only a requested fade crosses the bridge, so every other caller makes the same call as before.
+    if (fadeInMs && fadeInMs > 0) await this.getNativeModule().triggerCue(fadeInMs);
+    else await this.getNativeModule().triggerCue();
   }
 
   async setCheckpointSessionId(sessionId: string | null) {

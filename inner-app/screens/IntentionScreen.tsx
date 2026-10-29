@@ -14,7 +14,10 @@ import { useVideoPlayer, VideoView } from '../core/memorySafeVideo';
 import { useIntention } from '../core/IntentionProvider';
 import { Typography, Body as _Body } from '../core/typography';
 import * as Haptics from 'expo-haptics';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import { usePostHog } from 'posthog-react-native';
+import { syncPrimaryGoalFromIntentions } from '../core/onboardingPrefs';
 import { Asset } from 'expo-asset';
 import { getNudge } from '../src/core/language/nudgeLibrary';
 import { getIntentions, getIntentionSetAt, getLastNudgeShownAt, setLastNudgeShownAt, touchIntentionSetAt } from '../core/session';
@@ -28,11 +31,12 @@ const Body = _Body ?? ({
 } as const);
 
 const intentions = [
+  // 'clarity' and 'reawakening' are stored keys presented as Focus and OBE.
   { id: 'lucidity',     title: 'Lucidity',     description: 'Enter the aware dream' },
-  { id: 'clarity',      title: 'Clarity',      description: 'Part the haze, let vision sharpen' },
+  { id: 'reawakening',  title: 'OBE',          description: 'Explore beyond the physical' },
+  { id: 'clarity',      title: 'Focus',        description: 'Sharpen the waking mind' },
   { id: 'grounding',    title: 'Grounding',    description: 'Root deep into the present' },
   { id: 'healing',      title: 'Healing',      description: 'Mend the unseen, restore balance' },
-  { id: 'reawakening',  title: 'Reawakening',  description: 'Stir the dormant self into light' },
   { id: 'expansion',    title: 'Expansion',    description: 'Open wide to growth and possibility' },
 ];
 
@@ -62,8 +66,14 @@ export default function IntentionScreen() {
   const insets = useSafeAreaInsets();
 
   const route = useRoute<any>();
+  const posthog = usePostHog();
   const fromSettings = route?.params?.fromSettings === true;
   const returnTo = route?.params?.returnTo as 'Home' | undefined;
+  const analyticsSource = fromSettings ? 'retune' : 'onboarding';
+
+  useEffect(() => {
+    posthog.capture('intention_screen_viewed', { source: analyticsSource });
+  }, []);
 
   const [retuneNudge, setRetuneNudge] = useState<string | null>(null);
 
@@ -375,7 +385,25 @@ export default function IntentionScreen() {
     savedIntentionsSnapshot.every((id) => selectedIntentions.includes(id));
 
   const handleContinue = async () => {
+    // Count only — which intentions were chosen is user intent and stays out of analytics (CLAUDE.md).
+    posthog.capture('intentions_selected', {
+      source: analyticsSource,
+      count: selectedIntentions.length,
+      unchanged: isUnchangedFromSaved,
+    });
     await setIntentions(selectedIntentions);
+    await syncPrimaryGoalFromIntentions(selectedIntentions);
+    if (!fromSettings) {
+      // First run: this screen is the onboarding question. Mark onboarding
+      // complete so Splash routes returning users to Home.
+      try {
+        await AsyncStorage.multiSet([
+          ['inner.onboarding.complete.v1', 'true'],
+          ['inner.onboarding.completed.v1', 'true'],
+        ]);
+      } catch {}
+      posthog.capture('onboarding_value_capture_completed');
+    }
     const tunedAt = Date.now();
     await recordPracticeActivity({
       id: createPracticeActivityId('tuning', tunedAt),
@@ -387,13 +415,16 @@ export default function IntentionScreen() {
     });
 
     // Returning users re-tuning a stale intention (see SplashScreen) land back
-    // on Home instead of re-entering the first-run Essence/paywall chain.
+    // on Home; first-run users also skip Essence and the paywall.
     if (returnTo === 'Home') {
       // setIntentions() only bumps the "set at" timestamp when the selection
       // actually changes — a plain "Keep" needs to restart the 48h clock too.
       await touchIntentionSetAt();
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      (navigation as any).reset({ index: 0, routes: [{ name: 'Home' }] });
+      (navigation as any).reset({
+        index: 0,
+        routes: [{ name: 'Home', params: fromSettings ? undefined : { fogStart: true } }],
+      });
       return;
     }
 

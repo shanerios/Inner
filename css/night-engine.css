@@ -694,6 +694,13 @@
   text-align: left;
 }
 
+/* The silent alternative, one quieter line beneath the lead */
+.ne-overnight-lead.ne-overnight-alt {
+  margin-top: 18px;
+  font-size: 0.98rem;
+  color: rgba(226, 222, 244, 0.7);
+}
+
 .ne-overnight-portal {
   justify-self: center;
   width: 100%;

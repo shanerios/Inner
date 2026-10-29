@@ -12,6 +12,8 @@ import { PRACTICE_EXPERIMENTS_KEY } from './practiceExperiments';
 import { NIGHT_PLANS_KEY } from './nightPlans';
 
 const JOURNAL_INDEX_KEY = 'journal:index';
+const JOURNAL_INDEX_BACKUP_KEY = 'journal:index:backup';
+const JOURNAL_MIGRATION_KEY = 'journal:migration:baseline.v1';
 const JOURNAL_ENTRY_KEY = (id: string) => `journal:${id}`;
 
 export async function clearPrivateUserData(): Promise<void> {
@@ -25,6 +27,8 @@ export async function clearPrivateUserData(): Promise<void> {
   await Promise.all(ids.map(id => secureRemoveItem(JOURNAL_ENTRY_KEY(id))));
   await Promise.all([
     AsyncStorage.removeItem(JOURNAL_INDEX_KEY),
+    AsyncStorage.removeItem(JOURNAL_INDEX_BACKUP_KEY),
+    AsyncStorage.removeItem(JOURNAL_MIGRATION_KEY),
     secureRemoveItem('aerisHistory'),
     AsyncStorage.removeItem('aerisHistoryDate'),
     AsyncStorage.removeItem('aerisJustClosed'),
