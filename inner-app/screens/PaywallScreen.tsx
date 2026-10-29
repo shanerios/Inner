@@ -562,14 +562,18 @@ const styles = StyleSheet.create({
     letterSpacing: -0.3,
   },
   headlineSubtle: {
-    fontSize: 18,
-    fontWeight: '400',
-    color: 'rgba(255,255,255,0.8)',
+    fontSize: 36,
+    lineHeight: 38,
+    fontWeight: '600',
+    color: '#ffffff',
+    includeFontPadding: false,
   },
   headlineLarge: {
     fontSize: 46,
+    lineHeight: 48,
     fontWeight: '700',
     color: '#ffffff',
+    includeFontPadding: false,
   },
   subtext: {
     fontSize: 10,
