@@ -1,4 +1,4 @@
-# Website copy — Free and Full Experience (DRAFT, DO NOT PUBLISH)
+# Website copy — Free and Inner: Deeper (DRAFT, DO NOT PUBLISH)
 
 Status: draft only. Do not copy into the website root (`index.html`, `download.html`, `privacy.html`, `sitemap.xml`) or deploy until the matching app release is live in the App Store and Google Play. Prices, trial terms, and store offerings are unverified and must not be added here until confirmed in RevenueCat and the stores.
 
@@ -13,19 +13,19 @@ Each claim below matches shipped app behavior in this release. Remove any line t
 - Dream Log, including Morning Return and basic reflection.
 - Essential playback and comfort controls.
 - Live Mix and the chamber mixer, with Ocean, Forest, and Quiet unrestricted.
-- A 5-minute shared preview of Temple, Abyssal Glass, Cosmic, and Fire in Live Mix and the chamber mixer. Full Experience removes the limit.
+- A 5-minute shared preview of Temple, Abyssal Glass, Cosmic, and Fire in Live Mix and the chamber mixer. Inner: Deeper removes the limit.
 
-## Full Experience
+## Inner: Deeper
 
 - Temple, Abyssal Glass, Cosmic, and Fire as additional Overnight environments.
 - Temple comparison nights in Practice Memory.
 - Building and saving your own Lucid Journeys in the Journey Creator.
 
-Full Experience adds Overnight environments and removes the 5-minute preview limit in the mixers.
+Inner: Deeper adds Overnight environments and removes the 5-minute preview limit in the mixers.
 
 ## Keeping what you made
 
-- Saved journeys stay playable if Full Experience ends.
+- Saved journeys stay playable if Inner: Deeper ends.
 - Deleting a saved journey is always free.
 - Your Dream Log is never locked.
 
