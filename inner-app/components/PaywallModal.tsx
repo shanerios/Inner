@@ -364,7 +364,7 @@ export default function PaywallModal({
             bounces={false}
           >
             {/* ── Header ── */}
-            <Text style={styles.title}>Continuing with Inner</Text>
+            <Text style={styles.title}>Inner: Deeper</Text>
             <Text style={styles.subtitle}>
               A gentle continuation into deeper categories, deeper Chambers, and a deeper experience.
             </Text>
@@ -460,7 +460,7 @@ export default function PaywallModal({
 
             {/* ── Legal ── */}
             <Text style={styles.legalText}>
-              Continuing with Inner is an auto-renewable subscription. Subscriptions will renew until canceled. Cancel anytime.
+              Inner: Deeper is an auto-renewable subscription. Subscriptions will renew until canceled. Cancel anytime.
             </Text>
 
             {/* ── Error ── */}
