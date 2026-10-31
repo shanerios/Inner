@@ -47,6 +47,18 @@ import LunarWhisperModal from '../src/lunar/LunarWhisperModal';
 import ReviewPromptModal from '../components/ReviewPromptModal';
 import MorningReturnCard from '../components/MorningReturnCard';
 import TonightRecommendationCard from '../components/TonightRecommendationCard';
+import InductionCard from '../components/InductionCard';
+import { INDUCTION_JOURNEY } from '../core/audio/inductionJourney';
+import {
+  advanceInductionStatus,
+  EMPTY_INDUCTION_STATE,
+  getInductionState,
+  inductionHoldsTour,
+  inductionOffer,
+  recordInductionEntry,
+  type InductionState,
+} from '../core/inductionState';
+import { trackInductionDismissed, trackInductionOffered } from '../core/inductionAnalytics';
 import ActiveExperimentHomeCard from '../components/ActiveExperimentHomeCard';
 import { useMorningReturnContinuation } from '../components/MorningReturnContext';
 import { deriveTonightRecommendation, type TonightRecommendation } from '../core/tonightRecommendation';
@@ -930,14 +942,42 @@ const loop = Animated.loop(
     setTourRunning(true);
   }, []);
 
-  // Show tour on first launch, but only after the daily check-in has cleared
+  // --- The Induction: offered on Home, ahead of the tour ---
+  // Someone new is offered it first and the tour waits for their answer; someone returning gets a quiet card, once.
+  const [inductionState, setInductionState] = React.useState<InductionState>(EMPTY_INDUCTION_STATE);
+  const [inductionLoaded, setInductionLoaded] = React.useState(false);
+  useFocusEffect(useCallback(() => {
+    let active = true;
+    (async () => {
+      const state = await getInductionState();
+      if (!active) return;
+      setInductionState(state);
+      setInductionLoaded(true);
+    })();
+    return () => { active = false; };
+  }, []));
+  const inductionVisibleOffer = inductionLoaded && !homeWalkthroughLoading
+    ? inductionOffer(inductionState, shouldShowHomeHelper)
+    : 'none';
+  // Until the Induction's state is known the tour cannot start, so it never races ahead of the offer.
+  const inductionHoldsTheTour = !inductionLoaded || inductionHoldsTour(inductionState, shouldShowHomeHelper);
+  const inductionOfferTrackedRef = React.useRef(false);
   useEffect(() => {
-    if (homeWalkthroughLoading || !dailyChecked) return;
+    if (inductionVisibleOffer === 'none' || inductionOfferTrackedRef.current) return;
+    inductionOfferTrackedRef.current = true;
+    const entry = inductionState.entry ?? (inductionVisibleOffer === 'prominent' ? 'new' : 'returning');
+    trackInductionOffered(entry);
+    void recordInductionEntry(entry).then(setInductionState);
+  }, [inductionVisibleOffer, inductionState.entry]);
+
+  // Show tour on first launch, but only after the daily check-in has cleared and the Induction has been answered
+  useEffect(() => {
+    if (homeWalkthroughLoading || !dailyChecked || inductionHoldsTheTour) return;
     if (shouldShowHomeHelper) {
       const t = setTimeout(startTour, 900);
       return () => clearTimeout(t);
     }
-  }, [homeWalkthroughLoading, shouldShowHomeHelper, dailyChecked, startTour]);
+  }, [homeWalkthroughLoading, shouldShowHomeHelper, dailyChecked, inductionHoldsTheTour, startTour]);
 
   // --- Navigation helpers ---
   const goToChambers = useCallback(async () => {
@@ -1277,6 +1317,24 @@ const loop = Animated.loop(
       setTimeout(() => { startingRef.current = false; }, 1000);
     }
   }, [adaptiveNightProposal, navigation, tonightRecommendation]);
+
+  // Begins The Induction only because the person chose to; nothing here starts audio by itself.
+  const handleBeginInduction = useCallback(async () => {
+    if (tourRunning || startingRef.current) return;
+    startingRef.current = true;
+    try { await Haptics.selectionAsync(); } catch {}
+    try {
+      navigation.navigate('LucidJourneyPlayer', { journey: INDUCTION_JOURNEY, playbackKind: 'factory' });
+    } finally {
+      setTimeout(() => { startingRef.current = false; }, 1000);
+    }
+  }, [navigation, tourRunning]);
+
+  const handleDismissInduction = useCallback(async () => {
+    try { await Haptics.selectionAsync(); } catch {}
+    trackInductionDismissed(inductionState.entry ?? (inductionVisibleOffer === 'prominent' ? 'new' : 'returning'));
+    setInductionState(await advanceInductionStatus('dismissed'));
+  }, [inductionState.entry, inductionVisibleOffer]);
 
   const handlePracticeExperiment = useCallback(async () => {
     if (!practiceExperiment || !experimentView?.nextCondition || startingRef.current) return;
@@ -2945,8 +3003,28 @@ const openInnerFlame = useCallback(async () => {
         />
       </Animated.View>
 
-      {/* Morning Return, active experiment, or evidence-based recommendation */}
-      {morningReturnContinuation.visible ? (
+      {/* The Induction (a new visitor's first offer), Morning Return, active experiment, recommendation, or a quiet Induction */}
+      {inductionVisibleOffer === 'prominent' ? (
+        <View
+          pointerEvents="box-none"
+          style={{
+            position: 'absolute',
+            top: insets.top + verticalScale(16),
+            left: 0,
+            right: 0,
+            zIndex: 80,
+            elevation: 80,
+          }}
+        >
+          <View style={{ alignSelf: 'center', width: '82%', maxWidth: scale(400), paddingHorizontal: scale(6) }}>
+            <InductionCard
+              variant="prominent"
+              onBegin={() => { void handleBeginInduction(); }}
+              onDismiss={() => { void handleDismissInduction(); }}
+            />
+          </View>
+        </View>
+      ) : morningReturnContinuation.visible ? (
         <View
           pointerEvents="box-none"
           style={{
@@ -3010,6 +3088,26 @@ const openInnerFlame = useCallback(async () => {
               recommendation={tonightRecommendation}
               onOpen={() => { void handleTonightRecommendation(); }}
               onDismiss={() => { void handleDismissRecommendation(); }}
+            />
+          </View>
+        </View>
+      ) : inductionVisibleOffer === 'quiet' ? (
+        <View
+          pointerEvents="box-none"
+          style={{
+            position: 'absolute',
+            top: insets.top + verticalScale(16),
+            left: 0,
+            right: 0,
+            zIndex: 80,
+            elevation: 80,
+          }}
+        >
+          <View style={{ alignSelf: 'center', width: '78%', maxWidth: scale(380), paddingHorizontal: scale(6) }}>
+            <InductionCard
+              variant="quiet"
+              onBegin={() => { void handleBeginInduction(); }}
+              onDismiss={() => { void handleDismissInduction(); }}
             />
           </View>
         </View>
