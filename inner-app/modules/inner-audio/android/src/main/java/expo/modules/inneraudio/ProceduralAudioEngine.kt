@@ -366,7 +366,9 @@ object ProceduralAudioEngine {
   private var forestBirdAmp = 0.0
   private var forestBirdPan = 0.0
   private var templeSpaceEnvelope = 0.0
+  private var sanctumEnvelope = 0.0
   private val aumChant = AumChant()
+  private val sanctumChorus = SanctumChorus()
   private var templeSpaceRandom = XORSHIFT_SEED xor 0x6a09e667L
   private var templeSpaceAirLeft = 0.0
   private var templeSpaceAirRight = 0.0
@@ -792,6 +794,8 @@ object ProceduralAudioEngine {
     cricketModel.reset(XORSHIFT_SEED, sampleRate)
     templeSpaceEnvelope = 0.0
     aumChant.reset(XORSHIFT_SEED)
+    sanctumChorus.reset(XORSHIFT_SEED)
+    sanctumEnvelope = 0.0
     templeSpaceRandom = XORSHIFT_SEED xor 0x6a09e667L
     templeSpaceAirLeft = 0.0
     templeSpaceAirRight = 0.0
@@ -901,6 +905,7 @@ object ProceduralAudioEngine {
       cricketModel.reset(activeTimeline.seed, sampleRate)
       templeSpaceRandom = activeTimeline.seed xor 0x6a09e667L
       aumChant.reset(activeTimeline.seed)
+      sanctumChorus.reset(activeTimeline.seed)
       templeSpaceAirLeft = 0.0
       templeSpaceAirRight = 0.0
       templeSpaceBreathLowLeft = 0.0
@@ -1071,6 +1076,8 @@ object ProceduralAudioEngine {
       val templeSpaceTarget = if ((target.environment == "temple" || target.environment == "sanctum") && target.environmentGain > 0.0001) 1.0 else 0.0
       val templeSpaceStep = 1 / max(1.0, sampleRate * 4.5)
       templeSpaceEnvelope += clamp(templeSpaceTarget - templeSpaceEnvelope, -templeSpaceStep, templeSpaceStep)
+      val sanctumTarget = if (target.environment == "sanctum" && target.environmentGain > 0.0001) 1.0 else 0.0
+      sanctumEnvelope += clamp(sanctumTarget - sanctumEnvelope, -templeSpaceStep, templeSpaceStep)
       // Temple is its own independent layer (like tone/binaural/noise), not tied
       // to the mutually-exclusive environment selector.
       val templeTarget = if (target.templeGain > 0.0001) 1.0 else 0.0
@@ -1817,6 +1824,18 @@ object ProceduralAudioEngine {
     // The chant (three imperfect virtual voices, once every 31 s, each appearance its own gesture) lives in
     // AumChant. The room places its dry voice and echo, and sends a far-off chant to the reverb alone.
     aumChant.render(sampleRate, elapsedSeconds, intensity, presence, density, variety)
+    // In the Sanctum the sustained chorus takes the Aum's place, and the two cross-fade with the world.
+    val sanctum = sanctumEnvelope
+    val chantScale = 1.0 - sanctum
+    var chorusLeft = 0.0
+    var chorusRight = 0.0
+    var chorusFarWet = 0.0
+    if (sanctum > 0.0001) {
+      sanctumChorus.render(sampleRate, elapsedSeconds, intensity, presence)
+      chorusLeft = sanctumChorus.voiceLeft * sanctum
+      chorusRight = sanctumChorus.voiceRight * sanctum
+      chorusFarWet = sanctumChorus.farWet * sanctum
+    }
     val drop = nextTempleSpaceDrop(intensity, worldSalience)
     val dropEchoSize = templeSpaceDropEcho.size
     val dropEchoLeftA = templeSpaceDropEcho[(templeSpaceDropEchoIndex - (sampleRate * 0.27).toInt().coerceIn(1, dropEchoSize - 1) + dropEchoSize) % dropEchoSize]
@@ -1831,8 +1850,8 @@ object ProceduralAudioEngine {
     // The room reflects everything in the space at full strength except the footsteps, which send in at
     // TEMPLE_FOOTSTEPS_ROOM_SEND: enough reflection to place the distant walker in the stone space without
     // giving the short scuffs the chant's full, lingering tail.
-    val otherLeft = body + templeSpaceAirLeft * (0.22 + intensity * 0.12) + breathLeft * 0.7 + aumChant.voiceLeft + aumChant.echoLeft + drop.first + dropEchoLeft + templeAccents.left
-    val otherRight = body + templeSpaceAirRight * (0.22 + intensity * 0.12) + breathRight * 0.7 + aumChant.voiceRight + aumChant.echoRight + drop.second + dropEchoRight + templeAccents.right
+    val otherLeft = body + templeSpaceAirLeft * (0.22 + intensity * 0.12) + breathLeft * 0.7 + (aumChant.voiceLeft + aumChant.echoLeft) * chantScale + chorusLeft + drop.first + dropEchoLeft + templeAccents.left
+    val otherRight = body + templeSpaceAirRight * (0.22 + intensity * 0.12) + breathRight * 0.7 + (aumChant.voiceRight + aumChant.echoRight) * chantScale + chorusRight + drop.second + dropEchoRight + templeAccents.right
     val dryLeft = otherLeft + templeFootsteps.left
     val dryRight = otherRight + templeFootsteps.right
     val size = templeSpaceDelay.size
@@ -1843,7 +1862,7 @@ object ProceduralAudioEngine {
     val wetLeft = tap71 * 0.58 + tap137 * 0.34
     val wetRight = tap89 * 0.56 + tap113 * 0.36
     val footstepsRoomFeed = (templeFootsteps.left + templeFootsteps.right) * TEMPLE_FOOTSTEPS_ROOM_SEND
-    templeSpaceDelay[templeSpaceDelayIndex] = (otherLeft + otherRight) * 0.5 + footstepsRoomFeed * 0.5 + (wetLeft + wetRight) * 0.45 + aumChant.farWet
+    templeSpaceDelay[templeSpaceDelayIndex] = (otherLeft + otherRight) * 0.5 + footstepsRoomFeed * 0.5 + (wetLeft + wetRight) * 0.45 + aumChant.farWet * chantScale + chorusFarWet
     templeSpaceDelayIndex = (templeSpaceDelayIndex + 1) % size
     return templeSpaceSample.set(dryLeft * 0.42 + wetLeft * 0.62, dryRight * 0.42 + wetRight * 0.62)
   }

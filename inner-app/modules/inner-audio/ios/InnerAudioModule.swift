@@ -351,7 +351,9 @@ final class ProceduralAudioEngine: NSObject {
   private var forestBirdAmp = 0.0
   private var forestBirdPan = 0.0
   private var templeSpaceEnvelope = 0.0
+  private var sanctumEnvelope = 0.0
   private let aumChant = AumChant()
+  private let sanctumChorus = SanctumChorus()
   private var templeSpaceRandom: UInt64 = 0x9e3779b97f4a7c15 ^ 0x6a09e667
   private var templeSpaceAirLeft = 0.0
   private var templeSpaceAirRight = 0.0
@@ -854,6 +856,8 @@ final class ProceduralAudioEngine: NSObject {
     templeSpaceBreathMidLeft = 0
     templeSpaceBreathMidRight = 0
     aumChant.reset(seed: 0x9e3779b97f4a7c15)
+    sanctumChorus.reset(seed: 0x9e3779b97f4a7c15)
+    sanctumEnvelope = 0
     templeSpacePhases = [Double](repeating: 0, count: 3)
     templeSpaceDropFramesRemaining = 0
     templeSpaceDropAgeFrames = 0
@@ -1224,6 +1228,7 @@ final class ProceduralAudioEngine: NSObject {
       templeSpaceBreathMidLeft = 0
       templeSpaceBreathMidRight = 0
       aumChant.reset(seed: activeTimeline.seed)
+      sanctumChorus.reset(seed: activeTimeline.seed)
       templeSpacePhases = [Double](repeating: 0, count: 3)
       templeSpaceDropFramesRemaining = 0
       templeSpaceDropAgeFrames = 0
@@ -1400,6 +1405,8 @@ final class ProceduralAudioEngine: NSObject {
       let templeSpaceTarget = (target.environment == "temple" || target.environment == "sanctum") && target.environmentGain > 0.0001 ? 1.0 : 0.0
       let templeSpaceStep = 1 / max(1, sampleRate * 4.5)
       templeSpaceEnvelope += clamp(templeSpaceTarget - templeSpaceEnvelope, -templeSpaceStep, templeSpaceStep)
+      let sanctumTarget = target.environment == "sanctum" && target.environmentGain > 0.0001 ? 1.0 : 0.0
+      sanctumEnvelope += clamp(sanctumTarget - sanctumEnvelope, -templeSpaceStep, templeSpaceStep)
       // Temple is its own independent layer (like tone/binaural/noise), not tied
       // to the mutually-exclusive environment selector.
       let templeTarget = target.templeGain > 0.0001 ? 1.0 : 0.0
@@ -2153,6 +2160,18 @@ final class ProceduralAudioEngine: NSObject {
     // The chant (three imperfect virtual voices, once every 31 s, each appearance its own gesture) lives in
     // AumChant. The room places its dry voice and echo, and sends a far-off chant to the reverb alone.
     aumChant.render(sampleRate: sampleRate, elapsedSeconds: elapsedSeconds, intensity: intensity, presence: presence, density: density, variety: variety)
+    // In the Sanctum the sustained chorus takes the Aum's place, and the two cross-fade with the world.
+    let sanctum = sanctumEnvelope
+    let chantScale = 1.0 - sanctum
+    var chorusLeft = 0.0
+    var chorusRight = 0.0
+    var chorusFarWet = 0.0
+    if sanctum > 0.0001 {
+      sanctumChorus.render(sampleRate: sampleRate, elapsedSeconds: elapsedSeconds, intensity: intensity, presence: presence)
+      chorusLeft = sanctumChorus.voiceLeft * sanctum
+      chorusRight = sanctumChorus.voiceRight * sanctum
+      chorusFarWet = sanctumChorus.farWet * sanctum
+    }
     let drop = nextTempleSpaceDrop(intensity: intensity, salience: worldSalience)
     let dropEchoSize = templeSpaceDropEcho.count
     let dropEchoLeftA = templeSpaceDropEcho[(templeSpaceDropEchoIndex - min(dropEchoSize - 1, max(1, Int(sampleRate * 0.27))) + dropEchoSize) % dropEchoSize]
@@ -2167,8 +2186,8 @@ final class ProceduralAudioEngine: NSObject {
     // The room reflects everything in the space at full strength except the footsteps, which send in at
     // templeFootstepsRoomSend: enough reflection to place the distant walker in the stone space without
     // giving the short scuffs the chant's full, lingering tail.
-    let otherLeft = body + templeSpaceAirLeft * (0.22 + intensity * 0.12) + breathLeft * 0.7 + aumChant.voiceLeft + aumChant.echoLeft + drop.left + dropEchoLeft + templeAccents.left
-    let otherRight = body + templeSpaceAirRight * (0.22 + intensity * 0.12) + breathRight * 0.7 + aumChant.voiceRight + aumChant.echoRight + drop.right + dropEchoRight + templeAccents.right
+    let otherLeft = body + templeSpaceAirLeft * (0.22 + intensity * 0.12) + breathLeft * 0.7 + (aumChant.voiceLeft + aumChant.echoLeft) * chantScale + chorusLeft + drop.left + dropEchoLeft + templeAccents.left
+    let otherRight = body + templeSpaceAirRight * (0.22 + intensity * 0.12) + breathRight * 0.7 + (aumChant.voiceRight + aumChant.echoRight) * chantScale + chorusRight + drop.right + dropEchoRight + templeAccents.right
     let dryLeft = otherLeft + templeFootsteps.left
     let dryRight = otherRight + templeFootsteps.right
     let size = templeSpaceDelay.count
@@ -2179,7 +2198,7 @@ final class ProceduralAudioEngine: NSObject {
     let wetLeft = tap71 * 0.58 + tap137 * 0.34
     let wetRight = tap89 * 0.56 + tap113 * 0.36
     let footstepsRoomFeed = (templeFootsteps.left + templeFootsteps.right) * Self.templeFootstepsRoomSend
-    templeSpaceDelay[templeSpaceDelayIndex] = (otherLeft + otherRight) * 0.5 + footstepsRoomFeed * 0.5 + (wetLeft + wetRight) * 0.45 + aumChant.farWet
+    templeSpaceDelay[templeSpaceDelayIndex] = (otherLeft + otherRight) * 0.5 + footstepsRoomFeed * 0.5 + (wetLeft + wetRight) * 0.45 + aumChant.farWet * chantScale + chorusFarWet
     templeSpaceDelayIndex = (templeSpaceDelayIndex + 1) % size
     return (dryLeft * 0.42 + wetLeft * 0.62, dryRight * 0.42 + wetRight * 0.62)
   }
@@ -5437,6 +5456,133 @@ final class AumChant {
     echoLeft = echoOutLeft
     echoRight = echoOutRight
     farWet = farSend > 0 ? (left + right) * 0.5 * chantLevel * farSend : 0
+  }
+
+  /// Topology-preserving state-variable bandpass; stable while formants move.
+  private func bandpass(_ sampleRate: Double, _ input: Double, index: Int, frequency: Double, q: Double) -> Double {
+    let g = tan(Double.pi * frequency / sampleRate)
+    let k = 1 / q
+    let v1 = (formantIc1[index] + g * (input - formantIc2[index])) / (1 + g * (g + k))
+    let v2 = formantIc2[index] + g * v1
+    formantIc1[index] = 2 * v1 - formantIc1[index]
+    formantIc2[index] = 2 * v2 - formantIc2[index]
+    return v1
+  }
+}
+
+/// The Sanctum's chorus: six imperfect virtual voices holding an open "O" on an A, an open fifth with its
+/// octaves, each doubled a little out of tune. It never closes to a hum and has no gaps; its level is the
+/// identity presence, so a journey's stages shape its arc, and it blooms in over a few seconds. It carries its
+/// own long tail (four combs a side), which is what makes the hall feel enormous. The Kotlin engine mirrors this.
+///
+/// It replaces the Temple's periodic Aum while the Sanctum is sounding; the Temple world never uses it.
+final class SanctumChorus {
+  /// Hz: an open fifth on A with its octaves, the two middle voices doubled slightly out of tune.
+  private static let freqs = [55.0, 109.4, 110.6, 164.81, 219.1, 221.0]
+  private static let weights = [0.30, 0.24, 0.24, 0.14, 0.10, 0.08]
+  /// From the left ear (-1) to the right (1).
+  private static let pans = [0.0, -0.55, 0.55, 0.3, -0.7, 0.7]
+  private static let voices = 6
+  /// Seconds the chorus takes to reach a new level, so it blooms and is never switched on.
+  private static let bloomSeconds = 6.0
+  private static let combSecondsLeft = [0.1871, 0.2297, 0.2753, 0.3331]
+  private static let combSecondsRight = [0.1993, 0.2411, 0.2879, 0.3469]
+  /// About seven seconds to fade 60 dB.
+  private static let combFeedback = 0.78
+  private static let combDamping = 0.35
+  private static let combCapacity = 24_000
+  private static let dryMix = 0.55
+  private static let wetMix = 0.9
+  /// Share of the chorus that also goes to the Temple hall's own reflections.
+  private static let hallSend = 0.25
+
+  /// The chorus for this sample, already scaled by its level and placed in the stereo field.
+  private(set) var voiceLeft = 0.0
+  private(set) var voiceRight = 0.0
+  /// Level sent to the hall's reflections as well.
+  private(set) var farWet = 0.0
+
+  private let panLeft = SanctumChorus.pans.map { cos(($0 + 1.0) * Double.pi / 4.0) * 1.4142135623730951 }
+  private let panRight = SanctumChorus.pans.map { sin(($0 + 1.0) * Double.pi / 4.0) * 1.4142135623730951 }
+  private var phases = [Double](repeating: 0, count: 6)
+  private var offsets = [Double](repeating: 0, count: 6)
+  private var formantIc1 = [Double](repeating: 0, count: 4)
+  private var formantIc2 = [Double](repeating: 0, count: 4)
+  private var level = 0.0
+  private var combLeft = [[Double]](repeating: [Double](repeating: 0, count: SanctumChorus.combCapacity), count: 4)
+  private var combRight = [[Double]](repeating: [Double](repeating: 0, count: SanctumChorus.combCapacity), count: 4)
+  private var dampLeft = [Double](repeating: 0, count: 4)
+  private var dampRight = [Double](repeating: 0, count: 4)
+  private var combIndex = 0
+
+  /// Starts a night: clears every voice and tail, and sets the phases the voices begin from.
+  func reset(seed nightSeed: UInt64) {
+    let tau = Double.pi * 2
+    for index in 0..<Self.voices {
+      offsets[index] = Double((nightSeed >> UInt64(index * 8)) & 0xFF) / 256.0 * tau
+      phases[index] = offsets[index]
+    }
+    formantIc1 = [Double](repeating: 0, count: 4)
+    formantIc2 = [Double](repeating: 0, count: 4)
+    level = 0
+    for comb in 0..<4 {
+      for i in 0..<Self.combCapacity { combLeft[comb][i] = 0; combRight[comb][i] = 0 }
+    }
+    dampLeft = [Double](repeating: 0, count: 4)
+    dampRight = [Double](repeating: 0, count: 4)
+    combIndex = 0
+    voiceLeft = 0; voiceRight = 0; farWet = 0
+  }
+
+  private func clamp(_ value: Double, _ low: Double, _ high: Double) -> Double { min(high, max(low, value)) }
+
+  func render(sampleRate: Double, elapsedSeconds: Double, intensity: Double, presence: Double) {
+    let tau = Double.pi * 2
+    let target = clamp(presence, 0, 12) * (0.27 + intensity * 0.18)
+    level += (target - level) / max(1.0, sampleRate * Self.bloomSeconds)
+    // Two slow, unrelated swells: the hall breathes in and out without a cycle you can count.
+    let swell = 0.62 + 0.2 * sin(elapsedSeconds * tau / 19.0 + offsets[0]) + 0.18 * sin(elapsedSeconds * tau / 27.0 + offsets[1])
+    let formant1 = 480.0 * (1.0 + 0.06 * sin(elapsedSeconds * tau * 0.021 + offsets[2]))
+    let formant2 = 830.0 * (1.0 + 0.06 * sin(elapsedSeconds * tau * 0.017 + offsets[3]))
+    var sourceLeft = 0.0
+    var sourceRight = 0.0
+    var body = 0.0
+    for index in 0..<Self.voices {
+      let phase = phases[index]
+      // A compact band-limited glottal source, softer than the Aum's so the "O" stays round.
+      let glottal = sin(phase) + sin(phase * 2) * 0.55 + sin(phase * 3) * 0.28 + sin(phase * 4) * 0.12
+      let shimmer = 0.94 + 0.06 * sin(elapsedSeconds * tau * (0.11 + Double(index) * 0.037) + offsets[index])
+      let voice = glottal * Self.weights[index] * shimmer
+      sourceLeft += voice * panLeft[index]
+      sourceRight += voice * panRight[index]
+      body += sin(phase) * Self.weights[index]
+      // A slight vibrato and a slower drift keep every voice a little alive, never a held tone.
+      let vibrato = 1.0 + 0.0022 * sin(elapsedSeconds * tau * (4.9 + Double(index) * 0.23) + offsets[index]) +
+        0.0012 * sin(elapsedSeconds * tau * (0.07 + Double(index) * 0.013) + offsets[index])
+      phases[index] = fmod(phase + tau * Self.freqs[index] * vibrato / sampleRate, tau)
+    }
+    let chorusLeft = (bandpass(sampleRate, sourceLeft, index: 0, frequency: formant1, q: 5.0) * 1.6 + bandpass(sampleRate, sourceLeft, index: 1, frequency: formant2, q: 6.0) * 1.1 + body * 0.35) * level * swell
+    let chorusRight = (bandpass(sampleRate, sourceRight, index: 2, frequency: formant1 * 0.994, q: 5.0) * 1.6 + bandpass(sampleRate, sourceRight, index: 3, frequency: formant2 * 1.006, q: 6.0) * 1.1 + body * 0.35) * level * swell
+
+    // The tail is fed after the level, so it fades naturally when the chorus is brought down.
+    var wetLeft = 0.0
+    var wetRight = 0.0
+    for comb in 0..<4 {
+      let delayLeft = min(max(Int(sampleRate * Self.combSecondsLeft[comb]), 1), Self.combCapacity - 1)
+      let delayRight = min(max(Int(sampleRate * Self.combSecondsRight[comb]), 1), Self.combCapacity - 1)
+      let readLeft = combLeft[comb][(combIndex - delayLeft + Self.combCapacity) % Self.combCapacity]
+      let readRight = combRight[comb][(combIndex - delayRight + Self.combCapacity) % Self.combCapacity]
+      dampLeft[comb] += (readLeft - dampLeft[comb]) * (1.0 - Self.combDamping)
+      dampRight[comb] += (readRight - dampRight[comb]) * (1.0 - Self.combDamping)
+      combLeft[comb][combIndex] = chorusLeft + dampLeft[comb] * Self.combFeedback
+      combRight[comb][combIndex] = chorusRight + dampRight[comb] * Self.combFeedback
+      wetLeft += readLeft
+      wetRight += readRight
+    }
+    combIndex = (combIndex + 1) % Self.combCapacity
+    voiceLeft = chorusLeft * Self.dryMix + wetLeft * 0.25 * Self.wetMix
+    voiceRight = chorusRight * Self.dryMix + wetRight * 0.25 * Self.wetMix
+    farWet = (chorusLeft + chorusRight) * 0.5 * Self.hallSend
   }
 
   /// Topology-preserving state-variable bandpass; stable while formants move.
