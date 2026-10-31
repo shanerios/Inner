@@ -8,27 +8,37 @@ import {
   trackInductionCompleted,
   trackInductionDismissed,
   trackInductionLeftEarly,
+  trackInductionListenPressed,
   trackInductionOffered,
+  trackInductionSkipped,
   trackInductionStarted,
 } from '../inductionAnalytics';
 
 describe('The Induction funnel events', () => {
   afterEach(() => resetAnalyticsForTests());
 
-  it('sends only how it was offered and how far someone got', () => {
+  it('sends only how it was offered, from where, and how far someone got', () => {
     const capture = jest.fn();
     setAnalyticsClient({ capture });
-    trackInductionOffered('new');
+    trackInductionOffered('new', 'welcome');
+    trackInductionListenPressed('new', 'welcome');
+    trackInductionSkipped('new');
+    trackInductionOffered('new', 'card');
+    trackInductionDismissed('new');
     trackInductionStarted('new');
     trackInductionCompleted('new', 359.6);
     trackInductionLeftEarly('returning', 41.7);
     trackInductionDismissed(null);
     expect(capture.mock.calls).toEqual([
-      ['induction_offered', { entry: 'new' }],
+      ['induction_offered', { entry: 'new', surface: 'welcome' }],
+      ['induction_listen_pressed', { entry: 'new', surface: 'welcome' }],
+      ['induction_skipped', { entry: 'new', surface: 'welcome' }],
+      ['induction_offered', { entry: 'new', surface: 'card' }],
+      ['induction_dismissed', { entry: 'new', surface: 'card' }],
       ['induction_started', { entry: 'new' }],
       ['induction_completed', { entry: 'new', duration_s: 360 }],
       ['induction_left_early', { entry: 'returning', progress_pct: 42 }],
-      ['induction_dismissed', { entry: 'unknown' }],
+      ['induction_dismissed', { entry: 'unknown', surface: 'card' }],
     ]);
   });
 

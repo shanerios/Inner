@@ -27,17 +27,24 @@ describe('The Induction on Home', () => {
   beforeEach(() => mockStore.clear());
 
   describe('what is offered', () => {
-    it('leads a new visitor\'s first visit with a prominent offer, and holds the tour for their answer', () => {
-      expect(inductionOffer(state('none'), true)).toBe('prominent');
+    it('welcomes a new visitor over their first Home, and holds the tour for their answer', () => {
+      expect(inductionOffer(state('none'), true)).toBe('welcome');
       expect(inductionHoldsTour(state('none'), true)).toBe(true);
     });
 
-    it('offers someone who has been using Inner a quiet card, and never involves the tour', () => {
+    it('offers someone who has been using Inner a card, and never involves the tour', () => {
       expect(inductionOffer(state('none'), false)).toBe('quiet');
       expect(inductionHoldsTour(state('none'), false)).toBe(false);
     });
 
-    it('lets the tour run once they have begun, leaving a quiet card until they finish it', () => {
+    it('leaves the Induction waiting as a card after the welcome is skipped, and lets the tour run', () => {
+      for (const tourUnseen of [true, false]) {
+        expect(inductionOffer(state('skipped'), tourUnseen)).toBe('quiet');
+        expect(inductionHoldsTour(state('skipped'), tourUnseen)).toBe(false);
+      }
+    });
+
+    it('lets the tour run once they have begun, leaving the card until they finish it', () => {
       for (const tourUnseen of [true, false]) {
         expect(inductionOffer(state('started'), tourUnseen)).toBe('quiet');
         expect(inductionHoldsTour(state('started'), tourUnseen)).toBe(false);
@@ -63,9 +70,11 @@ describe('The Induction on Home', () => {
       expect(await getInductionState()).toEqual(EMPTY_INDUCTION_STATE);
     });
 
-    it('only moves forward: begun, then let go, then completed, and never back', async () => {
+    it('only moves forward: skipped, begun, let go, then completed, and never back', async () => {
+      expect((await advanceInductionStatus('skipped')).status).toBe('skipped');
+      expect((await advanceInductionStatus('none')).status).toBe('skipped');
       expect((await advanceInductionStatus('started')).status).toBe('started');
-      expect((await advanceInductionStatus('none')).status).toBe('started');
+      expect((await advanceInductionStatus('skipped')).status).toBe('started');
       expect((await advanceInductionStatus('dismissed')).status).toBe('dismissed');
       expect((await advanceInductionStatus('started')).status).toBe('dismissed');
       expect((await advanceInductionStatus('completed')).status).toBe('completed');

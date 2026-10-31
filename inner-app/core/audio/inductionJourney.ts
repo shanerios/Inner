@@ -1,4 +1,4 @@
-import { noiseForWorld, WORLD_PROFILES } from './worldProfiles';
+import { WORLD_PROFILES } from './worldProfiles';
 import type { FactoryAudioJourney } from './factoryJourneys';
 import type { AudioJourneyStage, ProceduralAudioPatch } from './types';
 
@@ -24,8 +24,18 @@ const SANCTUM = WORLD_PROFILES.sanctum;
 const BREATH = SANCTUM.binaural.breath;
 const BINAURAL_SCALE = SANCTUM.bed.binauralGainScale * 10 ** ((SANCTUM.binaural.trimDb + SANCTUM.binaural.levelDb) / 20);
 
-/** The Sanctum's own bed, as it would reach a preparation stage designed on pink noise at 0.14. */
-const BED = noiseForWorld('sanctum', { noiseColor: 'pink', noiseGain: 0.14 });
+/**
+ * The Sanctum's own bed, as it would reach a preparation stage designed on pink noise at 0.14. Read straight from the
+ * world's profile so every field is known to be there.
+ */
+const BED = {
+  noiseColor: SANCTUM.bed.noiseColor,
+  noiseGain: 0.14 * SANCTUM.bed.noiseGainScale,
+  noiseHighCutHz: SANCTUM.bed.noiseHighCutHz,
+  noiseWidth: SANCTUM.bed.noiseWidth,
+  noiseDriftDb: SANCTUM.bed.noiseDriftDb,
+  noiseDriftSeconds: SANCTUM.bed.noiseDriftSeconds,
+} as const;
 
 type WorldOptions = {
   /** No bed and no binaural field: the drone and the hall only. */

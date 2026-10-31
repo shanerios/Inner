@@ -2,13 +2,29 @@ import { track } from './analytics';
 import type { InductionEntry } from './inductionState';
 
 /**
- * The Induction funnel. Events carry only how it was offered and how far someone got, never anything about
- * what they said or experienced. (The shared helper also drops any free text.)
+ * The Induction funnel. Events carry only how it was offered, which surface offered it and how far someone got,
+ * never anything they said or experienced. (The shared helper also drops any free text.)
+ *
+ * - offered: the welcome or the card was shown
+ * - listen_pressed: they chose to listen (from either)
+ * - skipped: they skipped the welcome (it then waits as a card)
+ * - dismissed: they let the card go
+ * - started: audio began
+ * - completed / left_early: they heard it to the end, or stopped part-way
  */
-const props = (entry: InductionEntry | null) => ({ entry: entry ?? 'unknown' });
+export type InductionSurface = 'welcome' | 'card';
 
-export const trackInductionOffered = (entry: InductionEntry) => track('induction_offered', props(entry));
-export const trackInductionDismissed = (entry: InductionEntry | null) => track('induction_dismissed', props(entry));
+const props = (entry: InductionEntry | null, surface?: InductionSurface) => ({
+  entry: entry ?? 'unknown',
+  ...(surface ? { surface } : {}),
+});
+
+export const trackInductionOffered = (entry: InductionEntry, surface: InductionSurface) =>
+  track('induction_offered', props(entry, surface));
+export const trackInductionListenPressed = (entry: InductionEntry | null, surface: InductionSurface) =>
+  track('induction_listen_pressed', props(entry, surface));
+export const trackInductionSkipped = (entry: InductionEntry | null) => track('induction_skipped', props(entry, 'welcome'));
+export const trackInductionDismissed = (entry: InductionEntry | null) => track('induction_dismissed', props(entry, 'card'));
 export const trackInductionStarted = (entry: InductionEntry | null) => track('induction_started', props(entry));
 
 export const trackInductionCompleted = (entry: InductionEntry | null, durationS: number) =>

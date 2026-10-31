@@ -6,17 +6,23 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
  */
 export const INDUCTION_STATE_KEY = 'inner.induction.v1';
 
-/** Ordered by how far along: a later status is never replaced by an earlier one. */
-export type InductionStatus = 'none' | 'started' | 'dismissed' | 'completed';
+/**
+ * Ordered by how far along: a later status is never replaced by an earlier one.
+ * - skipped: they saw the welcome and chose to skip it; it waits for them as a card on Home;
+ * - started: audio began;
+ * - dismissed: they let the card go;
+ * - completed: they heard it to the end.
+ */
+export type InductionStatus = 'none' | 'skipped' | 'started' | 'dismissed' | 'completed';
 export type InductionEntry = 'new' | 'returning';
 
 export type InductionState = {
   status: InductionStatus;
-  /** How it was first offered: to someone new to the app (it leads the first visit to Home) or to someone returning. */
+  /** How it was first offered: to someone new to the app (a welcome over their first Home) or to someone returning (a card). */
   entry: InductionEntry | null;
 };
 
-const RANK: Record<InductionStatus, number> = { none: 0, started: 1, dismissed: 2, completed: 3 };
+const RANK: Record<InductionStatus, number> = { none: 0, skipped: 1, started: 2, dismissed: 3, completed: 4 };
 
 export const EMPTY_INDUCTION_STATE: InductionState = { status: 'none', entry: null };
 
@@ -63,22 +69,22 @@ export async function recordInductionEntry(entry: InductionEntry): Promise<Induc
   return save({ ...current, entry });
 }
 
-export type InductionOffer = 'prominent' | 'quiet' | 'none';
+export type InductionOffer = 'welcome' | 'quiet' | 'none';
 
 /**
  * What Home shows:
- * - someone new, who has not yet had the tour, is offered it prominently, and the tour waits for their answer;
- * - someone who has been using Inner is offered a quiet card, once, and the tour is never involved;
- * - after they begin and leave early, the quiet card stays until they finish it or let it go;
+ * - someone new, who has not yet had the tour and has not answered, gets the welcome over Home, and the tour waits;
+ * - someone who has been using Inner, or who skipped the welcome, or who began and left early, gets a quiet card
+ *   at the top of Home until they finish it or let it go;
  * - once finished or let go, nothing.
  */
 export function inductionOffer(state: InductionState, tourUnseen: boolean): InductionOffer {
   if (state.status === 'completed' || state.status === 'dismissed') return 'none';
-  if (state.status === 'none' && tourUnseen) return 'prominent';
+  if (state.status === 'none' && tourUnseen) return 'welcome';
   return 'quiet';
 }
 
-/** The spotlight tour only starts once the Induction has been answered. */
+/** The spotlight tour only starts once the welcome has been answered. */
 export function inductionHoldsTour(state: InductionState, tourUnseen: boolean): boolean {
-  return inductionOffer(state, tourUnseen) === 'prominent';
+  return inductionOffer(state, tourUnseen) === 'welcome';
 }
