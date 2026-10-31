@@ -1,7 +1,7 @@
 {
   "title": "The Induction",
   "seed": 7340033,
-  "fadeInMs": 3000,
+  "fadeInMs": 10000,
   "totalDurationMs": 360000,
   "bellGain": 0.6998419960022735,
   "initialConfig": {
@@ -43,7 +43,7 @@
       "id": "greet",
       "label": "Arrive",
       "durationMs": 25000,
-      "transitionMs": 10000,
+      "transitionMs": 0,
       "config": {
         "carrierHz": 528,
         "binauralCarrierHz": 275,
@@ -73,10 +73,10 @@
         "templeIntensity": 0.5,
         "masterGain": 0.7,
         "rampMs": 80,
-        "spatialMode": "still",
+        "spatialMode": "pendulum",
         "spatialTarget": "noise",
         "spatialDepth": 0,
-        "spatialRate": 0.3
+        "spatialRate": 3
       },
       "spatialEvents": [
         {
@@ -88,22 +88,22 @@
       ]
     },
     {
-      "id": "bed",
-      "label": "The Floor",
-      "durationMs": 20000,
+      "id": "build",
+      "label": "Build",
+      "durationMs": 10000,
       "transitionMs": 10000,
       "config": {
         "carrierHz": 528,
         "binauralCarrierHz": 275,
-        "binauralDeltaHz": 7,
+        "binauralDeltaHz": 8,
         "toneGain": 0,
         "harmonicWarmth": 0,
-        "binauralGain": 0.05508457406676334,
+        "binauralGain": 0,
         "noiseColor": "brown",
-        "noiseGain": 0.07,
+        "noiseGain": 0,
         "environment": "sanctum",
-        "environmentGain": 0.46,
-        "environmentIntensity": 0.5,
+        "environmentGain": 0.44,
+        "environmentIntensity": 0.45,
         "thresholdShift": 0,
         "identityPresence": 0.9,
         "identityDensity": 1,
@@ -121,10 +121,51 @@
         "templeIntensity": 0.5,
         "masterGain": 0.7,
         "rampMs": 80,
-        "spatialMode": "still",
+        "spatialMode": "pendulum",
         "spatialTarget": "noise",
         "spatialDepth": 0,
-        "spatialRate": 0.3
+        "spatialRate": 3
+      },
+      "spatialEvents": []
+    },
+    {
+      "id": "bed",
+      "label": "The Floor",
+      "durationMs": 25000,
+      "transitionMs": 12000,
+      "config": {
+        "carrierHz": 528,
+        "binauralCarrierHz": 275,
+        "binauralDeltaHz": 7,
+        "toneGain": 0,
+        "harmonicWarmth": 0,
+        "binauralGain": 0.05508457406676334,
+        "noiseColor": "brown",
+        "noiseGain": 0.11200000000000002,
+        "environment": "sanctum",
+        "environmentGain": 0.48,
+        "environmentIntensity": 0.5,
+        "thresholdShift": 0,
+        "identityPresence": 1,
+        "identityDensity": 1,
+        "identityVariety": 0.6,
+        "noiseHighCutHz": 20000,
+        "noiseWidth": 1,
+        "noiseDriftDb": 2,
+        "noiseDriftSeconds": 20,
+        "binauralBreathDb": 10,
+        "binauralBreathInSeconds": 4,
+        "binauralBreathOutSeconds": 8,
+        "binauralBreathVariation": 0.15,
+        "harmonicTranslation": 0,
+        "templeGain": 0,
+        "templeIntensity": 0.5,
+        "masterGain": 0.7,
+        "rampMs": 80,
+        "spatialMode": "pendulum",
+        "spatialTarget": "noise",
+        "spatialDepth": 0.8,
+        "spatialRate": 3
       },
       "spatialEvents": []
     },
@@ -132,7 +173,7 @@
       "id": "bloom",
       "label": "The Chorus",
       "durationMs": 30000,
-      "transitionMs": 30000,
+      "transitionMs": 20000,
       "config": {
         "carrierHz": 528,
         "binauralCarrierHz": 275,
@@ -141,7 +182,7 @@
         "harmonicWarmth": 0,
         "binauralGain": 0.05508457406676334,
         "noiseColor": "brown",
-        "noiseGain": 0.07,
+        "noiseGain": 0.14,
         "environment": "sanctum",
         "environmentGain": 0.5,
         "environmentIntensity": 0.55,
@@ -162,59 +203,18 @@
         "templeIntensity": 0.5,
         "masterGain": 0.7,
         "rampMs": 80,
-        "spatialMode": "still",
+        "spatialMode": "pendulum",
         "spatialTarget": "noise",
-        "spatialDepth": 0,
-        "spatialRate": 0.3
+        "spatialDepth": 0.8,
+        "spatialRate": 3
       },
       "spatialEvents": [
         {
           "id": "induction-aum-1",
-          "atMs": 17000,
+          "atMs": 5000,
           "type": "aum"
         }
       ]
-    },
-    {
-      "id": "open",
-      "label": "Open",
-      "durationMs": 15000,
-      "transitionMs": 5000,
-      "config": {
-        "carrierHz": 528,
-        "binauralCarrierHz": 275,
-        "binauralDeltaHz": 7,
-        "toneGain": 0,
-        "harmonicWarmth": 0,
-        "binauralGain": 0.05508457406676334,
-        "noiseColor": "brown",
-        "noiseGain": 0.07,
-        "environment": "sanctum",
-        "environmentGain": 0.5,
-        "environmentIntensity": 0.55,
-        "thresholdShift": 0,
-        "identityPresence": 1.1,
-        "identityDensity": 1,
-        "identityVariety": 0.6,
-        "noiseHighCutHz": 20000,
-        "noiseWidth": 1,
-        "noiseDriftDb": 2,
-        "noiseDriftSeconds": 20,
-        "binauralBreathDb": 10,
-        "binauralBreathInSeconds": 4,
-        "binauralBreathOutSeconds": 8,
-        "binauralBreathVariation": 0.15,
-        "harmonicTranslation": 0,
-        "templeGain": 0,
-        "templeIntensity": 0.5,
-        "masterGain": 0.7,
-        "rampMs": 80,
-        "spatialMode": "still",
-        "spatialTarget": "noise",
-        "spatialDepth": 0,
-        "spatialRate": 0.3
-      },
-      "spatialEvents": []
     },
     {
       "id": "introduce",
@@ -229,7 +229,7 @@
         "harmonicWarmth": 0,
         "binauralGain": 0.05508457406676334,
         "noiseColor": "brown",
-        "noiseGain": 0.07,
+        "noiseGain": 0.14,
         "environment": "sanctum",
         "environmentGain": 0.5,
         "environmentIntensity": 0.55,
@@ -250,16 +250,17 @@
         "templeIntensity": 0.5,
         "masterGain": 0.7,
         "rampMs": 80,
-        "spatialMode": "still",
+        "spatialMode": "pendulum",
         "spatialTarget": "noise",
-        "spatialDepth": 0,
-        "spatialRate": 0.3
+        "spatialDepth": 0.8,
+        "spatialRate": 3
       },
       "spatialEvents": [
         {
           "id": "induction-bell-1",
           "atMs": 3000,
-          "type": "cue"
+          "type": "cue",
+          "signalGainScale": 0.3
         }
       ]
     },
@@ -276,7 +277,7 @@
         "harmonicWarmth": 0,
         "binauralGain": 0.05508457406676334,
         "noiseColor": "brown",
-        "noiseGain": 0.07,
+        "noiseGain": 0.21000000000000002,
         "environment": "sanctum",
         "environmentGain": 0.55,
         "environmentIntensity": 0.6,
@@ -297,10 +298,10 @@
         "templeIntensity": 0.5,
         "masterGain": 0.68,
         "rampMs": 80,
-        "spatialMode": "still",
+        "spatialMode": "pendulum",
         "spatialTarget": "noise",
-        "spatialDepth": 0,
-        "spatialRate": 0.3
+        "spatialDepth": 0.8,
+        "spatialRate": 3
       },
       "spatialEvents": [
         {
@@ -328,7 +329,7 @@
         "harmonicWarmth": 0,
         "binauralGain": 0.05508457406676334,
         "noiseColor": "brown",
-        "noiseGain": 0.07,
+        "noiseGain": 0.17500000000000002,
         "environment": "sanctum",
         "environmentGain": 0.52,
         "environmentIntensity": 0.55,
@@ -349,16 +350,17 @@
         "templeIntensity": 0.5,
         "masterGain": 0.68,
         "rampMs": 80,
-        "spatialMode": "still",
+        "spatialMode": "pendulum",
         "spatialTarget": "noise",
-        "spatialDepth": 0,
-        "spatialRate": 0.3
+        "spatialDepth": 0.8,
+        "spatialRate": 3
       },
       "spatialEvents": [
         {
           "id": "induction-bell-2",
           "atMs": 6000,
-          "type": "cue"
+          "type": "cue",
+          "signalGainScale": 0.3
         }
       ]
     },
@@ -396,10 +398,10 @@
         "templeIntensity": 0.5,
         "masterGain": 0.62,
         "rampMs": 80,
-        "spatialMode": "still",
+        "spatialMode": "pendulum",
         "spatialTarget": "noise",
         "spatialDepth": 0,
-        "spatialRate": 0.3
+        "spatialRate": 3
       },
       "spatialEvents": [
         {
@@ -422,7 +424,7 @@
         "harmonicWarmth": 0,
         "binauralGain": 0.05508457406676334,
         "noiseColor": "brown",
-        "noiseGain": 0.07,
+        "noiseGain": 0.042,
         "environment": "sanctum",
         "environmentGain": 0.4,
         "environmentIntensity": 0.4,
@@ -443,10 +445,10 @@
         "templeIntensity": 0.5,
         "masterGain": 0.55,
         "rampMs": 80,
-        "spatialMode": "still",
+        "spatialMode": "pendulum",
         "spatialTarget": "noise",
         "spatialDepth": 0,
-        "spatialRate": 0.3
+        "spatialRate": 3
       },
       "spatialEvents": [
         {

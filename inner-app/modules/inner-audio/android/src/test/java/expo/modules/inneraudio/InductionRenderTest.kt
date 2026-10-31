@@ -92,6 +92,7 @@ class InductionRenderTest {
             atMs = e.getDouble("atMs")
             type = e.getString("type")
             direction = e.optString("direction", "right")
+            signalGainScale = e.optDouble("signalGainScale", 1.0)
           }
         }
       }

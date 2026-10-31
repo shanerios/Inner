@@ -72,8 +72,11 @@ describe('The Induction', () => {
       offset += item.durationMs;
     }
     expect(steps.map(step => step.direction)).toEqual(['approach', 'recede']);
-    // The drone fades in over the first ten seconds, and the walker comes in after it, between 10 and 15 seconds.
-    expect(timeline.stages[0].transitionMs).toBe(10_000);
+    // Everything fades up from silence over the first ten seconds (the timeline's own fade-in, so the engine's default
+    // start state, which includes a 528 Hz carrier tone, is never heard). The walker comes in after it, at 10 to 15 seconds.
+    expect(timeline.fadeInMs).toBe(10_000);
+    expect(timeline.stages[0].transitionMs).toBe(0);
+    expect(timeline.stages[0].target.toneGain).toBe(0);
     expect(timeline.stages[0].target.identityPresence).toBeGreaterThan(0);
     expect(steps[0].stage).toBe('greet');
     expect(steps[0].atMs).toBeGreaterThanOrEqual(10_000);
@@ -83,22 +86,51 @@ describe('The Induction', () => {
     expect(timeline.stages[timeline.stages.length - 1].target.identityPresence ?? 1).toBeLessThan(0.3);
   });
 
-  it('builds the drone after the footsteps, and only then fades the brown bed and the binaural field in', () => {
-    const [greet, bed] = timeline.stages;
-    expect(greet.id).toBe('greet');
-    expect(bed.id).toBe('bed');
-    // Nothing of the bed or the binaural field is heard while the drone greets and the footsteps come.
-    expect(greet.target.noiseGain).toBe(0);
-    expect(greet.target.binauralGain).toBe(0);
-    // The drone builds fuller once the walker has arrived.
-    expect(bed.target.identityPresence!).toBeGreaterThan(greet.target.identityPresence!);
-    // The bed and the binaural field fade in together over ten seconds, brown.
-    expect(bed.transitionMs).toBe(10_000);
+  it('lets the drone stand alone, builds it after the footsteps, and only then fades the brown bed and binaural in', () => {
+    const [greet, build, bed] = timeline.stages;
+    expect([greet.id, build.id, bed.id]).toEqual(['greet', 'build', 'bed']);
+    // Nothing of the bed or the binaural field is heard while the drone greets, the footsteps come and the drone builds.
+    for (const quiet of [greet, build]) {
+      expect(quiet.target.noiseGain).toBe(0);
+      expect(quiet.target.binauralGain).toBe(0);
+    }
+    expect(build.target.identityPresence!).toBeGreaterThan(greet.target.identityPresence!);
+    // They begin between 30 and 45 seconds in, together, and take 10 to 15 seconds.
+    const bedStartMs = greet.durationMs + build.durationMs;
+    expect(bedStartMs).toBeGreaterThanOrEqual(30_000);
+    expect(bedStartMs).toBeLessThanOrEqual(45_000);
+    expect(bed.transitionMs).toBeGreaterThanOrEqual(10_000);
+    expect(bed.transitionMs).toBeLessThanOrEqual(15_000);
     expect(bed.target.noiseColor).toBe('brown');
     expect(bed.target.noiseGain).toBeGreaterThan(0);
     expect(bed.target.binauralGain).toBeGreaterThan(0);
     // The bed's fade starts after the walker's steps could have finished (about nine hesitant steps).
-    expect(greet.durationMs).toBeGreaterThanOrEqual(25_000);
+    expect(bedStartMs).toBeGreaterThan(12_000 + 14_000);
+  });
+
+  it('swings the bed from ear to ear like a slow, heavy pendulum, heaviest in the long middle', () => {
+    const byId = Object.fromEntries(timeline.stages.map(item => [item.id, item.target]));
+    // Still while the drone stands alone, swinging once the bed is in, at rest again in the hall.
+    expect(byId.greet.spatialDepth).toBe(0);
+    expect(byId.bed.spatialMode).toBe('pendulum');
+    expect(byId.bed.spatialTarget).toBe('noise');
+    expect(byId.bed.spatialDepth!).toBeGreaterThanOrEqual(0.7);
+    expect(byId.hall.spatialDepth).toBe(0);
+    expect(byId.leave.spatialDepth).toBe(0);
+    // One swing takes at least ten seconds (cycles per minute is at most six).
+    expect(byId.bed.spatialRate!).toBeLessThanOrEqual(6);
+    expect(byId.bed.spatialRate!).toBeGreaterThan(0);
+    // The bed is heaviest in the middle and eases in the hall.
+    expect(byId.fullest.noiseGain!).toBeGreaterThan(byId.bed.noiseGain!);
+    expect(byId.hall.noiseGain!).toBeLessThan(byId.fullest.noiseGain!);
+  });
+
+  it('keeps the Bell low', () => {
+    for (const item of timeline.stages) {
+      for (const event of item.spatialEvents ?? []) {
+        if (event.type === 'cue') expect(event.signalGainScale!).toBeLessThanOrEqual(0.35);
+      }
+    }
   });
 
   it('calls four Aum chants over the drone, none near the Bell, one into the empty hall', () => {
