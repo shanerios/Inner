@@ -103,6 +103,16 @@ What's new in Inner 3.4
 - PostHog received the matching events from both builds (Overnight configured, started, ended, interrupted and resumed, with `mode` full or recognition_only; paywall views from the Overnight and Journey Creator gates; Morning Return; Dream Log entry created; voice capture). A property audit found only structural properties: counts, durations, kinds, booleans, random session ids and enumerated answers, with no free text. An Android internal build also recorded `onboarding_splash_tapped`, `onboarding_started`, the intention events and `onboarding_completed` in order, which shows the first-launch events firing.
 - Not yet observed: an old pre-update Dream Log entry showing "First saved version" (not explicitly confirmed on a device), RevenueCat `rc_*` events in PostHog (the integration is active but no subscription activity has happened since), and a Restore Purchases that finds a live purchase.
 
+#### The Induction: a first experience of Inner
+
+- The Induction is a free, optional six-minute listening experience, set in a new Sanctum world: a low drone that rises from silence, hesitant footsteps, a brown noise bed with a binaural field, a heavy body that passes overhead, four Aum chants, and one Bell that is introduced and returns. It is best with headphones, which are suggested but not required.
+- A new visitor meets a "Welcome to Inner" screen over their first Home, offering The Induction with Listen or Skip. Skip leaves it as a "Start here" card at the top of Home; someone who has already used Inner sees that card instead. "Not now" on the card removes it.
+- The spotlight tour waits until the welcome has been answered. The Arrive screen no longer meets a new visitor until the home tour is done, so the first opens are the welcome and the tour rather than a run of screens.
+- It is free for everyone. Nothing about Full Experience, the paywall, or any environment's access changes, and Temple remains a Full Experience environment.
+- Analytics record only that it was offered, listened to, skipped, begun, finished or left early (with how far), and that the card was dismissed. They carry no content.
+- Checked on a Pixel 8 Pro with an Inner Lab build: the owner saw the welcome screen and the card and approved both, and heard the six minutes of audio on the phone in the preceding Lab build. The Android engine was also rendered offline and checked for clipping, and for both Bells firing.
+- Not yet done: the recorded voice (the on-screen lines are placeholders), an iOS build and device check, confirming the Induction events arrive in PostHog, and playing it from the Home card to the end on a production-flavor build.
+
 ### Before publishing
 
 - Version numbers: `app.json` is set to 3.4 with `versionCode` 70 and `buildNumber` 2086, which are the `production`-profile builds already on Play's internal track and TestFlight (built from `main` at `068f4e6`). Both production profiles use `autoIncrement`, so the next build becomes Android 71 and iOS 2087. Do not lower these.
@@ -122,6 +132,7 @@ What's new in Inner 3.4
 - Complete any remaining physical-device smoke checks for Dream Log edit/export; Morning Return, voice capture, Overnight playback, signal delivery, and journey recovery have already been exercised on devices across Android and iOS.
 - Recheck the six adjusted Lucid screen headers on representative small and large devices.
 - Confirm microphone permission copy and store privacy disclosures include speech-to-text behavior.
+- The Induction is on the `feature/induction` branch and is not part of the merged 3.4 branches. Decide whether it ships in 3.4 or later; if it ships, add it to the store-ready draft, record the voice, run it on an iPhone, and confirm its analytics reach PostHog. The App Store privacy answers should be unchanged (it adds no new data), but recheck them.
 - Replace this section heading with the shipped version and release date, then create a new Unreleased section above it.
 
 
