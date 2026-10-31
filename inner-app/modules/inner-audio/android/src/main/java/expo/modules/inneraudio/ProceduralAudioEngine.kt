@@ -134,6 +134,7 @@ private data class VoiceEventState(
 /** One appearance of the Aum the journey calls at this point in a stage. */
 private data class AumEventState(
   val atMs: Double,
+  val kind: Int,
 )
 
 /** A passage of footsteps the journey calls at this point in a stage. */
@@ -661,7 +662,15 @@ object ProceduralAudioEngine {
           },
           aumEvents = stage.spatialEvents.take(16).mapNotNull { event ->
             if (event.type != "aum" || event.atMs < 0) return@mapNotNull null
-            AumEventState(atMs = event.atMs)
+            // The event's direction names its shape: still (the designed chant), approach, or retreat.
+            AumEventState(
+              atMs = event.atMs,
+              kind = when (event.direction) {
+                "approach" -> AumGesture.KIND_APPROACH
+                "retreat" -> AumGesture.KIND_RETREAT
+                else -> AumGesture.KIND_PLAIN
+              },
+            )
           },
         )
       }
@@ -1031,10 +1040,10 @@ object ProceduralAudioEngine {
           footstepsTimelineThresholdMs = footstepsFire.first
           templeFootsteps.trigger(footstepsFire.second.approach)
         }
-        val aumFireMs = timelineAumEventMs(activeTimeline, timelineElapsedMs, aumTimelineThresholdMs)
-        if (aumFireMs != null) {
-          aumTimelineThresholdMs = aumFireMs
-          aumChant.trigger()
+        val aumFire = timelineAumEvent(activeTimeline, timelineElapsedMs, aumTimelineThresholdMs)
+        if (aumFire != null) {
+          aumTimelineThresholdMs = aumFire.first
+          aumChant.trigger(aumFire.second.kind)
         }
       }
       worldSalience.beginFrame(recognitionSpace != null || cueActive)
@@ -1446,13 +1455,13 @@ object ProceduralAudioEngine {
     return null
   }
 
-  /** The next Aum event that has come due since [afterMs], as its position in the whole timeline. */
-  private fun timelineAumEventMs(timeline: AudioTimelineState, elapsedMs: Double, afterMs: Double): Double? {
+  /** The next Aum event that has come due since [afterMs], with its position in the whole timeline. */
+  private fun timelineAumEvent(timeline: AudioTimelineState, elapsedMs: Double, afterMs: Double): Pair<Double, AumEventState>? {
     var cursor = 0.0
     for (stage in timeline.stages) {
       for (event in stage.aumEvents) {
         val globalAtMs = cursor + event.atMs
-        if (globalAtMs > afterMs && globalAtMs <= elapsedMs) return globalAtMs
+        if (globalAtMs > afterMs && globalAtMs <= elapsedMs) return Pair(globalAtMs, event)
       }
       cursor += stage.durationMs
     }

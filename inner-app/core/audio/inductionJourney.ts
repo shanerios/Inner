@@ -10,7 +10,7 @@ import type { AudioJourneyStage, ProceduralAudioPatch } from './types';
  * returns. The returning sound is the Bell, fixed for this journey so every listener learns the same one.
  *
  * The drone greets the listener alone, rising from silence over the first twenty-five seconds. Hesitant footsteps
- * follow, then the brown bed and the binaural field fade in as the drone builds. Four called Aum chants sound over it, and footsteps leave as it ends.
+ * follow, then the brown bed and the binaural field fade in as the drone builds. Four called Aum chants sound over it (an approach, two plain, and a retreat), and footsteps leave as it ends.
  *
  * The guidance lines below are placeholders for the recorded voice. They carry the same timing, so recording
  * them later changes no timeline.
@@ -47,8 +47,8 @@ const world = (
 ): ProceduralAudioPatch => ({
   environment: 'sanctum',
   identityDensity: 1,
-  // Each Aum is its own appearance: a different pitch of the group, a drift across the ears, some echo.
-  identityVariety: 0.6,
+  // Each Aum is called by hand with its own shape (see the aum events), so nothing about it is left to chance.
+  identityVariety: 0,
   toneGain: 0,
   templeGain: 0,
   noiseColor: BED.noiseColor,
@@ -125,7 +125,7 @@ export const INDUCTION_JOURNEY: FactoryAudioJourney = {
       stage('bloom', 'The Chorus', 25 * SECOND, 15 * SECOND, world(false, BEAT.prepEnd, {
         environmentGain: 0.5, environmentIntensity: 0.55, identityPresence: 1.1, masterGain: 0.7,
       }, { noiseScale: 2, swing: 0.85 }), [
-        { id: 'induction-aum-1', atMs: 5 * SECOND, type: 'aum' },
+        { id: 'induction-aum-1', atMs: 5 * SECOND, type: 'aum', direction: 'approach' },
       ]),
       // Around 1:30 the Bell is introduced, once, inside the hall. It is low: a thing to notice, not to be startled by.
       stage('introduce', 'The Sound', 40 * SECOND, 5 * SECOND, world(false, BEAT.descent, {
@@ -137,8 +137,8 @@ export const INDUCTION_JOURNEY: FactoryAudioJourney = {
       stage('fullest', 'Deepen', 120 * SECOND, 40 * SECOND, world(true, BEAT.descent, {
         environmentGain: 0.55, environmentIntensity: 0.6, identityPresence: 1.6, masterGain: 0.68,
       }, { noiseScale: 3, swing: 0.85 }), [
-        { id: 'induction-aum-2', atMs: 20 * SECOND, type: 'aum' },
-        { id: 'induction-aum-3', atMs: 70 * SECOND, type: 'aum' },
+        { id: 'induction-aum-2', atMs: 20 * SECOND, type: 'aum', direction: 'still' },
+        { id: 'induction-aum-3', atMs: 70 * SECOND, type: 'aum', direction: 'still' },
       ]),
       // The Bell returns, and is named.
       stage('return', 'It Returns', 35 * SECOND, 10 * SECOND, world(true, BEAT.descent, {
@@ -150,7 +150,7 @@ export const INDUCTION_JOURNEY: FactoryAudioJourney = {
       stage('hall', 'The Hall', 45 * SECOND, 35 * SECOND, world(false, BEAT.prepEnd, {
         environmentGain: 0.5, environmentIntensity: 0.45, identityPresence: 0.12, masterGain: 0.62,
       }, { noiseScale: 1, swing: 0 }), [
-        { id: 'induction-aum-4', atMs: 10 * SECOND, type: 'aum' },
+        { id: 'induction-aum-4', atMs: 10 * SECOND, type: 'aum', direction: 'retreat' },
       ]),
       // Footsteps again, this time leaving.
       stage('leave', 'Leave', 30 * SECOND, 5 * SECOND, world(false, BEAT.prepEnd, {

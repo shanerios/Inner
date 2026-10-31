@@ -76,6 +76,10 @@ internal class AumGesture {
     const val KIND_APPROACH = 3
     const val KIND_ECHO = 4
     const val KIND_DEEPENING = 5
+    /** Only ever called by hand: starts close and recedes, the approach in reverse. */
+    const val KIND_RETREAT = 6
+    /** How far off an authored approach starts, or a retreat ends: 0 = at the listener, 1 = far off. */
+    const val AUTHORED_DISTANCE = 0.8
   }
 
   var kind = KIND_PLAIN
@@ -101,6 +105,19 @@ internal class AumGesture {
   fun neutral() {
     kind = KIND_PLAIN; level = 1.0; startDelay = 0.0; stretch = 1.0; rootRatio = 1.0; glide = 0.0
     sub = 0.0; pans = false; panStart = 0.0; panEnd = 0.0; distant = false; distStart = 0.0; distEnd = 0.0; echoSend = 0.0
+  }
+
+  /**
+   * An appearance a journey calls by hand: the designed chant as it was approved, or that chant coming near from far
+   * off, or going away. None of the random traits (level, length, root) are drawn, so it is exactly as authored.
+   */
+  fun authored(authoredKind: Int) {
+    neutral()
+    kind = authoredKind
+    when (authoredKind) {
+      KIND_APPROACH -> { distant = true; distStart = AUTHORED_DISTANCE; distEnd = 0.0 }
+      KIND_RETREAT -> { distant = true; distStart = 0.0; distEnd = AUTHORED_DISTANCE }
+    }
   }
 
   /** Draws appearance number `index` at the given variety (0 = none, 1 = full). */

@@ -55,6 +55,9 @@ export function compileAudioJourneyTimeline(
         return { ...event, id: event.id.trim() };
       }
       if (event.type === 'aum') {
+        if (event.direction !== 'still' && event.direction !== 'approach' && event.direction !== 'retreat') {
+          throw new Error(`Audio journey Aum event ${event.id} must be still, approach or retreat`);
+        }
         return { ...event, id: event.id.trim() };
       }
       if (event.type === 'footsteps') {

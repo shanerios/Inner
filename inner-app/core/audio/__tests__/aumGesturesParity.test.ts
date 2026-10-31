@@ -76,6 +76,31 @@ describe('Aum gestures: Kotlin and Swift draw the same appearance for the same n
   });
 });
 
+describe('Aum chant: a chant the journey calls is exactly the shape it asked for', () => {
+  it('has the same authored shapes in both engines: the designed chant, an approach and a retreat', () => {
+    expect(gestures).toContain('const val KIND_RETREAT = 6');
+    expect(swift).toContain('static let kindRetreat = 6');
+    expect(gestures).toContain('const val AUTHORED_DISTANCE = 0.8');
+    expect(swift).toContain('static let authoredDistance = 0.8');
+    expect(gestures).toContain('KIND_APPROACH -> { distant = true; distStart = AUTHORED_DISTANCE; distEnd = 0.0 }');
+    expect(gestures).toContain('KIND_RETREAT -> { distant = true; distStart = 0.0; distEnd = AUTHORED_DISTANCE }');
+    expect(swift).toContain('distant = true; distStart = Self.authoredDistance; distEnd = 0');
+    expect(swift).toContain('distant = true; distStart = 0; distEnd = Self.authoredDistance');
+  });
+
+  it('reads the event\'s direction the same way, and applies the authored gesture instead of a drawn one', () => {
+    expect(engine).toContain('"approach" -> AumGesture.KIND_APPROACH');
+    expect(engine).toContain('"retreat" -> AumGesture.KIND_RETREAT');
+    expect(swift).toContain('event.direction == "approach" ? AumGesture.kindApproach : (event.direction == "retreat" ? AumGesture.kindRetreat : AumGesture.kindPlain)');
+    expect(engine).toContain('aumChant.trigger(aumFire.second.kind)');
+    expect(swift).toContain('aumChant.trigger(kind: aumFire.kind)');
+    expect(chant).toContain('if (scriptedOnly && manualKind >= 0) {');
+    expect(swift).toContain('if scriptedOnly && manualKind >= 0 {');
+    expect(chant).toContain('gesture.authored(manualKind)');
+    expect(swift).toContain('gesture.authored(kind: manualKind)');
+  });
+});
+
 describe('Aum chant: the gestures are shaped the same way in Kotlin and Swift', () => {
   it('uses the same voices, echo and shaping', () => {
     for (const [kotlinLine, swiftLine] of [

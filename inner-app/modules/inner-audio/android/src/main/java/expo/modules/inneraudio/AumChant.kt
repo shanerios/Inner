@@ -64,12 +64,15 @@ internal class AumChant {
   private var echoDampLeft = 0.0
   private var echoDampRight = 0.0
   private var pendingStart = false
+  private var pendingKind = AumGesture.KIND_PLAIN
+  private var manualKind = -1
   private var manualStartSeconds = -1.0
   private var manualCount = 0L
 
-  /** Asks for one appearance now. Heard only while the chant is scripted (the Sanctum). */
-  fun trigger() {
+  /** Asks for one appearance now, of the given [AumGesture] kind. Heard only while the chant is scripted (the Sanctum). */
+  fun trigger(kind: Int = AumGesture.KIND_PLAIN) {
     pendingStart = true
+    pendingKind = kind
   }
 
   /** Starts a night: clears every voice and reverb tail, and sets the seed its gestures are drawn from. */
@@ -83,7 +86,7 @@ internal class AumChant {
     farLeft = 0.0; farRight = 0.0
     echoBufferLeft.fill(0.0); echoBufferRight.fill(0.0)
     echoIndex = 0; echoDampLeft = 0.0; echoDampRight = 0.0
-    pendingStart = false; manualStartSeconds = -1.0; manualCount = 0L
+    pendingStart = false; pendingKind = AumGesture.KIND_PLAIN; manualKind = -1; manualStartSeconds = -1.0; manualCount = 0L
     voiceLeft = 0.0; voiceRight = 0.0; echoLeft = 0.0; echoRight = 0.0; farWet = 0.0
   }
 
@@ -96,11 +99,19 @@ internal class AumChant {
     if (scriptedOnly && pendingStart) {
       pendingStart = false
       manualStartSeconds = elapsedSeconds
+      manualKind = pendingKind
       manualCount += 1
     }
     val cycle = if (scriptedOnly) manualCount else (chantPosition / period).toLong()
-    // Each appearance of the Aum draws its own gesture; at variety 0 every one is the designed chant.
-    if (variety <= 0.0) {
+    // Each appearance of the Aum draws its own gesture; at variety 0 every one is the designed chant. A called
+    // appearance is exactly the kind the journey asked for.
+    if (scriptedOnly && manualKind >= 0) {
+      if (gestureNeutral || cycle != gestureCycle) {
+        gesture.authored(manualKind)
+        gestureNeutral = false
+        gestureCycle = cycle
+      }
+    } else if (variety <= 0.0) {
       if (!gestureNeutral) { gesture.neutral(); gestureNeutral = true; gestureCycle = -1L }
     } else if (gestureNeutral || cycle != gestureCycle) {
       gesture.draw(seed, cycle, variety)

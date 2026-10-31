@@ -55,6 +55,11 @@ export type AudioAumEvent = {
   id: string;
   atMs: number;
   type: 'aum';
+  /**
+   * Its shape: `still` is the designed chant, `approach` comes near from far off, `retreat` starts close and
+   * recedes. Carried to the engines in the event's direction field.
+   */
+  direction: 'still' | 'approach' | 'retreat';
 };
 
 export type AudioSpatialEvent = AudioSwooshEvent | AudioCueEvent | AudioVoiceEvent | AudioFootstepsEvent | AudioAumEvent;

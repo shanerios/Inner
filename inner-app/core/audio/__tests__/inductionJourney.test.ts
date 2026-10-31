@@ -161,8 +161,16 @@ describe('The Induction', () => {
       }
     }
     expect(aums[aums.length - 1].stage).toBe('hall');
-    // The chanting is a different appearance each time.
-    expect(timeline.stages[0].target.identityVariety).toBeGreaterThan(0);
+  });
+
+  it('shapes the four Aum chants: an approach, two plain, and a retreat into the empty hall', () => {
+    const shapes: string[] = [];
+    for (const item of timeline.stages) {
+      for (const event of item.spatialEvents ?? []) if (event.type === 'aum') shapes.push(event.direction);
+    }
+    expect(shapes).toEqual(['approach', 'still', 'still', 'retreat']);
+    // Nothing about them is left to chance: no random variety is drawn.
+    expect(timeline.stages[0].target.identityVariety).toBe(0);
   });
 
   it('brings the Bell in around 1:30', () => {

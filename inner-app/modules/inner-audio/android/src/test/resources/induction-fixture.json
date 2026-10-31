@@ -59,7 +59,7 @@
         "thresholdShift": 0,
         "identityPresence": 0.9,
         "identityDensity": 1,
-        "identityVariety": 0.6,
+        "identityVariety": 0,
         "noiseHighCutHz": 20000,
         "noiseWidth": 1,
         "noiseDriftDb": 2,
@@ -100,7 +100,7 @@
         "thresholdShift": 0,
         "identityPresence": 0.9,
         "identityDensity": 1,
-        "identityVariety": 0.6,
+        "identityVariety": 0,
         "noiseHighCutHz": 20000,
         "noiseWidth": 1,
         "noiseDriftDb": 2,
@@ -141,7 +141,7 @@
         "thresholdShift": 0,
         "identityPresence": 0.9,
         "identityDensity": 1,
-        "identityVariety": 0.6,
+        "identityVariety": 0,
         "noiseHighCutHz": 20000,
         "noiseWidth": 1,
         "noiseDriftDb": 2,
@@ -189,7 +189,7 @@
         "thresholdShift": 0,
         "identityPresence": 1,
         "identityDensity": 1,
-        "identityVariety": 0.6,
+        "identityVariety": 0,
         "noiseHighCutHz": 20000,
         "noiseWidth": 1,
         "noiseDriftDb": 2,
@@ -230,7 +230,7 @@
         "thresholdShift": 0,
         "identityPresence": 1.1,
         "identityDensity": 1,
-        "identityVariety": 0.6,
+        "identityVariety": 0,
         "noiseHighCutHz": 20000,
         "noiseWidth": 1,
         "noiseDriftDb": 2,
@@ -253,7 +253,8 @@
         {
           "id": "induction-aum-1",
           "atMs": 5000,
-          "type": "aum"
+          "type": "aum",
+          "direction": "approach"
         }
       ]
     },
@@ -277,7 +278,7 @@
         "thresholdShift": 0,
         "identityPresence": 1.1,
         "identityDensity": 1,
-        "identityVariety": 0.6,
+        "identityVariety": 0,
         "noiseHighCutHz": 20000,
         "noiseWidth": 1,
         "noiseDriftDb": 2,
@@ -325,7 +326,7 @@
         "thresholdShift": 0,
         "identityPresence": 1.6,
         "identityDensity": 1,
-        "identityVariety": 0.6,
+        "identityVariety": 0,
         "noiseHighCutHz": 20000,
         "noiseWidth": 1,
         "noiseDriftDb": 2,
@@ -348,12 +349,14 @@
         {
           "id": "induction-aum-2",
           "atMs": 20000,
-          "type": "aum"
+          "type": "aum",
+          "direction": "still"
         },
         {
           "id": "induction-aum-3",
           "atMs": 70000,
-          "type": "aum"
+          "type": "aum",
+          "direction": "still"
         }
       ]
     },
@@ -377,7 +380,7 @@
         "thresholdShift": 0,
         "identityPresence": 1.3,
         "identityDensity": 1,
-        "identityVariety": 0.6,
+        "identityVariety": 0,
         "noiseHighCutHz": 20000,
         "noiseWidth": 1,
         "noiseDriftDb": 2,
@@ -425,7 +428,7 @@
         "thresholdShift": 0,
         "identityPresence": 0.12,
         "identityDensity": 1,
-        "identityVariety": 0.6,
+        "identityVariety": 0,
         "noiseHighCutHz": 20000,
         "noiseWidth": 1,
         "noiseDriftDb": 2,
@@ -448,7 +451,8 @@
         {
           "id": "induction-aum-4",
           "atMs": 10000,
-          "type": "aum"
+          "type": "aum",
+          "direction": "retreat"
         }
       ]
     },
@@ -472,7 +476,7 @@
         "thresholdShift": 0,
         "identityPresence": 0.12,
         "identityDensity": 1,
-        "identityVariety": 0.6,
+        "identityVariety": 0,
         "noiseHighCutHz": 20000,
         "noiseWidth": 1,
         "noiseDriftDb": 2,

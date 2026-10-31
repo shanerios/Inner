@@ -170,6 +170,7 @@ private struct VoiceEvent {
 /// One appearance of the Aum the journey calls at this point in a stage.
 private struct AumEvent {
   let atMs: Double
+  let kind: Int
 }
 
 /// A passage of footsteps the journey calls at this point in a stage.
@@ -663,7 +664,9 @@ final class ProceduralAudioEngine: NSObject {
         },
         aumEvents: stage.spatialEvents.prefix(16).compactMap { event in
           guard event.type == "aum", event.atMs >= 0 else { return nil }
-          return AumEvent(atMs: event.atMs)
+          // The event's direction names its shape: still (the designed chant), approach, or retreat.
+          let kind = event.direction == "approach" ? AumGesture.kindApproach : (event.direction == "retreat" ? AumGesture.kindRetreat : AumGesture.kindPlain)
+          return AumEvent(atMs: event.atMs, kind: kind)
         }
       )
     }
@@ -1116,13 +1119,13 @@ final class ProceduralAudioEngine: NSObject {
     return nil
   }
 
-  /// The next Aum event that has come due since `afterMs`, as its position in the whole timeline.
-  private func timelineAumEventMs(_ timeline: AudioTimeline, elapsedMs: Double, afterMs: Double) -> Double? {
+  /// The next Aum event that has come due since `afterMs`, with its position in the whole timeline.
+  private func timelineAumEvent(_ timeline: AudioTimeline, elapsedMs: Double, afterMs: Double) -> (atMs: Double, kind: Int)? {
     var cursor = 0.0
     for stage in timeline.stages {
       for event in stage.aumEvents {
         let globalAtMs = cursor + event.atMs
-        if globalAtMs > afterMs && globalAtMs <= elapsedMs { return globalAtMs }
+        if globalAtMs > afterMs && globalAtMs <= elapsedMs { return (globalAtMs, event.kind) }
       }
       cursor += stage.durationMs
     }
@@ -1359,9 +1362,9 @@ final class ProceduralAudioEngine: NSObject {
         templeFootsteps.trigger(approach: footstepsFire.approach)
       }
       if let activeTimeline,
-         let aumFireMs = timelineAumEventMs(activeTimeline, elapsedMs: timelineElapsedMs, afterMs: aumTimelineThresholdMs) {
-        aumTimelineThresholdMs = aumFireMs
-        aumChant.trigger()
+         let aumFire = timelineAumEvent(activeTimeline, elapsedMs: timelineElapsedMs, afterMs: aumTimelineThresholdMs) {
+        aumTimelineThresholdMs = aumFire.atMs
+        aumChant.trigger(kind: aumFire.kind)
       }
       worldSalience.beginFrame(suppressRareEvents: recognitionSpace != nil || cueActive)
       let orbitPhase = spatialSeconds * target.spatialRate * Double.pi * 2 / 60
@@ -5151,6 +5154,10 @@ final class AumGesture {
   /// Consonant roots below the chant's own (A2): a whole tone, a fourth and a fifth below, and an octave down.
   static let deeper = [8.0 / 9.0, 3.0 / 4.0, 2.0 / 3.0, 1.0 / 2.0]
   static let kindPlain = 0, kindDoubled = 1, kindTraveller = 2, kindApproach = 3, kindEcho = 4, kindDeepening = 5
+  /// Only ever called by hand: starts close and recedes, the approach in reverse.
+  static let kindRetreat = 6
+  /// How far off an authored approach starts, or a retreat ends: 0 = at the listener, 1 = far off.
+  static let authoredDistance = 0.8
 
   var kind = AumGesture.kindPlain
   var level = 1.0
@@ -5175,6 +5182,18 @@ final class AumGesture {
   func neutral() {
     kind = Self.kindPlain; level = 1; startDelay = 0; stretch = 1; rootRatio = 1; glide = 0
     sub = 0; pans = false; panStart = 0; panEnd = 0; distant = false; distStart = 0; distEnd = 0; echoSend = 0
+  }
+
+  /// An appearance a journey calls by hand: the designed chant as it was approved, or that chant coming near from far
+  /// off, or going away. None of the random traits (level, length, root) are drawn, so it is exactly as authored.
+  func authored(kind authoredKind: Int) {
+    neutral()
+    kind = authoredKind
+    if authoredKind == Self.kindApproach {
+      distant = true; distStart = Self.authoredDistance; distEnd = 0
+    } else if authoredKind == Self.kindRetreat {
+      distant = true; distStart = 0; distEnd = Self.authoredDistance
+    }
   }
 
   /// Draws appearance number `index` at the given variety (0 = none, 1 = full).
@@ -5465,12 +5484,15 @@ final class AumChant {
   private var echoDampLeft = 0.0
   private var echoDampRight = 0.0
   private var pendingStart = false
+  private var pendingKind = AumGesture.kindPlain
+  private var manualKind = -1
   private var manualStartSeconds = -1.0
   private var manualCount: Int64 = 0
 
-  /// Asks for one appearance now. Heard only while the chant is scripted (the Sanctum).
-  func trigger() {
+  /// Asks for one appearance now, of the given `AumGesture` kind. Heard only while the chant is scripted (the Sanctum).
+  func trigger(kind: Int = AumGesture.kindPlain) {
     pendingStart = true
+    pendingKind = kind
   }
 
   /// Starts a night: clears every voice and reverb tail, and sets the seed its gestures are drawn from.
@@ -5485,7 +5507,7 @@ final class AumChant {
     farLeft = 0; farRight = 0
     for i in echoBufferLeft.indices { echoBufferLeft[i] = 0; echoBufferRight[i] = 0 }
     echoIndex = 0; echoDampLeft = 0; echoDampRight = 0
-    pendingStart = false; manualStartSeconds = -1; manualCount = 0
+    pendingStart = false; pendingKind = AumGesture.kindPlain; manualKind = -1; manualStartSeconds = -1; manualCount = 0
     voiceLeft = 0; voiceRight = 0; echoLeft = 0; echoRight = 0; farWet = 0
   }
 
@@ -5500,11 +5522,19 @@ final class AumChant {
     if scriptedOnly && pendingStart {
       pendingStart = false
       manualStartSeconds = elapsedSeconds
+      manualKind = pendingKind
       manualCount += 1
     }
     let cycle = scriptedOnly ? manualCount : Int64(chantPosition / period)
-    // Each appearance of the Aum draws its own gesture; at variety 0 every one is the designed chant.
-    if variety <= 0 {
+    // Each appearance of the Aum draws its own gesture; at variety 0 every one is the designed chant. A called
+    // appearance is exactly the kind the journey asked for.
+    if scriptedOnly && manualKind >= 0 {
+      if gestureNeutral || cycle != gestureCycle {
+        gesture.authored(kind: manualKind)
+        gestureNeutral = false
+        gestureCycle = cycle
+      }
+    } else if variety <= 0 {
       if !gestureNeutral { gesture.neutral(); gestureNeutral = true; gestureCycle = -1 }
     } else if gestureNeutral || cycle != gestureCycle {
       gesture.draw(seed: seed, index: cycle, variety: variety)
