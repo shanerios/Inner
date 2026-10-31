@@ -15,6 +15,9 @@ private fun clamp(value: Double, low: Double, high: Double) = min(high, max(low,
  * hum, once every 31 seconds. Each appearance draws its own gesture (see [AumGesture]); at variety 0 every
  * appearance is the designed chant. The Swift engine mirrors this file.
  *
+ * A journey can also call a single appearance by hand ([trigger]); the Sanctum does. In that mode the periodic
+ * schedule is off and each appearance begins exactly when called, with no start delay.
+ *
  * The chant is kept apart from the room: it returns its dry voice, its echo, and how much of it goes only to
  * the room's reverb, and the Temple world places them.
  */
@@ -60,6 +63,14 @@ internal class AumChant {
   private var echoIndex = 0
   private var echoDampLeft = 0.0
   private var echoDampRight = 0.0
+  private var pendingStart = false
+  private var manualStartSeconds = -1.0
+  private var manualCount = 0L
+
+  /** Asks for one appearance now. Heard only while the chant is scripted (the Sanctum). */
+  fun trigger() {
+    pendingStart = true
+  }
 
   /** Starts a night: clears every voice and reverb tail, and sets the seed its gestures are drawn from. */
   fun reset(nightSeed: Long) {
@@ -72,16 +83,22 @@ internal class AumChant {
     farLeft = 0.0; farRight = 0.0
     echoBufferLeft.fill(0.0); echoBufferRight.fill(0.0)
     echoIndex = 0; echoDampLeft = 0.0; echoDampRight = 0.0
+    pendingStart = false; manualStartSeconds = -1.0; manualCount = 0L
     voiceLeft = 0.0; voiceRight = 0.0; echoLeft = 0.0; echoRight = 0.0; farWet = 0.0
   }
 
-  fun render(sampleRate: Double, elapsedSeconds: Double, intensity: Double, presence: Double, density: Double, variety: Double) {
+  fun render(sampleRate: Double, elapsedSeconds: Double, intensity: Double, presence: Double, density: Double, variety: Double, scriptedOnly: Boolean = false) {
     val tau = PI * 2
     // The period is fixed for a night (a feel's variety does not change during it); from variety 0.6 it
     // shortens, so a fuller feel hears the chant more often. The first chant stays 5 s in.
     val period = PERIOD_SECONDS - (PERIOD_SECONDS - PERIOD_FULL_SECONDS) * clamp((variety - PERIOD_SHORTENS_FROM) / (1.0 - PERIOD_SHORTENS_FROM), 0.0, 1.0)
     val chantPosition = elapsedSeconds + (period - 5.0)
-    val cycle = (chantPosition / period).toLong()
+    if (scriptedOnly && pendingStart) {
+      pendingStart = false
+      manualStartSeconds = elapsedSeconds
+      manualCount += 1
+    }
+    val cycle = if (scriptedOnly) manualCount else (chantPosition / period).toLong()
     // Each appearance of the Aum draws its own gesture; at variety 0 every one is the designed chant.
     if (variety <= 0.0) {
       if (!gestureNeutral) { gesture.neutral(); gestureNeutral = true; gestureCycle = -1L }
@@ -90,10 +107,14 @@ internal class AumChant {
       gestureNeutral = false
       gestureCycle = cycle
     }
-    val chantTime = ((chantPosition % period) - gesture.startDelay) / gesture.stretch
+    val chantTime = if (scriptedOnly) {
+      if (manualStartSeconds < 0.0) -1.0 else (elapsedSeconds - manualStartSeconds) / gesture.stretch
+    } else {
+      ((chantPosition % period) - gesture.startDelay) / gesture.stretch
+    }
     // Sparser identity: the Aum sounds on every Nth 31 s cycle. The gate fades over a
     // quarter second, so a change of density mid-chant can never click.
-    val chantEvery = max(1, Math.round(1.0 / density).toInt())
+    val chantEvery = if (scriptedOnly) 1 else max(1, Math.round(1.0 / density).toInt())
     val chantOpen = if (chantEvery == 1 || cycle % chantEvery == 0L) 1.0 else 0.0
     gate += (chantOpen - gate) / max(1.0, sampleRate * 0.25)
     val chantEnvelope = when {

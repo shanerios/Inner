@@ -2,6 +2,7 @@ package expo.modules.inneraudio
 
 import kotlin.math.PI
 import kotlin.math.cos
+import kotlin.math.exp
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sin
@@ -20,11 +21,11 @@ private fun clamp(value: Double, low: Double, high: Double) = min(high, max(low,
  */
 internal class SanctumChorus {
   companion object {
-    /** Hz: an open fifth on A with its octaves, the two middle voices doubled slightly out of tune. */
-    private val FREQS = doubleArrayOf(55.0, 109.4, 110.6, 164.81, 219.1, 221.0)
-    private val WEIGHTS = doubleArrayOf(0.30, 0.24, 0.24, 0.14, 0.10, 0.08)
+    /** Hz: a sub A and E, two As an octave up (the second a little out of tune), then the E and A above them. */
+    private val FREQS = doubleArrayOf(27.5, 41.2, 55.0, 55.5, 82.41, 110.0)
+    private val WEIGHTS = doubleArrayOf(0.34, 0.30, 0.24, 0.20, 0.12, 0.05)
     /** From the left ear (-1) to the right (1). */
-    private val PANS = doubleArrayOf(0.0, -0.55, 0.55, 0.3, -0.7, 0.7)
+    private val PANS = doubleArrayOf(-0.4, 0.4, 0.0, -0.7, 0.7, 0.3)
     private const val VOICES = 6
     /** Seconds the chorus takes to reach a new level, so it blooms and is never switched on. */
     private const val BLOOM_SECONDS = 6.0
@@ -32,7 +33,9 @@ internal class SanctumChorus {
     private val COMB_SECONDS_RIGHT = doubleArrayOf(0.1993, 0.2411, 0.2879, 0.3469)
     /** About seven seconds to fade 60 dB. */
     private const val COMB_FEEDBACK = 0.78
-    private const val COMB_DAMPING = 0.35
+    private const val COMB_DAMPING = 0.6
+    /** Everything above this is rolled off (two one-pole stages), so the chorus is a drone and does not ring. */
+    private const val LOWPASS_HZ = 380.0
     private const val COMB_CAPACITY = 24_000
     private const val DRY_MIX = 0.55
     private const val WET_MIX = 0.9
@@ -58,6 +61,7 @@ internal class SanctumChorus {
   private var level = 0.0
   private val combLeft = Array(4) { DoubleArray(COMB_CAPACITY) }
   private val combRight = Array(4) { DoubleArray(COMB_CAPACITY) }
+  private val lowpass = DoubleArray(4)
   private val dampLeft = DoubleArray(4)
   private val dampRight = DoubleArray(4)
   private var combIndex = 0
@@ -74,25 +78,26 @@ internal class SanctumChorus {
     for (comb in combLeft) comb.fill(0.0)
     for (comb in combRight) comb.fill(0.0)
     dampLeft.fill(0.0); dampRight.fill(0.0)
+    lowpass.fill(0.0)
     combIndex = 0
     voiceLeft = 0.0; voiceRight = 0.0; farWet = 0.0
   }
 
   fun render(sampleRate: Double, elapsedSeconds: Double, intensity: Double, presence: Double) {
     val tau = PI * 2
-    val target = clamp(presence, 0.0, 12.0) * (0.27 + intensity * 0.18)
+    val target = clamp(presence, 0.0, 12.0) * (0.54 + intensity * 0.36)
     level += (target - level) / max(1.0, sampleRate * BLOOM_SECONDS)
     // Two slow, unrelated swells: the hall breathes in and out without a cycle you can count.
     val swell = 0.62 + 0.2 * sin(elapsedSeconds * tau / 19.0 + offsets[0]) + 0.18 * sin(elapsedSeconds * tau / 27.0 + offsets[1])
-    val formant1 = 480.0 * (1.0 + 0.06 * sin(elapsedSeconds * tau * 0.021 + offsets[2]))
-    val formant2 = 830.0 * (1.0 + 0.06 * sin(elapsedSeconds * tau * 0.017 + offsets[3]))
+    val formant1 = 170.0 * (1.0 + 0.06 * sin(elapsedSeconds * tau * 0.021 + offsets[2]))
+    val formant2 = 330.0 * (1.0 + 0.06 * sin(elapsedSeconds * tau * 0.017 + offsets[3]))
     var sourceLeft = 0.0
     var sourceRight = 0.0
     var body = 0.0
     for (index in 0 until VOICES) {
       val phase = phases[index]
-      // A compact band-limited glottal source, softer than the Aum's so the "O" stays round.
-      val glottal = sin(phase) + sin(phase * 2) * 0.55 + sin(phase * 3) * 0.28 + sin(phase * 4) * 0.12
+      // A compact band-limited glottal source, softer than the Aum's so the "O" stays round and low.
+      val glottal = sin(phase) + sin(phase * 2) * 0.55 + sin(phase * 3) * 0.20 + sin(phase * 4) * 0.05
       val shimmer = 0.94 + 0.06 * sin(elapsedSeconds * tau * (0.11 + index * 0.037) + offsets[index])
       val voice = glottal * WEIGHTS[index] * shimmer
       sourceLeft += voice * panLeft[index]
@@ -103,8 +108,15 @@ internal class SanctumChorus {
         0.0012 * sin(elapsedSeconds * tau * (0.07 + index * 0.013) + offsets[index])
       phases[index] = (phase + tau * FREQS[index] * vibrato / sampleRate) % tau
     }
-    val chorusLeft = (bandpass(sampleRate, sourceLeft, 0, formant1, 5.0) * 1.6 + bandpass(sampleRate, sourceLeft, 1, formant2, 6.0) * 1.1 + body * 0.35) * level * swell
-    val chorusRight = (bandpass(sampleRate, sourceRight, 2, formant1 * 0.994, 5.0) * 1.6 + bandpass(sampleRate, sourceRight, 3, formant2 * 1.006, 6.0) * 1.1 + body * 0.35) * level * swell
+    val rawLeft = bandpass(sampleRate, sourceLeft, 0, formant1, 2.0) * 1.2 + bandpass(sampleRate, sourceLeft, 1, formant2, 2.2) * 0.6 + body * 1.0
+    val rawRight = bandpass(sampleRate, sourceRight, 2, formant1 * 0.994, 2.0) * 1.2 + bandpass(sampleRate, sourceRight, 3, formant2 * 1.006, 2.2) * 0.6 + body * 1.0
+    val lowpassCoefficient = 1.0 - exp(-tau * LOWPASS_HZ / sampleRate)
+    lowpass[0] += lowpassCoefficient * (rawLeft - lowpass[0])
+    lowpass[1] += lowpassCoefficient * (lowpass[0] - lowpass[1])
+    lowpass[2] += lowpassCoefficient * (rawRight - lowpass[2])
+    lowpass[3] += lowpassCoefficient * (lowpass[2] - lowpass[3])
+    val chorusLeft = lowpass[1] * level * swell
+    val chorusRight = lowpass[3] * level * swell
 
     // The tail is fed after the level, so it fades naturally when the chorus is brought down.
     var wetLeft = 0.0

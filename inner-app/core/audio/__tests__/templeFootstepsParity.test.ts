@@ -76,7 +76,9 @@ describe('the temple footsteps: Kotlin and Swift are the same model', () => {
     pairs([
       ['val distanceFraction = if (sequenceApproaching) 1.0 - fraction else fraction', 'let distanceFraction = sequenceApproaching ? 1.0 - fraction : fraction'],
       ['pendingTrigger = if (approach) 1 else 2', 'pendingTrigger = approach ? 1 : 2'],
-      ['beginSequence(approaching = pendingTrigger == 1)', 'beginSequence(approaching: pendingTrigger == 1)'],
+      ['beginSequence(approaching = pendingTrigger == 1, hesitant = true)', 'beginSequence(approaching: pendingTrigger == 1, hesitant: true)'],
+      ['val tempo = if (sequenceHesitant) HESITANT_TEMPO_SECONDS else STEP_TEMPO_SECONDS', 'let tempo = sequenceHesitant ? TempleFootsteps.hesitantTempoSeconds : TempleFootsteps.stepTempoSeconds'],
+      ['val jitter = if (sequenceHesitant) HESITANT_TEMPO_JITTER else TEMPO_JITTER', 'let jitter = sequenceHesitant ? TempleFootsteps.hesitantTempoJitter : TempleFootsteps.tempoJitter'],
       ['if (!scriptedOnly && !sequenceActive && appearancesUsed < appearancesTotal) {', 'if !scriptedOnly && !sequenceActive && appearancesUsed < appearancesTotal {'],
       ['salience.reserve(salience = 0.3, durationSeconds = 7.0, recoverySeconds = 3.0)\n      beginSequence', 'salience: 0.3, durationSeconds: 7.0, recoverySeconds: 3.0)\n      beginSequence'],
     ]);

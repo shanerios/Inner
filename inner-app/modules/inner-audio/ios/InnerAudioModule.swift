@@ -159,11 +159,17 @@ private struct TimelineStage {
   let cueEvents: [CueEvent]
   let voiceEvents: [VoiceEvent]
   let footstepsEvents: [FootstepsEvent]
+  let aumEvents: [AumEvent]
 }
 
 private struct VoiceEvent {
   let atMs: Double
   let clipId: String
+}
+
+/// One appearance of the Aum the journey calls at this point in a stage.
+private struct AumEvent {
+  let atMs: Double
 }
 
 /// A passage of footsteps the journey calls at this point in a stage.
@@ -396,6 +402,7 @@ final class ProceduralAudioEngine: NSObject {
   private var voiceBank: [String: VoiceClip] = [:]
   private var voiceTimelineThresholdMs = -1.0
   private var footstepsTimelineThresholdMs = -1.0
+  private var aumTimelineThresholdMs = -1.0
   private var voiceActive = false
   private var voiceSamples: [Float] = []
   private var voiceRate = 0.0
@@ -653,6 +660,10 @@ final class ProceduralAudioEngine: NSObject {
         footstepsEvents: stage.spatialEvents.prefix(16).compactMap { event in
           guard event.type == "footsteps", event.atMs >= 0 else { return nil }
           return FootstepsEvent(atMs: event.atMs, approach: event.direction == "approach")
+        },
+        aumEvents: stage.spatialEvents.prefix(16).compactMap { event in
+          guard event.type == "aum", event.atMs >= 0 else { return nil }
+          return AumEvent(atMs: event.atMs)
         }
       )
     }
@@ -890,6 +901,7 @@ final class ProceduralAudioEngine: NSObject {
     cueTimelineThresholdMs = -1
     voiceTimelineThresholdMs = -1
     footstepsTimelineThresholdMs = -1
+    aumTimelineThresholdMs = -1
     voiceActive = false
     voiceElapsedFrames = 0
     voiceBedGain = 1
@@ -1104,6 +1116,19 @@ final class ProceduralAudioEngine: NSObject {
     return nil
   }
 
+  /// The next Aum event that has come due since `afterMs`, as its position in the whole timeline.
+  private func timelineAumEventMs(_ timeline: AudioTimeline, elapsedMs: Double, afterMs: Double) -> Double? {
+    var cursor = 0.0
+    for stage in timeline.stages {
+      for event in stage.aumEvents {
+        let globalAtMs = cursor + event.atMs
+        if globalAtMs > afterMs && globalAtMs <= elapsedMs { return globalAtMs }
+      }
+      cursor += stage.durationMs
+    }
+    return nil
+  }
+
   /// The next footsteps event that has come due since `afterMs`, with its position in the whole timeline.
   private func timelineFootstepsEvent(_ timeline: AudioTimeline, elapsedMs: Double, afterMs: Double) -> (atMs: Double, approach: Bool)? {
     var cursor = 0.0
@@ -1271,6 +1296,7 @@ final class ProceduralAudioEngine: NSObject {
       cueTimelineThresholdMs = timelineStartFrame * 1_000 / sampleRate
       voiceTimelineThresholdMs = timelineStartFrame * 1_000 / sampleRate
       footstepsTimelineThresholdMs = timelineStartFrame * 1_000 / sampleRate
+      aumTimelineThresholdMs = timelineStartFrame * 1_000 / sampleRate
       voiceActive = false
       voiceElapsedFrames = 0
       voiceBedGain = 1
@@ -1331,6 +1357,11 @@ final class ProceduralAudioEngine: NSObject {
          let footstepsFire = timelineFootstepsEvent(activeTimeline, elapsedMs: timelineElapsedMs, afterMs: footstepsTimelineThresholdMs) {
         footstepsTimelineThresholdMs = footstepsFire.atMs
         templeFootsteps.trigger(approach: footstepsFire.approach)
+      }
+      if let activeTimeline,
+         let aumFireMs = timelineAumEventMs(activeTimeline, elapsedMs: timelineElapsedMs, afterMs: aumTimelineThresholdMs) {
+        aumTimelineThresholdMs = aumFireMs
+        aumChant.trigger()
       }
       worldSalience.beginFrame(suppressRareEvents: recognitionSpace != nil || cueActive)
       let orbitPhase = spatialSeconds * target.spatialRate * Double.pi * 2 / 60
@@ -1974,6 +2005,10 @@ final class ProceduralAudioEngine: NSObject {
   private static let recognitionNoiseThinning = 1.2
   /// How much of the Temple footsteps reach the shared room, versus everything else in the space at full strength.
   private static let templeFootstepsRoomSend = 0.55
+  /// How loud a called Aum stands over the Sanctum's chorus, against the Temple's own level of 1.
+  private static let sanctumAumLevel = 0.8
+  /// A called Aum is never quieter than this presence, so it still sounds when the chorus has fallen away.
+  private static let sanctumAumMinPresence = 1.0
 
   // The lucidity cue: a fixed, non-seeded ascending three-note motif (the
   // same 400/600/800 Hz contour used in published targeted-lucidity-
@@ -2191,10 +2226,11 @@ final class ProceduralAudioEngine: NSObject {
 
     // The chant (three imperfect virtual voices, once every 31 s, each appearance its own gesture) lives in
     // AumChant. The room places its dry voice and echo, and sends a far-off chant to the reverb alone.
-    aumChant.render(sampleRate: sampleRate, elapsedSeconds: elapsedSeconds, intensity: intensity, presence: presence, density: density, variety: variety)
-    // In the Sanctum the sustained chorus takes the Aum's place, and the two cross-fade with the world.
+    // In the Sanctum the periodic Aum is off: the chorus holds the hall, and the journey calls each Aum by hand.
     let sanctum = sanctumEnvelope
-    let chantScale = 1.0 - sanctum
+    let aumPresence = sanctum > 0.0001 ? max(presence, Self.sanctumAumMinPresence) : presence
+    aumChant.render(sampleRate: sampleRate, elapsedSeconds: elapsedSeconds, intensity: intensity, presence: aumPresence, density: density, variety: variety, scriptedOnly: sanctum > 0.0001)
+    let chantScale = 1.0 - sanctum * (1.0 - Self.sanctumAumLevel)
     var chorusLeft = 0.0
     var chorusRight = 0.0
     var chorusFarWet = 0.0
@@ -2797,6 +2833,9 @@ final class TempleFootsteps {
   static let stepRange = 4
   static let stepTempoSeconds = 0.56
   static let tempoJitter = 0.12
+  /// A passage the journey calls walks slower and less evenly: someone who is not sure they should come in.
+  static let hesitantTempoSeconds = 1.05
+  static let hesitantTempoJitter = 0.3
   static let stepSwellSeconds = 0.07
   static let stepTotalSeconds = 0.105
   static let grainRatePerSecond = 460.0
@@ -2830,6 +2869,7 @@ final class TempleFootsteps {
   private var sequenceStartPan = 0.0
   private var sequenceEndPan = 0.0
   private var sequenceApproaching = false
+  private var sequenceHesitant = false
 
   // a passage called by the journey: 0 = none, 1 = approaching, 2 = receding
   private var pendingTrigger = 0
@@ -2867,7 +2907,7 @@ final class TempleFootsteps {
     sequenceActive = false
     stepsRemainingInSequence = 0; totalStepsInSequence = 0; stepIndexInSequence = 0
     stepCountdownSamples = 0; sequenceStartPan = 0; sequenceEndPan = 0
-    sequenceApproaching = false; pendingTrigger = 0
+    sequenceApproaching = false; sequenceHesitant = false; pendingTrigger = 0
     stepActive = false; stepAgeSamples = 0; stepPan = 0; stepDistance = 0; stepCutoffPole = 0
     hp = 0; lp = 0; grainLevel = 0; thudAmplitude = 0; thudLp = 0; lowpassOne = 0; lowpassTwo = 0
     kHp = pole(TempleFootsteps.highpassHz); kLp = pole(TempleFootsteps.lowpassHz); kThudLp = pole(TempleFootsteps.thudLowpassHz)
@@ -2894,9 +2934,10 @@ final class TempleFootsteps {
     pendingTrigger = approach ? 1 : 2
   }
 
-  private func beginSequence(approaching: Bool = false) {
+  private func beginSequence(approaching: Bool = false, hesitant: Bool = false) {
     sequenceActive = true
     sequenceApproaching = approaching
+    sequenceHesitant = hesitant
     totalStepsInSequence = TempleFootsteps.minSteps + Int(unit() * Double(TempleFootsteps.stepRange + 1))
     stepsRemainingInSequence = totalStepsInSequence
     stepIndexInSequence = 0
@@ -2917,7 +2958,9 @@ final class TempleFootsteps {
     thudAmplitude = 1.0
     stepIndexInSequence += 1
     stepsRemainingInSequence -= 1
-    stepCountdownSamples = (TempleFootsteps.stepTempoSeconds * rate) * (1.0 + TempleFootsteps.tempoJitter * (unit() * 2.0 - 1.0))
+    let tempo = sequenceHesitant ? TempleFootsteps.hesitantTempoSeconds : TempleFootsteps.stepTempoSeconds
+    let jitter = sequenceHesitant ? TempleFootsteps.hesitantTempoJitter : TempleFootsteps.tempoJitter
+    stepCountdownSamples = (tempo * rate) * (1.0 + jitter * (unit() * 2.0 - 1.0))
   }
 
   func render(sampleRate: Double, elapsedSeconds: Double, salience: WorldSalienceScheduler, scriptedOnly: Bool = false) {
@@ -2926,7 +2969,7 @@ final class TempleFootsteps {
     if pendingTrigger != 0 && !sequenceActive {
       // Called by the journey, so it is never held back; it still claims the space around it.
       _ = salience.reserve(salience: 0.3, durationSeconds: 7.0, recoverySeconds: 3.0)
-      beginSequence(approaching: pendingTrigger == 1)
+      beginSequence(approaching: pendingTrigger == 1, hesitant: true)
       pendingTrigger = 0
     }
 
@@ -5366,6 +5409,14 @@ final class AumChant {
   private var echoIndex = 0
   private var echoDampLeft = 0.0
   private var echoDampRight = 0.0
+  private var pendingStart = false
+  private var manualStartSeconds = -1.0
+  private var manualCount: Int64 = 0
+
+  /// Asks for one appearance now. Heard only while the chant is scripted (the Sanctum).
+  func trigger() {
+    pendingStart = true
+  }
 
   /// Starts a night: clears every voice and reverb tail, and sets the seed its gestures are drawn from.
   func reset(seed nightSeed: UInt64) {
@@ -5379,18 +5430,24 @@ final class AumChant {
     farLeft = 0; farRight = 0
     for i in echoBufferLeft.indices { echoBufferLeft[i] = 0; echoBufferRight[i] = 0 }
     echoIndex = 0; echoDampLeft = 0; echoDampRight = 0
+    pendingStart = false; manualStartSeconds = -1; manualCount = 0
     voiceLeft = 0; voiceRight = 0; echoLeft = 0; echoRight = 0; farWet = 0
   }
 
   private func clamp(_ value: Double, _ low: Double, _ high: Double) -> Double { min(high, max(low, value)) }
 
-  func render(sampleRate: Double, elapsedSeconds: Double, intensity: Double, presence: Double, density: Double, variety: Double) {
+  func render(sampleRate: Double, elapsedSeconds: Double, intensity: Double, presence: Double, density: Double, variety: Double, scriptedOnly: Bool = false) {
     let tau = Double.pi * 2
     // The period is fixed for a night (a feel's variety does not change during it); from variety 0.6 it
     // shortens, so a fuller feel hears the chant more often. The first chant stays 5 s in.
     let period = Self.periodSeconds - (Self.periodSeconds - Self.periodFullSeconds) * clamp((variety - Self.periodShortensFrom) / (1.0 - Self.periodShortensFrom), 0, 1)
     let chantPosition = elapsedSeconds + (period - 5.0)
-    let cycle = Int64(chantPosition / period)
+    if scriptedOnly && pendingStart {
+      pendingStart = false
+      manualStartSeconds = elapsedSeconds
+      manualCount += 1
+    }
+    let cycle = scriptedOnly ? manualCount : Int64(chantPosition / period)
     // Each appearance of the Aum draws its own gesture; at variety 0 every one is the designed chant.
     if variety <= 0 {
       if !gestureNeutral { gesture.neutral(); gestureNeutral = true; gestureCycle = -1 }
@@ -5399,10 +5456,15 @@ final class AumChant {
       gestureNeutral = false
       gestureCycle = cycle
     }
-    let chantTime = (fmod(chantPosition, period) - gesture.startDelay) / gesture.stretch
+    let chantTime: Double
+    if scriptedOnly {
+      chantTime = manualStartSeconds < 0 ? -1 : (elapsedSeconds - manualStartSeconds) / gesture.stretch
+    } else {
+      chantTime = (fmod(chantPosition, period) - gesture.startDelay) / gesture.stretch
+    }
     // Sparser identity: the Aum sounds on every Nth 31 s cycle. The gate fades over a
     // quarter second, so a change of density mid-chant can never click.
-    let chantEvery = max(1, Int((1.0 / density).rounded()))
+    let chantEvery = scriptedOnly ? 1 : max(1, Int((1.0 / density).rounded()))
     let chantOpen = (chantEvery == 1 || cycle % Int64(chantEvery) == 0) ? 1.0 : 0.0
     gate += (chantOpen - gate) / max(1, sampleRate * 0.25)
     let chantEnvelope: Double
@@ -5529,11 +5591,11 @@ final class AumChant {
 ///
 /// It replaces the Temple's periodic Aum while the Sanctum is sounding; the Temple world never uses it.
 final class SanctumChorus {
-  /// Hz: an open fifth on A with its octaves, the two middle voices doubled slightly out of tune.
-  private static let freqs = [55.0, 109.4, 110.6, 164.81, 219.1, 221.0]
-  private static let weights = [0.30, 0.24, 0.24, 0.14, 0.10, 0.08]
+  /// Hz: a sub A and E, two As an octave up (the second a little out of tune), then the E and A above them.
+  private static let freqs = [27.5, 41.2, 55.0, 55.5, 82.41, 110.0]
+  private static let weights = [0.34, 0.30, 0.24, 0.20, 0.12, 0.05]
   /// From the left ear (-1) to the right (1).
-  private static let pans = [0.0, -0.55, 0.55, 0.3, -0.7, 0.7]
+  private static let pans = [-0.4, 0.4, 0.0, -0.7, 0.7, 0.3]
   private static let voices = 6
   /// Seconds the chorus takes to reach a new level, so it blooms and is never switched on.
   private static let bloomSeconds = 6.0
@@ -5541,7 +5603,9 @@ final class SanctumChorus {
   private static let combSecondsRight = [0.1993, 0.2411, 0.2879, 0.3469]
   /// About seven seconds to fade 60 dB.
   private static let combFeedback = 0.78
-  private static let combDamping = 0.35
+  private static let combDamping = 0.6
+  /// Everything above this is rolled off (two one-pole stages), so the chorus is a drone and does not ring.
+  private static let lowpassHz = 380.0
   private static let combCapacity = 24_000
   private static let dryMix = 0.55
   private static let wetMix = 0.9
@@ -5565,6 +5629,7 @@ final class SanctumChorus {
   private var combRight = [[Double]](repeating: [Double](repeating: 0, count: SanctumChorus.combCapacity), count: 4)
   private var dampLeft = [Double](repeating: 0, count: 4)
   private var dampRight = [Double](repeating: 0, count: 4)
+  private var lowpass = [Double](repeating: 0, count: 4)
   private var combIndex = 0
 
   /// Starts a night: clears every voice and tail, and sets the phases the voices begin from.
@@ -5582,6 +5647,7 @@ final class SanctumChorus {
     }
     dampLeft = [Double](repeating: 0, count: 4)
     dampRight = [Double](repeating: 0, count: 4)
+    lowpass = [Double](repeating: 0, count: 4)
     combIndex = 0
     voiceLeft = 0; voiceRight = 0; farWet = 0
   }
@@ -5590,19 +5656,19 @@ final class SanctumChorus {
 
   func render(sampleRate: Double, elapsedSeconds: Double, intensity: Double, presence: Double) {
     let tau = Double.pi * 2
-    let target = clamp(presence, 0, 12) * (0.27 + intensity * 0.18)
+    let target = clamp(presence, 0, 12) * (0.54 + intensity * 0.36)
     level += (target - level) / max(1.0, sampleRate * Self.bloomSeconds)
     // Two slow, unrelated swells: the hall breathes in and out without a cycle you can count.
     let swell = 0.62 + 0.2 * sin(elapsedSeconds * tau / 19.0 + offsets[0]) + 0.18 * sin(elapsedSeconds * tau / 27.0 + offsets[1])
-    let formant1 = 480.0 * (1.0 + 0.06 * sin(elapsedSeconds * tau * 0.021 + offsets[2]))
-    let formant2 = 830.0 * (1.0 + 0.06 * sin(elapsedSeconds * tau * 0.017 + offsets[3]))
+    let formant1 = 170.0 * (1.0 + 0.06 * sin(elapsedSeconds * tau * 0.021 + offsets[2]))
+    let formant2 = 330.0 * (1.0 + 0.06 * sin(elapsedSeconds * tau * 0.017 + offsets[3]))
     var sourceLeft = 0.0
     var sourceRight = 0.0
     var body = 0.0
     for index in 0..<Self.voices {
       let phase = phases[index]
-      // A compact band-limited glottal source, softer than the Aum's so the "O" stays round.
-      let glottal = sin(phase) + sin(phase * 2) * 0.55 + sin(phase * 3) * 0.28 + sin(phase * 4) * 0.12
+      // A compact band-limited glottal source, softer than the Aum's so the "O" stays round and low.
+      let glottal = sin(phase) + sin(phase * 2) * 0.55 + sin(phase * 3) * 0.20 + sin(phase * 4) * 0.05
       let shimmer = 0.94 + 0.06 * sin(elapsedSeconds * tau * (0.11 + Double(index) * 0.037) + offsets[index])
       let voice = glottal * Self.weights[index] * shimmer
       sourceLeft += voice * panLeft[index]
@@ -5613,8 +5679,15 @@ final class SanctumChorus {
         0.0012 * sin(elapsedSeconds * tau * (0.07 + Double(index) * 0.013) + offsets[index])
       phases[index] = fmod(phase + tau * Self.freqs[index] * vibrato / sampleRate, tau)
     }
-    let chorusLeft = (bandpass(sampleRate, sourceLeft, index: 0, frequency: formant1, q: 5.0) * 1.6 + bandpass(sampleRate, sourceLeft, index: 1, frequency: formant2, q: 6.0) * 1.1 + body * 0.35) * level * swell
-    let chorusRight = (bandpass(sampleRate, sourceRight, index: 2, frequency: formant1 * 0.994, q: 5.0) * 1.6 + bandpass(sampleRate, sourceRight, index: 3, frequency: formant2 * 1.006, q: 6.0) * 1.1 + body * 0.35) * level * swell
+    let rawLeft = bandpass(sampleRate, sourceLeft, index: 0, frequency: formant1, q: 2.0) * 1.2 + bandpass(sampleRate, sourceLeft, index: 1, frequency: formant2, q: 2.2) * 0.6 + body * 1.0
+    let rawRight = bandpass(sampleRate, sourceRight, index: 2, frequency: formant1 * 0.994, q: 2.0) * 1.2 + bandpass(sampleRate, sourceRight, index: 3, frequency: formant2 * 1.006, q: 2.2) * 0.6 + body * 1.0
+    let lowpassCoefficient = 1.0 - exp(-tau * Self.lowpassHz / sampleRate)
+    lowpass[0] += lowpassCoefficient * (rawLeft - lowpass[0])
+    lowpass[1] += lowpassCoefficient * (lowpass[0] - lowpass[1])
+    lowpass[2] += lowpassCoefficient * (rawRight - lowpass[2])
+    lowpass[3] += lowpassCoefficient * (lowpass[2] - lowpass[3])
+    let chorusLeft = lowpass[1] * level * swell
+    let chorusRight = lowpass[3] * level * swell
 
     // The tail is fed after the level, so it fades naturally when the chorus is brought down.
     var wetLeft = 0.0

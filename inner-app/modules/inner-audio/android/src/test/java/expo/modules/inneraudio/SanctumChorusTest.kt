@@ -8,7 +8,7 @@ import kotlin.math.sqrt
 /**
  * Renders the Sanctum chorus on its own: it stays finite, blooms in rather than starting at full level,
  * holds a level close to the Temple Aum's, and rings out when it is brought down. The Swift engine's chorus
- * measures the same RMS (0.0833, left channel, presence 1, intensity 0.5, seed 0x9e3779b97f4a7c15).
+ * measures the same RMS (0.0873, left channel, presence 1, intensity 0.5, seed 0x9e3779b97f4a7c15).
  */
 class SanctumChorusTest {
   private val sampleRate = 48_000.0
@@ -35,7 +35,7 @@ class SanctumChorusTest {
     val chorus = SanctumChorus()
     chorus.reset(seed)
     val (level, peak) = rms(chorus, 30.0, 40.0, 1.0)
-    assertEquals(0.0833, level, 0.002)
+    assertEquals(0.0873, level, 0.002)
     assertTrue("peak $peak", peak < 0.6)
   }
 

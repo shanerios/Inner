@@ -37,12 +37,12 @@ class TempleFootstepsScriptedTest {
   }
 
   @Test fun walksWhenCalledThenStopsAndStaysSilent() {
-    val energy = rendered(-0x61c8864680b583ebL, true, 20.0)
+    val energy = rendered(-0x61c8864680b583ebL, true, 25.0)
     val first = energy.indexOfFirst { it > 0.0 }
     assertTrue("steps begin at once", first in 0 until (0.2 * sampleRate).toInt())
     val last = energy.indexOfLast { it > 0.0 }
-    assertTrue("a passage is a few seconds long", last < (7.0 * sampleRate).toInt())
-    assertEquals(0.0, energy.slice((8.0 * sampleRate).toInt() until energy.size).sum(), 0.0)
+    assertTrue("a hesitant passage is under fourteen seconds", last < (14.0 * sampleRate).toInt())
+    assertEquals(0.0, energy.slice((15.0 * sampleRate).toInt() until energy.size).sum(), 0.0)
   }
 
   @Test fun approachingGrowsAndRecedingFades() {
@@ -51,7 +51,7 @@ class TempleFootstepsScriptedTest {
     val seeds = 1L..6L
     for (seed in seeds) {
       for (approach in listOf(true, false)) {
-        val energy = rendered(seed, approach, 8.0)
+        val energy = rendered(seed, approach, 16.0)
         val end = energy.indexOfLast { it > 0.0 }
         val third = end / 3
         val ratio = rms(energy, 2 * third, end) / rms(energy, 0, third)

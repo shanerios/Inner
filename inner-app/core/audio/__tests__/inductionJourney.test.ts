@@ -62,7 +62,7 @@ describe('The Induction', () => {
     expect(cues[1].atMs - cues[0].atMs).toBeGreaterThanOrEqual(2 * 60_000);
   });
 
-  it('is walked into and out of: footsteps approach before the chorus, and recede at the end', () => {
+  it('is greeted by the drone alone, then walked in and out: hesitant footsteps after ten seconds, leaving at the end', () => {
     let offset = 0;
     const steps: Array<{ atMs: number; direction: string; stage: string }> = [];
     for (const item of timeline.stages) {
@@ -72,28 +72,57 @@ describe('The Induction', () => {
       offset += item.durationMs;
     }
     expect(steps.map(step => step.direction)).toEqual(['approach', 'recede']);
-    // The walker arrives while the hall is still alone, and leaves after the chorus has fallen away.
-    expect(steps[0].stage).toBe('arrive');
-    expect(steps[0].atMs).toBeLessThan(30_000);
-    expect(timeline.stages[0].target.identityPresence).toBe(0);
+    // The drone fades in over the first ten seconds, and the walker comes in after it, between 10 and 15 seconds.
+    expect(timeline.stages[0].transitionMs).toBe(10_000);
+    expect(timeline.stages[0].target.identityPresence).toBeGreaterThan(0);
+    expect(steps[0].stage).toBe('greet');
+    expect(steps[0].atMs).toBeGreaterThanOrEqual(10_000);
+    expect(steps[0].atMs).toBeLessThanOrEqual(15_000);
     expect(steps[1].stage).toBe('leave');
     expect(timeline.stages[timeline.stages.length - 1].id).toBe('leave');
     expect(timeline.stages[timeline.stages.length - 1].target.identityPresence ?? 1).toBeLessThan(0.3);
   });
 
-  it('fades a brown bed and the binaural field in together over the first ten seconds', () => {
-    const first = timeline.stages[0];
-    expect(first.id).toBe('arrive');
-    expect(first.durationMs).toBe(30_000);
-    expect(first.transitionMs).toBe(10_000);
-    expect(first.target.noiseColor).toBe('brown');
-    expect(first.target.noiseGain).toBeGreaterThan(0);
-    expect(first.target.binauralGain).toBeGreaterThan(0);
-    // Everything starts silent, so the one ten-second transition is the fade-in of both.
-    const compiled = compileAudioJourneyTimeline(timeline, DEFAULT_PROCEDURAL_AUDIO_CONFIG);
-    expect(DEFAULT_PROCEDURAL_AUDIO_CONFIG.noiseGain).toBe(0);
-    expect(DEFAULT_PROCEDURAL_AUDIO_CONFIG.binauralGain).toBe(0);
-    expect(compiled.stages[0].config.noiseColor).toBe('brown');
+  it('builds the drone after the footsteps, and only then fades the brown bed and the binaural field in', () => {
+    const [greet, bed] = timeline.stages;
+    expect(greet.id).toBe('greet');
+    expect(bed.id).toBe('bed');
+    // Nothing of the bed or the binaural field is heard while the drone greets and the footsteps come.
+    expect(greet.target.noiseGain).toBe(0);
+    expect(greet.target.binauralGain).toBe(0);
+    // The drone builds fuller once the walker has arrived.
+    expect(bed.target.identityPresence!).toBeGreaterThan(greet.target.identityPresence!);
+    // The bed and the binaural field fade in together over ten seconds, brown.
+    expect(bed.transitionMs).toBe(10_000);
+    expect(bed.target.noiseColor).toBe('brown');
+    expect(bed.target.noiseGain).toBeGreaterThan(0);
+    expect(bed.target.binauralGain).toBeGreaterThan(0);
+    // The bed's fade starts after the walker's steps could have finished (about nine hesitant steps).
+    expect(greet.durationMs).toBeGreaterThanOrEqual(25_000);
+  });
+
+  it('calls four Aum chants over the drone, none near the Bell, one into the empty hall', () => {
+    let offset = 0;
+    const aums: Array<{ atMs: number; stage: string }> = [];
+    const bells: number[] = [];
+    for (const item of timeline.stages) {
+      for (const event of item.spatialEvents ?? []) {
+        if (event.type === 'aum') aums.push({ atMs: offset + event.atMs, stage: item.id });
+        if (event.type === 'cue') bells.push(offset + event.atMs);
+      }
+      offset += item.durationMs;
+    }
+    expect(aums).toHaveLength(4);
+    // An Aum lasts nine seconds; keep each clear of the Bell and its decay (about five seconds).
+    for (const aum of aums) {
+      for (const bell of bells) {
+        const clear = aum.atMs + 9_000 < bell - 1_000 || aum.atMs > bell + 6_000;
+        expect(clear).toBe(true);
+      }
+    }
+    expect(aums[aums.length - 1].stage).toBe('hall');
+    // The chanting is a different appearance each time.
+    expect(timeline.stages[0].target.identityVariety).toBeGreaterThan(0);
   });
 
   it('brings the Bell in around 1:30', () => {
@@ -109,9 +138,9 @@ describe('The Induction', () => {
     }
   });
 
-  it('opens with the hall alone, builds the chorus, and lets it fall away', () => {
+  it('opens with the drone, builds it fuller to the middle, and lets it fall away', () => {
     const presence = timeline.stages.map(item => item.target.identityPresence ?? 1);
-    expect(presence[0]).toBe(0);
+    expect(presence[0]).toBeLessThan(presence[2]);
     expect(Math.max(...presence)).toBeLessThanOrEqual(IDENTITY_PRESENCE_MAX);
     expect(presence.indexOf(Math.max(...presence))).toBe(timeline.stages.findIndex(item => item.id === 'fullest'));
     expect(presence[presence.length - 1]).toBeLessThan(0.3);

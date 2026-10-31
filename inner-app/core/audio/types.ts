@@ -47,7 +47,17 @@ export type AudioFootstepsEvent = {
   direction: 'approach' | 'recede';
 };
 
-export type AudioSpatialEvent = AudioSwooshEvent | AudioCueEvent | AudioVoiceEvent | AudioFootstepsEvent;
+/**
+ * One appearance of the Aum, the hall's chant, exactly here. While a Sanctum is sounding the periodic Aum is off, so
+ * it is heard only where a journey calls it.
+ */
+export type AudioAumEvent = {
+  id: string;
+  atMs: number;
+  type: 'aum';
+};
+
+export type AudioSpatialEvent = AudioSwooshEvent | AudioCueEvent | AudioVoiceEvent | AudioFootstepsEvent | AudioAumEvent;
 
 export type ProceduralAudioConfig = {
   carrierHz: number;

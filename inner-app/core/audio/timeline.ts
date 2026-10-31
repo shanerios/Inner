@@ -54,6 +54,9 @@ export function compileAudioJourneyTimeline(
       if (event.type === 'cue') {
         return { ...event, id: event.id.trim() };
       }
+      if (event.type === 'aum') {
+        return { ...event, id: event.id.trim() };
+      }
       if (event.type === 'footsteps') {
         if (event.direction !== 'approach' && event.direction !== 'recede') {
           throw new Error(`Audio journey footsteps event ${event.id} must approach or recede`);

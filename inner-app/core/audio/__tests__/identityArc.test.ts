@@ -226,10 +226,10 @@ describe('identity controls across JS and both native engines', () => {
   it('applies presence and density to the Aum the same way in both engines', () => {
     const chant = kotlin('AumChant.kt');
     // Every Nth 31 s cycle, gated over a quarter second, level scaled by presence.
-    expect(chant).toContain('val chantEvery = max(1, Math.round(1.0 / density).toInt())');
+    expect(chant).toContain('val chantEvery = if (scriptedOnly) 1 else max(1, Math.round(1.0 / density).toInt())');
     expect(chant).toContain('gate += (chantOpen - gate) / max(1.0, sampleRate * 0.25)');
     expect(chant).toContain('val chantLevel = chantEnvelope * (0.18 + intensity * 0.12) * presence * gesture.level');
-    expect(swift).toContain('let chantEvery = max(1, Int((1.0 / density).rounded()))');
+    expect(swift).toContain('let chantEvery = scriptedOnly ? 1 : max(1, Int((1.0 / density).rounded()))');
     expect(swift).toContain('gate += (chantOpen - gate) / max(1, sampleRate * 0.25)');
     expect(swift).toContain('let chantLevel = chantGated * (0.18 + intensity * 0.12) * presence * gesture.level');
   });

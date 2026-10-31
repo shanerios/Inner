@@ -106,6 +106,7 @@ private data class TimelineStageState(
   val cueEvents: List<CueEventState>,
   val voiceEvents: List<VoiceEventState>,
   val footstepsEvents: List<FootstepsEventState>,
+  val aumEvents: List<AumEventState>,
 )
 
 private data class SpatialEventState(
@@ -128,6 +129,11 @@ private data class CueEventState(
 private data class VoiceEventState(
   val atMs: Double,
   val clipId: String,
+)
+
+/** One appearance of the Aum the journey calls at this point in a stage. */
+private data class AumEventState(
+  val atMs: Double,
 )
 
 /** A passage of footsteps the journey calls at this point in a stage. */
@@ -207,6 +213,10 @@ private const val NOISE_CROSSFADE_SECONDS = 4.5
 private const val RECOGNITION_NOISE_THINNING = 1.2
 /** How much of the Temple footsteps reach the shared room, versus everything else in the space at full strength. */
 private const val TEMPLE_FOOTSTEPS_ROOM_SEND = 0.55
+/** How loud a called Aum stands over the Sanctum's chorus, against the Temple's own level of 1. */
+private const val SANCTUM_AUM_LEVEL = 0.8
+/** A called Aum is never quieter than this presence, so it still sounds when the chorus has fallen away. */
+private const val SANCTUM_AUM_MIN_PRESENCE = 1.0
 
 // The lucidity cue: a fixed, non-seeded ascending three-note motif (the same
 // 400/600/800 Hz contour used in published targeted-lucidity-reactivation
@@ -412,6 +422,7 @@ object ProceduralAudioEngine {
   @Volatile private var voiceBank: Map<String, VoiceClip> = emptyMap()
   private var voiceTimelineThresholdMs = -1.0
   private var footstepsTimelineThresholdMs = -1.0
+  private var aumTimelineThresholdMs = -1.0
   private var voiceActive = false
   private var voiceSamples = FloatArray(0)
   private var voiceRate = 0.0
@@ -636,6 +647,10 @@ object ProceduralAudioEngine {
             if (event.type != "footsteps" || event.atMs < 0) return@mapNotNull null
             FootstepsEventState(atMs = event.atMs, approach = event.direction == "approach")
           },
+          aumEvents = stage.spatialEvents.take(16).mapNotNull { event ->
+            if (event.type != "aum" || event.atMs < 0) return@mapNotNull null
+            AumEventState(atMs = event.atMs)
+          },
         )
       }
       val total = stages.sumOf { it.durationMs }
@@ -784,6 +799,7 @@ object ProceduralAudioEngine {
     cueTimelineThresholdMs = -1.0
     voiceTimelineThresholdMs = -1.0
     footstepsTimelineThresholdMs = -1.0
+    aumTimelineThresholdMs = -1.0
     voiceActive = false
     voiceElapsedFrames = 0.0
     voiceBedGain = 1.0
@@ -941,6 +957,7 @@ object ProceduralAudioEngine {
       cueTimelineThresholdMs = timelineStartFrame * 1_000.0 / sampleRate
       voiceTimelineThresholdMs = timelineStartFrame * 1_000.0 / sampleRate
       footstepsTimelineThresholdMs = timelineStartFrame * 1_000.0 / sampleRate
+      aumTimelineThresholdMs = timelineStartFrame * 1_000.0 / sampleRate
       voiceActive = false
       voiceElapsedFrames = 0.0
       voiceBedGain = 1.0
@@ -1001,6 +1018,11 @@ object ProceduralAudioEngine {
         if (footstepsFire != null) {
           footstepsTimelineThresholdMs = footstepsFire.first
           templeFootsteps.trigger(footstepsFire.second.approach)
+        }
+        val aumFireMs = timelineAumEventMs(activeTimeline, timelineElapsedMs, aumTimelineThresholdMs)
+        if (aumFireMs != null) {
+          aumTimelineThresholdMs = aumFireMs
+          aumChant.trigger()
         }
       }
       worldSalience.beginFrame(recognitionSpace != null || cueActive)
@@ -1367,6 +1389,19 @@ object ProceduralAudioEngine {
     var cursor = 0.0
     for (stage in timeline.stages) {
       for (event in stage.voiceEvents) {
+        val globalAtMs = cursor + event.atMs
+        if (globalAtMs > afterMs && globalAtMs <= elapsedMs) return globalAtMs
+      }
+      cursor += stage.durationMs
+    }
+    return null
+  }
+
+  /** The next Aum event that has come due since [afterMs], as its position in the whole timeline. */
+  private fun timelineAumEventMs(timeline: AudioTimelineState, elapsedMs: Double, afterMs: Double): Double? {
+    var cursor = 0.0
+    for (stage in timeline.stages) {
+      for (event in stage.aumEvents) {
         val globalAtMs = cursor + event.atMs
         if (globalAtMs > afterMs && globalAtMs <= elapsedMs) return globalAtMs
       }
@@ -1855,10 +1890,11 @@ object ProceduralAudioEngine {
 
     // The chant (three imperfect virtual voices, once every 31 s, each appearance its own gesture) lives in
     // AumChant. The room places its dry voice and echo, and sends a far-off chant to the reverb alone.
-    aumChant.render(sampleRate, elapsedSeconds, intensity, presence, density, variety)
-    // In the Sanctum the sustained chorus takes the Aum's place, and the two cross-fade with the world.
+    // In the Sanctum the periodic Aum is off: the chorus holds the hall, and the journey calls each Aum by hand.
     val sanctum = sanctumEnvelope
-    val chantScale = 1.0 - sanctum
+    val aumPresence = if (sanctum > 0.0001) max(presence, SANCTUM_AUM_MIN_PRESENCE) else presence
+    aumChant.render(sampleRate, elapsedSeconds, intensity, aumPresence, density, variety, scriptedOnly = sanctum > 0.0001)
+    val chantScale = 1.0 - sanctum * (1.0 - SANCTUM_AUM_LEVEL)
     var chorusLeft = 0.0
     var chorusRight = 0.0
     var chorusFarWet = 0.0
