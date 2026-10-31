@@ -13,6 +13,8 @@ export type FactoryAudioJourney = {
   timeline: AudioJourneyTimeline;
   /** Marks the waking-conditioning boundary inside a longer overnight timeline. */
   overnight?: { sleepOnsetDelayMs: number; recognitionSignalId?: RecognitionSignalId };
+  /** A recognition signal this journey always uses for its cues, instead of the listener's own choice. */
+  fixedRecognitionSignalId?: RecognitionSignalId;
   /** Recorded voice clips the waking preparation plays; the engine looks them up by clip id. */
   voiceClips?: VoiceClipPlan[];
   /** Set when voice was wanted but the clips were not on the device, so the night's record says why. */

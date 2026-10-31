@@ -18,6 +18,8 @@ import {
   startFailureMessage,
 } from '../core/audio';
 import { Typography } from '../core/typography';
+import { INNER_LAB_BUILD } from '../core/innerLab';
+import { INDUCTION_JOURNEY, INDUCTION_JOURNEY_ID } from '../core/audio/inductionJourney';
 import { openPaywall } from '../src/core/subscriptions/paywallController';
 import { resolveMembership } from '../src/core/subscriptions/membership';
 import {
@@ -130,7 +132,12 @@ export default function LucidJourneysScreen() {
 
   const begin = async (journeyId: string) => {
     if (previewingSignal) await stopSignalPreview();
-    navigation.navigate('LucidJourneyPlayer', { journeyId, playbackKind: 'factory' });
+    navigation.navigate(
+      'LucidJourneyPlayer',
+      journeyId === INDUCTION_JOURNEY_ID
+        ? { journey: INDUCTION_JOURNEY, playbackKind: 'factory' }
+        : { journeyId, playbackKind: 'factory' },
+    );
   };
   const beginSaved = (journey: SavedPersonalizedJourney) =>
     navigation.navigate('LucidJourneyPlayer', { journey, playbackKind: 'saved_custom' });
@@ -471,7 +478,7 @@ export default function LucidJourneysScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <View style={[styles.cards, Platform.OS === 'android' && styles.androidCards]}>
-          {[lucidReturn, lucidThreshold, lucidSignal].map(journey => {
+          {[lucidReturn, lucidThreshold, lucidSignal, ...(INNER_LAB_BUILD ? [INDUCTION_JOURNEY] : [])].map(journey => {
             const expanded = expandedJourneyId === journey.id;
             return (
               <View key={journey.id} style={styles.journey}>

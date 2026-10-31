@@ -338,6 +338,11 @@ export default function LucidJourneyPlayerScreen() {
           const overnightSignal = await recognitionSignalPlayback(overnightSignalId);
           await session.setRecognitionSignal(overnightSignal.signalId, overnightSignal.uri, overnightSignal.gain);
         }
+        if (journey.fixedRecognitionSignalId && !journey.overnight) {
+          selectedSignalId = journey.fixedRecognitionSignalId;
+          const fixedSignal = await recognitionSignalPlayback(journey.fixedRecognitionSignalId);
+          await session.setRecognitionSignal(fixedSignal.signalId, fixedSignal.uri, fixedSignal.gain);
+        }
         if (journey.id === LUCIDITY_CUE_TRAINING_JOURNEY_ID) {
           const signalId = await getRecognitionSignalId();
           selectedSignalId = signalId;
