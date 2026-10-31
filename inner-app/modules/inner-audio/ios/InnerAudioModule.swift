@@ -158,11 +158,18 @@ private struct TimelineStage {
   let spatialEvents: [SpatialEvent]
   let cueEvents: [CueEvent]
   let voiceEvents: [VoiceEvent]
+  let footstepsEvents: [FootstepsEvent]
 }
 
 private struct VoiceEvent {
   let atMs: Double
   let clipId: String
+}
+
+/// A passage of footsteps the journey calls at this point in a stage.
+private struct FootstepsEvent {
+  let atMs: Double
+  let approach: Bool
 }
 
 private struct VoiceClip {
@@ -388,6 +395,7 @@ final class ProceduralAudioEngine: NSObject {
   private var cueTimelineThresholdMs = -1.0
   private var voiceBank: [String: VoiceClip] = [:]
   private var voiceTimelineThresholdMs = -1.0
+  private var footstepsTimelineThresholdMs = -1.0
   private var voiceActive = false
   private var voiceSamples: [Float] = []
   private var voiceRate = 0.0
@@ -641,6 +649,10 @@ final class ProceduralAudioEngine: NSObject {
         voiceEvents: stage.spatialEvents.prefix(16).compactMap { event in
           guard event.type == "voice", event.atMs >= 0, !event.clipId.isEmpty else { return nil }
           return VoiceEvent(atMs: event.atMs, clipId: event.clipId)
+        },
+        footstepsEvents: stage.spatialEvents.prefix(16).compactMap { event in
+          guard event.type == "footsteps", event.atMs >= 0 else { return nil }
+          return FootstepsEvent(atMs: event.atMs, approach: event.direction == "approach")
         }
       )
     }
@@ -877,6 +889,7 @@ final class ProceduralAudioEngine: NSObject {
     cuePending = false
     cueTimelineThresholdMs = -1
     voiceTimelineThresholdMs = -1
+    footstepsTimelineThresholdMs = -1
     voiceActive = false
     voiceElapsedFrames = 0
     voiceBedGain = 1
@@ -1091,6 +1104,19 @@ final class ProceduralAudioEngine: NSObject {
     return nil
   }
 
+  /// The next footsteps event that has come due since `afterMs`, with its position in the whole timeline.
+  private func timelineFootstepsEvent(_ timeline: AudioTimeline, elapsedMs: Double, afterMs: Double) -> (atMs: Double, approach: Bool)? {
+    var cursor = 0.0
+    for stage in timeline.stages {
+      for event in stage.footstepsEvents {
+        let globalAtMs = cursor + event.atMs
+        if globalAtMs > afterMs && globalAtMs <= elapsedMs { return (globalAtMs, event.approach) }
+      }
+      cursor += stage.durationMs
+    }
+    return nil
+  }
+
   private func voiceEventAt(_ timeline: AudioTimeline, atMs: Double) -> VoiceEvent? {
     var cursor = 0.0
     for stage in timeline.stages {
@@ -1244,6 +1270,7 @@ final class ProceduralAudioEngine: NSObject {
       // already fired, so a fresh timeline or a seek doesn't replay past cues.
       cueTimelineThresholdMs = timelineStartFrame * 1_000 / sampleRate
       voiceTimelineThresholdMs = timelineStartFrame * 1_000 / sampleRate
+      footstepsTimelineThresholdMs = timelineStartFrame * 1_000 / sampleRate
       voiceActive = false
       voiceElapsedFrames = 0
       voiceBedGain = 1
@@ -1299,6 +1326,11 @@ final class ProceduralAudioEngine: NSObject {
          let voiceFireMs = timelineVoiceEventMs(activeTimeline, elapsedMs: timelineElapsedMs, afterMs: voiceTimelineThresholdMs) {
         voiceTimelineThresholdMs = voiceFireMs
         startVoice(activeTimeline, fireMs: voiceFireMs, elapsedMs: timelineElapsedMs)
+      }
+      if let activeTimeline,
+         let footstepsFire = timelineFootstepsEvent(activeTimeline, elapsedMs: timelineElapsedMs, afterMs: footstepsTimelineThresholdMs) {
+        footstepsTimelineThresholdMs = footstepsFire.atMs
+        templeFootsteps.trigger(approach: footstepsFire.approach)
       }
       worldSalience.beginFrame(suppressRareEvents: recognitionSpace != nil || cueActive)
       let orbitPhase = spatialSeconds * target.spatialRate * Double.pi * 2 / 60
@@ -2182,7 +2214,8 @@ final class ProceduralAudioEngine: NSObject {
     let dropEchoLeft = dropEchoLeftA * 0.48 + dropEchoTail * 0.18
     let dropEchoRight = dropEchoRightA * 0.44 + dropEchoTail * 0.20
     templeAccents.render(sampleRate: sampleRate, intensity: intensity, elapsedSeconds: elapsedSeconds, salience: worldSalience)
-    templeFootsteps.render(sampleRate: sampleRate, elapsedSeconds: elapsedSeconds, salience: worldSalience)
+    // In the Sanctum the steps come only where the journey calls them.
+    templeFootsteps.render(sampleRate: sampleRate, elapsedSeconds: elapsedSeconds, salience: worldSalience, scriptedOnly: sanctum > 0.0001)
     // The room reflects everything in the space at full strength except the footsteps, which send in at
     // templeFootstepsRoomSend: enough reflection to place the distant walker in the stone space without
     // giving the short scuffs the chant's full, lingering tail.
@@ -2796,6 +2829,10 @@ final class TempleFootsteps {
   private var stepCountdownSamples = 0.0
   private var sequenceStartPan = 0.0
   private var sequenceEndPan = 0.0
+  private var sequenceApproaching = false
+
+  // a passage called by the journey: 0 = none, 1 = approaching, 2 = receding
+  private var pendingTrigger = 0
 
   private var stepActive = false
   private var stepAgeSamples = 0.0
@@ -2830,6 +2867,7 @@ final class TempleFootsteps {
     sequenceActive = false
     stepsRemainingInSequence = 0; totalStepsInSequence = 0; stepIndexInSequence = 0
     stepCountdownSamples = 0; sequenceStartPan = 0; sequenceEndPan = 0
+    sequenceApproaching = false; pendingTrigger = 0
     stepActive = false; stepAgeSamples = 0; stepPan = 0; stepDistance = 0; stepCutoffPole = 0
     hp = 0; lp = 0; grainLevel = 0; thudAmplitude = 0; thudLp = 0; lowpassOne = 0; lowpassTwo = 0
     kHp = pole(TempleFootsteps.highpassHz); kLp = pole(TempleFootsteps.lowpassHz); kThudLp = pole(TempleFootsteps.thudLowpassHz)
@@ -2851,8 +2889,14 @@ final class TempleFootsteps {
     return sqrt(-2.0 * log(u1)) * cos(2.0 * Double.pi * u2)
   }
 
-  private func beginSequence() {
+  /// Asks for a passage as soon as nothing is walking: toward the listener, or away from them.
+  func trigger(approach: Bool) {
+    pendingTrigger = approach ? 1 : 2
+  }
+
+  private func beginSequence(approaching: Bool = false) {
     sequenceActive = true
+    sequenceApproaching = approaching
     totalStepsInSequence = TempleFootsteps.minSteps + Int(unit() * Double(TempleFootsteps.stepRange + 1))
     stepsRemainingInSequence = totalStepsInSequence
     stepIndexInSequence = 0
@@ -2865,7 +2909,8 @@ final class TempleFootsteps {
   private func beginStep() {
     let fraction = totalStepsInSequence <= 1 ? 0.0 : Double(stepIndexInSequence) / Double(totalStepsInSequence - 1)
     stepPan = sequenceStartPan + (sequenceEndPan - sequenceStartPan) * fraction
-    stepDistance = TempleFootsteps.nearDistance + (TempleFootsteps.farDistance - TempleFootsteps.nearDistance) * fraction
+    let distanceFraction = sequenceApproaching ? 1.0 - fraction : fraction
+    stepDistance = TempleFootsteps.nearDistance + (TempleFootsteps.farDistance - TempleFootsteps.nearDistance) * distanceFraction
     stepCutoffPole = pole(TempleFootsteps.distanceCutoffNearHz - stepDistance * TempleFootsteps.distanceCutoffRangeHz)
     stepActive = true
     stepAgeSamples = 0
@@ -2875,10 +2920,17 @@ final class TempleFootsteps {
     stepCountdownSamples = (TempleFootsteps.stepTempoSeconds * rate) * (1.0 + TempleFootsteps.tempoJitter * (unit() * 2.0 - 1.0))
   }
 
-  func render(sampleRate: Double, elapsedSeconds: Double, salience: WorldSalienceScheduler) {
+  func render(sampleRate: Double, elapsedSeconds: Double, salience: WorldSalienceScheduler, scriptedOnly: Bool = false) {
     if rate != sampleRate { reset(seed: seed, sampleRate: sampleRate) }
 
-    if !sequenceActive && appearancesUsed < appearancesTotal {
+    if pendingTrigger != 0 && !sequenceActive {
+      // Called by the journey, so it is never held back; it still claims the space around it.
+      _ = salience.reserve(salience: 0.3, durationSeconds: 7.0, recoverySeconds: 3.0)
+      beginSequence(approaching: pendingTrigger == 1)
+      pendingTrigger = 0
+    }
+
+    if !scriptedOnly && !sequenceActive && appearancesUsed < appearancesTotal {
       if elapsedSeconds > TempleFootsteps.eligibleUntilSeconds {
         appearancesUsed = appearancesTotal
       } else if elapsedSeconds >= appearanceAtSeconds[appearancesUsed] {

@@ -47,7 +47,7 @@ describe('the temple footsteps: Kotlin and Swift are the same model', () => {
       ['sequenceStartPan = side * (0.25 + unit() * 0.4)', 'sequenceStartPan = side * (0.25 + unit() * 0.4)'],
       ['sequenceEndPan = -sequenceStartPan * (0.55 + unit() * 0.3)', 'sequenceEndPan = -sequenceStartPan * (0.55 + unit() * 0.3)'],
       ['totalStepsInSequence = MIN_STEPS + (unit() * (STEP_RANGE + 1)).toInt()', 'totalStepsInSequence = TempleFootsteps.minSteps + Int(unit() * Double(TempleFootsteps.stepRange + 1))'],
-      ['stepDistance = NEAR_DISTANCE + (FAR_DISTANCE - NEAR_DISTANCE) * fraction', 'stepDistance = TempleFootsteps.nearDistance + (TempleFootsteps.farDistance - TempleFootsteps.nearDistance) * fraction'],
+      ['stepDistance = NEAR_DISTANCE + (FAR_DISTANCE - NEAR_DISTANCE) * distanceFraction', 'stepDistance = TempleFootsteps.nearDistance + (TempleFootsteps.farDistance - TempleFootsteps.nearDistance) * distanceFraction'],
       ['val shape = sin(PI * min(1.0, ageSeconds / STEP_SWELL_SECONDS)).pow(0.8)', 'let shape = pow(sin(Double.pi * min(1.0, ageSeconds / TempleFootsteps.stepSwellSeconds)), 0.8)'],
     ]);
     expect(scalar(footsteps, 'NEAR_DISTANCE', false)).toBeGreaterThanOrEqual(0.7);
@@ -57,9 +57,9 @@ describe('the temple footsteps: Kotlin and Swift are the same model', () => {
   });
 
   it('feeds the Temple\'s own shared room at its own, lower send, rather than building a separate one, on its own random stream', () => {
-    expect(engine).toContain('templeFootsteps.render(sampleRate, elapsedSeconds, worldSalience)');
+    expect(engine).toContain('templeFootsteps.render(sampleRate, elapsedSeconds, worldSalience, scriptedOnly = sanctum > 0.0001)');
     expect(engine).toContain('val dryLeft = otherLeft + templeFootsteps.left');
-    expect(swiftAll).toContain('templeFootsteps.render(sampleRate: sampleRate, elapsedSeconds: elapsedSeconds, salience: worldSalience)');
+    expect(swiftAll).toContain('templeFootsteps.render(sampleRate: sampleRate, elapsedSeconds: elapsedSeconds, salience: worldSalience, scriptedOnly: sanctum > 0.0001)');
     expect(swiftAll).toContain('let dryLeft = otherLeft + templeFootsteps.left');
     // the room reflects the footsteps less than everything else in the space, not the same amount.
     expect(engine).toContain('val footstepsRoomFeed = (templeFootsteps.left + templeFootsteps.right) * TEMPLE_FOOTSTEPS_ROOM_SEND');
@@ -70,6 +70,25 @@ describe('the temple footsteps: Kotlin and Swift are the same model', () => {
     expect(swiftAll).toContain('templeFootsteps.reset(seed: activeTimeline.seed, sampleRate: sampleRate)');
     expect(footsteps).toContain('random = (seed xor 0x466f6f7473746570L)');
     expect(swift).toContain('random = seed ^ 0x466f6f7473746570');
+  });
+
+  it('walks a passage the journey calls: toward the listener or away, and no random ones in the Sanctum', () => {
+    pairs([
+      ['val distanceFraction = if (sequenceApproaching) 1.0 - fraction else fraction', 'let distanceFraction = sequenceApproaching ? 1.0 - fraction : fraction'],
+      ['pendingTrigger = if (approach) 1 else 2', 'pendingTrigger = approach ? 1 : 2'],
+      ['beginSequence(approaching = pendingTrigger == 1)', 'beginSequence(approaching: pendingTrigger == 1)'],
+      ['if (!scriptedOnly && !sequenceActive && appearancesUsed < appearancesTotal) {', 'if !scriptedOnly && !sequenceActive && appearancesUsed < appearancesTotal {'],
+      ['salience.reserve(salience = 0.3, durationSeconds = 7.0, recoverySeconds = 3.0)\n      beginSequence', 'salience: 0.3, durationSeconds: 7.0, recoverySeconds: 3.0)\n      beginSequence'],
+    ]);
+    // Both engines read the same authored event, fire it once when it falls due, and clear it on a fresh timeline.
+    expect(engine).toContain('if (event.type != "footsteps" || event.atMs < 0) return@mapNotNull null');
+    expect(swiftAll).toContain('guard event.type == "footsteps", event.atMs >= 0 else { return nil }');
+    expect(engine).toContain('FootstepsEventState(atMs = event.atMs, approach = event.direction == "approach")');
+    expect(swiftAll).toContain('FootstepsEvent(atMs: event.atMs, approach: event.direction == "approach")');
+    expect(engine).toContain('templeFootsteps.trigger(footstepsFire.second.approach)');
+    expect(swiftAll).toContain('templeFootsteps.trigger(approach: footstepsFire.approach)');
+    expect(engine).toContain('footstepsTimelineThresholdMs = timelineStartFrame * 1_000.0 / sampleRate');
+    expect(swiftAll).toContain('footstepsTimelineThresholdMs = timelineStartFrame * 1_000 / sampleRate');
   });
 
   it('spawns nothing from the audio loop that allocates', () => {

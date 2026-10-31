@@ -36,7 +36,18 @@ export type AudioVoiceEvent = {
   clipId: string;
 };
 
-export type AudioSpatialEvent = AudioSwooshEvent | AudioCueEvent | AudioVoiceEvent;
+/**
+ * One passage of footsteps on the hall's stone, walking toward the listener or away from them. Authored,
+ * so it happens exactly here. While a Sanctum is sounding the hall's own random passers-by are off.
+ */
+export type AudioFootstepsEvent = {
+  id: string;
+  atMs: number;
+  type: 'footsteps';
+  direction: 'approach' | 'recede';
+};
+
+export type AudioSpatialEvent = AudioSwooshEvent | AudioCueEvent | AudioVoiceEvent | AudioFootstepsEvent;
 
 export type ProceduralAudioConfig = {
   carrierHz: number;

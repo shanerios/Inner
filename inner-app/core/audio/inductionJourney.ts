@@ -9,6 +9,8 @@ import type { AudioJourneyStage, ProceduralAudioPatch } from './types';
  * The arc teaches one skill, the one Inner's night work rests on: a sound is introduced, noticed, and later
  * returns. The returning sound is the Bell, fixed for this journey so every listener learns the same one.
  *
+ * Footsteps open and close it: someone walking in before the chorus arrives, and someone leaving as it ends.
+ *
  * The guidance lines below are placeholders for the recorded voice. They carry the same timing, so recording
  * them later changes no timeline.
  */
@@ -69,57 +71,67 @@ export const INDUCTION_JOURNEY: FactoryAudioJourney = {
   title: 'The Induction',
   subtitle: 'Your first experience of Inner',
   durationLabel: '6 min · Introduction',
-  summary: 'Six minutes in a vast resonant hall. A single sound is introduced, you learn to notice it, and it returns. Best with headphones.',
+  summary: 'Six minutes in a vast resonant hall. Footsteps bring you in, a single sound is introduced, you learn to notice it, and it returns. Best with headphones.',
   fixedRecognitionSignalId: INDUCTION_SIGNAL_ID,
   timeline: {
     id: INDUCTION_JOURNEY_ID,
     title: 'The Induction',
     seed: 7_340_033,
-    fadeInMs: 5 * SECOND,
-    protocolVersion: 1,
+    fadeInMs: 3 * SECOND,
+    protocolVersion: 2,
     stages: [
-      // The hall appears and the chorus has not begun: only stone air, breath and the odd drop.
-      stage('arrive', 'Arrive', 50 * SECOND, 20 * SECOND, world(false, BEAT.entry, {
+      // Footsteps bring the listener into the hall. The brown bed and the binaural field fade in together over the
+      // first ten seconds. The chorus has not begun.
+      stage('arrive', 'Arrive', 30 * SECOND, 10 * SECOND, world(false, BEAT.entry, {
         environmentGain: 0.4, environmentIntensity: 0.4, identityPresence: 0, masterGain: 0.7,
+      }), [
+        { id: 'induction-steps-in', atMs: 4 * SECOND, type: 'footsteps', direction: 'approach' },
+      ]),
+      // The chorus arrives, swelling in over the whole stage.
+      stage('bloom', 'The Chorus', 30 * SECOND, 30 * SECOND, world(false, BEAT.prepEnd, {
+        environmentGain: 0.5, environmentIntensity: 0.5, identityPresence: 1, masterGain: 0.7,
       })),
-      // The chorus blooms in over about six seconds and the hall opens.
-      stage('threshold', 'Threshold', 40 * SECOND, 12 * SECOND, world(false, BEAT.prepEnd, {
-        environmentGain: 0.46, environmentIntensity: 0.5, identityPresence: 0.5, masterGain: 0.7,
-      })),
-      // Full chorus. Nothing to do but listen to where the sound sits.
-      stage('open', 'Open', 60 * SECOND, 25 * SECOND, world(false, BEAT.prepEnd, {
+      // The full chorus, and nothing to do but listen to where the sound sits.
+      stage('open', 'Open', 30 * SECOND, 5 * SECOND, world(false, BEAT.prepEnd, {
         environmentGain: 0.5, environmentIntensity: 0.55, identityPresence: 1, masterGain: 0.7,
       })),
-      // The Bell is introduced, once, inside the hall.
-      stage('introduce', 'The Sound', 40 * SECOND, 10 * SECOND, world(false, BEAT.descent, {
+      // Around 1:30 the Bell is introduced, once, inside the hall.
+      stage('introduce', 'The Sound', 40 * SECOND, 5 * SECOND, world(false, BEAT.descent, {
         environmentGain: 0.5, environmentIntensity: 0.55, identityPresence: 1, masterGain: 0.7,
       }), [
-        { id: 'induction-bell-1', atMs: 6 * SECOND, type: 'cue' },
+        { id: 'induction-bell-1', atMs: 3 * SECOND, type: 'cue' },
       ]),
-      // The long middle: the chorus fuller, almost no words.
-      stage('deepen', 'Deepen', 90 * SECOND, 40 * SECOND, world(true, BEAT.descent, {
-        environmentGain: 0.55, environmentIntensity: 0.6, identityPresence: 1.4, masterGain: 0.68,
+      // The long middle: the chorus at its fullest, almost no words.
+      stage('fullest', 'Deepen', 120 * SECOND, 40 * SECOND, world(true, BEAT.descent, {
+        environmentGain: 0.55, environmentIntensity: 0.6, identityPresence: 1.5, masterGain: 0.68,
       })),
       // The Bell returns, and is named.
-      stage('return', 'It Returns', 35 * SECOND, 15 * SECOND, world(true, BEAT.descent, {
-        environmentGain: 0.52, environmentIntensity: 0.55, identityPresence: 1.1, masterGain: 0.68,
+      stage('return', 'It Returns', 35 * SECOND, 10 * SECOND, world(true, BEAT.descent, {
+        environmentGain: 0.52, environmentIntensity: 0.55, identityPresence: 1.3, masterGain: 0.68,
       }), [
-        { id: 'induction-bell-2', atMs: 8 * SECOND, type: 'cue' },
+        { id: 'induction-bell-2', atMs: 6 * SECOND, type: 'cue' },
       ]),
-      // The chorus falls away and the hall is left to settle.
-      stage('surface', 'Surface', 45 * SECOND, 30 * SECOND, world(false, BEAT.prepEnd, {
-        environmentGain: 0.3, environmentIntensity: 0.4, identityPresence: 0.15, masterGain: 0.55,
+      // The voices fall away and the hall is left with the last of the chorus ringing in its stone.
+      stage('hall', 'The Hall', 45 * SECOND, 35 * SECOND, world(false, BEAT.prepEnd, {
+        environmentGain: 0.5, environmentIntensity: 0.45, identityPresence: 0.12, masterGain: 0.62,
       })),
+      // Footsteps again, this time leaving.
+      stage('leave', 'Leave', 30 * SECOND, 5 * SECOND, world(false, BEAT.prepEnd, {
+        environmentGain: 0.4, environmentIntensity: 0.4, identityPresence: 0.12, masterGain: 0.55,
+      }), [
+        { id: 'induction-steps-out', atMs: 4 * SECOND, type: 'footsteps', direction: 'recede' },
+      ]),
     ],
     guidance: [
       { id: 'induction-headphones', atMs: 0, heading: 'Before you begin', prompt: 'Put on headphones, and find somewhere you can close your eyes.' },
-      { id: 'induction-belief', atMs: 14 * SECOND, heading: 'The Induction', prompt: 'Sound can guide the mind into different kinds of awareness. With practice, one of them can be lucidity.' },
-      { id: 'induction-threshold', atMs: 50 * SECOND, heading: 'Threshold', prompt: 'A hall opens around you. There is nothing to do yet.' },
-      { id: 'induction-open', atMs: 90 * SECOND, heading: 'Listen', prompt: 'Notice where the sound sits. Is it close, or far away? Let it fill the space.' },
-      { id: 'induction-sound', atMs: 150 * SECOND, heading: 'One sound', prompt: 'A single sound will come. Remember how it feels.' },
-      { id: 'induction-deepen', atMs: 190 * SECOND, heading: 'Deepen', prompt: 'Let the hall hold you. Keep only a little attention on the sound.' },
-      { id: 'induction-return', atMs: 288 * SECOND, heading: 'It returns', prompt: 'There it is again. Noticing it is the skill.' },
-      { id: 'induction-surface', atMs: 323 * SECOND, heading: 'Surface', prompt: 'Come back slowly. What you just did is what Inner trains.' },
+      { id: 'induction-belief', atMs: 12 * SECOND, heading: 'The Induction', prompt: 'Sound can guide the mind into different kinds of awareness. With practice, one of them can be lucidity.' },
+      { id: 'induction-chorus', atMs: 32 * SECOND, heading: 'The hall', prompt: 'Voices rise around you. There is nothing to do yet.' },
+      { id: 'induction-listen', atMs: 62 * SECOND, heading: 'Listen', prompt: 'Notice where the sound sits. Is it close, or far away? Let it fill the space.' },
+      { id: 'induction-sound', atMs: 84 * SECOND, heading: 'One sound', prompt: 'A single sound will come. Remember how it feels.' },
+      { id: 'induction-deepen', atMs: 140 * SECOND, heading: 'Deepen', prompt: 'Let the hall hold you. Keep only a little attention on the sound.' },
+      { id: 'induction-return', atMs: 256 * SECOND, heading: 'It returns', prompt: 'There it is again. Noticing it is the skill.' },
+      { id: 'induction-hall', atMs: 290 * SECOND, heading: 'The hall', prompt: 'The voices fall away. The hall still holds the sound.' },
+      { id: 'induction-leave', atMs: 336 * SECOND, heading: 'Surface', prompt: 'Come back slowly. What you just did is what Inner trains.' },
     ],
   },
 };

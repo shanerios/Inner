@@ -105,6 +105,7 @@ private data class TimelineStageState(
   val spatialEvents: List<SpatialEventState>,
   val cueEvents: List<CueEventState>,
   val voiceEvents: List<VoiceEventState>,
+  val footstepsEvents: List<FootstepsEventState>,
 )
 
 private data class SpatialEventState(
@@ -127,6 +128,12 @@ private data class CueEventState(
 private data class VoiceEventState(
   val atMs: Double,
   val clipId: String,
+)
+
+/** A passage of footsteps the journey calls at this point in a stage. */
+private data class FootstepsEventState(
+  val atMs: Double,
+  val approach: Boolean,
 )
 
 private class VoiceClip(val samples: FloatArray, val sampleRate: Double, val gain: Double)
@@ -404,6 +411,7 @@ object ProceduralAudioEngine {
   private var cueTimelineThresholdMs = -1.0
   @Volatile private var voiceBank: Map<String, VoiceClip> = emptyMap()
   private var voiceTimelineThresholdMs = -1.0
+  private var footstepsTimelineThresholdMs = -1.0
   private var voiceActive = false
   private var voiceSamples = FloatArray(0)
   private var voiceRate = 0.0
@@ -624,6 +632,10 @@ object ProceduralAudioEngine {
             if (event.type != "voice" || event.atMs < 0 || event.clipId.isEmpty()) return@mapNotNull null
             VoiceEventState(atMs = event.atMs, clipId = event.clipId)
           },
+          footstepsEvents = stage.spatialEvents.take(16).mapNotNull { event ->
+            if (event.type != "footsteps" || event.atMs < 0) return@mapNotNull null
+            FootstepsEventState(atMs = event.atMs, approach = event.direction == "approach")
+          },
         )
       }
       val total = stages.sumOf { it.durationMs }
@@ -771,6 +783,7 @@ object ProceduralAudioEngine {
     worldSalience.reset(sampleRate)
     cueTimelineThresholdMs = -1.0
     voiceTimelineThresholdMs = -1.0
+    footstepsTimelineThresholdMs = -1.0
     voiceActive = false
     voiceElapsedFrames = 0.0
     voiceBedGain = 1.0
@@ -927,6 +940,7 @@ object ProceduralAudioEngine {
       // already fired, so a fresh timeline or a seek doesn't replay past cues.
       cueTimelineThresholdMs = timelineStartFrame * 1_000.0 / sampleRate
       voiceTimelineThresholdMs = timelineStartFrame * 1_000.0 / sampleRate
+      footstepsTimelineThresholdMs = timelineStartFrame * 1_000.0 / sampleRate
       voiceActive = false
       voiceElapsedFrames = 0.0
       voiceBedGain = 1.0
@@ -982,6 +996,11 @@ object ProceduralAudioEngine {
         if (voiceFireMs != null) {
           voiceTimelineThresholdMs = voiceFireMs
           startVoice(activeTimeline, voiceFireMs, timelineElapsedMs)
+        }
+        val footstepsFire = timelineFootstepsEvent(activeTimeline, timelineElapsedMs, footstepsTimelineThresholdMs)
+        if (footstepsFire != null) {
+          footstepsTimelineThresholdMs = footstepsFire.first
+          templeFootsteps.trigger(footstepsFire.second.approach)
         }
       }
       worldSalience.beginFrame(recognitionSpace != null || cueActive)
@@ -1350,6 +1369,19 @@ object ProceduralAudioEngine {
       for (event in stage.voiceEvents) {
         val globalAtMs = cursor + event.atMs
         if (globalAtMs > afterMs && globalAtMs <= elapsedMs) return globalAtMs
+      }
+      cursor += stage.durationMs
+    }
+    return null
+  }
+
+  /** The next footsteps event that has come due since [afterMs], with its position in the whole timeline. */
+  private fun timelineFootstepsEvent(timeline: AudioTimelineState, elapsedMs: Double, afterMs: Double): Pair<Double, FootstepsEventState>? {
+    var cursor = 0.0
+    for (stage in timeline.stages) {
+      for (event in stage.footstepsEvents) {
+        val globalAtMs = cursor + event.atMs
+        if (globalAtMs > afterMs && globalAtMs <= elapsedMs) return Pair(globalAtMs, event)
       }
       cursor += stage.durationMs
     }
@@ -1846,7 +1878,8 @@ object ProceduralAudioEngine {
     val dropEchoLeft = dropEchoLeftA * 0.48 + dropEchoTail * 0.18
     val dropEchoRight = dropEchoRightA * 0.44 + dropEchoTail * 0.20
     templeAccents.render(sampleRate, intensity, elapsedSeconds, worldSalience)
-    templeFootsteps.render(sampleRate, elapsedSeconds, worldSalience)
+    // In the Sanctum the steps come only where the journey calls them.
+    templeFootsteps.render(sampleRate, elapsedSeconds, worldSalience, scriptedOnly = sanctum > 0.0001)
     // The room reflects everything in the space at full strength except the footsteps, which send in at
     // TEMPLE_FOOTSTEPS_ROOM_SEND: enough reflection to place the distant walker in the stone space without
     // giving the short scuffs the chant's full, lingering tail.

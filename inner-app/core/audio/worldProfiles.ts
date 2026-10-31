@@ -364,18 +364,18 @@ export const WORLD_PROFILES: Record<AudioWorld, WorldProfile> = {
     ],
     recognitionRecoverySeconds: 2,
     bed: {
-      noiseColor: 'pink',
+      noiseColor: 'brown',
       noiseGainScale: 0.5,
-      noiseHighCutHz: 1_800,
+      noiseHighCutHz: NO_HIGH_CUT,
       noiseWidth: 1,
       noiseDriftDb: 2,
       noiseDriftSeconds: 20,
       binauralGainScale: 1,
       remNoiseTaper: REM_NOISE_TAPER,
       rationale: {
-        goal: 'Leave the whole hall to the chorus and the bowl, and keep the air under them barely there.',
-        atmosphere: 'Dark stone air, wider and more open than the Temple, with almost no movement of its own.',
-        basis: 'Theory only: the Temple bed with the noise a further 2 dB down, because this world is heard awake for a few minutes with the voice and chorus in front, not carried through a night.',
+        goal: 'Give the hall a deep floor of low rumble that the chorus and the bowl stand on, without covering them.',
+        atmosphere: 'A dark, close, low sound under the stone air, drifting slowly from ear to ear.',
+        basis: 'Theory only: brown noise has no meaningful sleep studies, and this world is heard awake for a few minutes, so the choice is about weight and warmth, not about any effect.',
       },
     },
     binaural: {

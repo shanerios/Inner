@@ -62,11 +62,58 @@ describe('The Induction', () => {
     expect(cues[1].atMs - cues[0].atMs).toBeGreaterThanOrEqual(2 * 60_000);
   });
 
+  it('is walked into and out of: footsteps approach before the chorus, and recede at the end', () => {
+    let offset = 0;
+    const steps: Array<{ atMs: number; direction: string; stage: string }> = [];
+    for (const item of timeline.stages) {
+      for (const event of item.spatialEvents ?? []) {
+        if (event.type === 'footsteps') steps.push({ atMs: offset + event.atMs, direction: event.direction, stage: item.id });
+      }
+      offset += item.durationMs;
+    }
+    expect(steps.map(step => step.direction)).toEqual(['approach', 'recede']);
+    // The walker arrives while the hall is still alone, and leaves after the chorus has fallen away.
+    expect(steps[0].stage).toBe('arrive');
+    expect(steps[0].atMs).toBeLessThan(30_000);
+    expect(timeline.stages[0].target.identityPresence).toBe(0);
+    expect(steps[1].stage).toBe('leave');
+    expect(timeline.stages[timeline.stages.length - 1].id).toBe('leave');
+    expect(timeline.stages[timeline.stages.length - 1].target.identityPresence ?? 1).toBeLessThan(0.3);
+  });
+
+  it('fades a brown bed and the binaural field in together over the first ten seconds', () => {
+    const first = timeline.stages[0];
+    expect(first.id).toBe('arrive');
+    expect(first.durationMs).toBe(30_000);
+    expect(first.transitionMs).toBe(10_000);
+    expect(first.target.noiseColor).toBe('brown');
+    expect(first.target.noiseGain).toBeGreaterThan(0);
+    expect(first.target.binauralGain).toBeGreaterThan(0);
+    // Everything starts silent, so the one ten-second transition is the fade-in of both.
+    const compiled = compileAudioJourneyTimeline(timeline, DEFAULT_PROCEDURAL_AUDIO_CONFIG);
+    expect(DEFAULT_PROCEDURAL_AUDIO_CONFIG.noiseGain).toBe(0);
+    expect(DEFAULT_PROCEDURAL_AUDIO_CONFIG.binauralGain).toBe(0);
+    expect(compiled.stages[0].config.noiseColor).toBe('brown');
+  });
+
+  it('brings the Bell in around 1:30', () => {
+    let offset = 0;
+    for (const item of timeline.stages) {
+      for (const event of item.spatialEvents ?? []) {
+        if (event.type === 'cue' && event.id === 'induction-bell-1') {
+          expect(offset + event.atMs).toBeGreaterThanOrEqual(88_000);
+          expect(offset + event.atMs).toBeLessThanOrEqual(96_000);
+        }
+      }
+      offset += item.durationMs;
+    }
+  });
+
   it('opens with the hall alone, builds the chorus, and lets it fall away', () => {
     const presence = timeline.stages.map(item => item.target.identityPresence ?? 1);
     expect(presence[0]).toBe(0);
     expect(Math.max(...presence)).toBeLessThanOrEqual(IDENTITY_PRESENCE_MAX);
-    expect(presence.indexOf(Math.max(...presence))).toBe(timeline.stages.findIndex(item => item.id === 'deepen'));
+    expect(presence.indexOf(Math.max(...presence))).toBe(timeline.stages.findIndex(item => item.id === 'fullest'));
     expect(presence[presence.length - 1]).toBeLessThan(0.3);
     for (const item of timeline.stages) {
       expect(item.target.environment).toBe('sanctum');

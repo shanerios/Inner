@@ -313,7 +313,7 @@ export function createJourneyPreview(
       },
       spatialEvents: item.spatialEvents?.map(event => {
         const atMs = Math.min(durationMs - 500, Math.round(event.atMs * localScale));
-        if (event.type === 'cue' || event.type === 'voice') return { ...event, atMs };
+        if (event.type === 'cue' || event.type === 'voice' || event.type === 'footsteps') return { ...event, atMs };
         return {
           ...event,
           atMs,
@@ -429,7 +429,7 @@ export function createPersonalizedLucidJourney(
           : sourceRate;
     const spatialEvents = answers.feel === 'grounded' || answers.feel === 'minimal'
       ? []
-      : (item.spatialEvents ?? []).map(event => event.type === 'cue' || event.type === 'voice'
+      : (item.spatialEvents ?? []).map(event => event.type === 'cue' || event.type === 'voice' || event.type === 'footsteps'
         ? { ...event, atMs: Math.round(event.atMs * durationScale) }
         : {
           ...event,

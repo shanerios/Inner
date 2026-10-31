@@ -54,6 +54,12 @@ export function compileAudioJourneyTimeline(
       if (event.type === 'cue') {
         return { ...event, id: event.id.trim() };
       }
+      if (event.type === 'footsteps') {
+        if (event.direction !== 'approach' && event.direction !== 'recede') {
+          throw new Error(`Audio journey footsteps event ${event.id} must approach or recede`);
+        }
+        return { ...event, id: event.id.trim() };
+      }
       if (event.type === 'voice') {
         if (!event.clipId.trim()) throw new Error(`Audio journey voice event ${event.id} has no clip`);
         return { ...event, id: event.id.trim(), clipId: event.clipId.trim() };
