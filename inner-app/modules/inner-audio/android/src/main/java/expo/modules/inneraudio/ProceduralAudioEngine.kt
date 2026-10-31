@@ -215,12 +215,16 @@ private const val RECOGNITION_NOISE_THINNING = 1.2
 private const val TEMPLE_FOOTSTEPS_ROOM_SEND = 0.55
 /** How loud a called Aum stands over the Sanctum's chorus, against the Temple's own level of 1. */
 private const val SANCTUM_AUM_LEVEL = 0.8
-/** The Sanctum's footsteps, against the Temple's own level of 1: about -4 dB. */
-private const val SANCTUM_FOOTSTEPS_LEVEL = 0.63
+/** The Sanctum's footsteps, against the Temple's own level of 1: about -8 dB. */
+private const val SANCTUM_FOOTSTEPS_LEVEL = 0.4
+/** How much of the Temple's reverb send the Sanctum's footsteps keep: they sit mostly dry, like a nearby real sound. */
+private const val SANCTUM_FOOTSTEPS_ROOM_RATIO = 0.25
 /** How long the overhead body takes to cross from one side to the other. */
 private const val OVERHEAD_PASS_SECONDS = 4.5
 /** How much quieter the passing body is, at depth 1, when it is far off at the side: down to a fifth. */
 private const val OVERHEAD_FAR_DROP = 0.8
+/** The extra level as the body crosses directly overhead, against full: +3 dB, for the weight of it. */
+private const val OVERHEAD_PEAK_GAIN = 1.41
 /** How much of the hall's air and breath remains in the Sanctum: a faint stone hush under the drone. */
 private const val SANCTUM_AIR_LEVEL = 0.12
 /** A called Aum is never quieter than this presence, so it still sounds when the chorus has fallen away. */
@@ -1048,7 +1052,12 @@ object ProceduralAudioEngine {
         spatialCenterGain(target, spatialSeconds),
         event?.let { 1 - 0.62 * it.crossing } ?: 1.0,
       )
-      val orbitDistance = 1 - target.spatialDepth * (if (overhead) OVERHEAD_FAR_DROP else 0.5) * (1 - orbitNear)
+      // Overhead: down to a fifth when the body is far off at the side, and a further 3 dB above full as it crosses over.
+      val orbitDistance = if (overhead) {
+        (1 - target.spatialDepth * OVERHEAD_FAR_DROP * (1 - orbitNear)) * (1 + (OVERHEAD_PEAK_GAIN - 1) * orbitNear)
+      } else {
+        1 - target.spatialDepth * 0.5 * (1 - orbitNear)
+      }
       val requestedSpatialDistance = 1 + (orbitDistance - 1) * orbitMix
       val spatialSlew = 1 / max(1.0, sampleRate * 0.12)
       renderedPan += clamp(requestedPan - renderedPan, -spatialSlew, spatialSlew)
@@ -1979,7 +1988,7 @@ object ProceduralAudioEngine {
     val tap137 = templeSpaceDelay[(templeSpaceDelayIndex - (sampleRate * 0.137).toInt().coerceIn(1, size - 1) + size) % size]
     val wetLeft = tap71 * 0.58 + tap137 * 0.34
     val wetRight = tap89 * 0.56 + tap113 * 0.36
-    val footstepsRoomFeed = (stepsLeft + stepsRight) * TEMPLE_FOOTSTEPS_ROOM_SEND
+    val footstepsRoomFeed = (stepsLeft + stepsRight) * TEMPLE_FOOTSTEPS_ROOM_SEND * (1.0 - sanctum * (1.0 - SANCTUM_FOOTSTEPS_ROOM_RATIO))
     templeSpaceDelay[templeSpaceDelayIndex] = (otherLeft + otherRight) * 0.5 + footstepsRoomFeed * 0.5 + (wetLeft + wetRight) * 0.45 + aumChant.farWet * chantScale + chorusFarWet
     templeSpaceDelayIndex = (templeSpaceDelayIndex + 1) % size
     return templeSpaceSample.set(dryLeft * 0.42 + wetLeft * 0.62 + chorusLeft, dryRight * 0.42 + wetRight * 0.62 + chorusRight)

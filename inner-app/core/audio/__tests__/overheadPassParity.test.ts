@@ -29,7 +29,8 @@ describe('the overhead pass: a heavy body crossing over the listener', () => {
       ['val shape = sin(Math.PI * overheadProgress(elapsedSeconds, cyclesPerMinute))', 'let shape = sin(Double.pi * overheadProgress(elapsedSeconds, cyclesPerMinute: cyclesPerMinute))'],
       ['overheadDirection(elapsedSeconds, target.spatialRate) * (2 * overheadEase(elapsedSeconds, target.spatialRate) - 1)', 'overheadDirection(elapsedSeconds, cyclesPerMinute: target.spatialRate) * (2 * overheadEase(elapsedSeconds, cyclesPerMinute: target.spatialRate) - 1)'],
       ['val orbitNear = if (overhead) overheadProximity(spatialSeconds, target.spatialRate) else (cos(orbitPhase) + 1) / 2', 'let orbitNear = overhead ? overheadProximity(spatialSeconds, cyclesPerMinute: target.spatialRate) : (cos(orbitPhase) + 1) / 2'],
-      ['val orbitDistance = 1 - target.spatialDepth * (if (overhead) OVERHEAD_FAR_DROP else 0.5) * (1 - orbitNear)', 'let orbitDistance = 1 - target.spatialDepth * (overhead ? Self.overheadFarDrop : 0.5) * (1 - orbitNear)'],
+      ['(1 - target.spatialDepth * OVERHEAD_FAR_DROP * (1 - orbitNear)) * (1 + (OVERHEAD_PEAK_GAIN - 1) * orbitNear)', '(1 - target.spatialDepth * Self.overheadFarDrop * (1 - orbitNear)) * (1 + (Self.overheadPeakGain - 1) * orbitNear)'],
+      ['1 - target.spatialDepth * 0.5 * (1 - orbitNear)', '1 - target.spatialDepth * 0.5 * (1 - orbitNear)'],
     ];
     for (const [kotlinLine, swiftLine] of pairs) {
       expect(engine).toContain(kotlinLine);
@@ -39,12 +40,20 @@ describe('the overhead pass: a heavy body crossing over the listener', () => {
     expect(engine).toContain('else (cos(orbitPhase) + 1) / 2');
   });
 
-  it('puts the Sanctum\'s footsteps about 4 dB under the Temple\'s, in both engines', () => {
-    expect(engine).toContain('private const val SANCTUM_FOOTSTEPS_LEVEL = 0.63');
-    expect(swift).toContain('private static let sanctumFootstepsLevel = 0.63');
+  it('adds 3 dB as the body crosses directly overhead, in both engines', () => {
+    expect(engine).toContain('private const val OVERHEAD_PEAK_GAIN = 1.41');
+    expect(swift).toContain('private static let overheadPeakGain = 1.41');
+    expect(20 * Math.log10(1.41)).toBeCloseTo(3, 0);
+  });
+
+  it('puts the Sanctum\'s footsteps about 8 dB under the Temple\'s, mostly dry, in both engines', () => {
+    expect(engine).toContain('private const val SANCTUM_FOOTSTEPS_LEVEL = 0.4');
+    expect(swift).toContain('private static let sanctumFootstepsLevel = 0.4');
+    expect(engine).toContain('private const val SANCTUM_FOOTSTEPS_ROOM_RATIO = 0.25');
+    expect(swift).toContain('private static let sanctumFootstepsRoomRatio = 0.25');
     expect(engine).toContain('val stepsScale = 1.0 - sanctum * (1.0 - SANCTUM_FOOTSTEPS_LEVEL)');
     expect(swift).toContain('let stepsScale = 1.0 - sanctum * (1.0 - Self.sanctumFootstepsLevel)');
-    expect(20 * Math.log10(0.63)).toBeCloseTo(-4, 0);
+    expect(20 * Math.log10(0.4)).toBeCloseTo(-8, 0);
     expect(engine).toContain('val dryRight = otherRight + stepsRight');
     expect(swift).toContain('let dryRight = otherRight + stepsRight');
   });

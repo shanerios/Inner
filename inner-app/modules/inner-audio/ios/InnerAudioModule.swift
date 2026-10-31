@@ -1380,7 +1380,10 @@ final class ProceduralAudioEngine: NSObject {
       )
       // Orbit follows an ellipse around the listener. At the front it returns
       // near full presence; behind the listener it becomes quieter and darker.
-      let orbitDistance = 1 - target.spatialDepth * (overhead ? Self.overheadFarDrop : 0.5) * (1 - orbitNear)
+      // Overhead: down to a fifth when the body is far off at the side, and a further 3 dB above full as it crosses over.
+      let orbitDistance = overhead
+        ? (1 - target.spatialDepth * Self.overheadFarDrop * (1 - orbitNear)) * (1 + (Self.overheadPeakGain - 1) * orbitNear)
+        : 1 - target.spatialDepth * 0.5 * (1 - orbitNear)
       let requestedSpatialDistance = 1 + (orbitDistance - 1) * orbitMix
       // Categorical movement changes happen at stage boundaries. Slew their
       // output briefly so a new mode can never snap between stereo positions.
@@ -2038,12 +2041,16 @@ final class ProceduralAudioEngine: NSObject {
   private static let templeFootstepsRoomSend = 0.55
   /// How loud a called Aum stands over the Sanctum's chorus, against the Temple's own level of 1.
   private static let sanctumAumLevel = 0.8
-  /// The Sanctum's footsteps, against the Temple's own level of 1: about -4 dB.
-  private static let sanctumFootstepsLevel = 0.63
+  /// The Sanctum's footsteps, against the Temple's own level of 1: about -8 dB.
+  private static let sanctumFootstepsLevel = 0.4
+  /// How much of the Temple's reverb send the Sanctum's footsteps keep: they sit mostly dry, like a nearby real sound.
+  private static let sanctumFootstepsRoomRatio = 0.25
   /// How long the overhead body takes to cross from one side to the other.
   private static let overheadPassSeconds = 4.5
   /// How much quieter the passing body is, at depth 1, when it is far off at the side: down to a fifth.
   private static let overheadFarDrop = 0.8
+  /// The extra level as the body crosses directly overhead, against full: +3 dB, for the weight of it.
+  private static let overheadPeakGain = 1.41
   /// How much of the hall's air and breath remains in the Sanctum: a faint stone hush under the drone.
   private static let sanctumAirLevel = 0.12
   /// A called Aum is never quieter than this presence, so it still sounds when the chorus has fallen away.
@@ -2314,7 +2321,7 @@ final class ProceduralAudioEngine: NSObject {
     let tap137 = templeSpaceDelay[(templeSpaceDelayIndex - min(size - 1, max(1, Int(sampleRate * 0.137))) + size) % size]
     let wetLeft = tap71 * 0.58 + tap137 * 0.34
     let wetRight = tap89 * 0.56 + tap113 * 0.36
-    let footstepsRoomFeed = (stepsLeft + stepsRight) * Self.templeFootstepsRoomSend
+    let footstepsRoomFeed = (stepsLeft + stepsRight) * Self.templeFootstepsRoomSend * (1.0 - sanctum * (1.0 - Self.sanctumFootstepsRoomRatio))
     templeSpaceDelay[templeSpaceDelayIndex] = (otherLeft + otherRight) * 0.5 + footstepsRoomFeed * 0.5 + (wetLeft + wetRight) * 0.45 + aumChant.farWet * chantScale + chorusFarWet
     templeSpaceDelayIndex = (templeSpaceDelayIndex + 1) % size
     return (dryLeft * 0.42 + wetLeft * 0.62 + chorusLeft, dryRight * 0.42 + wetRight * 0.62 + chorusRight)

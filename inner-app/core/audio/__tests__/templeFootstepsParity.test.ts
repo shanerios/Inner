@@ -62,8 +62,8 @@ describe('the temple footsteps: Kotlin and Swift are the same model', () => {
     expect(swiftAll).toContain('templeFootsteps.render(sampleRate: sampleRate, elapsedSeconds: elapsedSeconds, salience: worldSalience, scriptedOnly: sanctum > 0.0001)');
     expect(swiftAll).toContain('let dryLeft = otherLeft + stepsLeft');
     // the room reflects the footsteps less than everything else in the space, not the same amount.
-    expect(engine).toContain('val footstepsRoomFeed = (stepsLeft + stepsRight) * TEMPLE_FOOTSTEPS_ROOM_SEND');
-    expect(swiftAll).toContain('let footstepsRoomFeed = (stepsLeft + stepsRight) * Self.templeFootstepsRoomSend');
+    expect(engine).toContain('val footstepsRoomFeed = (stepsLeft + stepsRight) * TEMPLE_FOOTSTEPS_ROOM_SEND * (1.0 - sanctum * (1.0 - SANCTUM_FOOTSTEPS_ROOM_RATIO))');
+    expect(swiftAll).toContain('let footstepsRoomFeed = (stepsLeft + stepsRight) * Self.templeFootstepsRoomSend * (1.0 - sanctum * (1.0 - Self.sanctumFootstepsRoomRatio))');
     expect(engine).toContain('private const val TEMPLE_FOOTSTEPS_ROOM_SEND = 0.55');
     expect(swiftAll).toContain('private static let templeFootstepsRoomSend = 0.55');
     expect(engine).toContain('templeFootsteps.reset(activeTimeline.seed, sampleRate)');
