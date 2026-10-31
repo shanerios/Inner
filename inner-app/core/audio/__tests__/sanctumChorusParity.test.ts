@@ -91,13 +91,27 @@ describe('Sanctum chorus: both engines place it in the hall the same way', () =>
     expect(swiftFile).toContain('let chantScale = 1.0 - sanctum');
   });
 
-  it('mixes the chorus and the scaled Aum into the room and its reflections', () => {
-    expect(engine).toContain('(aumChant.voiceLeft + aumChant.echoLeft) * chantScale + chorusLeft');
-    expect(swiftFile).toContain('(aumChant.voiceLeft + aumChant.echoLeft) * chantScale + chorusLeft');
-    expect(engine).toContain('(aumChant.voiceRight + aumChant.echoRight) * chantScale + chorusRight');
-    expect(swiftFile).toContain('(aumChant.voiceRight + aumChant.echoRight) * chantScale + chorusRight');
+  it('mixes the scaled Aum into the room, and the chorus straight to the output with its own tail', () => {
+    expect(engine).toContain('(aumChant.voiceLeft + aumChant.echoLeft) * chantScale + (drop.first + dropEchoLeft + templeAccents.left) * hallScale');
+    expect(swiftFile).toContain('(aumChant.voiceLeft + aumChant.echoLeft) * chantScale + (drop.left + dropEchoLeft + templeAccents.left) * hallScale');
+    expect(engine).toContain('(aumChant.voiceRight + aumChant.echoRight) * chantScale + (drop.second + dropEchoRight + templeAccents.right) * hallScale');
+    expect(swiftFile).toContain('(aumChant.voiceRight + aumChant.echoRight) * chantScale + (drop.right + dropEchoRight + templeAccents.right) * hallScale');
     expect(engine).toContain('aumChant.farWet * chantScale + chorusFarWet');
     expect(swiftFile).toContain('aumChant.farWet * chantScale + chorusFarWet');
+    // The room does not reverberate the chorus a second time: it is added to the output after the room's own mix.
+    expect(engine).toContain('return templeSpaceSample.set(dryLeft * 0.42 + wetLeft * 0.62 + chorusLeft, dryRight * 0.42 + wetRight * 0.62 + chorusRight)');
+    expect(swiftFile).toContain('return (dryLeft * 0.42 + wetLeft * 0.62 + chorusLeft, dryRight * 0.42 + wetRight * 0.62 + chorusRight)');
+  });
+
+  it('strips the hall of its own tones, drops, chimes and bowls in the Sanctum, leaving a faint stone hush', () => {
+    expect(engine).toContain('val hallScale = 1.0 - sanctum');
+    expect(swiftFile).toContain('let hallScale = 1.0 - sanctum');
+    expect(engine).toContain('val airScale = 1.0 - sanctum * (1.0 - SANCTUM_AIR_LEVEL)');
+    expect(swiftFile).toContain('let airScale = 1.0 - sanctum * (1.0 - Self.sanctumAirLevel)');
+    expect(engine).toContain('private const val SANCTUM_AIR_LEVEL = 0.12');
+    expect(swiftFile).toContain('private static let sanctumAirLevel = 0.12');
+    expect(engine).toContain('body * hallScale + templeSpaceAirLeft * (0.22 + intensity * 0.12) * airScale + breathLeft * 0.7 * airScale');
+    expect(swiftFile).toContain('body * hallScale + templeSpaceAirLeft * (0.22 + intensity * 0.12) * airScale + breathLeft * 0.7 * airScale');
   });
 
   it('resets the chorus with the Aum, at the start of the engine and of a timeline', () => {

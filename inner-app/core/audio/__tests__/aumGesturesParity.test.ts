@@ -117,10 +117,10 @@ describe('Aum chant: the gestures are shaped the same way in Kotlin and Swift', 
   it('is placed the same way by the Temple room, with variety 0 leaving the chant exactly as designed', () => {
     expect(engine).toContain('aumChant.render(sampleRate, elapsedSeconds, intensity, aumPresence, density, variety, scriptedOnly = sanctum > 0.0001)');
     // The Sanctum scales the Aum by (1 - its envelope), which is exactly 1 in every other world.
-    expect(engine).toContain('(aumChant.voiceLeft + aumChant.echoLeft) * chantScale + chorusLeft + drop.first');
+    expect(engine).toContain('(aumChant.voiceLeft + aumChant.echoLeft) * chantScale + (drop.first + dropEchoLeft + templeAccents.left) * hallScale');
     expect(engine).toContain('+ aumChant.farWet');
     expect(swift).toContain('aumChant.render(sampleRate: sampleRate, elapsedSeconds: elapsedSeconds, intensity: intensity, presence: aumPresence, density: density, variety: variety, scriptedOnly: sanctum > 0.0001)');
-    expect(swift).toContain('(aumChant.voiceLeft + aumChant.echoLeft) * chantScale + chorusLeft + drop.left');
+    expect(swift).toContain('(aumChant.voiceLeft + aumChant.echoLeft) * chantScale + (drop.left + dropEchoLeft + templeAccents.left) * hallScale');
     expect(swift).toContain('+ aumChant.farWet');
     // Variety 0 must skip every gesture path so the chant is bit-identical to what it always was.
     expect(chant).toContain('if (variety <= 0.0) {');

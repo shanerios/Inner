@@ -215,6 +215,8 @@ private const val RECOGNITION_NOISE_THINNING = 1.2
 private const val TEMPLE_FOOTSTEPS_ROOM_SEND = 0.55
 /** How loud a called Aum stands over the Sanctum's chorus, against the Temple's own level of 1. */
 private const val SANCTUM_AUM_LEVEL = 0.8
+/** How much of the hall's air and breath remains in the Sanctum: a faint stone hush under the drone. */
+private const val SANCTUM_AIR_LEVEL = 0.12
 /** A called Aum is never quieter than this presence, so it still sounds when the chorus has fallen away. */
 private const val SANCTUM_AUM_MIN_PRESENCE = 1.0
 
@@ -1919,8 +1921,13 @@ object ProceduralAudioEngine {
     // The room reflects everything in the space at full strength except the footsteps, which send in at
     // TEMPLE_FOOTSTEPS_ROOM_SEND: enough reflection to place the distant walker in the stone space without
     // giving the short scuffs the chant's full, lingering tail.
-    val otherLeft = body + templeSpaceAirLeft * (0.22 + intensity * 0.12) + breathLeft * 0.7 + (aumChant.voiceLeft + aumChant.echoLeft) * chantScale + chorusLeft + drop.first + dropEchoLeft + templeAccents.left
-    val otherRight = body + templeSpaceAirRight * (0.22 + intensity * 0.12) + breathRight * 0.7 + (aumChant.voiceRight + aumChant.echoRight) * chantScale + chorusRight + drop.second + dropEchoRight + templeAccents.right
+    // In the Sanctum the hall's own modal tones, water drops and random chimes and bowls are gone (the drone is the only
+    // pitched sound, and the Bell is the only one introduced), and its air and breath are a faint stone hush. The
+    // chorus keeps its own tail and joins the output directly, so the room does not reverberate it a second time.
+    val hallScale = 1.0 - sanctum
+    val airScale = 1.0 - sanctum * (1.0 - SANCTUM_AIR_LEVEL)
+    val otherLeft = body * hallScale + templeSpaceAirLeft * (0.22 + intensity * 0.12) * airScale + breathLeft * 0.7 * airScale + (aumChant.voiceLeft + aumChant.echoLeft) * chantScale + (drop.first + dropEchoLeft + templeAccents.left) * hallScale
+    val otherRight = body * hallScale + templeSpaceAirRight * (0.22 + intensity * 0.12) * airScale + breathRight * 0.7 * airScale + (aumChant.voiceRight + aumChant.echoRight) * chantScale + (drop.second + dropEchoRight + templeAccents.right) * hallScale
     val dryLeft = otherLeft + templeFootsteps.left
     val dryRight = otherRight + templeFootsteps.right
     val size = templeSpaceDelay.size
@@ -1933,7 +1940,7 @@ object ProceduralAudioEngine {
     val footstepsRoomFeed = (templeFootsteps.left + templeFootsteps.right) * TEMPLE_FOOTSTEPS_ROOM_SEND
     templeSpaceDelay[templeSpaceDelayIndex] = (otherLeft + otherRight) * 0.5 + footstepsRoomFeed * 0.5 + (wetLeft + wetRight) * 0.45 + aumChant.farWet * chantScale + chorusFarWet
     templeSpaceDelayIndex = (templeSpaceDelayIndex + 1) % size
-    return templeSpaceSample.set(dryLeft * 0.42 + wetLeft * 0.62, dryRight * 0.42 + wetRight * 0.62)
+    return templeSpaceSample.set(dryLeft * 0.42 + wetLeft * 0.62 + chorusLeft, dryRight * 0.42 + wetRight * 0.62 + chorusRight)
   }
 
   private fun nextTempleSpaceWhite(): Double {

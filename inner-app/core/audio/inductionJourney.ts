@@ -9,8 +9,8 @@ import type { AudioJourneyStage, ProceduralAudioPatch } from './types';
  * The arc teaches one skill, the one Inner's night work rests on: a sound is introduced, noticed, and later
  * returns. The returning sound is the Bell, fixed for this journey so every listener learns the same one.
  *
- * The drone greets the listener alone. Hesitant footsteps follow, then the drone builds and the brown bed and the
- * binaural field fade in. Four called Aum chants sound over it, and footsteps leave as it ends.
+ * The drone greets the listener alone, rising from silence over the first twenty-five seconds. Hesitant footsteps
+ * follow, then the brown bed and the binaural field fade in as the drone builds. Four called Aum chants sound over it, and footsteps leave as it ends.
  *
  * The guidance lines below are placeholders for the recorded voice. They carry the same timing, so recording
  * them later changes no timeline.
@@ -97,28 +97,32 @@ export const INDUCTION_JOURNEY: FactoryAudioJourney = {
     id: INDUCTION_JOURNEY_ID,
     title: 'The Induction',
     seed: 7_340_033,
-    fadeInMs: 10 * SECOND,
+    fadeInMs: 2 * SECOND,
     protocolVersion: 3,
     stages: [
-      // The drone greets the listener alone. The whole journey fades up from silence over the first ten seconds (the
-      // timeline's own fade-in), so nothing of the engine's default start state is ever heard. Hesitant footsteps come
-      // in around twelve seconds. No bed and no binaural field yet.
-      stage('greet', 'Arrive', 25 * SECOND, 0, world(false, BEAT.entry, {
-        environmentGain: 0.4, environmentIntensity: 0.4, identityPresence: 0.7, masterGain: 0.7,
-      }, { quiet: true }), [
-        { id: 'induction-steps-in', atMs: 12 * SECOND, type: 'footsteps', direction: 'approach' },
-      ]),
-      // After the footsteps the drone builds fuller, still alone.
-      stage('build', 'Build', 10 * SECOND, 10 * SECOND, world(false, BEAT.entry, {
-        environmentGain: 0.44, environmentIntensity: 0.45, identityPresence: 0.9, masterGain: 0.7,
+      // A moment of true silence, so nothing of the engine's default start state (it includes a 528 Hz carrier tone) is
+      // ever heard; the drone then rises out of it.
+      stage('hush', 'Hush', 1 * SECOND, 0, world(false, BEAT.entry, {
+        environmentGain: 0, environmentIntensity: 0.4, identityPresence: 0.9, masterGain: 0.7,
       }, { quiet: true })),
-      // Once the drone is well established, around 35 seconds in, the brown bed and the binaural field fade in together
-      // over twelve seconds, and the bed begins to swing from ear to ear like a massive pendulum.
+      // The drone greets the listener alone, rising from nothing to full over the next twenty-four seconds. No bed, no
+      // binaural, no chimes or bells.
+      stage('greet', 'Arrive', 24 * SECOND, 24 * SECOND, world(false, BEAT.entry, {
+        environmentGain: 0.44, environmentIntensity: 0.4, identityPresence: 0.9, masterGain: 0.7,
+      }, { quiet: true })),
+      // The drone is at full volume. Hesitant footsteps come in at 26 seconds.
+      stage('steps', 'Steps', 15 * SECOND, 0, world(false, BEAT.entry, {
+        environmentGain: 0.44, environmentIntensity: 0.4, identityPresence: 0.9, masterGain: 0.7,
+      }, { quiet: true }), [
+        { id: 'induction-steps-in', atMs: 1 * SECOND, type: 'footsteps', direction: 'approach' },
+      ]),
+      // After the footsteps, at 40 seconds, the brown bed and the binaural field fade in together over twelve seconds,
+      // the drone builds a little fuller, and the bed begins to swing from ear to ear like a massive pendulum.
       stage('bed', 'The Floor', 25 * SECOND, 12 * SECOND, world(false, BEAT.prepEnd, {
         environmentGain: 0.48, environmentIntensity: 0.5, identityPresence: 1, masterGain: 0.7,
-      }, { noiseScale: 1.6, swing: 0.8 }), []),
+      }, { noiseScale: 1.6, swing: 0.8 })),
       // The chorus keeps building and the first Aum is chanted over it.
-      stage('bloom', 'The Chorus', 30 * SECOND, 20 * SECOND, world(false, BEAT.prepEnd, {
+      stage('bloom', 'The Chorus', 25 * SECOND, 15 * SECOND, world(false, BEAT.prepEnd, {
         environmentGain: 0.5, environmentIntensity: 0.55, identityPresence: 1.1, masterGain: 0.7,
       }, { noiseScale: 2, swing: 0.85 }), [
         { id: 'induction-aum-1', atMs: 5 * SECOND, type: 'aum' },
@@ -157,8 +161,8 @@ export const INDUCTION_JOURNEY: FactoryAudioJourney = {
     ],
     guidance: [
       { id: 'induction-headphones', atMs: 0, heading: 'Before you begin', prompt: 'Put on headphones, and find somewhere you can close your eyes.' },
-      { id: 'induction-belief', atMs: 21 * SECOND, heading: 'The Induction', prompt: 'Sound can guide the mind into different kinds of awareness. With practice, one of them can be lucidity.' },
-      { id: 'induction-chorus', atMs: 47 * SECOND, heading: 'The hall', prompt: 'Voices rise around you. There is nothing to do yet.' },
+      { id: 'induction-belief', atMs: 42 * SECOND, heading: 'The Induction', prompt: 'Sound can guide the mind into different kinds of awareness. With practice, one of them can be lucidity.' },
+      { id: 'induction-chorus', atMs: 62 * SECOND, heading: 'The hall', prompt: 'Stay with the sound. There is nothing to do yet.' },
       { id: 'induction-listen', atMs: 76 * SECOND, heading: 'Listen', prompt: 'Notice where the sound sits. Is it close, or far away? Let it fill the space.' },
       { id: 'induction-sound', atMs: 84 * SECOND, heading: 'One sound', prompt: 'A single sound will come. Remember how it feels.' },
       { id: 'induction-deepen', atMs: 140 * SECOND, heading: 'Deepen', prompt: 'Let the hall hold you. Keep only a little attention on the sound.' },

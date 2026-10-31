@@ -62,7 +62,7 @@ describe('The Induction', () => {
     expect(cues[1].atMs - cues[0].atMs).toBeGreaterThanOrEqual(2 * 60_000);
   });
 
-  it('is greeted by the drone alone, then walked in and out: hesitant footsteps after ten seconds, leaving at the end', () => {
+  it('is greeted by the drone alone rising from silence, then walked in and out', () => {
     let offset = 0;
     const steps: Array<{ atMs: number; direction: string; stage: string }> = [];
     for (const item of timeline.stages) {
@@ -72,40 +72,47 @@ describe('The Induction', () => {
       offset += item.durationMs;
     }
     expect(steps.map(step => step.direction)).toEqual(['approach', 'recede']);
-    // Everything fades up from silence over the first ten seconds (the timeline's own fade-in, so the engine's default
-    // start state, which includes a 528 Hz carrier tone, is never heard). The walker comes in after it, at 10 to 15 seconds.
-    expect(timeline.fadeInMs).toBe(10_000);
-    expect(timeline.stages[0].transitionMs).toBe(0);
-    expect(timeline.stages[0].target.toneGain).toBe(0);
-    expect(timeline.stages[0].target.identityPresence).toBeGreaterThan(0);
-    expect(steps[0].stage).toBe('greet');
-    expect(steps[0].atMs).toBeGreaterThanOrEqual(10_000);
-    expect(steps[0].atMs).toBeLessThanOrEqual(15_000);
+    // A moment of true silence first, so the engine's default start state (a 528 Hz carrier tone) is never heard.
+    const [hush, greet] = timeline.stages;
+    expect(hush.id).toBe('hush');
+    expect(hush.transitionMs).toBe(0);
+    expect(hush.target.environmentGain).toBe(0);
+    expect(hush.target.toneGain).toBe(0);
+    // The drone then rises from nothing to full over 20 to 25 seconds, and only after that do the footsteps come.
+    expect(greet.id).toBe('greet');
+    expect(hush.durationMs + greet.durationMs).toBeGreaterThanOrEqual(20_000);
+    expect(hush.durationMs + greet.durationMs).toBeLessThanOrEqual(25_000);
+    expect(greet.transitionMs).toBe(greet.durationMs);
+    expect(greet.target.environmentGain!).toBeGreaterThan(0);
+    expect(steps[0].atMs).toBeGreaterThanOrEqual(hush.durationMs + greet.durationMs);
     expect(steps[1].stage).toBe('leave');
     expect(timeline.stages[timeline.stages.length - 1].id).toBe('leave');
     expect(timeline.stages[timeline.stages.length - 1].target.identityPresence ?? 1).toBeLessThan(0.3);
   });
 
-  it('lets the drone stand alone, builds it after the footsteps, and only then fades the brown bed and binaural in', () => {
-    const [greet, build, bed] = timeline.stages;
-    expect([greet.id, build.id, bed.id]).toEqual(['greet', 'build', 'bed']);
-    // Nothing of the bed or the binaural field is heard while the drone greets, the footsteps come and the drone builds.
-    for (const quiet of [greet, build]) {
+  it('keeps the drone alone until the footsteps are done, then fades the brown bed and binaural in together', () => {
+    const ids = timeline.stages.map(item => item.id);
+    expect(ids.slice(0, 4)).toEqual(['hush', 'greet', 'steps', 'bed']);
+    const [hush, greet, steps, bed] = timeline.stages;
+    // Nothing of the bed or the binaural field is heard while the drone rises, the footsteps come and finish.
+    for (const quiet of [hush, greet, steps]) {
       expect(quiet.target.noiseGain).toBe(0);
       expect(quiet.target.binauralGain).toBe(0);
+      expect(quiet.target.toneGain).toBe(0);
     }
-    expect(build.target.identityPresence!).toBeGreaterThan(greet.target.identityPresence!);
-    // They begin between 30 and 45 seconds in, together, and take 10 to 15 seconds.
-    const bedStartMs = greet.durationMs + build.durationMs;
+    // They begin once the footsteps could have finished (about nine hesitant steps), and take 10 to 15 seconds.
+    const bedStartMs = hush.durationMs + greet.durationMs + steps.durationMs;
     expect(bedStartMs).toBeGreaterThanOrEqual(30_000);
     expect(bedStartMs).toBeLessThanOrEqual(45_000);
+    const walkMs = hush.durationMs + greet.durationMs + (steps.spatialEvents?.[0]?.atMs ?? 0);
+    expect(bedStartMs - walkMs).toBeGreaterThanOrEqual(12_000);
     expect(bed.transitionMs).toBeGreaterThanOrEqual(10_000);
     expect(bed.transitionMs).toBeLessThanOrEqual(15_000);
     expect(bed.target.noiseColor).toBe('brown');
     expect(bed.target.noiseGain).toBeGreaterThan(0);
     expect(bed.target.binauralGain).toBeGreaterThan(0);
-    // The bed's fade starts after the walker's steps could have finished (about nine hesitant steps).
-    expect(bedStartMs).toBeGreaterThan(12_000 + 14_000);
+    // The drone builds a little fuller as they arrive.
+    expect(bed.target.identityPresence!).toBeGreaterThan(steps.target.identityPresence!);
   });
 
   it('swings the bed from ear to ear like a slow, heavy pendulum, heaviest in the long middle', () => {
@@ -172,7 +179,9 @@ describe('The Induction', () => {
 
   it('opens with the drone, builds it fuller to the middle, and lets it fall away', () => {
     const presence = timeline.stages.map(item => item.target.identityPresence ?? 1);
-    expect(presence[0]).toBeLessThan(presence[2]);
+    const at = (id: string) => presence[timeline.stages.findIndex(item => item.id === id)];
+    expect(at('greet')).toBeLessThan(at('bloom'));
+    expect(at('bed')).toBeGreaterThan(at('greet'));
     expect(Math.max(...presence)).toBeLessThanOrEqual(IDENTITY_PRESENCE_MAX);
     expect(presence.indexOf(Math.max(...presence))).toBe(timeline.stages.findIndex(item => item.id === 'fullest'));
     expect(presence[presence.length - 1]).toBeLessThan(0.3);

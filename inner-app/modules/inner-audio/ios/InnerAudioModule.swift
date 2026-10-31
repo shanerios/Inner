@@ -2007,6 +2007,8 @@ final class ProceduralAudioEngine: NSObject {
   private static let templeFootstepsRoomSend = 0.55
   /// How loud a called Aum stands over the Sanctum's chorus, against the Temple's own level of 1.
   private static let sanctumAumLevel = 0.8
+  /// How much of the hall's air and breath remains in the Sanctum: a faint stone hush under the drone.
+  private static let sanctumAirLevel = 0.12
   /// A called Aum is never quieter than this presence, so it still sounds when the chorus has fallen away.
   private static let sanctumAumMinPresence = 1.0
 
@@ -2255,8 +2257,13 @@ final class ProceduralAudioEngine: NSObject {
     // The room reflects everything in the space at full strength except the footsteps, which send in at
     // templeFootstepsRoomSend: enough reflection to place the distant walker in the stone space without
     // giving the short scuffs the chant's full, lingering tail.
-    let otherLeft = body + templeSpaceAirLeft * (0.22 + intensity * 0.12) + breathLeft * 0.7 + (aumChant.voiceLeft + aumChant.echoLeft) * chantScale + chorusLeft + drop.left + dropEchoLeft + templeAccents.left
-    let otherRight = body + templeSpaceAirRight * (0.22 + intensity * 0.12) + breathRight * 0.7 + (aumChant.voiceRight + aumChant.echoRight) * chantScale + chorusRight + drop.right + dropEchoRight + templeAccents.right
+    // In the Sanctum the hall's own modal tones, water drops and random chimes and bowls are gone (the drone is the only
+    // pitched sound, and the Bell is the only one introduced), and its air and breath are a faint stone hush. The
+    // chorus keeps its own tail and joins the output directly, so the room does not reverberate it a second time.
+    let hallScale = 1.0 - sanctum
+    let airScale = 1.0 - sanctum * (1.0 - Self.sanctumAirLevel)
+    let otherLeft = body * hallScale + templeSpaceAirLeft * (0.22 + intensity * 0.12) * airScale + breathLeft * 0.7 * airScale + (aumChant.voiceLeft + aumChant.echoLeft) * chantScale + (drop.left + dropEchoLeft + templeAccents.left) * hallScale
+    let otherRight = body * hallScale + templeSpaceAirRight * (0.22 + intensity * 0.12) * airScale + breathRight * 0.7 * airScale + (aumChant.voiceRight + aumChant.echoRight) * chantScale + (drop.right + dropEchoRight + templeAccents.right) * hallScale
     let dryLeft = otherLeft + templeFootsteps.left
     let dryRight = otherRight + templeFootsteps.right
     let size = templeSpaceDelay.count
@@ -2269,7 +2276,7 @@ final class ProceduralAudioEngine: NSObject {
     let footstepsRoomFeed = (templeFootsteps.left + templeFootsteps.right) * Self.templeFootstepsRoomSend
     templeSpaceDelay[templeSpaceDelayIndex] = (otherLeft + otherRight) * 0.5 + footstepsRoomFeed * 0.5 + (wetLeft + wetRight) * 0.45 + aumChant.farWet * chantScale + chorusFarWet
     templeSpaceDelayIndex = (templeSpaceDelayIndex + 1) % size
-    return (dryLeft * 0.42 + wetLeft * 0.62, dryRight * 0.42 + wetRight * 0.62)
+    return (dryLeft * 0.42 + wetLeft * 0.62 + chorusLeft, dryRight * 0.42 + wetRight * 0.62 + chorusRight)
   }
 
   private func nextTempleSpaceWhite() -> Double {
