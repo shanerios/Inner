@@ -22,7 +22,7 @@ jest.mock('react-native-purchases', () => ({
   default: { getCustomerInfo: jest.fn() },
 }));
 
-const FREE_OVERNIGHT = ['ocean', 'forest', 'none'];
+const FREE_OVERNIGHT = ['ocean', 'forest', 'none', 'sanctum'];
 const PREMIUM_OVERNIGHT = ['temple', 'abyssal', 'cosmic', 'fire'];
 const STATUSES: MembershipStatus[] = ['member', 'not_member', 'unknown'];
 
@@ -31,7 +31,7 @@ describe('premium overnight environments', () => {
     expect([...PREMIUM_OVERNIGHT_ENVIRONMENTS].sort()).toEqual([...PREMIUM_OVERNIGHT].sort());
   });
 
-  it('keeps Ocean, Forest, and Quiet free', () => {
+  it('keeps Ocean, Forest, Quiet, and the Induction\'s Sanctum free', () => {
     for (const id of FREE_OVERNIGHT) expect(isPremiumOvernightEnvironment(id)).toBe(false);
     for (const id of PREMIUM_OVERNIGHT) expect(isPremiumOvernightEnvironment(id)).toBe(true);
   });

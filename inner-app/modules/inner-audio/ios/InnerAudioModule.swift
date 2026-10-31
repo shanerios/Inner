@@ -1396,7 +1396,8 @@ final class ProceduralAudioEngine: NSObject {
       let forestTarget = target.environment == "forest" && target.environmentGain > 0.0001 ? 1.0 : 0.0
       let forestStep = 1 / max(1, sampleRate * 4.5)
       forestEnvelope += clamp(forestTarget - forestEnvelope, -forestStep, forestStep)
-      let templeSpaceTarget = target.environment == "temple" && target.environmentGain > 0.0001 ? 1.0 : 0.0
+      // The sanctum is the Temple's hall with its own character, so it shares this path.
+      let templeSpaceTarget = (target.environment == "temple" || target.environment == "sanctum") && target.environmentGain > 0.0001 ? 1.0 : 0.0
       let templeSpaceStep = 1 / max(1, sampleRate * 4.5)
       templeSpaceEnvelope += clamp(templeSpaceTarget - templeSpaceEnvelope, -templeSpaceStep, templeSpaceStep)
       // Temple is its own independent layer (like tone/binaural/noise), not tied
@@ -2243,7 +2244,7 @@ final class ProceduralAudioEngine: NSObject {
       binauralGain: clamp(raw.binauralGain, 0, 1),
       noiseColor: raw.noiseColor.flatMap { ["white", "pink", "brown", "grey"].contains($0) ? $0 : nil },
       noiseGain: clamp(raw.noiseGain, 0, 1),
-      environment: raw.environment == "cave" ? "cosmic" : (["ocean", "wind", "fire", "cosmic", "forest", "temple", "abyssal"].contains(raw.environment) ? raw.environment : "none"),
+      environment: raw.environment == "cave" ? "cosmic" : (["ocean", "wind", "fire", "cosmic", "forest", "temple", "abyssal", "sanctum"].contains(raw.environment) ? raw.environment : "none"),
       environmentGain: clamp(raw.environmentGain, 0, 1),
       environmentIntensity: clamp(raw.environmentIntensity, 0, 1),
       thresholdShift: clamp(raw.thresholdShift, 0, 1),

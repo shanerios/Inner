@@ -1,7 +1,8 @@
 import type { NoiseColor, ProceduralEnvironment } from './types';
 
 export type AudioWorld = Exclude<ProceduralEnvironment, 'none'>;
-export type OvernightAudioWorld = Exclude<AudioWorld, 'wind'>;
+/** The worlds a night can be built on. The wind is a mixer-only world, and the sanctum belongs to the Induction alone. */
+export type OvernightAudioWorld = Exclude<AudioWorld, 'wind' | 'sanctum'>;
 export type WorldScale = 'intimate' | 'natural' | 'vast';
 export type WorldMotion = 'still' | 'drift' | 'surge' | 'orbit' | 'stochastic';
 export type WorldEventRole = 'texture' | 'accent' | 'anchor';
@@ -344,6 +345,46 @@ export const WORLD_PROFILES: Record<AudioWorld, WorldProfile> = {
       levelDb: -10,
       breath: BINAURAL_BREATH,
       rationale: 'Held at 6.68 Hz all night, after a real singing bowl whose fundamental is 482.61 Hz and whose beating sits at 6.68 Hz, so the beat is the bowl\'s own. The carrier is 241.3 Hz, the octave below the bowl, chosen by ear: the bowl\'s own pitch was too bright as a steady tone. Theory only: that study was 17 waking listeners for five minutes, so it shows the acoustic beat is real, not that it helps sleep or lucidity.',
+    },
+  },
+  /**
+   * The Induction's world. It renders through the Temple's hall (same engine path), so the stone resonance, the bowl,
+   * the chimes and the water drops are the Temple's own; what differs is the room, the bed and the sustained chorus.
+   * It is free, and it is not offered for a night.
+   */
+  sanctum: {
+    id: 'sanctum', label: 'Sanctum', concept: 'A vast, resonant hall held open by a slow, sustained chorus of voices.',
+    foundation: ['stone-resonance', 'filtered-air', 'temple-breath'],
+    acoustics: { scale: 'vast', absorption: 0.1, diffusion: 0.94, width: 0.9 },
+    signatures: ['sustained-chorus', 'singing-bowl', 'water-drops'], motion: 'still',
+    events: [
+      { id: 'sanctum-water-drop', role: 'texture', salience: 0.2, recoverySeconds: 1.2 },
+      { id: 'sanctum-wind-chime-cluster', role: 'accent', salience: 0.4, recoverySeconds: 2 },
+      { id: 'sanctum-singing-bowl', role: 'anchor', salience: 0.72, recoverySeconds: 4 },
+    ],
+    recognitionRecoverySeconds: 2,
+    bed: {
+      noiseColor: 'pink',
+      noiseGainScale: 0.5,
+      noiseHighCutHz: 1_800,
+      noiseWidth: 1,
+      noiseDriftDb: 2,
+      noiseDriftSeconds: 20,
+      binauralGainScale: 1,
+      remNoiseTaper: REM_NOISE_TAPER,
+      rationale: {
+        goal: 'Leave the whole hall to the chorus and the bowl, and keep the air under them barely there.',
+        atmosphere: 'Dark stone air, wider and more open than the Temple, with almost no movement of its own.',
+        basis: 'Theory only: the Temple bed with the noise a further 2 dB down, because this world is heard awake for a few minutes with the voice and chorus in front, not carried through a night.',
+      },
+    },
+    binaural: {
+      carrierHz: 275,
+      beatHz: { entry: 8, prepEnd: 7, descent: 6.5, earlySleep: 6.5, remSleep: 6.5 },
+      trimDb: -1.2,
+      levelDb: -10,
+      breath: BINAURAL_BREATH,
+      rationale: 'A carrier two and a half times the chorus root of 110 Hz, with a theta-leaning beat that eases down a little over the practice. Theory only: binaural-beat entrainment has weak and mixed evidence, so this is atmosphere, not a claim.',
     },
   },
 };

@@ -1,7 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 import { binauralForWorld, noiseForWorld, OVERNIGHT_WORLD_PROFILES, WORLD_PROFILES } from '../worldProfiles';
 
-const WORLD_IDS = ['ocean', 'abyssal', 'wind', 'fire', 'cosmic', 'forest', 'temple'] as const;
+const WORLD_IDS = ['ocean', 'abyssal', 'wind', 'fire', 'cosmic', 'forest', 'temple', 'sanctum'] as const;
 
 describe('procedural world profiles', () => {
   it('defines one complete profile for every procedural world', () => {
@@ -17,6 +17,15 @@ describe('procedural world profiles', () => {
         expect(value).toBeLessThanOrEqual(1);
       }
     }
+  });
+
+  it('keeps the sanctum out of the overnight worlds and on its own carrier', () => {
+    // It belongs to the Induction alone: a night is never offered it, and it shares no carrier with any other world.
+    expect(OVERNIGHT_WORLD_PROFILES.map((world) => world.id)).not.toContain('sanctum');
+    const others = Object.values(WORLD_PROFILES).filter((world) => world.id !== 'sanctum').map((world) => world.binaural.carrierHz);
+    expect(others).not.toContain(WORLD_PROFILES.sanctum.binaural.carrierHz);
+    // It renders through the Temple's hall, so it keeps the Temple's foundation.
+    expect(WORLD_PROFILES.sanctum.foundation).toEqual(WORLD_PROFILES.temple.foundation);
   });
 
   it('keeps rare event identities unique and salience bounded', () => {

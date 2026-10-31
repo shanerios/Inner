@@ -1067,7 +1067,8 @@ object ProceduralAudioEngine {
       val forestTarget = if (target.environment == "forest" && target.environmentGain > 0.0001) 1.0 else 0.0
       val forestStep = 1 / max(1.0, sampleRate * 4.5)
       forestEnvelope += clamp(forestTarget - forestEnvelope, -forestStep, forestStep)
-      val templeSpaceTarget = if (target.environment == "temple" && target.environmentGain > 0.0001) 1.0 else 0.0
+      // The sanctum is the Temple's hall with its own character, so it shares this path.
+      val templeSpaceTarget = if ((target.environment == "temple" || target.environment == "sanctum") && target.environmentGain > 0.0001) 1.0 else 0.0
       val templeSpaceStep = 1 / max(1.0, sampleRate * 4.5)
       templeSpaceEnvelope += clamp(templeSpaceTarget - templeSpaceEnvelope, -templeSpaceStep, templeSpaceStep)
       // Temple is its own independent layer (like tone/binaural/noise), not tied
@@ -1915,7 +1916,7 @@ object ProceduralAudioEngine {
       binauralGain = clamp(raw.binauralGain, 0.0, 1.0),
       noiseColor = noiseColor,
       noiseGain = clamp(raw.noiseGain, 0.0, 1.0),
-      environment = if (raw.environment == "cave") "cosmic" else raw.environment.takeIf { it == "ocean" || it == "wind" || it == "fire" || it == "cosmic" || it == "forest" || it == "temple" || it == "abyssal" } ?: "none",
+      environment = if (raw.environment == "cave") "cosmic" else raw.environment.takeIf { it == "ocean" || it == "wind" || it == "fire" || it == "cosmic" || it == "forest" || it == "temple" || it == "abyssal" || it == "sanctum" } ?: "none",
       environmentGain = clamp(raw.environmentGain, 0.0, 1.0),
       environmentIntensity = clamp(raw.environmentIntensity, 0.0, 1.0),
       thresholdShift = clamp(raw.thresholdShift, 0.0, 1.0),
