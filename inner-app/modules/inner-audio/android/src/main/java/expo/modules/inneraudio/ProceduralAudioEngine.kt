@@ -215,6 +215,12 @@ private const val RECOGNITION_NOISE_THINNING = 1.2
 private const val TEMPLE_FOOTSTEPS_ROOM_SEND = 0.55
 /** How loud a called Aum stands over the Sanctum's chorus, against the Temple's own level of 1. */
 private const val SANCTUM_AUM_LEVEL = 0.8
+/** The Sanctum's footsteps, against the Temple's own level of 1: about -4 dB. */
+private const val SANCTUM_FOOTSTEPS_LEVEL = 0.63
+/** How long the overhead body takes to cross from one side to the other. */
+private const val OVERHEAD_PASS_SECONDS = 4.5
+/** How much quieter the passing body is, at depth 1, when it is far off at the side: down to a fifth. */
+private const val OVERHEAD_FAR_DROP = 0.8
 /** How much of the hall's air and breath remains in the Sanctum: a faint stone hush under the drone. */
 private const val SANCTUM_AIR_LEVEL = 0.12
 /** A called Aum is never quieter than this presence, so it still sounds when the chorus has fallen away. */
@@ -1029,10 +1035,12 @@ object ProceduralAudioEngine {
       }
       worldSalience.beginFrame(recognitionSpace != null || cueActive)
       val orbitPhase = spatialSeconds * target.spatialRate * Math.PI * 2 / 60
-      val orbitNear = (cos(orbitPhase) + 1) / 2
+      val overhead = target.spatialMode == "overhead"
+      // Overhead: how near the passing body is (1 as it crosses over the listener, 0 when it has gone to the side).
+      val orbitNear = if (overhead) overheadProximity(spatialSeconds, target.spatialRate) else (cos(orbitPhase) + 1) / 2
       // Vortex reuses orbit's "pulled toward/away from center" distance-darkening
       // mechanic — a spiral is a kind of orbit whose radius and rate aren't constant.
-      val orbitTarget = if (target.spatialMode == "orbit" || target.spatialMode == "vortex") 1.0 else 0.0
+      val orbitTarget = if (target.spatialMode == "orbit" || target.spatialMode == "vortex" || overhead) 1.0 else 0.0
       val orbitStep = 1 / max(1.0, sampleRate * 2.0)
       orbitMix += clamp(orbitTarget - orbitMix, -orbitStep, orbitStep)
       val requestedPan = event?.pan ?: spatialPan(target, spatialSeconds)
@@ -1040,7 +1048,7 @@ object ProceduralAudioEngine {
         spatialCenterGain(target, spatialSeconds),
         event?.let { 1 - 0.62 * it.crossing } ?: 1.0,
       )
-      val orbitDistance = 1 - target.spatialDepth * 0.5 * (1 - orbitNear)
+      val orbitDistance = 1 - target.spatialDepth * (if (overhead) OVERHEAD_FAR_DROP else 0.5) * (1 - orbitNear)
       val requestedSpatialDistance = 1 + (orbitDistance - 1) * orbitMix
       val spatialSlew = 1 / max(1.0, sampleRate * 0.12)
       renderedPan += clamp(requestedPan - renderedPan, -spatialSlew, spatialSlew)
@@ -1315,6 +1323,35 @@ object ProceduralAudioEngine {
     }
   }
 
+  /**
+   * The overhead pass: a heavy body crossing over the listener from one side to the other in [OVERHEAD_PASS_SECONDS],
+   * once a cycle, then resting out at the far side while the next pass is awaited. Passes alternate direction.
+   * Progress through this cycle's pass, 0 before it and 1 after it.
+   */
+  private fun overheadProgress(elapsedSeconds: Double, cyclesPerMinute: Double): Double {
+    val period = 60.0 / max(0.5, cyclesPerMinute)
+    val passSeconds = min(OVERHEAD_PASS_SECONDS, period * 0.5)
+    val within = elapsedSeconds - Math.floor(elapsedSeconds / period) * period
+    return clamp((within - (period - passSeconds) / 2) / passSeconds, 0.0, 1.0)
+  }
+
+  /** The pass eased so it moves fastest as it crosses overhead. */
+  private fun overheadEase(elapsedSeconds: Double, cyclesPerMinute: Double): Double {
+    val progress = overheadProgress(elapsedSeconds, cyclesPerMinute)
+    return progress * progress * (3 - 2 * progress)
+  }
+
+  private fun overheadDirection(elapsedSeconds: Double, cyclesPerMinute: Double): Double {
+    val period = 60.0 / max(0.5, cyclesPerMinute)
+    return if (Math.floor(elapsedSeconds / period).toLong() % 2L == 0L) 1.0 else -1.0
+  }
+
+  /** 1 as the body crosses overhead, falling to 0 at the sides and between passes. */
+  private fun overheadProximity(elapsedSeconds: Double, cyclesPerMinute: Double): Double {
+    val shape = sin(Math.PI * overheadProgress(elapsedSeconds, cyclesPerMinute))
+    return shape * shape
+  }
+
   private fun spatialPan(target: AudioParameters, elapsedSeconds: Double): Double {
     if (target.spatialMode == "still" || target.spatialDepth <= 0) return 0.0
     val phase = elapsedSeconds * target.spatialRate * Math.PI * 2 / 60
@@ -1343,6 +1380,7 @@ object ProceduralAudioEngine {
         }
       }
       "pendulum" -> sin(phase)
+      "overhead" -> overheadDirection(elapsedSeconds, target.spatialRate) * (2 * overheadEase(elapsedSeconds, target.spatialRate) - 1)
       "swoosh" -> {
         val cycle = phase % (Math.PI * 2) / (Math.PI * 2)
         when {
@@ -1928,8 +1966,12 @@ object ProceduralAudioEngine {
     val airScale = 1.0 - sanctum * (1.0 - SANCTUM_AIR_LEVEL)
     val otherLeft = body * hallScale + templeSpaceAirLeft * (0.22 + intensity * 0.12) * airScale + breathLeft * 0.7 * airScale + (aumChant.voiceLeft + aumChant.echoLeft) * chantScale + (drop.first + dropEchoLeft + templeAccents.left) * hallScale
     val otherRight = body * hallScale + templeSpaceAirRight * (0.22 + intensity * 0.12) * airScale + breathRight * 0.7 * airScale + (aumChant.voiceRight + aumChant.echoRight) * chantScale + (drop.second + dropEchoRight + templeAccents.right) * hallScale
-    val dryLeft = otherLeft + templeFootsteps.left
-    val dryRight = otherRight + templeFootsteps.right
+    // The Sanctum's footsteps sit a few dB lower than the Temple's.
+    val stepsScale = 1.0 - sanctum * (1.0 - SANCTUM_FOOTSTEPS_LEVEL)
+    val stepsLeft = templeFootsteps.left * stepsScale
+    val stepsRight = templeFootsteps.right * stepsScale
+    val dryLeft = otherLeft + stepsLeft
+    val dryRight = otherRight + stepsRight
     val size = templeSpaceDelay.size
     val tap71 = templeSpaceDelay[(templeSpaceDelayIndex - (sampleRate * 0.071).toInt().coerceIn(1, size - 1) + size) % size]
     val tap89 = templeSpaceDelay[(templeSpaceDelayIndex - (sampleRate * 0.089).toInt().coerceIn(1, size - 1) + size) % size]
@@ -1937,7 +1979,7 @@ object ProceduralAudioEngine {
     val tap137 = templeSpaceDelay[(templeSpaceDelayIndex - (sampleRate * 0.137).toInt().coerceIn(1, size - 1) + size) % size]
     val wetLeft = tap71 * 0.58 + tap137 * 0.34
     val wetRight = tap89 * 0.56 + tap113 * 0.36
-    val footstepsRoomFeed = (templeFootsteps.left + templeFootsteps.right) * TEMPLE_FOOTSTEPS_ROOM_SEND
+    val footstepsRoomFeed = (stepsLeft + stepsRight) * TEMPLE_FOOTSTEPS_ROOM_SEND
     templeSpaceDelay[templeSpaceDelayIndex] = (otherLeft + otherRight) * 0.5 + footstepsRoomFeed * 0.5 + (wetLeft + wetRight) * 0.45 + aumChant.farWet * chantScale + chorusFarWet
     templeSpaceDelayIndex = (templeSpaceDelayIndex + 1) % size
     return templeSpaceSample.set(dryLeft * 0.42 + wetLeft * 0.62 + chorusLeft, dryRight * 0.42 + wetRight * 0.62 + chorusRight)
@@ -1999,7 +2041,7 @@ object ProceduralAudioEngine {
   private fun normalizedParameters(raw: AudioConfigRecord, sleepEndMs: Double?): AudioParameters {
     val noiseColor = raw.noiseColor.takeIf { it == "white" || it == "pink" || it == "brown" || it == "grey" }
     val spatialMode = raw.spatialMode.takeIf {
-      it == "still" || it == "drift" || it == "pendulum" || it == "swoosh" || it == "rain" || it == "orbit" || it == "vortex" || it == "channelTest"
+      it == "still" || it == "drift" || it == "pendulum" || it == "swoosh" || it == "rain" || it == "orbit" || it == "vortex" || it == "overhead" || it == "channelTest"
     } ?: "still"
     val spatialTarget = raw.spatialTarget.takeIf { it == "noise" || it == "tone" || it == "both" } ?: "noise"
     return AudioParameters(

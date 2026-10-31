@@ -73,7 +73,7 @@
         "templeIntensity": 0.5,
         "masterGain": 0.7,
         "rampMs": 80,
-        "spatialMode": "pendulum",
+        "spatialMode": "overhead",
         "spatialTarget": "noise",
         "spatialDepth": 0,
         "spatialRate": 3
@@ -114,7 +114,7 @@
         "templeIntensity": 0.5,
         "masterGain": 0.7,
         "rampMs": 80,
-        "spatialMode": "pendulum",
+        "spatialMode": "overhead",
         "spatialTarget": "noise",
         "spatialDepth": 0,
         "spatialRate": 3
@@ -155,7 +155,7 @@
         "templeIntensity": 0.5,
         "masterGain": 0.7,
         "rampMs": 80,
-        "spatialMode": "pendulum",
+        "spatialMode": "overhead",
         "spatialTarget": "noise",
         "spatialDepth": 0,
         "spatialRate": 3
@@ -203,7 +203,7 @@
         "templeIntensity": 0.5,
         "masterGain": 0.7,
         "rampMs": 80,
-        "spatialMode": "pendulum",
+        "spatialMode": "overhead",
         "spatialTarget": "noise",
         "spatialDepth": 0.8,
         "spatialRate": 3
@@ -244,7 +244,7 @@
         "templeIntensity": 0.5,
         "masterGain": 0.7,
         "rampMs": 80,
-        "spatialMode": "pendulum",
+        "spatialMode": "overhead",
         "spatialTarget": "noise",
         "spatialDepth": 0.8,
         "spatialRate": 3
@@ -291,7 +291,7 @@
         "templeIntensity": 0.5,
         "masterGain": 0.7,
         "rampMs": 80,
-        "spatialMode": "pendulum",
+        "spatialMode": "overhead",
         "spatialTarget": "noise",
         "spatialDepth": 0.8,
         "spatialRate": 3
@@ -339,7 +339,7 @@
         "templeIntensity": 0.5,
         "masterGain": 0.68,
         "rampMs": 80,
-        "spatialMode": "pendulum",
+        "spatialMode": "overhead",
         "spatialTarget": "noise",
         "spatialDepth": 0.8,
         "spatialRate": 3
@@ -391,7 +391,7 @@
         "templeIntensity": 0.5,
         "masterGain": 0.68,
         "rampMs": 80,
-        "spatialMode": "pendulum",
+        "spatialMode": "overhead",
         "spatialTarget": "noise",
         "spatialDepth": 0.8,
         "spatialRate": 3
@@ -439,7 +439,7 @@
         "templeIntensity": 0.5,
         "masterGain": 0.62,
         "rampMs": 80,
-        "spatialMode": "pendulum",
+        "spatialMode": "overhead",
         "spatialTarget": "noise",
         "spatialDepth": 0,
         "spatialRate": 3
@@ -486,7 +486,7 @@
         "templeIntensity": 0.5,
         "masterGain": 0.55,
         "rampMs": 80,
-        "spatialMode": "pendulum",
+        "spatialMode": "overhead",
         "spatialTarget": "noise",
         "spatialDepth": 0,
         "spatialRate": 3

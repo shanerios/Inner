@@ -1365,10 +1365,12 @@ final class ProceduralAudioEngine: NSObject {
       }
       worldSalience.beginFrame(suppressRareEvents: recognitionSpace != nil || cueActive)
       let orbitPhase = spatialSeconds * target.spatialRate * Double.pi * 2 / 60
-      let orbitNear = (cos(orbitPhase) + 1) / 2
+      let overhead = target.spatialMode == "overhead"
+      // Overhead: how near the passing body is (1 as it crosses over the listener, 0 when it has gone to the side).
+      let orbitNear = overhead ? overheadProximity(spatialSeconds, cyclesPerMinute: target.spatialRate) : (cos(orbitPhase) + 1) / 2
       // Vortex reuses orbit's "pulled toward/away from center" distance-darkening
       // mechanic — a spiral is a kind of orbit whose radius and rate aren't constant.
-      let orbitTarget = (target.spatialMode == "orbit" || target.spatialMode == "vortex") ? 1.0 : 0.0
+      let orbitTarget = (target.spatialMode == "orbit" || target.spatialMode == "vortex" || overhead) ? 1.0 : 0.0
       let orbitStep = 1 / max(1, sampleRate * 2.0)
       orbitMix += clamp(orbitTarget - orbitMix, -orbitStep, orbitStep)
       let requestedPan = event?.pan ?? spatialPan(target, elapsedSeconds: spatialSeconds)
@@ -1378,7 +1380,7 @@ final class ProceduralAudioEngine: NSObject {
       )
       // Orbit follows an ellipse around the listener. At the front it returns
       // near full presence; behind the listener it becomes quieter and darker.
-      let orbitDistance = 1 - target.spatialDepth * 0.5 * (1 - orbitNear)
+      let orbitDistance = 1 - target.spatialDepth * (overhead ? Self.overheadFarDrop : 0.5) * (1 - orbitNear)
       let requestedSpatialDistance = 1 + (orbitDistance - 1) * orbitMix
       // Categorical movement changes happen at stage boundaries. Slew their
       // output briefly so a new mode can never snap between stereo positions.
@@ -1715,6 +1717,8 @@ final class ProceduralAudioEngine: NSObject {
       }
     } else if target.spatialMode == "pendulum" {
       movement = sin(phase)
+    } else if target.spatialMode == "overhead" {
+      movement = overheadDirection(elapsedSeconds, cyclesPerMinute: target.spatialRate) * (2 * overheadEase(elapsedSeconds, cyclesPerMinute: target.spatialRate) - 1)
     } else if target.spatialMode == "swoosh" {
       let cycle = phase.truncatingRemainder(dividingBy: Double.pi * 2) / (Double.pi * 2)
       if cycle < 0.38 {
@@ -1736,6 +1740,33 @@ final class ProceduralAudioEngine: NSObject {
       movement = sin(phase) * 0.68 + sin(phase * 0.43 + 1.7) * 0.22 + sin(phase * 1.71 + 4.1) * 0.1
     }
     return clamp(movement * target.spatialDepth, -0.8, 0.8)
+  }
+
+  /// The overhead pass: a heavy body crossing over the listener from one side to the other in `overheadPassSeconds`,
+  /// once a cycle, then resting out at the far side while the next pass is awaited. Passes alternate direction.
+  /// Progress through this cycle's pass, 0 before it and 1 after it.
+  private func overheadProgress(_ elapsedSeconds: Double, cyclesPerMinute: Double) -> Double {
+    let period = 60.0 / max(0.5, cyclesPerMinute)
+    let passSeconds = min(Self.overheadPassSeconds, period * 0.5)
+    let within = elapsedSeconds - floor(elapsedSeconds / period) * period
+    return clamp((within - (period - passSeconds) / 2) / passSeconds, 0, 1)
+  }
+
+  /// The pass eased so it moves fastest as it crosses overhead.
+  private func overheadEase(_ elapsedSeconds: Double, cyclesPerMinute: Double) -> Double {
+    let progress = overheadProgress(elapsedSeconds, cyclesPerMinute: cyclesPerMinute)
+    return progress * progress * (3 - 2 * progress)
+  }
+
+  private func overheadDirection(_ elapsedSeconds: Double, cyclesPerMinute: Double) -> Double {
+    let period = 60.0 / max(0.5, cyclesPerMinute)
+    return Int64(floor(elapsedSeconds / period)) % 2 == 0 ? 1.0 : -1.0
+  }
+
+  /// 1 as the body crosses overhead, falling to 0 at the sides and between passes.
+  private func overheadProximity(_ elapsedSeconds: Double, cyclesPerMinute: Double) -> Double {
+    let shape = sin(Double.pi * overheadProgress(elapsedSeconds, cyclesPerMinute: cyclesPerMinute))
+    return shape * shape
   }
 
   private func spatialCenterGain(_ target: Parameters, elapsedSeconds: Double) -> Double {
@@ -2007,6 +2038,12 @@ final class ProceduralAudioEngine: NSObject {
   private static let templeFootstepsRoomSend = 0.55
   /// How loud a called Aum stands over the Sanctum's chorus, against the Temple's own level of 1.
   private static let sanctumAumLevel = 0.8
+  /// The Sanctum's footsteps, against the Temple's own level of 1: about -4 dB.
+  private static let sanctumFootstepsLevel = 0.63
+  /// How long the overhead body takes to cross from one side to the other.
+  private static let overheadPassSeconds = 4.5
+  /// How much quieter the passing body is, at depth 1, when it is far off at the side: down to a fifth.
+  private static let overheadFarDrop = 0.8
   /// How much of the hall's air and breath remains in the Sanctum: a faint stone hush under the drone.
   private static let sanctumAirLevel = 0.12
   /// A called Aum is never quieter than this presence, so it still sounds when the chorus has fallen away.
@@ -2264,8 +2301,12 @@ final class ProceduralAudioEngine: NSObject {
     let airScale = 1.0 - sanctum * (1.0 - Self.sanctumAirLevel)
     let otherLeft = body * hallScale + templeSpaceAirLeft * (0.22 + intensity * 0.12) * airScale + breathLeft * 0.7 * airScale + (aumChant.voiceLeft + aumChant.echoLeft) * chantScale + (drop.left + dropEchoLeft + templeAccents.left) * hallScale
     let otherRight = body * hallScale + templeSpaceAirRight * (0.22 + intensity * 0.12) * airScale + breathRight * 0.7 * airScale + (aumChant.voiceRight + aumChant.echoRight) * chantScale + (drop.right + dropEchoRight + templeAccents.right) * hallScale
-    let dryLeft = otherLeft + templeFootsteps.left
-    let dryRight = otherRight + templeFootsteps.right
+    // The Sanctum's footsteps sit a few dB lower than the Temple's.
+    let stepsScale = 1.0 - sanctum * (1.0 - Self.sanctumFootstepsLevel)
+    let stepsLeft = templeFootsteps.left * stepsScale
+    let stepsRight = templeFootsteps.right * stepsScale
+    let dryLeft = otherLeft + stepsLeft
+    let dryRight = otherRight + stepsRight
     let size = templeSpaceDelay.count
     let tap71 = templeSpaceDelay[(templeSpaceDelayIndex - min(size - 1, max(1, Int(sampleRate * 0.071))) + size) % size]
     let tap89 = templeSpaceDelay[(templeSpaceDelayIndex - min(size - 1, max(1, Int(sampleRate * 0.089))) + size) % size]
@@ -2273,7 +2314,7 @@ final class ProceduralAudioEngine: NSObject {
     let tap137 = templeSpaceDelay[(templeSpaceDelayIndex - min(size - 1, max(1, Int(sampleRate * 0.137))) + size) % size]
     let wetLeft = tap71 * 0.58 + tap137 * 0.34
     let wetRight = tap89 * 0.56 + tap113 * 0.36
-    let footstepsRoomFeed = (templeFootsteps.left + templeFootsteps.right) * Self.templeFootstepsRoomSend
+    let footstepsRoomFeed = (stepsLeft + stepsRight) * Self.templeFootstepsRoomSend
     templeSpaceDelay[templeSpaceDelayIndex] = (otherLeft + otherRight) * 0.5 + footstepsRoomFeed * 0.5 + (wetLeft + wetRight) * 0.45 + aumChant.farWet * chantScale + chorusFarWet
     templeSpaceDelayIndex = (templeSpaceDelayIndex + 1) % size
     return (dryLeft * 0.42 + wetLeft * 0.62 + chorusLeft, dryRight * 0.42 + wetRight * 0.62 + chorusRight)
@@ -2359,7 +2400,7 @@ final class ProceduralAudioEngine: NSObject {
       templeIntensity: clamp(raw.templeIntensity, 0, 1),
       masterGain: clamp(raw.masterGain, 0, 1),
       rampSeconds: clamp(raw.rampMs, 20, 5_000) / 1_000,
-      spatialMode: ["still", "drift", "pendulum", "swoosh", "rain", "orbit", "vortex", "channelTest"].contains(raw.spatialMode) ? raw.spatialMode : "still",
+      spatialMode: ["still", "drift", "pendulum", "swoosh", "rain", "orbit", "vortex", "overhead", "channelTest"].contains(raw.spatialMode) ? raw.spatialMode : "still",
       spatialTarget: ["noise", "tone", "both"].contains(raw.spatialTarget) ? raw.spatialTarget : "noise",
       spatialDepth: clamp(raw.spatialDepth, 0, 0.8),
       spatialRate: clamp(raw.spatialRate, 0.1, 3),

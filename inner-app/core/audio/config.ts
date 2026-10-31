@@ -173,7 +173,7 @@ export function normalizeProceduralAudioConfig(
       PROCEDURAL_AUDIO_LIMITS.rampMs.min,
       PROCEDURAL_AUDIO_LIMITS.rampMs.max,
     ),
-    spatialMode: value.spatialMode === 'drift' || value.spatialMode === 'pendulum' || value.spatialMode === 'swoosh' || value.spatialMode === 'rain' || value.spatialMode === 'orbit' || value.spatialMode === 'vortex' || value.spatialMode === 'channelTest' ? value.spatialMode : 'still',
+    spatialMode: value.spatialMode === 'drift' || value.spatialMode === 'pendulum' || value.spatialMode === 'swoosh' || value.spatialMode === 'rain' || value.spatialMode === 'orbit' || value.spatialMode === 'vortex' || value.spatialMode === 'overhead' || value.spatialMode === 'channelTest' ? value.spatialMode : 'still',
     spatialTarget: value.spatialTarget === 'tone' || value.spatialTarget === 'both' ? value.spatialTarget : 'noise',
     spatialDepth: clamp(value.spatialDepth ?? DEFAULT_PROCEDURAL_AUDIO_CONFIG.spatialDepth, PROCEDURAL_AUDIO_LIMITS.spatialDepth.min, PROCEDURAL_AUDIO_LIMITS.spatialDepth.max),
     spatialRate: clamp(value.spatialRate ?? DEFAULT_PROCEDURAL_AUDIO_CONFIG.spatialRate, PROCEDURAL_AUDIO_LIMITS.spatialRate.min, PROCEDURAL_AUDIO_LIMITS.spatialRate.max),

@@ -115,18 +115,19 @@ describe('The Induction', () => {
     expect(bed.target.identityPresence!).toBeGreaterThan(steps.target.identityPresence!);
   });
 
-  it('swings the bed from ear to ear like a slow, heavy pendulum, heaviest in the long middle', () => {
+  it('carries the bed with a massive body passing overhead: quick but plainly heard, heaviest in the long middle', () => {
     const byId = Object.fromEntries(timeline.stages.map(item => [item.id, item.target]));
-    // Still while the drone stands alone, swinging once the bed is in, at rest again in the hall.
+    // Still while the drone stands alone, passing once the bed is in, at rest again in the hall.
     expect(byId.greet.spatialDepth).toBe(0);
-    expect(byId.bed.spatialMode).toBe('pendulum');
+    expect(byId.bed.spatialMode).toBe('overhead');
     expect(byId.bed.spatialTarget).toBe('noise');
     expect(byId.bed.spatialDepth!).toBeGreaterThanOrEqual(0.7);
     expect(byId.hall.spatialDepth).toBe(0);
     expect(byId.leave.spatialDepth).toBe(0);
-    // One swing takes at least ten seconds (cycles per minute is at most six).
-    expect(byId.bed.spatialRate!).toBeLessThanOrEqual(6);
-    expect(byId.bed.spatialRate!).toBeGreaterThan(0);
+    // A pass takes 4.5 seconds and the cycle is at least twelve, so each is quick against the quiet around it.
+    const periodSeconds = 60 / byId.bed.spatialRate!;
+    expect(periodSeconds).toBeGreaterThanOrEqual(12);
+    expect(periodSeconds).toBeLessThanOrEqual(30);
     // The bed is heaviest in the middle and eases in the hall.
     expect(byId.fullest.noiseGain!).toBeGreaterThan(byId.bed.noiseGain!);
     expect(byId.hall.noiseGain!).toBeLessThan(byId.fullest.noiseGain!);

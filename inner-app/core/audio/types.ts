@@ -1,6 +1,6 @@
 export type NoiseColor = 'white' | 'pink' | 'brown' | 'grey';
 export type ProceduralEnvironment = 'none' | 'ocean' | 'wind' | 'fire' | 'cosmic' | 'forest' | 'temple' | 'abyssal' | 'sanctum';
-export type SpatialMovementMode = 'still' | 'drift' | 'pendulum' | 'swoosh' | 'rain' | 'orbit' | 'vortex' | 'channelTest';
+export type SpatialMovementMode = 'still' | 'drift' | 'pendulum' | 'swoosh' | 'rain' | 'orbit' | 'vortex' | 'overhead' | 'channelTest';
 export type SpatialMovementTarget = 'noise' | 'tone' | 'both';
 export type AudioSessionEndPolicy = 'fadeAndStop' | 'protocolControlled' | 'userControlled';
 

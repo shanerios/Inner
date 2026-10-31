@@ -32,12 +32,12 @@ type WorldOptions = {
   quiet?: boolean;
   /** How heavy the brown bed is, as a multiple of the Sanctum's own level. */
   noiseScale?: number;
-  /** How far the bed swings from ear to ear, like a very slow, very heavy pendulum. 0 holds it still. */
+  /** How strongly the bed is carried by the overhead pass: sweeping across the head, swelling and brightening as it crosses. */
   swing?: number;
 };
 
-/** One full swing of the pendulum takes about fifteen seconds. */
-const SWING_CYCLES_PER_MINUTE = 4;
+/** A pass every twenty seconds. Each takes four and a half seconds to cross, so it is quick but plainly heard. */
+const SWING_CYCLES_PER_MINUTE = 3;
 
 const world = (
   descent: boolean,
@@ -64,7 +64,7 @@ const world = (
   binauralBreathInSeconds: BREATH.inhaleSeconds,
   binauralBreathOutSeconds: BREATH.exhaleSeconds,
   binauralBreathVariation: BREATH.variation,
-  spatialMode: 'pendulum',
+  spatialMode: 'overhead',
   spatialTarget: 'noise',
   spatialDepth: options.swing ?? 0,
   spatialRate: SWING_CYCLES_PER_MINUTE,
@@ -117,7 +117,7 @@ export const INDUCTION_JOURNEY: FactoryAudioJourney = {
         { id: 'induction-steps-in', atMs: 1 * SECOND, type: 'footsteps', direction: 'approach' },
       ]),
       // After the footsteps, at 40 seconds, the brown bed and the binaural field fade in together over twelve seconds,
-      // the drone builds a little fuller, and the bed begins to swing from ear to ear like a massive pendulum.
+      // the drone builds a little fuller, and the bed begins to be carried by a massive body passing overhead.
       stage('bed', 'The Floor', 25 * SECOND, 12 * SECOND, world(false, BEAT.prepEnd, {
         environmentGain: 0.48, environmentIntensity: 0.5, identityPresence: 1, masterGain: 0.7,
       }, { noiseScale: 1.6, swing: 0.8 })),
@@ -133,7 +133,7 @@ export const INDUCTION_JOURNEY: FactoryAudioJourney = {
       }, { noiseScale: 2, swing: 0.85 }), [
         { id: 'induction-bell-1', atMs: 3 * SECOND, type: 'cue', signalGainScale: BELL_GAIN_SCALE },
       ]),
-      // The long middle: the drone and the swinging bed at their heaviest, two Aum chants, almost no words.
+      // The long middle: the drone and the passing bed at their heaviest, two Aum chants, almost no words.
       stage('fullest', 'Deepen', 120 * SECOND, 40 * SECOND, world(true, BEAT.descent, {
         environmentGain: 0.55, environmentIntensity: 0.6, identityPresence: 1.6, masterGain: 0.68,
       }, { noiseScale: 3, swing: 0.85 }), [
@@ -146,7 +146,7 @@ export const INDUCTION_JOURNEY: FactoryAudioJourney = {
       }, { noiseScale: 2.5, swing: 0.85 }), [
         { id: 'induction-bell-2', atMs: 6 * SECOND, type: 'cue', signalGainScale: BELL_GAIN_SCALE },
       ]),
-      // The drone falls away, the pendulum comes to rest, and the last Aum is chanted into the hall.
+      // The drone falls away, the passes cease, and the last Aum is chanted into the hall.
       stage('hall', 'The Hall', 45 * SECOND, 35 * SECOND, world(false, BEAT.prepEnd, {
         environmentGain: 0.5, environmentIntensity: 0.45, identityPresence: 0.12, masterGain: 0.62,
       }, { noiseScale: 1, swing: 0 }), [

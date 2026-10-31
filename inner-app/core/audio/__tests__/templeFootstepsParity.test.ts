@@ -58,12 +58,12 @@ describe('the temple footsteps: Kotlin and Swift are the same model', () => {
 
   it('feeds the Temple\'s own shared room at its own, lower send, rather than building a separate one, on its own random stream', () => {
     expect(engine).toContain('templeFootsteps.render(sampleRate, elapsedSeconds, worldSalience, scriptedOnly = sanctum > 0.0001)');
-    expect(engine).toContain('val dryLeft = otherLeft + templeFootsteps.left');
+    expect(engine).toContain('val dryLeft = otherLeft + stepsLeft');
     expect(swiftAll).toContain('templeFootsteps.render(sampleRate: sampleRate, elapsedSeconds: elapsedSeconds, salience: worldSalience, scriptedOnly: sanctum > 0.0001)');
-    expect(swiftAll).toContain('let dryLeft = otherLeft + templeFootsteps.left');
+    expect(swiftAll).toContain('let dryLeft = otherLeft + stepsLeft');
     // the room reflects the footsteps less than everything else in the space, not the same amount.
-    expect(engine).toContain('val footstepsRoomFeed = (templeFootsteps.left + templeFootsteps.right) * TEMPLE_FOOTSTEPS_ROOM_SEND');
-    expect(swiftAll).toContain('let footstepsRoomFeed = (templeFootsteps.left + templeFootsteps.right) * Self.templeFootstepsRoomSend');
+    expect(engine).toContain('val footstepsRoomFeed = (stepsLeft + stepsRight) * TEMPLE_FOOTSTEPS_ROOM_SEND');
+    expect(swiftAll).toContain('let footstepsRoomFeed = (stepsLeft + stepsRight) * Self.templeFootstepsRoomSend');
     expect(engine).toContain('private const val TEMPLE_FOOTSTEPS_ROOM_SEND = 0.55');
     expect(swiftAll).toContain('private static let templeFootstepsRoomSend = 0.55');
     expect(engine).toContain('templeFootsteps.reset(activeTimeline.seed, sampleRate)');
