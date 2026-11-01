@@ -35,6 +35,14 @@ const BINAURAL_PRESETS = [
   { label: 'Gamma', hz: 40 },
 ] as const;
 
+/** Preview state for premium worlds. Omitted for members and for callers that do not gate. */
+export type MixerPreviewView = {
+  labelFor: (world: string) => string | null;
+  note: string | null;
+  notice: { text: string; action: { label: string; kind: 'membership' | 'retry' } } | null;
+  onNoticeAction: (kind: 'membership' | 'retry') => void;
+};
+
 type Props = {
   config: ProceduralAudioConfig;
   onPatch: (patch: ProceduralAudioPatch) => void | Promise<void>;
@@ -46,6 +54,7 @@ type Props = {
   onClose: () => void;
   standalone?: boolean;
   contentTopInset?: number;
+  preview?: MixerPreviewView;
 };
 
 export default function ProceduralMixerPanel({
@@ -59,6 +68,7 @@ export default function ProceduralMixerPanel({
   onClose,
   standalone = false,
   contentTopInset = 0,
+  preview,
 }: Props) {
   const [draft, setDraft] = useState(config);
   const pendingRef = useRef<ProceduralAudioPatch>({});
@@ -337,6 +347,32 @@ export default function ProceduralMixerPanel({
           );
         })}
       </View>
+      {preview ? (
+        <View style={styles.previewBlock}>
+          {preview.note ? <Text style={[Typography.caption, styles.previewNote]}>{preview.note}</Text> : null}
+          {(['temple', 'fire', 'cosmic'] as const).map(world => {
+            const label = preview.labelFor(world);
+            if (!label) return null;
+            return (
+              <Text key={world} style={[Typography.caption, styles.previewRow]}>
+                {`${world === 'temple' ? 'Temple' : world === 'fire' ? 'Fire' : 'Cosmic'} · ${label}`}
+              </Text>
+            );
+          })}
+          {preview.notice ? (
+            <View style={styles.previewNoticeRow}>
+              <Text style={[Typography.caption, styles.previewNotice]}>{preview.notice.text}</Text>
+              <Pressable
+                onPress={() => preview.onNoticeAction(preview.notice!.action.kind)}
+                accessibilityRole="button"
+                style={styles.previewAction}
+              >
+                <Text style={[Typography.caption, styles.previewActionText]}>{preview.notice.action.label}</Text>
+              </Pressable>
+            </View>
+          ) : null}
+        </View>
+      ) : null}
       {slider('Environment level', `${Math.round(draft.environmentGain * 100)}%`, draft.environmentGain, 0, 1, 0.01, 'environmentGain')}
       {draft.environment !== 'none' ? (
         <View style={styles.characterRow}>
@@ -669,6 +705,13 @@ const styles = StyleSheet.create({
   noiseRow: { flexDirection: 'row', gap: 5, marginTop: 7 },
   environmentHeader: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
   environmentRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginTop: 7 },
+  previewBlock: { marginTop: 8, gap: 4 },
+  previewNote: { color: 'rgba(235,228,246,0.72)', lineHeight: 16 },
+  previewRow: { color: '#E6DDF7' },
+  previewNoticeRow: { marginTop: 4, gap: 6 },
+  previewNotice: { color: '#E9C9D6', lineHeight: 16 },
+  previewAction: { alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(210,198,255,0.42)' },
+  previewActionText: { color: '#F0EBFA' },
   environmentPill: {
     flexGrow: 1,
     flexBasis: '30%',

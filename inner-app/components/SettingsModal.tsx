@@ -457,11 +457,11 @@ export default function SettingsModal({
                 <TouchableOpacity
                   onPress={handleOpenPaywall}
                   accessibilityRole="button"
-                  accessibilityLabel="Open Continuing with Inner"
+                  accessibilityLabel="Open Inner: Deeper membership"
                   accessibilityHint="Opens the membership paywall"
                   style={{ borderWidth: 1, borderColor: 'rgba(180,140,80,0.5)', backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: 6, paddingVertical: 11, alignItems: 'center', marginBottom: 4 }}
                 >
-                  <Text style={{ color: 'rgba(210,170,90,0.95)', fontSize: 13, letterSpacing: 0.5 }}>Continuing with Inner</Text>
+                  <Text style={{ color: 'rgba(210,170,90,0.95)', fontSize: 13, letterSpacing: 0.5 }}>Inner: Deeper</Text>
                 </TouchableOpacity>
                 <Text
                   style={{

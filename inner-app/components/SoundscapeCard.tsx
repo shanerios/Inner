@@ -96,7 +96,7 @@ export default function SoundscapeCard({
   const handleLockedPress =
     onLockedPress ??
     (() => {
-      Alert.alert('Continuing with Inner', 'This soundscape is available with Continuing with Inner.');
+      Alert.alert('Inner: Deeper', 'This soundscape is available with Inner: Deeper.');
     });
 
   return (
@@ -118,7 +118,7 @@ export default function SoundscapeCard({
       accessibilityLabel={isLocked ? `${label} (Locked)` : label}
       accessibilityHint={
         isLocked
-          ? 'Requires Continuing with Inner. Double tap to learn how to unlock.'
+          ? 'Requires Inner: Deeper. Double tap to learn how to unlock.'
           : undefined
       }
       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
