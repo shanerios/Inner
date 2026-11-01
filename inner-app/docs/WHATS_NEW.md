@@ -10,7 +10,7 @@ Current production baseline: Inner 3.3 · iOS build 2080 · Android version code
 
 Recognition Only is a new Overnight option that turns off every continuous layer, so only your recognition signal plays, at the planned times, with silence between.
 
-Temple, Abyssal Glass, Cosmic, and Fire are now Overnight environments in Full Experience, together with the Journey Creator. Ocean, Forest, and Quiet remain free, and factory journeys stay free.
+Temple, Abyssal Glass, Cosmic, and Fire are now Overnight environments in Inner: Deeper, together with the Journey Creator. Ocean, Forest, and Quiet remain free, and factory journeys stay free.
 
 The Dream Log now keeps the original recollection of each dream separate from later additions and dated reflections, and exports all three. First launch is shorter, with the Intention screen as the one onboarding question (Lucidity, OBE, Focus, Grounding, Healing, Expansion).
 
@@ -21,7 +21,7 @@ The Induction is a new free, six-minute listening experience set in a vast reson
 ```
 What's new in 3.4
 • Recognition Only: Overnight with no background sound, just your signal at the planned times.
-• Full Experience now includes Temple, Abyssal Glass, Cosmic and Fire for Overnight, plus Journey Creator. Ocean, Forest and Quiet stay free.
+• Inner: Deeper now includes Temple, Abyssal Glass, Cosmic and Fire for Overnight, plus Journey Creator. Ocean, Forest and Quiet stay free.
 • Dream Log keeps your original recollection, with dated additions and reflections.
 • The Induction: a free, guided six-minute listening experience. Best with headphones.
 • A shorter first launch.
@@ -34,7 +34,7 @@ What's new in 3.4
 What's new in Inner 3.4
 
 • Recognition Only: a new Overnight option with no background sound. You hear only your recognition signal, at the times your night planned, with silence between.
-• Full Experience: Temple, Abyssal Glass, Cosmic and Fire are now Overnight environments included in Full Experience, and so is the Journey Creator. Ocean, Forest and Quiet stay free. Journeys you have already saved stay playable if Full Experience ends.
+• Inner: Deeper now includes Temple, Abyssal Glass, Cosmic and Fire as Overnight environments, and the Journey Creator. Ocean, Forest and Quiet stay free. Journeys you have already saved stay playable if Inner: Deeper ends.
 • Dream Log: each entry now keeps your first account of the dream separate from later changes. Add a remembered detail or a reflection, each with its own date, and export the original, details and reflections in your Dream Archive.
 • A shorter first launch: tap the orb, choose your path on the Intention screen, and arrive at Home. Intentions now read Lucidity, OBE, Focus, Grounding, Healing and Expansion, and your earlier choices carry over.
 • The Induction: a free, six-minute listening experience set in a resonant hall, with a recorded voice at the start and the end. New visitors are offered it on first open, and it stays at the top of Lucid Journeys. Best with headphones, which are suggested but optional.
@@ -91,7 +91,8 @@ What's new in Inner 3.4
 - It is free for everyone. Nothing about Full Experience, the paywall, or any environment's access changes, and Temple remains a Full Experience environment.
 - Analytics record only that it was offered, listened to, skipped, begun, finished or left early (with how far), and that the card was dismissed. They carry no content.
 - Checked by the owner on Inner Lab builds: on a Pixel 8 Pro, the welcome screen, the card and the whole six minutes with the voice; on an iPhone 12 Pro, the whole journey with the voice, which they reported sounds the same as on Android, and, on a fresh install, the Home welcome over its overlay and the "Start here" card, which they reported look right and work as intended. The Android engine was also rendered offline and checked for clipping, for both Bells firing, and for all five voice clips starting on time.
-- Not yet observed: the Induction events arriving in PostHog, and playing it from the Home card to the end on a production-flavor build.
+- Analytics, checked in PostHog on 2026-11-01: events from the owner's Lab builds arrived, each tagged `build_channel` lab and internal, so they can be excluded from public metrics. Received: `induction_offered`, `induction_listen_pressed`, `induction_started`, `induction_left_early` and `induction_completed`. Their properties are only the entry, the surface, the duration or progress, and PostHog's standard device fields; no content. `induction_skipped` and `induction_dismissed` have not been received yet, which may only mean Skip and "Not now" were not tapped on a device since analytics went in.
+- Not yet observed: those two events, and playing it from the Home card to the end on a production-flavor build.
 
 #### Interface polish (3.4)
 
@@ -142,11 +143,10 @@ What's new in Inner 3.4
 - Complete any remaining physical-device smoke checks for Dream Log edit/export; Morning Return, voice capture, Overnight playback, signal delivery, and journey recovery have already been exercised on devices across Android and iOS.
 - Recheck the six adjusted Lucid screen headers on representative small and large devices.
 - Confirm microphone permission copy and store privacy disclosures include speech-to-text behavior.
-- The Induction is on the `feature/induction` branch (with `main` merged in, so it also carries the Inner: Deeper paywall and the mixer previews) and is not yet part of `main`. It is described in the store-ready draft above; remove those lines if it does not ship in this release. Open the pull request, review it, and merge it before the production builds.
-- Seen on an iPhone 12 Pro from this branch (Inner Lab build, fresh install): the Home welcome and card, the journey, the Lucid Journeys screen, and the Inner: Deeper paywall, which the owner reported look right. Before it ships, still run on a device: the 5-minute mixer previews on Android (they were checked on an iPhone from this branch, but the locked-screen cut-off at zero is best effort and has only been watched with the clock, not the moment of the cut); the Android paywall from this branch; and the Induction from the Home card to the end on a production-flavor build, for both platforms.
-- Confirm the Induction analytics events (`induction_offered`, `induction_listen_pressed`, `induction_skipped`, `induction_dismissed`, `induction_started`, `induction_completed`, `induction_left_early`) arrive in PostHog from a production-channel build, with no content in their properties.
+- The Induction ships in the next publication on both stores. It is on the `feature/induction` branch (with `main` merged in, so it also carries the Inner: Deeper paywall and the mixer previews) and is not yet part of `main`. It is described in the store-ready draft above. Open the pull request, review it, and merge it before the production builds.
+- Seen on devices from this branch (Inner Lab builds): on an iPhone 12 Pro, the Home welcome and card, the journey, the Lucid Journeys screen, the Inner: Deeper paywall and the 5-minute mixer previews; on a Pixel 8 Pro, the journey, the Lucid Journeys screen and the Inner: Deeper paywall. Before it ships, still run: the mixer previews on Android; the Induction from the Home card to the end on a production-flavor build, for both platforms; and Skip and "Not now" on a device, to see `induction_skipped` and `induction_dismissed` arrive.
+- Confirm the Induction events also arrive from a production-channel build, tagged `production` (Lab builds have been confirmed, tagged `lab`): `induction_offered`, `induction_listen_pressed`, `induction_skipped`, `induction_dismissed`, `induction_started`, `induction_completed`, `induction_left_early`. Their properties carry no content.
 - The Induction adds native audio code (Android and iOS) and about 5 MB of bundled voice, so it needs new store builds, not an over-the-air update. The App Store privacy answers and Google Play Data safety form should be unchanged (it adds no new data), but recheck them.
-- The user-facing membership name changed to "Inner: Deeper" in the app on `main`, but the store-ready draft above still says "Full Experience". Decide which wording the store notes use and make them agree with the app.
 - Replace this section heading with the shipped version and release date, then create a new Unreleased section above it.
 
 
