@@ -28,7 +28,7 @@ export type AudioCueEvent = {
   cueFadeInMs?: number;
 };
 
-/** Plays a recorded voice clip loaded with `setVoiceClips`. Used only in waking-preparation stages. */
+/** Plays a recorded voice clip loaded with `setVoiceClips`. Used in waking-preparation stages and in The Induction. */
 export type AudioVoiceEvent = {
   id: string;
   atMs: number;

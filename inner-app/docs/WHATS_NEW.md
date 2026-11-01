@@ -105,13 +105,14 @@ What's new in Inner 3.4
 
 #### The Induction: a first experience of Inner
 
-- The Induction is a free, optional six-minute listening experience, set in a new Sanctum world: a low drone that rises from silence, hesitant footsteps, a brown noise bed with a binaural field, a heavy body that passes overhead, four Aum chants, and one Bell that is introduced and returns. It is best with headphones, which are suggested but not required.
+- The Induction is a free, optional six-minute listening experience, set in a new Sanctum world: a low drone that rises from silence, hesitant footsteps, a brown noise bed with a binaural field, a heavy body that passes overhead, four Aum chants, and one Bell that is introduced and returns. A recorded voice speaks twice at the start, once before the Bell is introduced, once after it returns, and once at the end; the long middle is left to the sound. The same words appear on screen as the voice speaks them. It is best with headphones, which are suggested but not required.
 - A new visitor meets a "Welcome to Inner" screen over their first Home, offering The Induction with Listen or Skip. Skip leaves it as a "Start here" card at the top of Home; someone who has already used Inner sees that card instead. "Not now" on the card removes it.
 - The spotlight tour waits until the welcome has been answered. The Arrive screen no longer meets a new visitor until the home tour is done, so the first opens are the welcome and the tour rather than a run of screens.
 - It is free for everyone. Nothing about Full Experience, the paywall, or any environment's access changes, and Temple remains a Full Experience environment.
 - Analytics record only that it was offered, listened to, skipped, begun, finished or left early (with how far), and that the card was dismissed. They carry no content.
 - Checked on a Pixel 8 Pro with an Inner Lab build: the owner saw the welcome screen and the card and approved both, and heard the six minutes of audio on the phone in the preceding Lab build. The Android engine was also rendered offline and checked for clipping, and for both Bells firing.
-- Not yet done: the recorded voice (the on-screen lines are placeholders), an iOS build and device check, confirming the Induction events arrive in PostHog, and playing it from the Home card to the end on a production-flavor build.
+- The voice ships inside the app (about 5 MB, five mono recordings), so The Induction never waits on the network. The Android engine was rendered offline with the voice and checked: all five clips load and start on time.
+- Not yet done: hearing the voice on a phone and judging its level against the drone, an iOS build and device check, confirming the Induction events arrive in PostHog, and playing it from the Home card to the end on a production-flavor build.
 
 ### Before publishing
 
@@ -132,7 +133,7 @@ What's new in Inner 3.4
 - Complete any remaining physical-device smoke checks for Dream Log edit/export; Morning Return, voice capture, Overnight playback, signal delivery, and journey recovery have already been exercised on devices across Android and iOS.
 - Recheck the six adjusted Lucid screen headers on representative small and large devices.
 - Confirm microphone permission copy and store privacy disclosures include speech-to-text behavior.
-- The Induction is on the `feature/induction` branch and is not part of the merged 3.4 branches. Decide whether it ships in 3.4 or later; if it ships, add it to the store-ready draft, record the voice, run it on an iPhone, and confirm its analytics reach PostHog. The App Store privacy answers should be unchanged (it adds no new data), but recheck them.
+- The Induction is on the `feature/induction` branch and is not part of the merged 3.4 branches. Decide whether it ships in 3.4 or later; if it ships, add it to the store-ready draft, run it on an iPhone, and confirm its analytics reach PostHog. The App Store privacy answers should be unchanged (it adds no new data), but recheck them.
 - Replace this section heading with the shipped version and release date, then create a new Unreleased section above it.
 
 

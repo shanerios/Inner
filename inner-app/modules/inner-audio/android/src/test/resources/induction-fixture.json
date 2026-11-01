@@ -4,6 +4,7 @@
   "fadeInMs": 2000,
   "totalDurationMs": 360000,
   "bellGain": 0.6998419960022735,
+  "voiceGain": 0.47315125896148047,
   "initialConfig": {
     "carrierHz": 528,
     "binauralCarrierHz": 200,
@@ -208,7 +209,20 @@
         "spatialDepth": 0.8,
         "spatialRate": 3
       },
-      "spatialEvents": []
+      "spatialEvents": [
+        {
+          "id": "induction-voice-open-1",
+          "atMs": 1000,
+          "type": "voice",
+          "clipId": "induction-open-1"
+        },
+        {
+          "id": "induction-voice-open-2",
+          "atMs": 22000,
+          "type": "voice",
+          "clipId": "induction-open-2"
+        }
+      ]
     },
     {
       "id": "bloom",
@@ -255,6 +269,12 @@
           "atMs": 5000,
           "type": "aum",
           "direction": "approach"
+        },
+        {
+          "id": "induction-voice-cue-1",
+          "atMs": 18000,
+          "type": "voice",
+          "clipId": "induction-cue-1"
         }
       ]
     },
@@ -405,6 +425,12 @@
           "atMs": 6000,
           "type": "cue",
           "signalGainScale": 0.3
+        },
+        {
+          "id": "induction-voice-cue-2",
+          "atMs": 11000,
+          "type": "voice",
+          "clipId": "induction-cue-2"
         }
       ]
     },
@@ -453,6 +479,12 @@
           "atMs": 10000,
           "type": "aum",
           "direction": "retreat"
+        },
+        {
+          "id": "induction-voice-close",
+          "atMs": 27000,
+          "type": "voice",
+          "clipId": "induction-close"
         }
       ]
     },

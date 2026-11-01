@@ -36,6 +36,7 @@ import { bindNightPlanToJourney } from '../core/nightPlans';
 import { INNER_LAB_BUILD } from '../core/innerLab';
 import { startBedsideMotionRecording } from '../core/bedsideMotionSensor';
 import { resolveVoiceClips } from '../core/audio/voiceClips';
+import { resolveInductionVoiceClips } from '../core/audio/inductionVoice';
 import { markRecurringSignalPracticeCompleted } from '../core/recurringDreamSignals';
 import { INDUCTION_JOURNEY_ID } from '../core/audio/inductionJourney';
 import { advanceInductionStatus, getInductionState } from '../core/inductionState';
@@ -412,6 +413,23 @@ export default function LucidJourneyPlayerScreen() {
               positionMs: 0,
               reason: 'clips_unavailable',
             });
+          }
+        }
+        // The Induction speaks with clips that ship in the app, so it never waits on the network. Without them it plays on
+        // its own sound and on-screen words.
+        if (journey.id === INDUCTION_JOURNEY_ID) {
+          const inductionVoice = await resolveInductionVoiceClips();
+          if (inductionVoice) {
+            await session.setVoiceClips(inductionVoice).catch(error => {
+              void recordJourneyMemoryEvent(memorySession.id, {
+                type: 'voice_clip_missing',
+                positionMs: 0,
+                reason: 'set_failed',
+                message: String((error as Error)?.message ?? error).slice(0, 120),
+              });
+            });
+          } else {
+            void recordJourneyMemoryEvent(memorySession.id, { type: 'voice_clip_missing', positionMs: 0, reason: 'clips_unavailable' });
           }
         }
         traceStart('signal_ready');

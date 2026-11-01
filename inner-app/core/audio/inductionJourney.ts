@@ -1,4 +1,5 @@
 import { WORLD_PROFILES } from './worldProfiles';
+import { INDUCTION_VOICE_CLIP_IDS } from './inductionVoiceIds';
 import type { FactoryAudioJourney } from './factoryJourneys';
 import type { AudioJourneyStage, ProceduralAudioPatch } from './types';
 
@@ -12,8 +13,10 @@ import type { AudioJourneyStage, ProceduralAudioPatch } from './types';
  * The drone greets the listener alone, rising from silence over the first twenty-five seconds. Hesitant footsteps
  * follow, then the brown bed and the binaural field fade in as the drone builds. Four called Aum chants sound over it (an approach, two plain, and a retreat), and footsteps leave as it ends.
  *
- * The guidance lines below are placeholders for the recorded voice. They carry the same timing, so recording
- * them later changes no timeline.
+ * The voice speaks five times and the long middle is left to the sound: the opening, in two clips, once the footsteps
+ * have finished; one line just before the Bell is introduced and one just after it returns, which say what the Bell is
+ * for; and a closing, before the footsteps leave. The captions on screen say the same words at the same
+ * moments, so a listener without sound, or whose voice could not load, still reads them.
  */
 export const INDUCTION_JOURNEY_ID = 'the-induction';
 
@@ -128,14 +131,21 @@ export const INDUCTION_JOURNEY: FactoryAudioJourney = {
       ]),
       // After the footsteps, at 40 seconds, the brown bed and the binaural field fade in together over twelve seconds,
       // the drone builds a little fuller, and the bed begins to be carried by a massive body passing overhead.
+      // The opening is spoken over it: the long part at 0:41 (about nineteen seconds), the short one at 1:02, so the
+      // first Aum at 1:10 meets silence.
       stage('bed', 'The Floor', 25 * SECOND, 12 * SECOND, world(false, BEAT.prepEnd, {
         environmentGain: 0.48, environmentIntensity: 0.5, identityPresence: 1, masterGain: 0.7,
-      }, { noiseScale: 1.6, swing: 0.8 })),
+      }, { noiseScale: 1.6, swing: 0.8 }), [
+        { id: 'induction-voice-open-1', atMs: 1 * SECOND, type: 'voice', clipId: INDUCTION_VOICE_CLIP_IDS.open1 },
+        { id: 'induction-voice-open-2', atMs: 22 * SECOND, type: 'voice', clipId: INDUCTION_VOICE_CLIP_IDS.open2 },
+      ]),
       // The chorus keeps building and the first Aum is chanted over it.
       stage('bloom', 'The Chorus', 25 * SECOND, 15 * SECOND, world(false, BEAT.prepEnd, {
         environmentGain: 0.5, environmentIntensity: 0.55, identityPresence: 1.1, masterGain: 0.7,
       }, { noiseScale: 2, swing: 0.85 }), [
         { id: 'induction-aum-1', atMs: 5 * SECOND, type: 'aum', direction: 'approach' },
+        // Once the first Aum has settled, a line that says what the Bell is for, ending about three seconds before it.
+        { id: 'induction-voice-cue-1', atMs: 18 * SECOND, type: 'voice', clipId: INDUCTION_VOICE_CLIP_IDS.cue1 },
       ]),
       // Around 1:30 the Bell is introduced, once, inside the hall. It is low: a thing to notice, not to be startled by.
       stage('introduce', 'The Sound', 40 * SECOND, 5 * SECOND, world(false, BEAT.descent, {
@@ -155,12 +165,17 @@ export const INDUCTION_JOURNEY: FactoryAudioJourney = {
         environmentGain: 0.52, environmentIntensity: 0.55, identityPresence: 1.3, masterGain: 0.68,
       }, { noiseScale: 2.5, swing: 0.85 }), [
         { id: 'induction-bell-2', atMs: 6 * SECOND, type: 'cue', signalGainScale: BELL_GAIN_SCALE },
+        // As the Bell finishes ringing (about 3.5 seconds), a line that says what its return means. It is heard about two
+        // seconds after the ring has gone.
+        { id: 'induction-voice-cue-2', atMs: 11 * SECOND, type: 'voice', clipId: INDUCTION_VOICE_CLIP_IDS.cue2 },
       ]),
       // The drone falls away, the passes cease, and the last Aum is chanted into the hall.
       stage('hall', 'The Hall', 45 * SECOND, 35 * SECOND, world(false, BEAT.prepEnd, {
         environmentGain: 0.5, environmentIntensity: 0.45, identityPresence: 0.12, masterGain: 0.62,
       }, { noiseScale: 1, swing: 0 }), [
         { id: 'induction-aum-4', atMs: 10 * SECOND, type: 'aum', direction: 'retreat' },
+        // The closing, once the last Aum has settled, ending about ten seconds before the footsteps leave.
+        { id: 'induction-voice-close', atMs: 27 * SECOND, type: 'voice', clipId: INDUCTION_VOICE_CLIP_IDS.close },
       ]),
       // Footsteps again, this time leaving.
       stage('leave', 'Leave', 30 * SECOND, 5 * SECOND, world(false, BEAT.prepEnd, {
@@ -171,14 +186,14 @@ export const INDUCTION_JOURNEY: FactoryAudioJourney = {
     ],
     guidance: [
       { id: 'induction-headphones', atMs: 0, heading: 'Before you begin', prompt: 'Put on headphones, and find somewhere you can close your eyes.' },
-      { id: 'induction-belief', atMs: 42 * SECOND, heading: 'The Induction', prompt: 'Sound can guide the mind into different kinds of awareness. With practice, one of them can be lucidity.' },
-      { id: 'induction-chorus', atMs: 62 * SECOND, heading: 'The hall', prompt: 'Stay with the sound. There is nothing to do yet.' },
-      { id: 'induction-listen', atMs: 76 * SECOND, heading: 'Listen', prompt: 'Notice where the sound sits. Is it close, or far away? Let it fill the space.' },
-      { id: 'induction-sound', atMs: 84 * SECOND, heading: 'One sound', prompt: 'A single sound will come. Remember how it feels.' },
-      { id: 'induction-deepen', atMs: 140 * SECOND, heading: 'Deepen', prompt: 'Let the hall hold you. Keep only a little attention on the sound.' },
-      { id: 'induction-return', atMs: 256 * SECOND, heading: 'It returns', prompt: 'There it is again. Noticing it is the skill.' },
-      { id: 'induction-hall', atMs: 288 * SECOND, heading: 'The hall', prompt: 'The voices fall away. The hall still holds the sound.' },
-      { id: 'induction-leave', atMs: 336 * SECOND, heading: 'Surface', prompt: 'Come back slowly. What you just did is what Inner trains.' },
+      { id: 'induction-open-1', atMs: 41 * SECOND, heading: 'The Induction', prompt: 'You’ve entered a space between waking and sleep. Where sound becomes more than something you hear. It becomes a guide through different states of awareness and depths of focus, towards doors like lucid dreaming and beyond the body.' },
+      { id: 'induction-open-2', atMs: 62 * SECOND, heading: 'The Induction', prompt: 'Awareness is the threshold. Practice is the unveiling.' },
+      { id: 'induction-listen', atMs: 72 * SECOND, heading: 'Listen', prompt: 'Just listen.' },
+      { id: 'induction-cue-1', atMs: 83 * SECOND, heading: 'The Induction', prompt: 'Audible cues can guide an unconscious mind if you learn to notice them.' },
+      { id: 'induction-listen-2', atMs: 96 * SECOND, heading: 'Listen', prompt: 'Just listen.' },
+      { id: 'induction-cue-2', atMs: 261 * SECOND, heading: 'The Induction', prompt: 'The same cue can wake you to where you are while the body remains asleep.' },
+      { id: 'induction-listen-3', atMs: 276 * SECOND, heading: 'Listen', prompt: 'Just listen.' },
+      { id: 'induction-close', atMs: 312 * SECOND, heading: 'The Induction', prompt: 'You’ve stood at the threshold. And beyond this hall lie other states to unveil further. It begins when you choose to return.' },
     ],
   },
 };

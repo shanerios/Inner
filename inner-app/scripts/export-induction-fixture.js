@@ -13,6 +13,7 @@ const root = path.resolve(__dirname, '..');
 const { INDUCTION_JOURNEY } = require(path.join(root, 'core/audio/inductionJourney.ts'));
 const { compileAudioJourneyTimeline } = require(path.join(root, 'core/audio/timeline.ts'));
 const { DEFAULT_PROCEDURAL_AUDIO_CONFIG } = require(path.join(root, 'core/audio/config.ts'));
+const { INDUCTION_VOICE_GAIN } = require(path.join(root, 'core/audio/inductionVoiceIds.ts'));
 
 /** The Bell's playback gain: its trim in recognitionSignals.ts (-3.1 dB), at the default personal level. */
 const BELL_GAIN = 10 ** (-3.1 / 20);
@@ -25,6 +26,7 @@ function buildFixture() {
     fadeInMs: compiled.fadeInMs,
     totalDurationMs: compiled.totalDurationMs,
     bellGain: BELL_GAIN,
+    voiceGain: INDUCTION_VOICE_GAIN,
     initialConfig: DEFAULT_PROCEDURAL_AUDIO_CONFIG,
     stages: compiled.stages,
   };

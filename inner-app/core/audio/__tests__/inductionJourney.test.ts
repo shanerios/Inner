@@ -3,6 +3,7 @@ import { DEFAULT_PROCEDURAL_AUDIO_CONFIG } from '../config';
 import { FACTORY_AUDIO_JOURNEYS } from '../factoryJourneys';
 import { IDENTITY_PRESENCE_MAX } from '../identityArc';
 import { INDUCTION_DURATION_MS, INDUCTION_JOURNEY, INDUCTION_JOURNEY_ID, INDUCTION_SIGNAL_ID } from '../inductionJourney';
+import { INDUCTION_VOICE_CLIP_IDS } from '../inductionVoiceIds';
 import { compileAudioJourneyTimeline } from '../timeline';
 import { decideStart, environmentsOfTimeline, isPremiumOvernightEnvironment, playerStartFromRoute } from '../../../src/core/subscriptions/playbackPolicy';
 
@@ -198,6 +199,39 @@ describe('The Induction', () => {
       expect(item.target.environment).toBe('sanctum');
       expect(item.target.masterGain).toBeLessThanOrEqual(0.7);
     }
+  });
+
+  it('speaks five times and leaves the long middle to the sound: the opening, a line either side of the Bell, the closing', () => {
+    let offset = 0;
+    const voices: Array<{ id: string; clipId: string; atMs: number }> = [];
+    const others: Array<{ type: string; atMs: number }> = [];
+    for (const item of timeline.stages) {
+      for (const event of item.spatialEvents ?? []) {
+        if (event.type === 'voice') voices.push({ id: event.id, clipId: event.clipId, atMs: offset + event.atMs });
+        else others.push({ type: event.type, atMs: offset + event.atMs });
+      }
+      offset += item.durationMs;
+    }
+    expect(voices.map(voice => voice.clipId)).toEqual([
+      INDUCTION_VOICE_CLIP_IDS.open1, INDUCTION_VOICE_CLIP_IDS.open2, INDUCTION_VOICE_CLIP_IDS.cue1, INDUCTION_VOICE_CLIP_IDS.cue2, INDUCTION_VOICE_CLIP_IDS.close,
+    ]);
+    const [open1, open2, cue1, cue2, close] = voices;
+    const steps = others.filter(event => event.type === 'footsteps');
+    const aums = others.filter(event => event.type === 'aum');
+    const bells = others.filter(event => event.type === 'cue');
+    // The opening starts after the first footsteps have finished and ends before the first Aum.
+    expect(open1.atMs).toBeGreaterThanOrEqual(steps[0].atMs + 13_000);
+    expect(open2.atMs).toBeLessThan(aums[0].atMs - 2_000);
+    // One line just before the Bell is introduced, after the first Aum; one after it returns, as its ring ends.
+    expect(cue1.atMs).toBeGreaterThan(aums[0].atMs + 9_000);
+    expect(cue1.atMs).toBeLessThan(bells[0].atMs - 5_000);
+    expect(cue2.atMs).toBeGreaterThan(bells[1].atMs + 4_000);
+    expect(cue2.atMs).toBeLessThan(aums[aums.length - 1].atMs - 15_000);
+    // The closing comes after the last Aum and well before the footsteps leave.
+    expect(close.atMs).toBeGreaterThan(aums[aums.length - 1].atMs + 9_000);
+    expect(close.atMs).toBeLessThan(steps[1].atMs - 12_000);
+    // The long middle, from the first Bell to its return, has no voice in it.
+    expect(voices.filter(voice => voice.atMs > bells[0].atMs && voice.atMs < bells[1].atMs)).toEqual([]);
   });
 
   it('keeps the guidance inside the journey, in order, and makes no promise it cannot keep', () => {
