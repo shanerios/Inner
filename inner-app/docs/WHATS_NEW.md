@@ -55,6 +55,7 @@ What's new in Inner 3.5
 - Live Mix and the chamber mixer let you try Temple, Abyssal Glass, Cosmic, and Fire for 5 minutes each. Each world has its own 5 minutes, and the time is shared between Live Mix and the chamber mixer. Ocean, Forest, and Quiet stay free. Full Experience removes the limit. Clearing app data resets the preview time.
 - Checked by the owner on an iPhone 12 Pro (Inner Lab build, fresh install, non-member): the countdown shows while a premium world plays; that world fades out when its time ends; selecting it again offers "Move Deeper", which opens the paywall; pausing and switching to another world pauses the clock; the clock kept counting with the screen locked while Fire played; and killing the app mid-preview did not give the time back.
 - Not yet looked at on Android: the mixer previews.
+- The paywall's legal line under the purchase button is now specific to the platform and the plan: on a free trial it names App Store account settings on iOS and Google Play account settings on Android, and Lifetime is described as a one-time purchase that is not a subscription and does not renew. The subscription wording is unchanged, and a few points of spacing below the plans were trimmed so more of that legal text is visible. Covered by automated tests; not yet looked at on a device.
 
 #### Interface polish (3.5)
 
@@ -71,7 +72,7 @@ What's new in Inner 3.5
 - Devices, Inner Lab builds from the merged branch: on an iPhone 12 Pro (fresh install), the Home welcome and card, the whole Induction with its voice (which the owner reported sounds the same as on Android), the Lucid Journeys screen, the Inner: Deeper paywall and the 5-minute mixer previews; on a Pixel 8 Pro, the Home welcome and card, the whole Induction with its voice, the Lucid Journeys screen and the Inner: Deeper paywall.
 - Automated: the full jest suite passes (933 tests, 1 skipped) and a real type check is clean. The Android engine was rendered offline and checked for clipping, for both Bells firing and for all five voice clips starting on time. The iOS app builds cleanly.
 - PostHog received the Induction events from Lab builds, tagged `build_channel` lab: `induction_offered`, `induction_listen_pressed`, `induction_started`, `induction_left_early`, `induction_completed` and `induction_skipped`. A property audit found only structural values.
-- Not yet observed: the Induction from the Home card to the end on a store (production-flavor) build on both platforms; the events arriving tagged `production`; `induction_dismissed` ("Not now" on the card) in PostHog; the mixer previews on Android; the Fire change heard in the app; and a Restore Purchases that finds a live purchase.
+- Not yet observed: the new paywall legal line for each plan (monthly, yearly, Lifetime, and a trial) on iOS and Android; the Induction from the Home card to the end on a store (production-flavor) build on both platforms; the events arriving tagged `production`; `induction_dismissed` ("Not now" on the card) in PostHog; the mixer previews on Android; the Fire change heard in the app; and a Restore Purchases that finds a live purchase.
 
 ### Before publishing
 
