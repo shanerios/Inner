@@ -19,6 +19,7 @@ import { usePostHog } from 'posthog-react-native';
 import { initRevenueCatOnce } from '../utils/revenueCat';
 import { consumePendingCallbacks, PaywallTrigger } from '../src/core/subscriptions/paywallController';
 import { getPrimaryGoal, PrimaryGoal } from '../core/onboardingPrefs';
+import { isLifetimePackage, paywallLegalCopy } from '../core/paywallDisclosure';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -360,9 +361,13 @@ export default function PaywallScreen() {
   const isCtaDisabled = purchasing || loading || packages.length === 0;
   const selectedTrialDays = packages[selectedIndex]?.trialDays ?? null;
   const continueLabel = selectedTrialDays ? `Start ${selectedTrialDays}-Day Free Trial` : 'Move Deeper';
-  const legalCopy = selectedTrialDays
-    ? `Try free for ${selectedTrialDays} days, then ${packages[selectedIndex]?.priceLabel ?? 'the plan price'} unless canceled at least 24 hours before the trial ends. Cancel anytime in your App Store or Google Play account settings.`
-    : 'Inner: Deeper is an auto-renewable subscription. Subscriptions will renew until canceled. Cancel anytime.';
+  const selectedPackage = packages[selectedIndex];
+  const legalCopy = paywallLegalCopy({
+    platform: Platform.OS,
+    isLifetime: isLifetimePackage(selectedPackage?.pkg),
+    trialDays: selectedTrialDays,
+    priceLabel: selectedPackage?.priceLabel ?? null,
+  });
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -396,7 +401,7 @@ export default function PaywallScreen() {
         style={{ flex: 1 }}
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingTop: insets.top + 8, paddingBottom: insets.bottom + 24 },
+          { paddingTop: insets.top + 8, paddingBottom: insets.bottom + 16 },
         ]}
         showsVerticalScrollIndicator={false}
         bounces={false}
@@ -729,7 +734,7 @@ const styles = StyleSheet.create({
   maybeLater: {
     alignItems: 'center',
     paddingVertical: 6,
-    marginBottom: 16,
+    marginBottom: 10,
   },
   maybeLaterText: {
     fontSize: 13,
@@ -742,7 +747,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     gap: 6,
-    marginBottom: 12,
+    marginBottom: 8,
   },
   footerLink: {
     fontSize: 12,
