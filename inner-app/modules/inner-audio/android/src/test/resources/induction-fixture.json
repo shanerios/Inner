@@ -4,7 +4,7 @@
   "fadeInMs": 2000,
   "totalDurationMs": 360000,
   "bellGain": 0.6998419960022735,
-  "voiceGain": 0.47315125896148047,
+  "voiceGain": 0.35481338923357547,
   "initialConfig": {
     "carrierHz": 528,
     "binauralCarrierHz": 200,

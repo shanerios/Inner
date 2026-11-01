@@ -12,5 +12,5 @@ export const INDUCTION_VOICE_CLIP_IDS = {
 
 export type InductionVoiceClipId = typeof INDUCTION_VOICE_CLIP_IDS[keyof typeof INDUCTION_VOICE_CLIP_IDS];
 
-/** Level each clip plays at, as a multiple of the file: -6.5 dB, because the mixed recordings sat too loud over the hall. */
-export const INDUCTION_VOICE_GAIN = 10 ** (-6.5 / 20);
+/** Level each clip plays at, as a multiple of the file: -9 dB, so the voice sits over the hall and rides inside it. */
+export const INDUCTION_VOICE_GAIN = 10 ** (-9 / 20);
