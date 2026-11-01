@@ -189,7 +189,7 @@ export const INDUCTION_JOURNEY: FactoryAudioJourney = {
       { id: 'induction-open-1', atMs: 41 * SECOND, heading: 'The Induction', prompt: 'You’ve entered a space between waking and sleep. Where sound becomes more than something you hear. It becomes a guide through different states of awareness and depths of focus, towards doors like lucid dreaming and beyond the body.' },
       { id: 'induction-open-2', atMs: 62 * SECOND, heading: 'The Induction', prompt: 'Awareness is the threshold. Practice is the unveiling.' },
       { id: 'induction-listen', atMs: 72 * SECOND, heading: 'Listen', prompt: 'Just listen.' },
-      { id: 'induction-cue-1', atMs: 83 * SECOND, heading: 'The Induction', prompt: 'Audible cues can guide an unconscious mind if you learn to notice them.' },
+      { id: 'induction-cue-1', atMs: 83 * SECOND, heading: 'The Induction', prompt: 'Audible cues can guide the sleeping mind if you learn to notice them.' },
       { id: 'induction-listen-2', atMs: 96 * SECOND, heading: 'Listen', prompt: 'Just listen.' },
       { id: 'induction-cue-2', atMs: 261 * SECOND, heading: 'The Induction', prompt: 'The same cue can wake you to where you are while the body remains asleep.' },
       { id: 'induction-listen-3', atMs: 276 * SECOND, heading: 'Listen', prompt: 'Just listen.' },
