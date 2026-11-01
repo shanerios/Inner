@@ -1,3 +1,4 @@
+import { describe, expect, it } from '@jest/globals';
 import { isLifetimePackage, paywallLegalCopy } from '../paywallDisclosure';
 
 describe('paywallLegalCopy', () => {
