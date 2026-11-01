@@ -76,6 +76,31 @@ describe('Aum gestures: Kotlin and Swift draw the same appearance for the same n
   });
 });
 
+describe('Aum chant: a chant the journey calls is exactly the shape it asked for', () => {
+  it('has the same authored shapes in both engines: the designed chant, an approach and a retreat', () => {
+    expect(gestures).toContain('const val KIND_RETREAT = 6');
+    expect(swift).toContain('static let kindRetreat = 6');
+    expect(gestures).toContain('const val AUTHORED_DISTANCE = 0.8');
+    expect(swift).toContain('static let authoredDistance = 0.8');
+    expect(gestures).toContain('KIND_APPROACH -> { distant = true; distStart = AUTHORED_DISTANCE; distEnd = 0.0 }');
+    expect(gestures).toContain('KIND_RETREAT -> { distant = true; distStart = 0.0; distEnd = AUTHORED_DISTANCE }');
+    expect(swift).toContain('distant = true; distStart = Self.authoredDistance; distEnd = 0');
+    expect(swift).toContain('distant = true; distStart = 0; distEnd = Self.authoredDistance');
+  });
+
+  it('reads the event\'s direction the same way, and applies the authored gesture instead of a drawn one', () => {
+    expect(engine).toContain('"approach" -> AumGesture.KIND_APPROACH');
+    expect(engine).toContain('"retreat" -> AumGesture.KIND_RETREAT');
+    expect(swift).toContain('event.direction == "approach" ? AumGesture.kindApproach : (event.direction == "retreat" ? AumGesture.kindRetreat : AumGesture.kindPlain)');
+    expect(engine).toContain('aumChant.trigger(aumFire.second.kind)');
+    expect(swift).toContain('aumChant.trigger(kind: aumFire.kind)');
+    expect(chant).toContain('if (scriptedOnly && manualKind >= 0) {');
+    expect(swift).toContain('if scriptedOnly && manualKind >= 0 {');
+    expect(chant).toContain('gesture.authored(manualKind)');
+    expect(swift).toContain('gesture.authored(kind: manualKind)');
+  });
+});
+
 describe('Aum chant: the gestures are shaped the same way in Kotlin and Swift', () => {
   it('uses the same voices, echo and shaping', () => {
     for (const [kotlinLine, swiftLine] of [
@@ -87,8 +112,9 @@ describe('Aum chant: the gestures are shaped the same way in Kotlin and Swift', 
       ['private const val PERIOD_SHORTENS_FROM = 0.6', 'private static let periodShortensFrom = 0.6'],
       ['val period = PERIOD_SECONDS - (PERIOD_SECONDS - PERIOD_FULL_SECONDS) * clamp((variety - PERIOD_SHORTENS_FROM) / (1.0 - PERIOD_SHORTENS_FROM), 0.0, 1.0)', 'let period = Self.periodSeconds - (Self.periodSeconds - Self.periodFullSeconds) * clamp((variety - Self.periodShortensFrom) / (1.0 - Self.periodShortensFrom), 0, 1)'],
       ['val chantPosition = elapsedSeconds + (period - 5.0)', 'let chantPosition = elapsedSeconds + (period - 5.0)'],
-      ['val cycle = (chantPosition / period).toLong()', 'let cycle = Int64(chantPosition / period)'],
-      ['val chantTime = ((chantPosition % period) - gesture.startDelay) / gesture.stretch', 'let chantTime = (fmod(chantPosition, period) - gesture.startDelay) / gesture.stretch'],
+      ['val cycle = if (scriptedOnly) manualCount else (chantPosition / period).toLong()', 'let cycle = scriptedOnly ? manualCount : Int64(chantPosition / period)'],
+      ['((chantPosition % period) - gesture.startDelay) / gesture.stretch', 'chantTime = (fmod(chantPosition, period) - gesture.startDelay) / gesture.stretch'],
+      ['if (manualStartSeconds < 0.0) -1.0 else (elapsedSeconds - manualStartSeconds) / gesture.stretch', 'chantTime = manualStartSeconds < 0 ? -1 : (elapsedSeconds - manualStartSeconds) / gesture.stretch'],
       ['cycle % chantEvery == 0L', 'cycle % Int64(chantEvery) == 0'],
       ['gesture.rootRatio * 2.0.pow(-gesture.glide * chantProgress / 12.0)', 'gesture.rootRatio * pow(2.0, -gesture.glide * chantProgress / 12.0)'],
       ['left += beneath * gesture.sub * 0.9', 'left += beneath * gesture.sub * 0.9'],
@@ -114,11 +140,12 @@ describe('Aum chant: the gestures are shaped the same way in Kotlin and Swift', 
   });
 
   it('is placed the same way by the Temple room, with variety 0 leaving the chant exactly as designed', () => {
-    expect(engine).toContain('aumChant.render(sampleRate, elapsedSeconds, intensity, presence, density, variety)');
-    expect(engine).toContain('aumChant.voiceLeft + aumChant.echoLeft + drop.first');
+    expect(engine).toContain('aumChant.render(sampleRate, elapsedSeconds, intensity, aumPresence, density, variety, scriptedOnly = sanctum > 0.0001)');
+    // The Sanctum scales the Aum by (1 - its envelope), which is exactly 1 in every other world.
+    expect(engine).toContain('(aumChant.voiceLeft + aumChant.echoLeft) * chantScale + (drop.first + dropEchoLeft + templeAccents.left) * hallScale');
     expect(engine).toContain('+ aumChant.farWet');
-    expect(swift).toContain('aumChant.render(sampleRate: sampleRate, elapsedSeconds: elapsedSeconds, intensity: intensity, presence: presence, density: density, variety: variety)');
-    expect(swift).toContain('aumChant.voiceLeft + aumChant.echoLeft + drop.left');
+    expect(swift).toContain('aumChant.render(sampleRate: sampleRate, elapsedSeconds: elapsedSeconds, intensity: intensity, presence: aumPresence, density: density, variety: variety, scriptedOnly: sanctum > 0.0001)');
+    expect(swift).toContain('(aumChant.voiceLeft + aumChant.echoLeft) * chantScale + (drop.left + dropEchoLeft + templeAccents.left) * hallScale');
     expect(swift).toContain('+ aumChant.farWet');
     // Variety 0 must skip every gesture path so the chant is bit-identical to what it always was.
     expect(chant).toContain('if (variety <= 0.0) {');

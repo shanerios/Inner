@@ -105,6 +105,8 @@ private data class TimelineStageState(
   val spatialEvents: List<SpatialEventState>,
   val cueEvents: List<CueEventState>,
   val voiceEvents: List<VoiceEventState>,
+  val footstepsEvents: List<FootstepsEventState>,
+  val aumEvents: List<AumEventState>,
 )
 
 private data class SpatialEventState(
@@ -127,6 +129,18 @@ private data class CueEventState(
 private data class VoiceEventState(
   val atMs: Double,
   val clipId: String,
+)
+
+/** One appearance of the Aum the journey calls at this point in a stage. */
+private data class AumEventState(
+  val atMs: Double,
+  val kind: Int,
+)
+
+/** A passage of footsteps the journey calls at this point in a stage. */
+private data class FootstepsEventState(
+  val atMs: Double,
+  val approach: Boolean,
 )
 
 private class VoiceClip(val samples: FloatArray, val sampleRate: Double, val gain: Double)
@@ -200,6 +214,22 @@ private const val NOISE_CROSSFADE_SECONDS = 4.5
 private const val RECOGNITION_NOISE_THINNING = 1.2
 /** How much of the Temple footsteps reach the shared room, versus everything else in the space at full strength. */
 private const val TEMPLE_FOOTSTEPS_ROOM_SEND = 0.55
+/** How loud a called Aum stands over the Sanctum's chorus, against the Temple's own level of 1. */
+private const val SANCTUM_AUM_LEVEL = 0.8
+/** The Sanctum's footsteps, against the Temple's own level of 1: about -8 dB. */
+private const val SANCTUM_FOOTSTEPS_LEVEL = 0.4
+/** How much of the Temple's reverb send the Sanctum's footsteps keep: they sit mostly dry, like a nearby real sound. */
+private const val SANCTUM_FOOTSTEPS_ROOM_RATIO = 0.25
+/** How long the overhead body takes to cross from one side to the other. */
+private const val OVERHEAD_PASS_SECONDS = 4.5
+/** How much quieter the passing body is, at depth 1, when it is far off at the side: down to a fifth. */
+private const val OVERHEAD_FAR_DROP = 0.8
+/** The extra level as the body crosses directly overhead, against full: +3 dB, for the weight of it. */
+private const val OVERHEAD_PEAK_GAIN = 1.41
+/** How much of the hall's air and breath remains in the Sanctum: a faint stone hush under the drone. */
+private const val SANCTUM_AIR_LEVEL = 0.12
+/** A called Aum is never quieter than this presence, so it still sounds when the chorus has fallen away. */
+private const val SANCTUM_AUM_MIN_PRESENCE = 1.0
 
 // The lucidity cue: a fixed, non-seeded ascending three-note motif (the same
 // 400/600/800 Hz contour used in published targeted-lucidity-reactivation
@@ -366,7 +396,9 @@ object ProceduralAudioEngine {
   private var forestBirdAmp = 0.0
   private var forestBirdPan = 0.0
   private var templeSpaceEnvelope = 0.0
+  private var sanctumEnvelope = 0.0
   private val aumChant = AumChant()
+  private val sanctumChorus = SanctumChorus()
   private var templeSpaceRandom = XORSHIFT_SEED xor 0x6a09e667L
   private var templeSpaceAirLeft = 0.0
   private var templeSpaceAirRight = 0.0
@@ -402,6 +434,8 @@ object ProceduralAudioEngine {
   private var cueTimelineThresholdMs = -1.0
   @Volatile private var voiceBank: Map<String, VoiceClip> = emptyMap()
   private var voiceTimelineThresholdMs = -1.0
+  private var footstepsTimelineThresholdMs = -1.0
+  private var aumTimelineThresholdMs = -1.0
   private var voiceActive = false
   private var voiceSamples = FloatArray(0)
   private var voiceRate = 0.0
@@ -622,6 +656,22 @@ object ProceduralAudioEngine {
             if (event.type != "voice" || event.atMs < 0 || event.clipId.isEmpty()) return@mapNotNull null
             VoiceEventState(atMs = event.atMs, clipId = event.clipId)
           },
+          footstepsEvents = stage.spatialEvents.take(16).mapNotNull { event ->
+            if (event.type != "footsteps" || event.atMs < 0) return@mapNotNull null
+            FootstepsEventState(atMs = event.atMs, approach = event.direction == "approach")
+          },
+          aumEvents = stage.spatialEvents.take(16).mapNotNull { event ->
+            if (event.type != "aum" || event.atMs < 0) return@mapNotNull null
+            // The event's direction names its shape: still (the designed chant), approach, or retreat.
+            AumEventState(
+              atMs = event.atMs,
+              kind = when (event.direction) {
+                "approach" -> AumGesture.KIND_APPROACH
+                "retreat" -> AumGesture.KIND_RETREAT
+                else -> AumGesture.KIND_PLAIN
+              },
+            )
+          },
         )
       }
       val total = stages.sumOf { it.durationMs }
@@ -769,6 +819,8 @@ object ProceduralAudioEngine {
     worldSalience.reset(sampleRate)
     cueTimelineThresholdMs = -1.0
     voiceTimelineThresholdMs = -1.0
+    footstepsTimelineThresholdMs = -1.0
+    aumTimelineThresholdMs = -1.0
     voiceActive = false
     voiceElapsedFrames = 0.0
     voiceBedGain = 1.0
@@ -792,6 +844,8 @@ object ProceduralAudioEngine {
     cricketModel.reset(XORSHIFT_SEED, sampleRate)
     templeSpaceEnvelope = 0.0
     aumChant.reset(XORSHIFT_SEED)
+    sanctumChorus.reset(XORSHIFT_SEED)
+    sanctumEnvelope = 0.0
     templeSpaceRandom = XORSHIFT_SEED xor 0x6a09e667L
     templeSpaceAirLeft = 0.0
     templeSpaceAirRight = 0.0
@@ -901,6 +955,7 @@ object ProceduralAudioEngine {
       cricketModel.reset(activeTimeline.seed, sampleRate)
       templeSpaceRandom = activeTimeline.seed xor 0x6a09e667L
       aumChant.reset(activeTimeline.seed)
+      sanctumChorus.reset(activeTimeline.seed)
       templeSpaceAirLeft = 0.0
       templeSpaceAirRight = 0.0
       templeSpaceBreathLowLeft = 0.0
@@ -922,6 +977,8 @@ object ProceduralAudioEngine {
       // already fired, so a fresh timeline or a seek doesn't replay past cues.
       cueTimelineThresholdMs = timelineStartFrame * 1_000.0 / sampleRate
       voiceTimelineThresholdMs = timelineStartFrame * 1_000.0 / sampleRate
+      footstepsTimelineThresholdMs = timelineStartFrame * 1_000.0 / sampleRate
+      aumTimelineThresholdMs = timelineStartFrame * 1_000.0 / sampleRate
       voiceActive = false
       voiceElapsedFrames = 0.0
       voiceBedGain = 1.0
@@ -978,13 +1035,25 @@ object ProceduralAudioEngine {
           voiceTimelineThresholdMs = voiceFireMs
           startVoice(activeTimeline, voiceFireMs, timelineElapsedMs)
         }
+        val footstepsFire = timelineFootstepsEvent(activeTimeline, timelineElapsedMs, footstepsTimelineThresholdMs)
+        if (footstepsFire != null) {
+          footstepsTimelineThresholdMs = footstepsFire.first
+          templeFootsteps.trigger(footstepsFire.second.approach)
+        }
+        val aumFire = timelineAumEvent(activeTimeline, timelineElapsedMs, aumTimelineThresholdMs)
+        if (aumFire != null) {
+          aumTimelineThresholdMs = aumFire.first
+          aumChant.trigger(aumFire.second.kind)
+        }
       }
       worldSalience.beginFrame(recognitionSpace != null || cueActive)
       val orbitPhase = spatialSeconds * target.spatialRate * Math.PI * 2 / 60
-      val orbitNear = (cos(orbitPhase) + 1) / 2
+      val overhead = target.spatialMode == "overhead"
+      // Overhead: how near the passing body is (1 as it crosses over the listener, 0 when it has gone to the side).
+      val orbitNear = if (overhead) overheadProximity(spatialSeconds, target.spatialRate) else (cos(orbitPhase) + 1) / 2
       // Vortex reuses orbit's "pulled toward/away from center" distance-darkening
       // mechanic — a spiral is a kind of orbit whose radius and rate aren't constant.
-      val orbitTarget = if (target.spatialMode == "orbit" || target.spatialMode == "vortex") 1.0 else 0.0
+      val orbitTarget = if (target.spatialMode == "orbit" || target.spatialMode == "vortex" || overhead) 1.0 else 0.0
       val orbitStep = 1 / max(1.0, sampleRate * 2.0)
       orbitMix += clamp(orbitTarget - orbitMix, -orbitStep, orbitStep)
       val requestedPan = event?.pan ?: spatialPan(target, spatialSeconds)
@@ -992,7 +1061,12 @@ object ProceduralAudioEngine {
         spatialCenterGain(target, spatialSeconds),
         event?.let { 1 - 0.62 * it.crossing } ?: 1.0,
       )
-      val orbitDistance = 1 - target.spatialDepth * 0.5 * (1 - orbitNear)
+      // Overhead: down to a fifth when the body is far off at the side, and a further 3 dB above full as it crosses over.
+      val orbitDistance = if (overhead) {
+        (1 - target.spatialDepth * OVERHEAD_FAR_DROP * (1 - orbitNear)) * (1 + (OVERHEAD_PEAK_GAIN - 1) * orbitNear)
+      } else {
+        1 - target.spatialDepth * 0.5 * (1 - orbitNear)
+      }
       val requestedSpatialDistance = 1 + (orbitDistance - 1) * orbitMix
       val spatialSlew = 1 / max(1.0, sampleRate * 0.12)
       renderedPan += clamp(requestedPan - renderedPan, -spatialSlew, spatialSlew)
@@ -1067,9 +1141,12 @@ object ProceduralAudioEngine {
       val forestTarget = if (target.environment == "forest" && target.environmentGain > 0.0001) 1.0 else 0.0
       val forestStep = 1 / max(1.0, sampleRate * 4.5)
       forestEnvelope += clamp(forestTarget - forestEnvelope, -forestStep, forestStep)
-      val templeSpaceTarget = if (target.environment == "temple" && target.environmentGain > 0.0001) 1.0 else 0.0
+      // The sanctum is the Temple's hall with its own character, so it shares this path.
+      val templeSpaceTarget = if ((target.environment == "temple" || target.environment == "sanctum") && target.environmentGain > 0.0001) 1.0 else 0.0
       val templeSpaceStep = 1 / max(1.0, sampleRate * 4.5)
       templeSpaceEnvelope += clamp(templeSpaceTarget - templeSpaceEnvelope, -templeSpaceStep, templeSpaceStep)
+      val sanctumTarget = if (target.environment == "sanctum" && target.environmentGain > 0.0001) 1.0 else 0.0
+      sanctumEnvelope += clamp(sanctumTarget - sanctumEnvelope, -templeSpaceStep, templeSpaceStep)
       // Temple is its own independent layer (like tone/binaural/noise), not tied
       // to the mutually-exclusive environment selector.
       val templeTarget = if (target.templeGain > 0.0001) 1.0 else 0.0
@@ -1264,6 +1341,35 @@ object ProceduralAudioEngine {
     }
   }
 
+  /**
+   * The overhead pass: a heavy body crossing over the listener from one side to the other in [OVERHEAD_PASS_SECONDS],
+   * once a cycle, then resting out at the far side while the next pass is awaited. Passes alternate direction.
+   * Progress through this cycle's pass, 0 before it and 1 after it.
+   */
+  private fun overheadProgress(elapsedSeconds: Double, cyclesPerMinute: Double): Double {
+    val period = 60.0 / max(0.5, cyclesPerMinute)
+    val passSeconds = min(OVERHEAD_PASS_SECONDS, period * 0.5)
+    val within = elapsedSeconds - Math.floor(elapsedSeconds / period) * period
+    return clamp((within - (period - passSeconds) / 2) / passSeconds, 0.0, 1.0)
+  }
+
+  /** The pass eased so it moves fastest as it crosses overhead. */
+  private fun overheadEase(elapsedSeconds: Double, cyclesPerMinute: Double): Double {
+    val progress = overheadProgress(elapsedSeconds, cyclesPerMinute)
+    return progress * progress * (3 - 2 * progress)
+  }
+
+  private fun overheadDirection(elapsedSeconds: Double, cyclesPerMinute: Double): Double {
+    val period = 60.0 / max(0.5, cyclesPerMinute)
+    return if (Math.floor(elapsedSeconds / period).toLong() % 2L == 0L) 1.0 else -1.0
+  }
+
+  /** 1 as the body crosses overhead, falling to 0 at the sides and between passes. */
+  private fun overheadProximity(elapsedSeconds: Double, cyclesPerMinute: Double): Double {
+    val shape = sin(Math.PI * overheadProgress(elapsedSeconds, cyclesPerMinute))
+    return shape * shape
+  }
+
   private fun spatialPan(target: AudioParameters, elapsedSeconds: Double): Double {
     if (target.spatialMode == "still" || target.spatialDepth <= 0) return 0.0
     val phase = elapsedSeconds * target.spatialRate * Math.PI * 2 / 60
@@ -1292,6 +1398,7 @@ object ProceduralAudioEngine {
         }
       }
       "pendulum" -> sin(phase)
+      "overhead" -> overheadDirection(elapsedSeconds, target.spatialRate) * (2 * overheadEase(elapsedSeconds, target.spatialRate) - 1)
       "swoosh" -> {
         val cycle = phase % (Math.PI * 2) / (Math.PI * 2)
         when {
@@ -1342,6 +1449,32 @@ object ProceduralAudioEngine {
       for (event in stage.voiceEvents) {
         val globalAtMs = cursor + event.atMs
         if (globalAtMs > afterMs && globalAtMs <= elapsedMs) return globalAtMs
+      }
+      cursor += stage.durationMs
+    }
+    return null
+  }
+
+  /** The next Aum event that has come due since [afterMs], with its position in the whole timeline. */
+  private fun timelineAumEvent(timeline: AudioTimelineState, elapsedMs: Double, afterMs: Double): Pair<Double, AumEventState>? {
+    var cursor = 0.0
+    for (stage in timeline.stages) {
+      for (event in stage.aumEvents) {
+        val globalAtMs = cursor + event.atMs
+        if (globalAtMs > afterMs && globalAtMs <= elapsedMs) return Pair(globalAtMs, event)
+      }
+      cursor += stage.durationMs
+    }
+    return null
+  }
+
+  /** The next footsteps event that has come due since [afterMs], with its position in the whole timeline. */
+  private fun timelineFootstepsEvent(timeline: AudioTimelineState, elapsedMs: Double, afterMs: Double): Pair<Double, FootstepsEventState>? {
+    var cursor = 0.0
+    for (stage in timeline.stages) {
+      for (event in stage.footstepsEvents) {
+        val globalAtMs = cursor + event.atMs
+        if (globalAtMs > afterMs && globalAtMs <= elapsedMs) return Pair(globalAtMs, event)
       }
       cursor += stage.durationMs
     }
@@ -1815,7 +1948,20 @@ object ProceduralAudioEngine {
 
     // The chant (three imperfect virtual voices, once every 31 s, each appearance its own gesture) lives in
     // AumChant. The room places its dry voice and echo, and sends a far-off chant to the reverb alone.
-    aumChant.render(sampleRate, elapsedSeconds, intensity, presence, density, variety)
+    // In the Sanctum the periodic Aum is off: the chorus holds the hall, and the journey calls each Aum by hand.
+    val sanctum = sanctumEnvelope
+    val aumPresence = if (sanctum > 0.0001) max(presence, SANCTUM_AUM_MIN_PRESENCE) else presence
+    aumChant.render(sampleRate, elapsedSeconds, intensity, aumPresence, density, variety, scriptedOnly = sanctum > 0.0001)
+    val chantScale = 1.0 - sanctum * (1.0 - SANCTUM_AUM_LEVEL)
+    var chorusLeft = 0.0
+    var chorusRight = 0.0
+    var chorusFarWet = 0.0
+    if (sanctum > 0.0001) {
+      sanctumChorus.render(sampleRate, elapsedSeconds, intensity, presence)
+      chorusLeft = sanctumChorus.voiceLeft * sanctum
+      chorusRight = sanctumChorus.voiceRight * sanctum
+      chorusFarWet = sanctumChorus.farWet * sanctum
+    }
     val drop = nextTempleSpaceDrop(intensity, worldSalience)
     val dropEchoSize = templeSpaceDropEcho.size
     val dropEchoLeftA = templeSpaceDropEcho[(templeSpaceDropEchoIndex - (sampleRate * 0.27).toInt().coerceIn(1, dropEchoSize - 1) + dropEchoSize) % dropEchoSize]
@@ -1826,14 +1972,24 @@ object ProceduralAudioEngine {
     val dropEchoLeft = dropEchoLeftA * 0.48 + dropEchoTail * 0.18
     val dropEchoRight = dropEchoRightA * 0.44 + dropEchoTail * 0.20
     templeAccents.render(sampleRate, intensity, elapsedSeconds, worldSalience)
-    templeFootsteps.render(sampleRate, elapsedSeconds, worldSalience)
+    // In the Sanctum the steps come only where the journey calls them.
+    templeFootsteps.render(sampleRate, elapsedSeconds, worldSalience, scriptedOnly = sanctum > 0.0001)
     // The room reflects everything in the space at full strength except the footsteps, which send in at
     // TEMPLE_FOOTSTEPS_ROOM_SEND: enough reflection to place the distant walker in the stone space without
     // giving the short scuffs the chant's full, lingering tail.
-    val otherLeft = body + templeSpaceAirLeft * (0.22 + intensity * 0.12) + breathLeft * 0.7 + aumChant.voiceLeft + aumChant.echoLeft + drop.first + dropEchoLeft + templeAccents.left
-    val otherRight = body + templeSpaceAirRight * (0.22 + intensity * 0.12) + breathRight * 0.7 + aumChant.voiceRight + aumChant.echoRight + drop.second + dropEchoRight + templeAccents.right
-    val dryLeft = otherLeft + templeFootsteps.left
-    val dryRight = otherRight + templeFootsteps.right
+    // In the Sanctum the hall's own modal tones, water drops and random chimes and bowls are gone (the drone is the only
+    // pitched sound, and the Bell is the only one introduced), and its air and breath are a faint stone hush. The
+    // chorus keeps its own tail and joins the output directly, so the room does not reverberate it a second time.
+    val hallScale = 1.0 - sanctum
+    val airScale = 1.0 - sanctum * (1.0 - SANCTUM_AIR_LEVEL)
+    val otherLeft = body * hallScale + templeSpaceAirLeft * (0.22 + intensity * 0.12) * airScale + breathLeft * 0.7 * airScale + (aumChant.voiceLeft + aumChant.echoLeft) * chantScale + (drop.first + dropEchoLeft + templeAccents.left) * hallScale
+    val otherRight = body * hallScale + templeSpaceAirRight * (0.22 + intensity * 0.12) * airScale + breathRight * 0.7 * airScale + (aumChant.voiceRight + aumChant.echoRight) * chantScale + (drop.second + dropEchoRight + templeAccents.right) * hallScale
+    // The Sanctum's footsteps sit a few dB lower than the Temple's.
+    val stepsScale = 1.0 - sanctum * (1.0 - SANCTUM_FOOTSTEPS_LEVEL)
+    val stepsLeft = templeFootsteps.left * stepsScale
+    val stepsRight = templeFootsteps.right * stepsScale
+    val dryLeft = otherLeft + stepsLeft
+    val dryRight = otherRight + stepsRight
     val size = templeSpaceDelay.size
     val tap71 = templeSpaceDelay[(templeSpaceDelayIndex - (sampleRate * 0.071).toInt().coerceIn(1, size - 1) + size) % size]
     val tap89 = templeSpaceDelay[(templeSpaceDelayIndex - (sampleRate * 0.089).toInt().coerceIn(1, size - 1) + size) % size]
@@ -1841,10 +1997,10 @@ object ProceduralAudioEngine {
     val tap137 = templeSpaceDelay[(templeSpaceDelayIndex - (sampleRate * 0.137).toInt().coerceIn(1, size - 1) + size) % size]
     val wetLeft = tap71 * 0.58 + tap137 * 0.34
     val wetRight = tap89 * 0.56 + tap113 * 0.36
-    val footstepsRoomFeed = (templeFootsteps.left + templeFootsteps.right) * TEMPLE_FOOTSTEPS_ROOM_SEND
-    templeSpaceDelay[templeSpaceDelayIndex] = (otherLeft + otherRight) * 0.5 + footstepsRoomFeed * 0.5 + (wetLeft + wetRight) * 0.45 + aumChant.farWet
+    val footstepsRoomFeed = (stepsLeft + stepsRight) * TEMPLE_FOOTSTEPS_ROOM_SEND * (1.0 - sanctum * (1.0 - SANCTUM_FOOTSTEPS_ROOM_RATIO))
+    templeSpaceDelay[templeSpaceDelayIndex] = (otherLeft + otherRight) * 0.5 + footstepsRoomFeed * 0.5 + (wetLeft + wetRight) * 0.45 + aumChant.farWet * chantScale + chorusFarWet
     templeSpaceDelayIndex = (templeSpaceDelayIndex + 1) % size
-    return templeSpaceSample.set(dryLeft * 0.42 + wetLeft * 0.62, dryRight * 0.42 + wetRight * 0.62)
+    return templeSpaceSample.set(dryLeft * 0.42 + wetLeft * 0.62 + chorusLeft, dryRight * 0.42 + wetRight * 0.62 + chorusRight)
   }
 
   private fun nextTempleSpaceWhite(): Double {
@@ -1903,7 +2059,7 @@ object ProceduralAudioEngine {
   private fun normalizedParameters(raw: AudioConfigRecord, sleepEndMs: Double?): AudioParameters {
     val noiseColor = raw.noiseColor.takeIf { it == "white" || it == "pink" || it == "brown" || it == "grey" }
     val spatialMode = raw.spatialMode.takeIf {
-      it == "still" || it == "drift" || it == "pendulum" || it == "swoosh" || it == "rain" || it == "orbit" || it == "vortex" || it == "channelTest"
+      it == "still" || it == "drift" || it == "pendulum" || it == "swoosh" || it == "rain" || it == "orbit" || it == "vortex" || it == "overhead" || it == "channelTest"
     } ?: "still"
     val spatialTarget = raw.spatialTarget.takeIf { it == "noise" || it == "tone" || it == "both" } ?: "noise"
     return AudioParameters(
@@ -1915,7 +2071,7 @@ object ProceduralAudioEngine {
       binauralGain = clamp(raw.binauralGain, 0.0, 1.0),
       noiseColor = noiseColor,
       noiseGain = clamp(raw.noiseGain, 0.0, 1.0),
-      environment = if (raw.environment == "cave") "cosmic" else raw.environment.takeIf { it == "ocean" || it == "wind" || it == "fire" || it == "cosmic" || it == "forest" || it == "temple" || it == "abyssal" } ?: "none",
+      environment = if (raw.environment == "cave") "cosmic" else raw.environment.takeIf { it == "ocean" || it == "wind" || it == "fire" || it == "cosmic" || it == "forest" || it == "temple" || it == "abyssal" || it == "sanctum" } ?: "none",
       environmentGain = clamp(raw.environmentGain, 0.0, 1.0),
       environmentIntensity = clamp(raw.environmentIntensity, 0.0, 1.0),
       thresholdShift = clamp(raw.thresholdShift, 0.0, 1.0),

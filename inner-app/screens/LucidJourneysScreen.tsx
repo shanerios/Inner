@@ -18,6 +18,7 @@ import {
   startFailureMessage,
 } from '../core/audio';
 import { Typography } from '../core/typography';
+import { INDUCTION_JOURNEY, INDUCTION_JOURNEY_ID } from '../core/audio/inductionJourney';
 import { openPaywall } from '../src/core/subscriptions/paywallController';
 import { resolveMembership } from '../src/core/subscriptions/membership';
 import {
@@ -75,6 +76,8 @@ export default function LucidJourneysScreen() {
   // The title and subtitle are measured so the list below never starts underneath them.
   const [introHeight, setIntroHeight] = React.useState(0);
   const [expandedJourneyId, setExpandedJourneyId] = useState<string | null>(null);
+  // The three practices sit under one heading, closed until asked for, so the screen opens with little on it.
+  const [practicesExpanded, setPracticesExpanded] = useState(false);
   const [savedJourneys, setSavedJourneys] = useState<SavedPersonalizedJourney[]>([]);
   const [savedJourneysVisible, setSavedJourneysVisible] = useState(false);
   const [cueScheduled, setCueScheduled] = useState(false);
@@ -130,7 +133,12 @@ export default function LucidJourneysScreen() {
 
   const begin = async (journeyId: string) => {
     if (previewingSignal) await stopSignalPreview();
-    navigation.navigate('LucidJourneyPlayer', { journeyId, playbackKind: 'factory' });
+    navigation.navigate(
+      'LucidJourneyPlayer',
+      journeyId === INDUCTION_JOURNEY_ID
+        ? { journey: INDUCTION_JOURNEY, playbackKind: 'factory' }
+        : { journeyId, playbackKind: 'factory' },
+    );
   };
   const beginSaved = (journey: SavedPersonalizedJourney) =>
     navigation.navigate('LucidJourneyPlayer', { journey, playbackKind: 'saved_custom' });
@@ -420,6 +428,57 @@ export default function LucidJourneysScreen() {
     navigation.navigate('LucidJourneyPlayer', { journey, playbackKind: 'factory' });
   };
 
+  const renderJourney = (journey: typeof lucidReturn) => {
+    const expanded = expandedJourneyId === journey.id;
+    return (
+      <View key={journey.id} style={styles.journey}>
+        <View style={styles.journeyHeading}>
+          <Pressable
+            onPress={() => begin(journey.id)}
+            accessibilityRole="button"
+            accessibilityLabel={`Begin ${journey.title}${journey.subtitle ? `, ${journey.subtitle}` : ''}, ${journey.durationLabel}`}
+            style={styles.titleButton}
+          >
+            <Text style={[Typography.display, styles.cardTitle]}>{journey.title}</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => setExpandedJourneyId(expanded ? null : journey.id)}
+            accessibilityRole="button"
+            accessibilityLabel={`${expanded ? 'Hide' : 'Show'} details for ${journey.title}`}
+            accessibilityState={{ expanded }}
+            style={styles.detailsPill}
+          >
+            <Text style={styles.detailsPillText}>{journey.durationLabel.split(' · ')[0]}</Text>
+            <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={12} color="#CFC5F2" />
+          </Pressable>
+        </View>
+        {journey.subtitle ? (
+          <Text style={styles.journeySubtitle}>{journey.subtitle.toUpperCase()}</Text>
+        ) : null}
+        {expanded ? (
+          <View style={styles.journeyDetails}>
+            <Text style={[Typography.body, styles.summary]}>{journey.summary}</Text>
+            {journey.id === 'lucid-signal' ? (
+              <View style={styles.signalCalibration}>
+                <Text style={styles.signalCalibrationCopy}>
+                  Preview the exact recognition signal, then set your device and notification volume to a level you would be comfortable hearing during sleep.
+                </Text>
+                <Pressable
+                  onPress={() => { void previewSignal(); }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Preview the lucid signal"
+                  style={styles.signalButton}
+                >
+                  <Text style={styles.signalButtonText}>{previewingSignal ? 'PLAYING SIGNAL' : 'PREVIEW SIGNAL'}</Text>
+                </Pressable>
+              </View>
+            ) : null}
+          </View>
+        ) : null}
+      </View>
+    );
+  };
+
   const listTop = insets.top + (Platform.OS === 'android' ? 236 : Math.max(206, INTRO_TOP + introHeight + INTRO_GAP));
 
   return (
@@ -471,56 +530,34 @@ export default function LucidJourneysScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <View style={[styles.cards, Platform.OS === 'android' && styles.androidCards]}>
-          {[lucidReturn, lucidThreshold, lucidSignal].map(journey => {
-            const expanded = expandedJourneyId === journey.id;
-            return (
-              <View key={journey.id} style={styles.journey}>
-                <View style={styles.journeyHeading}>
-                  <Pressable
-                    onPress={() => begin(journey.id)}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Begin ${journey.title}${journey.subtitle ? `, ${journey.subtitle}` : ''}, ${journey.durationLabel}`}
-                    style={styles.titleButton}
-                  >
-                    <Text style={[Typography.display, styles.cardTitle]}>{journey.title}</Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={() => setExpandedJourneyId(expanded ? null : journey.id)}
-                    accessibilityRole="button"
-                    accessibilityLabel={`${expanded ? 'Hide' : 'Show'} details for ${journey.title}`}
-                    accessibilityState={{ expanded }}
-                    style={styles.detailsPill}
-                  >
-                    <Text style={styles.detailsPillText}>{journey.durationLabel.split(' · ')[0]}</Text>
-                    <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={12} color="#CFC5F2" />
-                  </Pressable>
-                </View>
-                {journey.subtitle ? (
-                  <Text style={styles.journeySubtitle}>{journey.subtitle.toUpperCase()}</Text>
-                ) : null}
-                {expanded ? (
-                  <View style={styles.journeyDetails}>
-                    <Text style={[Typography.body, styles.summary]}>{journey.summary}</Text>
-                    {journey.id === 'lucid-signal' ? (
-                      <View style={styles.signalCalibration}>
-                        <Text style={styles.signalCalibrationCopy}>
-                          Preview the exact recognition signal, then set your device and notification volume to a level you would be comfortable hearing during sleep.
-                        </Text>
-                        <Pressable
-                          onPress={() => { void previewSignal(); }}
-                          accessibilityRole="button"
-                          accessibilityLabel="Preview the lucid signal"
-                          style={styles.signalButton}
-                        >
-                          <Text style={styles.signalButtonText}>{previewingSignal ? 'PLAYING SIGNAL' : 'PREVIEW SIGNAL'}</Text>
-                        </Pressable>
-                      </View>
-                    ) : null}
-                  </View>
-                ) : null}
+          {renderJourney(INDUCTION_JOURNEY)}
+          <View style={styles.practices}>
+            <Pressable
+              onPress={() => {
+                if (practicesExpanded) {
+                  // Closing the group closes what was open inside it, and silences a signal preview left playing.
+                  setExpandedJourneyId(null);
+                  if (previewingSignal) void stopSignalPreview();
+                }
+                setPracticesExpanded(expanded => !expanded);
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={`${practicesExpanded ? 'Hide' : 'Show'} practices: Lucid Return, Lucid Threshold and Lucid Signal`}
+              accessibilityState={{ expanded: practicesExpanded }}
+              style={styles.journeyHeading}
+            >
+              <Text style={[Typography.display, styles.cardTitle, styles.practicesTitle]}>Practices</Text>
+              <View style={styles.detailsPill}>
+                <Text style={styles.detailsPillText}>3</Text>
+                <Ionicons name={practicesExpanded ? 'chevron-up' : 'chevron-down'} size={12} color="#CFC5F2" />
               </View>
-            );
-          })}
+            </Pressable>
+            {practicesExpanded ? (
+              <View style={styles.practicesList}>
+                {[lucidReturn, lucidThreshold, lucidSignal].map(renderJourney)}
+              </View>
+            ) : null}
+          </View>
           {cueScheduled ? (
             <View style={styles.tonightCueStatus}>
               <View>
@@ -1233,6 +1270,9 @@ const styles = StyleSheet.create({
   beginIncubationText: { color: '#E1D8F5', fontFamily: 'Inter-Medium', fontSize: 7, letterSpacing: 1.05 },
   createJourney: { alignItems: 'center', paddingVertical: 8 },
   createJourneyHint: { color: '#9E94BF', fontFamily: 'Inter-Medium', fontSize: 8, letterSpacing: 1.4, marginTop: 5 },
+  practices: { alignItems: 'center' },
+  practicesTitle: { paddingVertical: 8, paddingLeft: 10 },
+  practicesList: { gap: 22, marginTop: 14 },
   journeySubtitle: { color: '#9E94BF', fontFamily: 'Inter-Medium', fontSize: 8, letterSpacing: 1.4, marginTop: 4, textAlign: 'center' },
   savedSection: { alignItems: 'center', gap: 13, marginTop: -4 },
   savedHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingVertical: 9 },

@@ -19,6 +19,9 @@ import kotlin.math.sqrt
  * nobody else is still moving around. Feeds the Temple's own shared room (templeSpaceDelay in the engine), so it
  * carries the same reflections as the bowl and the chant rather than its own separate reverb. The Swift engine
  * mirrors this file.
+ *
+ * A journey can also call a passage by hand ([trigger]): a walker approaching, or one leaving. The Sanctum does,
+ * and while it sounds the random passers-by are off, so the steps come only where the journey puts them.
  */
 internal class TempleFootsteps {
   var left = 0.0
@@ -32,6 +35,9 @@ internal class TempleFootsteps {
     const val STEP_RANGE = 4
     const val STEP_TEMPO_SECONDS = 0.56
     const val TEMPO_JITTER = 0.12
+    /** A passage the journey calls walks slower and less evenly: someone who is not sure they should come in. */
+    const val HESITANT_TEMPO_SECONDS = 1.05
+    const val HESITANT_TEMPO_JITTER = 0.3
     /** The drag's swell: rises and falls back to nothing over this long. */
     const val STEP_SWELL_SECONDS = 0.07
     const val STEP_TOTAL_SECONDS = 0.105
@@ -70,6 +76,11 @@ internal class TempleFootsteps {
   private var stepCountdownSamples = 0.0
   private var sequenceStartPan = 0.0
   private var sequenceEndPan = 0.0
+  private var sequenceApproaching = false
+  private var sequenceHesitant = false
+
+  // a passage called by the journey: 0 = none, 1 = approaching, 2 = receding
+  private var pendingTrigger = 0
 
   // the one step currently sounding (steps never overlap -- a single walker, not a crowd)
   private var stepActive = false
@@ -105,6 +116,7 @@ internal class TempleFootsteps {
     sequenceActive = false
     stepsRemainingInSequence = 0; totalStepsInSequence = 0; stepIndexInSequence = 0
     stepCountdownSamples = 0.0; sequenceStartPan = 0.0; sequenceEndPan = 0.0
+    sequenceApproaching = false; sequenceHesitant = false; pendingTrigger = 0
     stepActive = false; stepAgeSamples = 0.0; stepPan = 0.0; stepDistance = 0.0; stepCutoffPole = 0.0
     hp = 0.0; lp = 0.0; grainLevel = 0.0; thudAmplitude = 0.0; thudLp = 0.0; lowpassOne = 0.0; lowpassTwo = 0.0
     kHp = pole(HIGHPASS_HZ); kLp = pole(LOWPASS_HZ); kThudLp = pole(THUD_LOWPASS_HZ)
@@ -128,8 +140,15 @@ internal class TempleFootsteps {
     return sqrt(-2.0 * ln(u1)) * cos(2.0 * PI * u2)
   }
 
-  private fun beginSequence() {
+  /** Asks for a passage as soon as nothing is walking: toward the listener, or away from them. */
+  fun trigger(approach: Boolean) {
+    pendingTrigger = if (approach) 1 else 2
+  }
+
+  private fun beginSequence(approaching: Boolean = false, hesitant: Boolean = false) {
     sequenceActive = true
+    sequenceApproaching = approaching
+    sequenceHesitant = hesitant
     totalStepsInSequence = MIN_STEPS + (unit() * (STEP_RANGE + 1)).toInt()
     stepsRemainingInSequence = totalStepsInSequence
     stepIndexInSequence = 0
@@ -142,20 +161,30 @@ internal class TempleFootsteps {
   private fun beginStep() {
     val fraction = if (totalStepsInSequence <= 1) 0.0 else stepIndexInSequence.toDouble() / (totalStepsInSequence - 1)
     stepPan = sequenceStartPan + (sequenceEndPan - sequenceStartPan) * fraction
-    stepDistance = NEAR_DISTANCE + (FAR_DISTANCE - NEAR_DISTANCE) * fraction
+    val distanceFraction = if (sequenceApproaching) 1.0 - fraction else fraction
+    stepDistance = NEAR_DISTANCE + (FAR_DISTANCE - NEAR_DISTANCE) * distanceFraction
     stepCutoffPole = pole(DISTANCE_CUTOFF_NEAR_HZ - stepDistance * DISTANCE_CUTOFF_RANGE_HZ)
     stepActive = true
     stepAgeSamples = 0.0
     thudAmplitude = 1.0
     stepIndexInSequence += 1
     stepsRemainingInSequence -= 1
-    stepCountdownSamples = (STEP_TEMPO_SECONDS * rate) * (1.0 + TEMPO_JITTER * (unit() * 2.0 - 1.0))
+    val tempo = if (sequenceHesitant) HESITANT_TEMPO_SECONDS else STEP_TEMPO_SECONDS
+    val jitter = if (sequenceHesitant) HESITANT_TEMPO_JITTER else TEMPO_JITTER
+    stepCountdownSamples = (tempo * rate) * (1.0 + jitter * (unit() * 2.0 - 1.0))
   }
 
-  fun render(sampleRate: Double, elapsedSeconds: Double, salience: WorldSalienceScheduler) {
+  fun render(sampleRate: Double, elapsedSeconds: Double, salience: WorldSalienceScheduler, scriptedOnly: Boolean = false) {
     if (rate != sampleRate) reset(seed, sampleRate)
 
-    if (!sequenceActive && appearancesUsed < appearancesTotal) {
+    if (pendingTrigger != 0 && !sequenceActive) {
+      // Called by the journey, so it is never held back; it still claims the space around it.
+      salience.reserve(salience = 0.3, durationSeconds = 7.0, recoverySeconds = 3.0)
+      beginSequence(approaching = pendingTrigger == 1, hesitant = true)
+      pendingTrigger = 0
+    }
+
+    if (!scriptedOnly && !sequenceActive && appearancesUsed < appearancesTotal) {
       if (elapsedSeconds > ELIGIBLE_UNTIL_SECONDS) {
         appearancesUsed = appearancesTotal
       } else if (elapsedSeconds >= appearanceAtSeconds[appearancesUsed]) {

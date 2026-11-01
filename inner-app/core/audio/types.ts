@@ -1,6 +1,6 @@
 export type NoiseColor = 'white' | 'pink' | 'brown' | 'grey';
-export type ProceduralEnvironment = 'none' | 'ocean' | 'wind' | 'fire' | 'cosmic' | 'forest' | 'temple' | 'abyssal';
-export type SpatialMovementMode = 'still' | 'drift' | 'pendulum' | 'swoosh' | 'rain' | 'orbit' | 'vortex' | 'channelTest';
+export type ProceduralEnvironment = 'none' | 'ocean' | 'wind' | 'fire' | 'cosmic' | 'forest' | 'temple' | 'abyssal' | 'sanctum';
+export type SpatialMovementMode = 'still' | 'drift' | 'pendulum' | 'swoosh' | 'rain' | 'orbit' | 'vortex' | 'overhead' | 'channelTest';
 export type SpatialMovementTarget = 'noise' | 'tone' | 'both';
 export type AudioSessionEndPolicy = 'fadeAndStop' | 'protocolControlled' | 'userControlled';
 
@@ -28,7 +28,7 @@ export type AudioCueEvent = {
   cueFadeInMs?: number;
 };
 
-/** Plays a recorded voice clip loaded with `setVoiceClips`. Used only in waking-preparation stages. */
+/** Plays a recorded voice clip loaded with `setVoiceClips`. Used in waking-preparation stages and in The Induction. */
 export type AudioVoiceEvent = {
   id: string;
   atMs: number;
@@ -36,7 +36,33 @@ export type AudioVoiceEvent = {
   clipId: string;
 };
 
-export type AudioSpatialEvent = AudioSwooshEvent | AudioCueEvent | AudioVoiceEvent;
+/**
+ * One passage of footsteps on the hall's stone, walking toward the listener or away from them. Authored,
+ * so it happens exactly here. While a Sanctum is sounding the hall's own random passers-by are off.
+ */
+export type AudioFootstepsEvent = {
+  id: string;
+  atMs: number;
+  type: 'footsteps';
+  direction: 'approach' | 'recede';
+};
+
+/**
+ * One appearance of the Aum, the hall's chant, exactly here. While a Sanctum is sounding the periodic Aum is off, so
+ * it is heard only where a journey calls it.
+ */
+export type AudioAumEvent = {
+  id: string;
+  atMs: number;
+  type: 'aum';
+  /**
+   * Its shape: `still` is the designed chant, `approach` comes near from far off, `retreat` starts close and
+   * recedes. Carried to the engines in the event's direction field.
+   */
+  direction: 'still' | 'approach' | 'retreat';
+};
+
+export type AudioSpatialEvent = AudioSwooshEvent | AudioCueEvent | AudioVoiceEvent | AudioFootstepsEvent | AudioAumEvent;
 
 export type ProceduralAudioConfig = {
   carrierHz: number;

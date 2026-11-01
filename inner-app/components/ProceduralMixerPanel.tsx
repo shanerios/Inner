@@ -3,6 +3,7 @@ import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from '
 import Slider from '@react-native-community/slider';
 import { Typography } from '../core/typography';
 import { getRecognitionSignalId, recognitionSignalPlayback } from '../core/recognitionSignals';
+import { mixerVarietyChange } from '../core/audio/mixerFire';
 import ProceduralJourneyBuilder from './ProceduralJourneyBuilder';
 import {
   deleteMixerPreset,
@@ -72,6 +73,8 @@ export default function ProceduralMixerPanel({
 }: Props) {
   const [draft, setDraft] = useState(config);
   const pendingRef = useRef<ProceduralAudioPatch>({});
+  // The variety the mixer held before Fire raised it, given back when another world is chosen.
+  const varietyBeforeFireRef = useRef<number | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [presets, setPresets] = useState<MixerPreset[]>([]);
   const [factoryCategory, setFactoryCategory] = useState<FactoryPresetCategory>('balanced');
@@ -334,10 +337,15 @@ export default function ProceduralMixerPanel({
           return (
             <Pressable
               key={option.value}
-              onPress={() => queue({
-                environment: option.value,
-                environmentGain: option.value !== 'none' ? Math.max(0.38, draft.environmentGain) : draft.environmentGain,
-              }, true)}
+              onPress={() => {
+                const variety = mixerVarietyChange(draft.environment, option.value, draft.identityVariety, varietyBeforeFireRef.current);
+                varietyBeforeFireRef.current = variety.remembered;
+                queue({
+                  environment: option.value,
+                  environmentGain: option.value !== 'none' ? Math.max(0.38, draft.environmentGain) : draft.environmentGain,
+                  ...(variety.identityVariety !== undefined ? { identityVariety: variety.identityVariety } : {}),
+                }, true);
+              }}
               accessibilityRole="button"
               accessibilityState={{ selected: active }}
               style={[styles.environmentPill, active && styles.noisePillActive]}

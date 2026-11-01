@@ -41,12 +41,31 @@ import { usePostHog } from 'posthog-react-native';
 import { Body as _Body, Typography as _Typography, Typography } from '../core/typography';
 import { useLunarWhisper } from '../hooks/useLunarWhisper';
 import { useThreadSuggestion } from '../hooks/useThreadSuggestion';
-import { useWalkthrough } from '../hooks/useWalkthrough';
+import { isWalkthroughSeen, useWalkthrough } from '../hooks/useWalkthrough';
 import { useScale } from '../utils/scale';
 import LunarWhisperModal from '../src/lunar/LunarWhisperModal';
 import ReviewPromptModal from '../components/ReviewPromptModal';
 import MorningReturnCard from '../components/MorningReturnCard';
 import TonightRecommendationCard from '../components/TonightRecommendationCard';
+import InductionCard from '../components/InductionCard';
+import InductionWelcome from '../components/InductionWelcome';
+import { INDUCTION_JOURNEY } from '../core/audio/inductionJourney';
+import {
+  advanceInductionStatus,
+  EMPTY_INDUCTION_STATE,
+  getInductionState,
+  inductionHoldsTour,
+  inductionOffer,
+  recordInductionEntry,
+  type InductionState,
+} from '../core/inductionState';
+import {
+  trackInductionDismissed,
+  trackInductionListenPressed,
+  trackInductionOffered,
+  trackInductionSkipped,
+  type InductionSurface,
+} from '../core/inductionAnalytics';
 import ActiveExperimentHomeCard from '../components/ActiveExperimentHomeCard';
 import { useMorningReturnContinuation } from '../components/MorningReturnContext';
 import { deriveTonightRecommendation, type TonightRecommendation } from '../core/tonightRecommendation';
@@ -930,14 +949,47 @@ const loop = Animated.loop(
     setTourRunning(true);
   }, []);
 
-  // Show tour on first launch, but only after the daily check-in has cleared
+  // --- The Induction: offered on Home, ahead of the tour ---
+  // Someone new meets a welcome over their first Home and the tour waits for their answer; skipping it leaves the Induction
+  // as a card at the top of Home. Someone who has been using Inner gets the card.
+  const [inductionState, setInductionState] = React.useState<InductionState>(EMPTY_INDUCTION_STATE);
+  const [inductionLoaded, setInductionLoaded] = React.useState(false);
+  useFocusEffect(useCallback(() => {
+    let active = true;
+    (async () => {
+      const state = await getInductionState();
+      if (!active) return;
+      setInductionState(state);
+      setInductionLoaded(true);
+    })();
+    return () => { active = false; };
+  }, []));
+  const inductionVisibleOffer = inductionLoaded && !homeWalkthroughLoading
+    ? inductionOffer(inductionState, shouldShowHomeHelper)
+    : 'none';
+  // Until the Induction's state is known the tour cannot start, so it never races ahead of the offer.
+  const inductionHoldsTheTour = !inductionLoaded || inductionHoldsTour(inductionState, shouldShowHomeHelper);
+  // The welcome never shares the screen with the tour, and the card steps aside while the tour runs.
+  const inductionWelcomeVisible = inductionVisibleOffer === 'welcome' && !tourRunning;
+  const inductionCardVisible = inductionVisibleOffer === 'quiet' && !tourRunning;
+  const inductionOfferedSurfaceRef = React.useRef<InductionSurface | null>(null);
   useEffect(() => {
-    if (homeWalkthroughLoading || !dailyChecked) return;
+    const surface: InductionSurface | null = inductionWelcomeVisible ? 'welcome' : inductionCardVisible ? 'card' : null;
+    if (!surface || inductionOfferedSurfaceRef.current === surface) return;
+    inductionOfferedSurfaceRef.current = surface;
+    const entry = inductionState.entry ?? (surface === 'welcome' ? 'new' : 'returning');
+    trackInductionOffered(entry, surface);
+    void recordInductionEntry(entry).then(setInductionState);
+  }, [inductionWelcomeVisible, inductionCardVisible, inductionState.entry]);
+
+  // Show tour on first launch, but only after the daily check-in has cleared and the Induction has been answered
+  useEffect(() => {
+    if (homeWalkthroughLoading || !dailyChecked || inductionHoldsTheTour) return;
     if (shouldShowHomeHelper) {
       const t = setTimeout(startTour, 900);
       return () => clearTimeout(t);
     }
-  }, [homeWalkthroughLoading, shouldShowHomeHelper, dailyChecked, startTour]);
+  }, [homeWalkthroughLoading, shouldShowHomeHelper, dailyChecked, inductionHoldsTheTour, startTour]);
 
   // --- Navigation helpers ---
   const goToChambers = useCallback(async () => {
@@ -1277,6 +1329,33 @@ const loop = Animated.loop(
       setTimeout(() => { startingRef.current = false; }, 1000);
     }
   }, [adaptiveNightProposal, navigation, tonightRecommendation]);
+
+  // Begins The Induction only because the person chose to; nothing here starts audio by itself.
+  const handleListenInduction = useCallback(async (surface: InductionSurface) => {
+    if (tourRunning || startingRef.current) return;
+    startingRef.current = true;
+    try { await Haptics.selectionAsync(); } catch {}
+    try {
+      trackInductionListenPressed(inductionState.entry ?? (surface === 'welcome' ? 'new' : 'returning'), surface);
+      navigation.navigate('LucidJourneyPlayer', { journey: INDUCTION_JOURNEY, playbackKind: 'factory' });
+    } finally {
+      setTimeout(() => { startingRef.current = false; }, 1000);
+    }
+  }, [inductionState.entry, navigation, tourRunning]);
+
+  // Skipping the welcome leaves the Induction waiting as a card at the top of Home, and lets the tour begin.
+  const handleSkipInduction = useCallback(async () => {
+    try { await Haptics.selectionAsync(); } catch {}
+    trackInductionSkipped(inductionState.entry ?? 'new');
+    setInductionState(await advanceInductionStatus('skipped'));
+  }, [inductionState.entry]);
+
+  // Letting the card go is the last answer: it is not offered again.
+  const handleDismissInduction = useCallback(async () => {
+    try { await Haptics.selectionAsync(); } catch {}
+    trackInductionDismissed(inductionState.entry ?? 'returning');
+    setInductionState(await advanceInductionStatus('dismissed'));
+  }, [inductionState.entry]);
 
   const handlePracticeExperiment = useCallback(async () => {
     if (!practiceExperiment || !experimentView?.nextCondition || startingRef.current) return;
@@ -2205,7 +2284,10 @@ const ORB_TOP =
 
       const checkDaily = async () => {
         try {
-          const show = await shouldShowDailyMicroRitual();
+          // A new visitor's first opens are the welcome and the tour. Arrive waits until the tour is done, so they are
+          // not met by one screen after another; it appears from the next opens on.
+          const tourDone = await isWalkthroughSeen('home_helper_v1');
+          const show = tourDone && (await shouldShowDailyMicroRitual());
           if (!cancelled && show) {
             navigation.navigate('DailyRitual');
           } else if (!cancelled) {
@@ -2945,7 +3027,7 @@ const openInnerFlame = useCallback(async () => {
         />
       </Animated.View>
 
-      {/* Morning Return, active experiment, or evidence-based recommendation */}
+      {/* Morning Return, active experiment, evidence-based recommendation, or the Induction card */}
       {morningReturnContinuation.visible ? (
         <View
           pointerEvents="box-none"
@@ -3010,6 +3092,25 @@ const openInnerFlame = useCallback(async () => {
               recommendation={tonightRecommendation}
               onOpen={() => { void handleTonightRecommendation(); }}
               onDismiss={() => { void handleDismissRecommendation(); }}
+            />
+          </View>
+        </View>
+      ) : inductionCardVisible ? (
+        <View
+          pointerEvents="box-none"
+          style={{
+            position: 'absolute',
+            top: insets.top + verticalScale(16),
+            left: 0,
+            right: 0,
+            zIndex: 80,
+            elevation: 80,
+          }}
+        >
+          <View style={{ alignSelf: 'center', width: '78%', maxWidth: scale(380), paddingHorizontal: scale(6) }}>
+            <InductionCard
+              onBegin={() => { void handleListenInduction('card'); }}
+              onDismiss={() => { void handleDismissInduction(); }}
             />
           </View>
         </View>
@@ -4049,6 +4150,19 @@ const openInnerFlame = useCallback(async () => {
           </View>
         </View>
       </Modal>
+      {/* The first welcome: a veil over Home with the orb in its place, offering The Induction */}
+      {inductionWelcomeVisible ? (
+        <InductionWelcome
+          orbSource={activeOrbSrc}
+          orbLeft={ORB_LEFT}
+          orbTop={ORB_TOP}
+          orbSize={ORB_WIDTH}
+          topInset={insets.top}
+          bottomInset={insets.bottom}
+          onListen={() => { void handleListenInduction('welcome'); }}
+          onSkip={() => { void handleSkipInduction(); }}
+        />
+      ) : null}
       {/* Settings + Privacy + Clear Cache */}
       <SettingsModal
         visible={showSettings}

@@ -5,7 +5,7 @@ Status: implemented on `access-policy-proposal`. Not released. Do not describe o
 ## Behavior
 
 - Ocean, Forest, Quiet, and Wind are unchanged.
-- Temple, Abyssal Glass, Cosmic, and Fire have one shared 5-minute preview across Live Mix and the chamber mixer.
+- Temple, Abyssal Glass, Cosmic, and Fire each have their own 5-minute preview. Each world's time is kept separately, and the same time is used by Live Mix and the chamber mixer.
 - Only audible time that the user selected in a mixer counts. Paused time, browsing, and timeline-driven stages do not count.
 - "Temple resonance" (the Temple harmonic slider) counts as the Temple world.
 - Full Experience members never consume preview time and never see the limit.

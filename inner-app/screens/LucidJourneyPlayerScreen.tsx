@@ -36,7 +36,11 @@ import { bindNightPlanToJourney } from '../core/nightPlans';
 import { INNER_LAB_BUILD } from '../core/innerLab';
 import { startBedsideMotionRecording } from '../core/bedsideMotionSensor';
 import { resolveVoiceClips } from '../core/audio/voiceClips';
+import { resolveInductionVoiceClips } from '../core/audio/inductionVoice';
 import { markRecurringSignalPracticeCompleted } from '../core/recurringDreamSignals';
+import { INDUCTION_JOURNEY_ID } from '../core/audio/inductionJourney';
+import { advanceInductionStatus, getInductionState } from '../core/inductionState';
+import { trackInductionCompleted, trackInductionLeftEarly, trackInductionStarted } from '../core/inductionAnalytics';
 import { readPersonalizedJourneys } from '../core/audio/personalizedJourneyStore';
 import { openPaywall } from '../src/core/subscriptions/paywallController';
 import { checkStartAccess, type PlaybackStartKind } from '../src/core/subscriptions/playbackPolicy';
@@ -80,6 +84,7 @@ export default function LucidJourneyPlayerScreen() {
   const cueSchedulePromiseRef = useRef<Promise<boolean> | null>(null);
   const cueTrainingCompletedRef = useRef(false);
   const recognitionSignalIdRef = useRef<RecognitionSignalId | null>(null);
+  const inductionStartedRef = useRef(false);
   const memorySessionIdRef = useRef<string | null>(null);
   const memoryFinishedRef = useRef(false);
   const stopMotionRef = useRef<(() => Promise<void>) | null>(null);
@@ -128,6 +133,7 @@ export default function LucidJourneyPlayerScreen() {
     startStalledRef.current = false;
     cueTrainingCompletedRef.current = false;
     recognitionSignalIdRef.current = null;
+    inductionStartedRef.current = false;
     setPlaybackPaused(false);
 
     const traceStart = (step: string, message?: string) => {
@@ -161,10 +167,32 @@ export default function LucidJourneyPlayerScreen() {
       });
     };
 
+    // The Induction is answered by playing it: begun once audio is confirmed, completed at its end. Only the status and
+    // how far they got are kept or sent.
+    const noteInductionStarted = () => {
+      if (journey.id !== INDUCTION_JOURNEY_ID || inductionStartedRef.current) return;
+      inductionStartedRef.current = true;
+      void advanceInductionStatus('started').then(state => trackInductionStarted(state.entry)).catch(() => {});
+    };
+    const noteInductionEnded = (outcome: 'completed' | 'user_stopped' | 'failed', positionMs: number) => {
+      if (journey.id !== INDUCTION_JOURNEY_ID || !inductionStartedRef.current || outcome === 'failed') return;
+      const totalMs = journey.timeline.stages.reduce((total, stage) => total + stage.durationMs, 0);
+      void (async () => {
+        if (outcome === 'completed') {
+          const state = await advanceInductionStatus('completed');
+          trackInductionCompleted(state.entry, totalMs / 1000);
+        } else {
+          const state = await getInductionState();
+          trackInductionLeftEarly(state.entry, totalMs > 0 ? (positionMs / totalMs) * 100 : 0);
+        }
+      })().catch(() => {});
+    };
+
     const finishMemory = (outcome: 'completed' | 'user_stopped' | 'failed', message?: string, positionOverrideMs?: number) => {
       const memorySessionId = memorySessionIdRef.current;
       if (!memorySessionId || memoryFinishedRef.current) return;
       memoryFinishedRef.current = true;
+      noteInductionEnded(outcome, positionOverrideMs ?? currentPositionRef.current);
       void stopMotionRef.current?.();
       stopMotionRef.current = null;
       void finishJourneyMemorySession(
@@ -338,6 +366,11 @@ export default function LucidJourneyPlayerScreen() {
           const overnightSignal = await recognitionSignalPlayback(overnightSignalId);
           await session.setRecognitionSignal(overnightSignal.signalId, overnightSignal.uri, overnightSignal.gain);
         }
+        if (journey.fixedRecognitionSignalId && !journey.overnight) {
+          selectedSignalId = journey.fixedRecognitionSignalId;
+          const fixedSignal = await recognitionSignalPlayback(journey.fixedRecognitionSignalId);
+          await session.setRecognitionSignal(fixedSignal.signalId, fixedSignal.uri, fixedSignal.gain);
+        }
         if (journey.id === LUCIDITY_CUE_TRAINING_JOURNEY_ID) {
           const signalId = await getRecognitionSignalId();
           selectedSignalId = signalId;
@@ -380,6 +413,23 @@ export default function LucidJourneyPlayerScreen() {
               positionMs: 0,
               reason: 'clips_unavailable',
             });
+          }
+        }
+        // The Induction speaks with clips that ship in the app, so it never waits on the network. Without them it plays on
+        // its own sound and on-screen words.
+        if (journey.id === INDUCTION_JOURNEY_ID) {
+          const inductionVoice = await resolveInductionVoiceClips();
+          if (inductionVoice.clips) {
+            await session.setVoiceClips(inductionVoice.clips).catch(error => {
+              void recordJourneyMemoryEvent(memorySession.id, {
+                type: 'voice_clip_missing',
+                positionMs: 0,
+                reason: 'set_failed',
+                message: String((error as Error)?.message ?? error).slice(0, 120),
+              });
+            });
+          } else {
+            void recordJourneyMemoryEvent(memorySession.id, { type: 'voice_clip_missing', positionMs: 0, reason: 'clips_unavailable', message: inductionVoice.failure });
           }
         }
         traceStart('signal_ready');
@@ -452,6 +502,7 @@ export default function LucidJourneyPlayerScreen() {
             if (!mounted) return;
             if (health.healthy) {
               startConfirmed = true;
+              noteInductionStarted();
               if (startWatchdog) clearInterval(startWatchdog);
               startWatchdog = null;
               setPlaybackPaused(health.nativeState !== 'playing');

@@ -13,7 +13,7 @@ Each claim below matches shipped app behavior in this release. Remove any line t
 - Dream Log, including Morning Return and basic reflection.
 - Essential playback and comfort controls.
 - Live Mix and the chamber mixer, with Ocean, Forest, and Quiet unrestricted.
-- A 5-minute shared preview of Temple, Abyssal Glass, Cosmic, and Fire in Live Mix and the chamber mixer. Inner: Deeper removes the limit.
+- A 5-minute preview of each of Temple, Abyssal Glass, Cosmic, and Fire in Live Mix and the chamber mixer. Inner: Deeper removes the limit.
 
 ## Inner: Deeper
 

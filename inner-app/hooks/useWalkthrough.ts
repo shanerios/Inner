@@ -4,8 +4,19 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const STORAGE_PREFIX = 'inner_walkthrough_seen:';
 
+export const walkthroughStorageKey = (key: string) => `${STORAGE_PREFIX}${key}`;
+
+/** Whether a walkthrough has been seen, read straight from storage (for code that is not a component). */
+export async function isWalkthroughSeen(key: string): Promise<boolean> {
+  try {
+    return (await AsyncStorage.getItem(walkthroughStorageKey(key))) === '1';
+  } catch {
+    return false;
+  }
+}
+
 export function useWalkthrough(key: string) {
-  const storageKey = `${STORAGE_PREFIX}${key}`;
+  const storageKey = walkthroughStorageKey(key);
 
   const [loading, setLoading] = useState(true);
   const [seen, setSeen] = useState(false);

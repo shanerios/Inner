@@ -13,6 +13,8 @@ export type FactoryAudioJourney = {
   timeline: AudioJourneyTimeline;
   /** Marks the waking-conditioning boundary inside a longer overnight timeline. */
   overnight?: { sleepOnsetDelayMs: number; recognitionSignalId?: RecognitionSignalId };
+  /** A recognition signal this journey always uses for its cues, instead of the listener's own choice. */
+  fixedRecognitionSignalId?: RecognitionSignalId;
   /** Recorded voice clips the waking preparation plays; the engine looks them up by clip id. */
   voiceClips?: VoiceClipPlan[];
   /** Set when voice was wanted but the clips were not on the device, so the night's record says why. */
@@ -311,7 +313,7 @@ export function createJourneyPreview(
       },
       spatialEvents: item.spatialEvents?.map(event => {
         const atMs = Math.min(durationMs - 500, Math.round(event.atMs * localScale));
-        if (event.type === 'cue' || event.type === 'voice') return { ...event, atMs };
+        if (event.type === 'cue' || event.type === 'voice' || event.type === 'footsteps' || event.type === 'aum') return { ...event, atMs };
         return {
           ...event,
           atMs,
@@ -427,7 +429,7 @@ export function createPersonalizedLucidJourney(
           : sourceRate;
     const spatialEvents = answers.feel === 'grounded' || answers.feel === 'minimal'
       ? []
-      : (item.spatialEvents ?? []).map(event => event.type === 'cue' || event.type === 'voice'
+      : (item.spatialEvents ?? []).map(event => event.type === 'cue' || event.type === 'voice' || event.type === 'footsteps' || event.type === 'aum'
         ? { ...event, atMs: Math.round(event.atMs * durationScale) }
         : {
           ...event,

@@ -10,17 +10,20 @@ Current production baseline: Inner 3.3 · iOS build 2080 · Android version code
 
 Recognition Only is a new Overnight option that turns off every continuous layer, so only your recognition signal plays, at the planned times, with silence between.
 
-Temple, Abyssal Glass, Cosmic, and Fire are now Overnight environments in Full Experience, together with the Journey Creator. Ocean, Forest, and Quiet remain free, and factory journeys stay free.
+Temple, Abyssal Glass, Cosmic, and Fire are now Overnight environments in Inner: Deeper, together with the Journey Creator. Ocean, Forest, and Quiet remain free, and factory journeys stay free.
 
 The Dream Log now keeps the original recollection of each dream separate from later additions and dated reflections, and exports all three. First launch is shorter, with the Intention screen as the one onboarding question (Lucidity, OBE, Focus, Grounding, Healing, Expansion).
+
+The Induction is a new free, six-minute listening experience set in a vast resonant hall, with a recorded voice at the start and the end. New visitors are offered it on first open, and it stays at the top of Lucid Journeys. Best with headphones, which are suggested but optional.
 
 #### Google Play release notes (limit 500 characters)
 
 ```
 What's new in 3.4
-• Recognition Only: an Overnight option with no background sound, just your signal at the planned times.
-• Full Experience now includes Temple, Abyssal Glass, Cosmic and Fire for Overnight, plus Journey Creator. Ocean, Forest and Quiet stay free.
+• Recognition Only: Overnight with no background sound, just your signal at the planned times.
+• Inner: Deeper now includes Temple, Abyssal Glass, Cosmic and Fire for Overnight, plus Journey Creator. Ocean, Forest and Quiet stay free.
 • Dream Log keeps your original recollection, with dated additions and reflections.
+• The Induction: a free, guided six-minute listening experience. Best with headphones.
 • A shorter first launch.
 • Your app version now shows in Settings.
 ```
@@ -31,9 +34,11 @@ What's new in 3.4
 What's new in Inner 3.4
 
 • Recognition Only: a new Overnight option with no background sound. You hear only your recognition signal, at the times your night planned, with silence between.
-• Full Experience: Temple, Abyssal Glass, Cosmic and Fire are now Overnight environments included in Full Experience, and so is the Journey Creator. Ocean, Forest and Quiet stay free. Journeys you have already saved stay playable if Full Experience ends.
+• Inner: Deeper now includes Temple, Abyssal Glass, Cosmic and Fire as Overnight environments, and the Journey Creator. Ocean, Forest and Quiet stay free. Journeys you have already saved stay playable if Inner: Deeper ends.
 • Dream Log: each entry now keeps your first account of the dream separate from later changes. Add a remembered detail or a reflection, each with its own date, and export the original, details and reflections in your Dream Archive.
 • A shorter first launch: tap the orb, choose your path on the Intention screen, and arrive at Home. Intentions now read Lucidity, OBE, Focus, Grounding, Healing and Expansion, and your earlier choices carry over.
+• The Induction: a free, six-minute listening experience set in a resonant hall, with a recorded voice at the start and the end. New visitors are offered it on first open, and it stays at the top of Lucid Journeys. Best with headphones, which are suggested but optional.
+• Lucid Journeys: Lucid Return, Lucid Threshold and Lucid Signal now sit under one closed Practices heading, so the screen opens with less on it.
 • Your app version and build number now show at the bottom of Settings.
 • Polish: text is no longer clipped on some Android screens.
 ```
@@ -58,7 +63,8 @@ What's new in Inner 3.4
 - Factory journeys, Dream Log, Morning Return, and essential playback controls stay free.
 - Access is checked before a new session starts. An active session is never interrupted, and a session that is resumed is not blocked by a membership check.
 - If membership cannot be verified, Inner says so and offers to retry. It does not treat you as a non-member.
-- Live Mix and the chamber mixer let you try Temple, Abyssal Glass, Cosmic, and Fire for 5 minutes in total, shared between them. Ocean, Forest, and Quiet stay free. Full Experience removes the limit. Clearing app data resets the preview time.
+- Live Mix and the chamber mixer let you try Temple, Abyssal Glass, Cosmic, and Fire for 5 minutes each. Each world has its own 5 minutes, and the time is shared between Live Mix and the chamber mixer. Ocean, Forest, and Quiet stay free. Full Experience removes the limit. Clearing app data resets the preview time.
+- Checked by the owner on an iPhone 12 Pro (Inner Lab build, fresh install, non-member): the countdown shows while a premium world plays; that world fades out when its time ends; selecting it again offers "Move Deeper", which opens the paywall; pausing and switching to another world pauses the clock; the clock kept counting with the screen locked while Fire played; and killing the app mid-preview did not give the time back.
 
 
 #### Dream Log: original recollections and dated reflections
@@ -76,11 +82,25 @@ What's new in Inner 3.4
 - It has no access gate of its own. It plays no premium environment, so it is free under the current access rules.
 - Checked on Inner Lab builds before this release's merges: full 7.1-hour Recognition Only nights on a Pixel 8 Pro and an iPhone 12 Pro delivered all 10 signals on schedule with no drift, and only the cues were heard. The merged build has not been re-run on a device.
 
+#### The Induction: a first experience of Inner
+
+- The Induction is a free, optional six-minute listening experience, set in a new Sanctum world: a low drone that rises from silence, hesitant footsteps, a brown noise bed with a binaural field, a heavy body that passes overhead, four Aum chants, and one Bell that is introduced and returns. It is best with headphones, which are suggested but not required.
+- A recorded voice speaks five times: twice at the start, once just before the Bell is introduced, once just after it returns, and once at the end. The long middle is left to the sound. The same words appear on screen as the voice speaks them. The recordings ship inside the app (about 5 MB), so it never waits on the network.
+- A new visitor meets a "Welcome to Inner" screen over their first Home, offering The Induction with Listen or Skip. Skip leaves it as a "Start here" card at the top of Home; someone who has already used Inner sees that card instead. "Not now" on the card removes it. In every build it also has its own place at the top of the Lucid Journeys screen, so anyone can find and replay it there.
+- The spotlight tour waits until the welcome has been answered. The Arrive screen no longer meets a new visitor until the home tour is done, so the first opens are the welcome and the tour rather than a run of screens.
+- It is free for everyone. Nothing about Full Experience, the paywall, or any environment's access changes, and Temple remains a Full Experience environment.
+- Analytics record only that it was offered, listened to, skipped, begun, finished or left early (with how far), and that the card was dismissed. They carry no content.
+- Checked by the owner on Inner Lab builds: on a Pixel 8 Pro, the welcome screen, the card and the whole six minutes with the voice; on an iPhone 12 Pro, the whole journey with the voice, which they reported sounds the same as on Android, and, on a fresh install, the Home welcome over its overlay and the "Start here" card, which they reported look right and work as intended. The Android engine was also rendered offline and checked for clipping, for both Bells firing, and for all five voice clips starting on time.
+- Analytics, checked in PostHog on 2026-11-01: events from the owner's Lab builds arrived, each tagged `build_channel` lab and internal, so they can be excluded from public metrics. Received: `induction_offered`, `induction_listen_pressed`, `induction_started`, `induction_left_early` and `induction_completed`. Their properties are only the entry, the surface, the duration or progress, and PostHog's standard device fields; no content. `induction_skipped` and `induction_dismissed` have not been received yet, which may only mean Skip and "Not now" were not tapped on a device since analytics went in.
+- Not yet observed: those two events, and playing it from the Home card to the end on a production-flavor build.
+
 #### Interface polish (3.4)
 
 - Fixed text being clipped on some Android screens by removing a small letter spacing that made shrink-to-fit text overflow. Verified on a Pixel 8 Pro.
 - Fixed the Android first-run walkthrough highlight sitting too high since the SDK 54 update. Verified on a Pixel 8 Pro.
 - Lucid Journeys and Live Mix now fade their scrolling content as it passes behind the title and subtitle, the way Overnight Journey does, so the two no longer clash and become hard to read. Overnight Journey's title now sits at the same height as the other two. Checked on an iPhone 12 Pro and a Pixel 8 Pro.
+- Fire in Live Mix and the chamber mixer now plays with the fuller version of its own sounds: the chimney wind is easier to hear, each settling log has its own gesture, and the window answers some gusts. Before, the mixers always played the plainer version that Overnight calls Gentle. Other worlds in the mixers are unchanged. Compared by the owner as rendered audio (the mixer's Fire against the fuller version); not yet heard in the app.
+- Lucid Return, Lucid Threshold and Lucid Signal now sit under a closed "Practices" heading on the Lucid Journeys screen, so the screen opens with less on it. Tapping the heading opens the three; tapping it again closes them, and closes any practice that was open inside it. Overnight Journey, Create a Journey, Saved Journeys, Explore Live Mix and Return stay where they were. Seen by the owner on a Pixel 8 Pro and an iPhone 12 Pro.
 
 ### Privacy and analytics notes (3.4)
 
@@ -123,6 +143,10 @@ What's new in Inner 3.4
 - Complete any remaining physical-device smoke checks for Dream Log edit/export; Morning Return, voice capture, Overnight playback, signal delivery, and journey recovery have already been exercised on devices across Android and iOS.
 - Recheck the six adjusted Lucid screen headers on representative small and large devices.
 - Confirm microphone permission copy and store privacy disclosures include speech-to-text behavior.
+- The Induction ships in the next publication on both stores. It is on the `feature/induction` branch (with `main` merged in, so it also carries the Inner: Deeper paywall and the mixer previews) and is not yet part of `main`. It is described in the store-ready draft above. Open the pull request, review it, and merge it before the production builds.
+- Seen on devices from this branch (Inner Lab builds): on an iPhone 12 Pro, the Home welcome and card, the journey, the Lucid Journeys screen, the Inner: Deeper paywall and the 5-minute mixer previews; on a Pixel 8 Pro, the journey, the Lucid Journeys screen and the Inner: Deeper paywall. Before it ships, still run: the mixer previews on Android; the Induction from the Home card to the end on a production-flavor build, for both platforms; and Skip and "Not now" on a device, to see `induction_skipped` and `induction_dismissed` arrive.
+- Confirm the Induction events also arrive from a production-channel build, tagged `production` (Lab builds have been confirmed, tagged `lab`): `induction_offered`, `induction_listen_pressed`, `induction_skipped`, `induction_dismissed`, `induction_started`, `induction_completed`, `induction_left_early`. Their properties carry no content.
+- The Induction adds native audio code (Android and iOS) and about 5 MB of bundled voice, so it needs new store builds, not an over-the-air update. The App Store privacy answers and Google Play Data safety form should be unchanged (it adds no new data), but recheck them.
 - Replace this section heading with the shipped version and release date, then create a new Unreleased section above it.
 
 

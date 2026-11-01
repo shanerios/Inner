@@ -5,6 +5,7 @@ import android.app.ApplicationExitInfo
 import android.content.Context
 import android.os.Build
 import androidx.core.content.ContextCompat
+import java.io.File
 import expo.modules.kotlin.exception.CodedException
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
@@ -76,7 +77,7 @@ class InnerAudioModule : Module() {
     }
 
     AsyncFunction("setVoiceClips") { clips: List<VoiceClipRecord> ->
-      ProceduralAudioEngine.setVoiceClips(clips)
+      ProceduralAudioEngine.setVoiceClips(clips.map { materializeBundledClip(it) })
     }
 
     AsyncFunction("triggerCue") { fadeInMs: Double? ->
@@ -153,6 +154,29 @@ class InnerAudioModule : Module() {
     // Do not stop playback from OnDestroy. The Expo module can be destroyed
     // while Android recreates the Activity or React bridge; the foreground
     // service owns the active journey and must outlive that UI lifecycle.
+  }
+
+  /**
+   * A clip that ships inside the app is named by its raw resource (a bare name with no scheme), because the Expo asset
+   * download cannot always write it to the cache in a release build. Copy it to the cache here and hand the engine a
+   * file. Anything that is already a URI is passed through untouched; a name that cannot be found is left as it is, so
+   * the engine reports that clip as unreadable and the rest still load.
+   */
+  private fun materializeBundledClip(clip: VoiceClipRecord): VoiceClipRecord {
+    if (clip.uri.isEmpty() || clip.uri.contains(":")) return clip
+    return try {
+      val resourceId = context.resources.getIdentifier(clip.uri, "raw", context.packageName)
+      if (resourceId == 0) return clip
+      val target = File(context.cacheDir, "inner-voice-${clip.uri}.wav")
+      context.resources.openRawResource(resourceId).use { input -> target.outputStream().use { output -> input.copyTo(output) } }
+      VoiceClipRecord().also {
+        it.id = clip.id
+        it.uri = target.toURI().toString()
+        it.gain = clip.gain
+      }
+    } catch (_: Exception) {
+      clip
+    }
   }
 
   private fun exitReasonName(reason: Int): String = when (reason) {
