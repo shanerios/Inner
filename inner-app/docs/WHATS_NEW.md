@@ -113,7 +113,8 @@ What's new in Inner 3.4
 - Checked on a Pixel 8 Pro with an Inner Lab build: the owner saw the welcome screen and the card and approved both, and heard the six minutes of audio on the phone in the preceding Lab build. The Android engine was also rendered offline and checked for clipping, and for both Bells firing.
 - The voice ships inside the app (about 5 MB, five mono recordings), so The Induction never waits on the network. The Android engine was rendered offline with the voice and checked: all five clips load and start on time.
 - The owner confirmed on a Pixel 8 Pro with an Inner Lab build that the voice plays. Its level against the drone is still being adjusted by ear.
-- Not yet done: an iOS build and device check, confirming the Induction events arrive in PostHog, and playing it from the Home card to the end on a production-flavor build.
+- Built for iPhone and run on an iPhone 12 Pro (Inner Lab build): the owner heard the whole journey, including the voice, and reported it sounds the same as on Android. Not yet looked at on iOS: the Home welcome and card, and the Lucid Journeys layout.
+- Not yet done: confirming the Induction events arrive in PostHog, and playing it from the Home card to the end on a production-flavor build.
 
 #### Lucid Journeys: the practices sit under one heading
 
