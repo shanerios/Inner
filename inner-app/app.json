@@ -2,7 +2,7 @@
   "expo": {
     "name": "Inner",
     "slug": "inner",
-    "version": "3.4",
+    "version": "3.5",
     "runtimeVersion": {
       "policy": "appVersion"
     },
@@ -23,7 +23,7 @@
       "supportsTablet": true,
       "requireFullScreen": true,
       "bundleIdentifier": "com.getinner.app",
-      "buildNumber": "2086",
+      "buildNumber": "2087",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "UIBackgroundModes": [
@@ -38,7 +38,7 @@
         "com.android.vending.BILLING"
       ],
       "package": "com.getinner.app",
-      "versionCode": 70,
+      "versionCode": 71,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#1f233a"
