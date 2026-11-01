@@ -115,6 +115,11 @@ What's new in Inner 3.4
 - The owner confirmed on a Pixel 8 Pro with an Inner Lab build that the voice plays. Its level against the drone is still being adjusted by ear.
 - Not yet done: an iOS build and device check, confirming the Induction events arrive in PostHog, and playing it from the Home card to the end on a production-flavor build.
 
+#### Lucid Journeys: the practices sit under one heading
+
+- Lucid Return, Lucid Threshold and Lucid Signal now sit under a closed "Practices" heading on the Lucid Journeys screen, so the screen opens with less on it. Tapping the heading opens the three; tapping it again closes them. Overnight Journey, Create a Journey, Saved Journeys, Explore Live Mix and Return stay where they were, and each practice behaves as before once opened.
+- Not yet seen on a device: this change has been typechecked and the test suite passes, but the layout has not been looked at on a phone.
+
 ### Before publishing
 
 - Version numbers: `app.json` is set to 3.4 with `versionCode` 70 and `buildNumber` 2086, which are the `production`-profile builds already on Play's internal track and TestFlight (built from `main` at `068f4e6`). Both production profiles use `autoIncrement`, so the next build becomes Android 71 and iOS 2087. Do not lower these.
