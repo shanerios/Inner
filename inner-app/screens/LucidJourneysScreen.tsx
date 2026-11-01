@@ -18,7 +18,6 @@ import {
   startFailureMessage,
 } from '../core/audio';
 import { Typography } from '../core/typography';
-import { INNER_LAB_BUILD } from '../core/innerLab';
 import { INDUCTION_JOURNEY, INDUCTION_JOURNEY_ID } from '../core/audio/inductionJourney';
 import { openPaywall } from '../src/core/subscriptions/paywallController';
 import { resolveMembership } from '../src/core/subscriptions/membership';
@@ -531,7 +530,7 @@ export default function LucidJourneysScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <View style={[styles.cards, Platform.OS === 'android' && styles.androidCards]}>
-          {INNER_LAB_BUILD ? renderJourney(INDUCTION_JOURNEY) : null}
+          {renderJourney(INDUCTION_JOURNEY)}
           <View style={styles.practices}>
             <Pressable
               onPress={() => {

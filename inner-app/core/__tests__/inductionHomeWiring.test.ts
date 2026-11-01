@@ -83,4 +83,13 @@ describe('The Induction welcomes a new visitor on Home and answers the tour', ()
       expect(source).not.toMatch(/Purchases|entitlement|paywall|membership|playbackPolicy/i);
     }
   });
+
+  it('keeps The Induction on Lucid Journeys in every build, outside the Practices group, as its own place', () => {
+    const journeys = read('screens/LucidJourneysScreen.tsx');
+    expect(journeys).toContain('{renderJourney(INDUCTION_JOURNEY)}');
+    expect(journeys).not.toContain('INNER_LAB_BUILD');
+    // It is drawn above the Practices heading, and not among the three practices inside it.
+    expect(journeys.indexOf('{renderJourney(INDUCTION_JOURNEY)}')).toBeLessThan(journeys.indexOf('<Text style={[Typography.display, styles.cardTitle, styles.practicesTitle]}>Practices</Text>'));
+    expect(journeys).toContain('{[lucidReturn, lucidThreshold, lucidSignal].map(renderJourney)}');
+  });
 });

@@ -117,6 +117,7 @@ What's new in Inner 3.4
 
 #### Lucid Journeys: the practices sit under one heading
 
+- The Induction has its own place at the top of the Lucid Journeys screen in every build, so anyone can find and replay it there after the welcome or the Home card. It is free, as on Home.
 - Lucid Return, Lucid Threshold and Lucid Signal now sit under a closed "Practices" heading on the Lucid Journeys screen, so the screen opens with less on it. Tapping the heading opens the three; tapping it again closes them. Overnight Journey, Create a Journey, Saved Journeys, Explore Live Mix and Return stay where they were, and each practice behaves as before once opened.
 - Not yet seen on a device: this change has been typechecked and the test suite passes, but the layout has not been looked at on a phone.
 
