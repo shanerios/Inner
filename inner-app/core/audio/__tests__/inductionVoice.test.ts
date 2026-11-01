@@ -72,4 +72,22 @@ describe('The Induction voice', () => {
     }
     expect(ends[ends.length - 1]).toBeLessThan(INDUCTION_JOURNEY.timeline.stages.reduce((sum, item) => sum + item.durationMs, 0));
   });
+
+  it('names each bundled clip the way React Native does, which is how the native module finds it', () => {
+    const { getAndroidResourceIdentifier } = require('@react-native/assets-registry/path-support');
+    const names = Object.values(INDUCTION_VOICE_CLIP_IDS).map(id => getAndroidResourceIdentifier({
+      httpServerLocation: '/assets/assets/voice', name: id, type: 'wav', scales: [1],
+    }));
+    expect(names).toEqual(['assets_voice_inductionopen1', 'assets_voice_inductionopen2', 'assets_voice_inductioncue1', 'assets_voice_inductioncue2', 'assets_voice_inductionclose']);
+  });
+
+  it('has the Android module turn a bundled clip’s resource name into a cache file for the engine', () => {
+    const module = fs.readFileSync(path.join(ROOT, 'modules/inner-audio/android/src/main/java/expo/modules/inneraudio/InnerAudioModule.kt'), 'utf8');
+    expect(module).toContain('ProceduralAudioEngine.setVoiceClips(clips.map { materializeBundledClip(it) })');
+    expect(module).toContain('if (clip.uri.isEmpty() || clip.uri.contains(":")) return clip');
+    expect(module).toContain('context.resources.getIdentifier(clip.uri, "raw", context.packageName)');
+    const loader = fs.readFileSync(path.join(ROOT, 'core/audio/inductionVoice.ts'), 'utf8');
+    expect(loader).toContain("Platform.OS === 'android' && !(asset.uri || '').includes(':')");
+    expect(loader).toContain('getAndroidResourceIdentifier(getAssetByID(VOICE_ASSETS[id]))');
+  });
 });

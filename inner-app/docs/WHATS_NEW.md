@@ -112,7 +112,8 @@ What's new in Inner 3.4
 - Analytics record only that it was offered, listened to, skipped, begun, finished or left early (with how far), and that the card was dismissed. They carry no content.
 - Checked on a Pixel 8 Pro with an Inner Lab build: the owner saw the welcome screen and the card and approved both, and heard the six minutes of audio on the phone in the preceding Lab build. The Android engine was also rendered offline and checked for clipping, and for both Bells firing.
 - The voice ships inside the app (about 5 MB, five mono recordings), so The Induction never waits on the network. The Android engine was rendered offline with the voice and checked: all five clips load and start on time.
-- Not yet done: hearing the voice on a phone and judging its level against the drone, an iOS build and device check, confirming the Induction events arrive in PostHog, and playing it from the Home card to the end on a production-flavor build.
+- The owner confirmed on a Pixel 8 Pro with an Inner Lab build that the voice plays. Its level against the drone is still being adjusted by ear.
+- Not yet done: an iOS build and device check, confirming the Induction events arrive in PostHog, and playing it from the Home card to the end on a production-flavor build.
 
 ### Before publishing
 

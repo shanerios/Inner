@@ -419,8 +419,8 @@ export default function LucidJourneyPlayerScreen() {
         // its own sound and on-screen words.
         if (journey.id === INDUCTION_JOURNEY_ID) {
           const inductionVoice = await resolveInductionVoiceClips();
-          if (inductionVoice) {
-            await session.setVoiceClips(inductionVoice).catch(error => {
+          if (inductionVoice.clips) {
+            await session.setVoiceClips(inductionVoice.clips).catch(error => {
               void recordJourneyMemoryEvent(memorySession.id, {
                 type: 'voice_clip_missing',
                 positionMs: 0,
@@ -429,7 +429,7 @@ export default function LucidJourneyPlayerScreen() {
               });
             });
           } else {
-            void recordJourneyMemoryEvent(memorySession.id, { type: 'voice_clip_missing', positionMs: 0, reason: 'clips_unavailable' });
+            void recordJourneyMemoryEvent(memorySession.id, { type: 'voice_clip_missing', positionMs: 0, reason: 'clips_unavailable', message: inductionVoice.failure });
           }
         }
         traceStart('signal_ready');
