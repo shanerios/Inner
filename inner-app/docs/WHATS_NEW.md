@@ -2,9 +2,15 @@
 
 This is the working release-notes ledger for Inner. Add user-visible improvements to the **Unreleased** section as they land. At release time, replace `Unreleased` with the shipped version, build numbers, and date; preserve the detailed notes; then create a fresh Unreleased section.
 
-## Unreleased — Inner 3.5
+## Unreleased
 
-Current production baseline: Inner 3.4 · iOS build 2086 · Android version code 70
+Current production baseline: Inner 3.5 · iOS build 2088 · Android version code 72
+
+Add user-visible improvements here as they land.
+
+## Inner 3.5 — iOS build 2088 · Android version code 72 · Android live November 1, 2026 · iOS live November 2, 2026
+
+Built from main at `3704ca2`. Previous production baseline: Inner 3.4 · iOS build 2086 · Android version code 70
 
 ### Store-ready draft (3.5)
 
@@ -72,9 +78,10 @@ What's new in Inner 3.5
 - Devices, Inner Lab builds from the merged branch: on an iPhone 12 Pro (fresh install), the Home welcome and card, the whole Induction with its voice (which the owner reported sounds the same as on Android), the Lucid Journeys screen, the Inner: Deeper paywall and the 5-minute mixer previews; on a Pixel 8 Pro, the Home welcome and card, the whole Induction with its voice, the Lucid Journeys screen and the Inner: Deeper paywall.
 - Automated: the full jest suite passes (933 tests, 1 skipped) and a real type check is clean. The Android engine was rendered offline and checked for clipping, for both Bells firing and for all five voice clips starting on time. The iOS app builds cleanly.
 - PostHog received the Induction events from Lab builds, tagged `build_channel` lab: `induction_offered`, `induction_listen_pressed`, `induction_started`, `induction_left_early`, `induction_completed` and `induction_skipped`. A property audit found only structural values.
-- Not yet observed: the new paywall legal line for each plan (monthly, yearly, Lifetime, and a trial) on iOS and Android; the Induction from the Home card to the end on a store (production-flavor) build on both platforms; the events arriving tagged `production`; `induction_dismissed` ("Not now" on the card) in PostHog; the mixer previews on Android; the Fire change heard in the app; and a Restore Purchases that finds a live purchase.
+- Store builds (production profile; iOS via TestFlight, Android via the Play internal track), owner pass: on iPhone, a full Induction run, the paywall legal line, premium gating, the Fire change in Live Mix, and both "Skip" and "Not now" on the Home card; on Android, a full Induction run and the paywall legal line. PostHog received `induction_offered`, `induction_skipped`, `induction_dismissed`, `induction_started`, `induction_completed` and `induction_listen_pressed` tagged `build_channel` production.
+- Not observed: the mixer previews on the Android store build (the tester was subscribed, and members never see them; they were verified on iPhone as a non-member); `induction_left_early` from a production build; the paywall legal line for every plan (monthly, yearly, Lifetime, a trial) on both platforms; and a Restore Purchases that finds a live purchase.
 
-### Before publishing
+### Before publishing (completed for 3.5)
 
 - Version numbers: `app.json` is set to 3.5 with Android `versionCode` 71 and iOS `buildNumber` 2087, which two cancelled EAS builds had taken; nothing with them reached a store. Both production profiles use `autoIncrement`, so the next builds become Android 72 and iOS 2088. Do not lower these. 3.4 is live in both stores, so the next release has to be 3.5.
 - Build both platforms with the `production` profile and send them to the Play **internal** track and TestFlight first (`eas submit --profile internal`). Do not use the `production` submit profile until the device pass below is done: it sends Android straight to production review.
@@ -84,7 +91,6 @@ What's new in Inner 3.5
 - The Induction adds native audio code (Android and iOS) and about 5 MB of bundled voice, so it needs new store builds, not an over-the-air update.
 - Paste the store notes above into Play Console and App Store Connect. They use "Inner: Deeper"; the 3.4 notes below used "Full Experience".
 - Still unobserved on a device: a Restore Purchases that finds a live purchase.
-- Replace this section heading with the shipped version and release date, then create a new Unreleased section above it.
 
 ## Inner 3.4 — iOS build 2086 · Android version code 70 · built October 25, 2026 from main at `068f4e6`
 
