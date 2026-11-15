@@ -527,6 +527,21 @@
   margin: 0;
   text-align: left;
 }
+/* The Sanctum lead is two short paragraphs. */
+.sanctum-lead + .sanctum-lead {
+  margin-top: 0.85em;
+}
+
+/* Between the stacking breakpoint and ~1100px the hover labels for The Garden
+   and Dream Log fall to the left of the preview, onto this column (their left
+   edge sits at roughly 73vw - 347px). Keep the copy short of them so a label
+   never lands on a line of text; wider screens are unchanged (38ch wins). */
+@media (min-width: 901px) {
+  .sanctum-lead {
+    max-width: min(38ch, calc(73vw - 363px - clamp(20px, 6vw, 64px)));
+  }
+}
+
 
 .sanctum-portal {
   position: relative;
